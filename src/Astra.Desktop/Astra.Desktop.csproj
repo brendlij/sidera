@@ -25,5 +25,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Astra.Core\Astra.Core.csproj" />
+    <ProjectReference Include="..\Astra.Runtime\Astra.Runtime.csproj" />
   </ItemGroup>
 </Project>
