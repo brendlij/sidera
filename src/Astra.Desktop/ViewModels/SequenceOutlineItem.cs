@@ -41,6 +41,12 @@ public sealed record SequenceOutlineItem(string Title, string Detail, double Ind
                 }
 
                 break;
+            case DelayAction delay:
+                items.Add(new SequenceOutlineItem(
+                    "Wait",
+                    string.Create(CultureInfo.InvariantCulture, $"{delay.Duration.TotalSeconds:0.##}s"),
+                    indent));
+                break;
             case CameraExposureAction exposure:
                 items.Add(new SequenceOutlineItem(
                     "Exposure",

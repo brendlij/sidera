@@ -23,6 +23,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly SequenceRunner _sequenceRunner = new();
     private readonly TimeSpan _requestedExposure;
     private readonly TimeSpan _sequenceExposure;
+    private readonly TimeSpan _sequenceDelay;
     private readonly IDisposable _connectionSubscription;
     private readonly IDisposable _exposureSubscription;
     private CancellationTokenSource? _sequenceCts;
@@ -38,7 +39,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AstraRuntimeHost host,
         Action<Action> postToUi,
         TimeSpan? exposureDuration = null,
-        TimeSpan? sequenceExposureDuration = null
+        TimeSpan? sequenceExposureDuration = null,
+        TimeSpan? sequenceDelayDuration = null
     )
     {
         _camera = camera;
@@ -47,6 +49,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _postToUi = postToUi;
         _requestedExposure = exposureDuration ?? TimeSpan.FromSeconds(5);
         _sequenceExposure = sequenceExposureDuration ?? TimeSpan.FromSeconds(2);
+        _sequenceDelay = sequenceDelayDuration ?? TimeSpan.FromSeconds(1);
 
         DemoSequence = BuildDemoSequence();
         SequenceOutline = SequenceOutlineItem.From(DemoSequence);
@@ -130,7 +133,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial string SequenceStepText { get; private set; } = string.Empty;
 
-    /// <summary>The predefined demonstration sequence: Repeat × 3 of an "Imaging Block" group holding one exposure. Reused for every run.</summary>
+    /// <summary>The predefined demonstration sequence: Repeat × 3 of an "Imaging Block" group holding an exposure and a wait. Reused for every run.</summary>
     public Sequence DemoSequence { get; }
 
     /// <summary>Message of the exception that ended the last sequence run; <c>null</c> otherwise.</summary>
@@ -244,9 +247,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Sequence BuildDemoSequence()
     {
         // Equipment connection is separate from sequences: the user connects the camera first.
-        // One exposure definition inside one group, executed three times by the repeat.
+        // One group of an exposure and a wait, executed three times by the repeat.
         var exposure = new CameraExposureAction(_deviceRegistry, _camera.Id, _sequenceExposure);
-        var block = new SequenceGroup("Imaging Block", [exposure]);
+        var block = new SequenceGroup("Imaging Block", [exposure, new DelayAction(_sequenceDelay)]);
         return new Sequence("Demo", [new RepeatStep(3, block)]);
     }
 
