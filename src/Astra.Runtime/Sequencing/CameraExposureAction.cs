@@ -1,3 +1,4 @@
+using System.Globalization;
 using Astra.Core.Devices;
 using Astra.Core.Sequencing;
 using Astra.Runtime.Devices;
@@ -27,7 +28,7 @@ public sealed class CameraExposureAction : ISequenceStep
     /// <summary>The frame of the last successful execution; <c>null</c> until then, and again while a new execution runs.</summary>
     public CameraFrame? Frame { get; private set; }
 
-    public string Name => $"Exposure {Duration.TotalSeconds:0.##}s";
+    public string Name => string.Create(CultureInfo.InvariantCulture, $"Exposure {Duration.TotalSeconds:0.##}s");
 
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {

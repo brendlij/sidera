@@ -29,8 +29,7 @@ public partial class App : Application
 
             var viewModel = new MainViewModel(
                 camera,
-                host.EventBus,
-                host.StateStore,
+                host,
                 action => Dispatcher.UIThread.Post(action)
             );
 

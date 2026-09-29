@@ -41,6 +41,13 @@ public sealed class SequenceRunner
         get { lock (_gate) { return _failure; } }
     }
 
+    /// <summary>
+    /// Raised when <see cref="State"/>, <see cref="CurrentStepIndex"/> or <see cref="CurrentStepName"/>
+    /// changed: when a run starts, when each step starts, and when the run ends.
+    /// Raised on the thread running the sequence; observers read the properties themselves.
+    /// </summary>
+    public event EventHandler? Changed;
+
     public async Task RunAsync(Sequence sequence, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -58,6 +65,8 @@ public sealed class SequenceRunner
             _failure = null;
         }
 
+        RaiseChanged();
+
         try
         {
             for (var i = 0; i < sequence.Steps.Count; i++)
@@ -71,6 +80,7 @@ public sealed class SequenceRunner
                     _currentStepName = step.Name;
                 }
 
+                RaiseChanged();
                 await step.ExecuteAsync(cancellationToken);
             }
 
@@ -86,9 +96,9 @@ public sealed class SequenceRunner
             lock (_gate)
             {
                 _failure = ex;
-                _state = SequenceState.Failed;
             }
 
+            SetState(SequenceState.Failed);
             throw;
         }
     }
@@ -98,6 +108,23 @@ public sealed class SequenceRunner
         lock (_gate)
         {
             _state = state;
+        }
+
+        RaiseChanged();
+    }
+
+    private void RaiseChanged()
+    {
+        // Observers must not be able to break a sequence.
+        foreach (var handler in Changed?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler)handler)(this, EventArgs.Empty);
+            }
+            catch
+            {
+            }
         }
     }
 }

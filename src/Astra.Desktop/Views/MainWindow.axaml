@@ -8,6 +8,7 @@
         x:Class="Astra.Desktop.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
+        SizeToContent="WidthAndHeight"
         Title="Astra">
 
     <StackPanel Margin="24" Spacing="8">
@@ -32,6 +33,18 @@
             <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
         </StackPanel>
         <Button Content="Start 5s Exposure" Command="{Binding StartExposureCommand}" />
+
+        <TextBlock Text="SEQUENCE" FontSize="16" FontWeight="Bold" Margin="0,16,0,0" />
+        <TextBlock Text="{Binding SequenceState}" />
+        <TextBlock Text="{Binding SequenceStepText}" />
+        <TextBlock Text="{Binding CurrentStepName}" />
+        <TextBlock Text="{Binding SequenceError}" Foreground="Red"
+                   IsVisible="{Binding SequenceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Run Sequence" Command="{Binding RunSequenceCommand}" />
+            <Button Content="Cancel Sequence" Command="{Binding CancelSequenceCommand}"
+                    IsVisible="{Binding IsSequenceRunning}" />
+        </StackPanel>
     </StackPanel>
 
 </Window>
