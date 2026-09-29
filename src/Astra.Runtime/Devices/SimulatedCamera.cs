@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.Events;
 
 namespace Astra.Runtime.Devices;
 
@@ -9,10 +10,17 @@ public sealed class SimulatedCamera : ICamera
     private CameraExposureState _exposureState = CameraExposureState.Idle;
     private TimeSpan? _exposureDuration;
 
-    public SimulatedCamera(DeviceId id, string name = "Simulated Camera")
+    private readonly IEventPublisher? _events;
+
+    public SimulatedCamera(
+        DeviceId id,
+        string name = "Simulated Camera",
+        IEventPublisher? events = null
+    )
     {
         Id = id;
         Name = name;
+        _events = events;
     }
 
     public DeviceId Id { get; }
@@ -43,12 +51,16 @@ public sealed class SimulatedCamera : ICamera
 
         try
         {
+            await PublishConnectionStateChangedAsync(
+                DeviceConnectionState.Disconnected,
+                DeviceConnectionState.Connecting,
+                cancellationToken);
             await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
-            SetConnectionState(DeviceConnectionState.Connected);
+            await SetConnectionStateAsync(DeviceConnectionState.Connected, cancellationToken);
         }
         catch
         {
-            SetConnectionState(DeviceConnectionState.Disconnected);
+            await SetConnectionStateAsync(DeviceConnectionState.Disconnected, CancellationToken.None);
             throw;
         }
     }
@@ -62,11 +74,15 @@ public sealed class SimulatedCamera : ICamera
 
         try
         {
+            await PublishConnectionStateChangedAsync(
+                DeviceConnectionState.Connected,
+                DeviceConnectionState.Disconnecting,
+                cancellationToken);
             await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
         }
         finally
         {
-            SetConnectionState(DeviceConnectionState.Disconnected);
+            await SetConnectionStateAsync(DeviceConnectionState.Disconnected, CancellationToken.None);
         }
     }
 
@@ -117,11 +133,32 @@ public sealed class SimulatedCamera : ICamera
         }
     }
 
-    private void SetConnectionState(DeviceConnectionState state)
+    private async Task SetConnectionStateAsync(
+        DeviceConnectionState state,
+        CancellationToken cancellationToken
+    )
     {
+        DeviceConnectionState previous;
         lock (_gate)
         {
+            previous = _connectionState;
             _connectionState = state;
         }
+
+        await PublishConnectionStateChangedAsync(previous, state, cancellationToken);
+    }
+
+    private Task PublishConnectionStateChangedAsync(
+        DeviceConnectionState previous,
+        DeviceConnectionState current,
+        CancellationToken cancellationToken
+    )
+    {
+        return _events is null || previous == current
+            ? Task.CompletedTask
+            : _events.PublishAsync(
+                new DeviceConnectionStateChanged(Id, previous, current),
+                cancellationToken
+            );
     }
 }
