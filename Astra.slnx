@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Astra.Core/Astra.Core.csproj" />
+    <Project Path="src/Astra.Desktop/Astra.Desktop.csproj" />
     <Project Path="src/Astra.Runtime/Astra.Runtime.csproj" />
   </Folder>
 </Solution>
