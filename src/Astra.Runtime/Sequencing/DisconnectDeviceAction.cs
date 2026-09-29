@@ -18,8 +18,9 @@ public sealed class DisconnectDeviceAction : ISequenceStep
 
     public string Name => $"Disconnect {_deviceId}";
 
-    public Task ExecuteAsync(CancellationToken cancellationToken)
+    public async Task<SequenceStepResult> ExecuteAsync(CancellationToken cancellationToken)
     {
-        return DeviceLookup.Resolve<IDevice>(_registry, _deviceId, "device").DisconnectAsync(cancellationToken);
+        await DeviceLookup.Resolve<IDevice>(_registry, _deviceId, "device").DisconnectAsync(cancellationToken);
+        return new SequenceStepResult();
     }
 }

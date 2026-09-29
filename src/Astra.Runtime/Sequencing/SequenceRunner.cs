@@ -48,6 +48,13 @@ public sealed class SequenceRunner
     /// </summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Raised after a step has completed successfully and before the next step starts, with the index,
+    /// name and result of that execution. Never raised for a step that threw or was cancelled.
+    /// Raised on the thread running the sequence.
+    /// </summary>
+    public event EventHandler<SequenceStepCompletedEventArgs>? StepCompleted;
+
     public async Task RunAsync(Sequence sequence, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -81,7 +88,9 @@ public sealed class SequenceRunner
                 }
 
                 RaiseChanged();
-                await step.ExecuteAsync(cancellationToken);
+
+                var result = await step.ExecuteAsync(cancellationToken);
+                RaiseStepCompleted(new SequenceStepCompletedEventArgs(i, step.Name, result));
             }
 
             SetState(SequenceState.Completed);
@@ -113,14 +122,28 @@ public sealed class SequenceRunner
         RaiseChanged();
     }
 
+    // Observers must not be able to break a sequence, so each handler is isolated.
     private void RaiseChanged()
     {
-        // Observers must not be able to break a sequence.
         foreach (var handler in Changed?.GetInvocationList() ?? [])
         {
             try
             {
                 ((EventHandler)handler)(this, EventArgs.Empty);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private void RaiseStepCompleted(SequenceStepCompletedEventArgs args)
+    {
+        foreach (var handler in StepCompleted?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<SequenceStepCompletedEventArgs>)handler)(this, args);
             }
             catch
             {

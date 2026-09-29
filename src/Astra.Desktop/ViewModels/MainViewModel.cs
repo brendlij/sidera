@@ -50,6 +50,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         _camera.ExposureProgressChanged += OnExposureProgressChanged;
         _sequenceRunner.Changed += OnSequenceChanged;
+        _sequenceRunner.StepCompleted += OnSequenceStepCompleted;
         _connectionSubscription = host.EventBus.Subscribe<DeviceConnectionStateChanged>(OnConnectionStateChanged);
         _exposureSubscription = host.EventBus.Subscribe<CameraExposureStateChanged>(OnExposureStateChanged);
     }
@@ -208,6 +209,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         CancelSequence();
         _sequenceRunner.Changed -= OnSequenceChanged;
+        _sequenceRunner.StepCompleted -= OnSequenceStepCompleted;
         _camera.ExposureProgressChanged -= OnExposureProgressChanged;
         _connectionSubscription.Dispose();
         _exposureSubscription.Dispose();
@@ -227,6 +229,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void OnSequenceChanged(object? sender, EventArgs e)
     {
         _postToUi(RefreshSequence);
+    }
+
+    // Raised on the sequence's thread once per successfully completed step.
+    private void OnSequenceStepCompleted(object? sender, SequenceStepCompletedEventArgs e)
+    {
+        if (e.Result.Payload is CameraFrame frame)
+        {
+            _postToUi(() => LastFrame = frame);
+        }
     }
 
     private void RefreshSequence()

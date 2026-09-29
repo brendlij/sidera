@@ -4,5 +4,6 @@ public interface ISequenceStep
 {
     string Name { get; }
 
-    Task ExecuteAsync(CancellationToken cancellationToken);
+    /// <summary>Executes the step once and returns the result of that execution.</summary>
+    Task<SequenceStepResult> ExecuteAsync(CancellationToken cancellationToken);
 }

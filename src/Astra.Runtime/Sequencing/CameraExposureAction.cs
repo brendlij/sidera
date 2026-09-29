@@ -25,16 +25,14 @@ public sealed class CameraExposureAction : ISequenceStep
 
     public TimeSpan Duration { get; }
 
-    /// <summary>The frame of the last successful execution; <c>null</c> until then, and again while a new execution runs.</summary>
-    public CameraFrame? Frame { get; private set; }
-
     public string Name => string.Create(CultureInfo.InvariantCulture, $"Exposure {Duration.TotalSeconds:0.##}s");
 
-    public async Task ExecuteAsync(CancellationToken cancellationToken)
+    /// <summary>Returns a result whose payload is the <see cref="CameraFrame"/> of this execution.</summary>
+    public async Task<SequenceStepResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         var camera = DeviceLookup.Resolve<ICamera>(_registry, _deviceId, "camera");
 
-        Frame = null;
-        Frame = await camera.ExposeAsync(Duration, cancellationToken);
+        var frame = await camera.ExposeAsync(Duration, cancellationToken);
+        return new SequenceStepResult(frame);
     }
 }

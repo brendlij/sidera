@@ -120,6 +120,53 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task SequenceExposures_UpdateLastFrameAfterEachStep()
+    {
+        var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(30));
+        Assert.Null(vm.LastFrame);
+        var frames = new List<CameraFrame?>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.LastFrame))
+            {
+                frames.Add(vm.LastFrame);
+            }
+        };
+
+        await vm.RunSequenceCommand.ExecuteAsync(null);
+
+        Assert.Equal(3, frames.Count);
+        Assert.All(frames, f => Assert.NotNull(f));
+        Assert.Equal(3, frames.Distinct().Count());
+        Assert.Same(frames[2], vm.LastFrame);
+    }
+
+    [Fact]
+    public async Task SequenceFrame_IsShownBeforeTheSequenceEnds()
+    {
+        var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(300));
+
+        var run = vm.RunSequenceCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.LastFrame is not null);
+
+        Assert.True(vm.IsSequenceRunning);
+        await run;
+    }
+
+    [Fact]
+    public async Task CancelledSequenceExposure_ProducesNoFrame()
+    {
+        var (vm, camera) = await CreateConnected(TimeSpan.FromSeconds(10));
+
+        var run = vm.RunSequenceCommand.ExecuteAsync(null);
+        await WaitUntil(() => camera.ExposureState == CameraExposureState.Exposing);
+        vm.CancelSequenceCommand.Execute(null);
+        await run;
+
+        Assert.Null(vm.LastFrame);
+    }
+
+    [Fact]
     public async Task CancelSequence_StopsRunAndRestoresControls()
     {
         var (vm, camera) = await CreateConnected(TimeSpan.FromSeconds(10));

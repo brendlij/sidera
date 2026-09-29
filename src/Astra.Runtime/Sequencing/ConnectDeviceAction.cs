@@ -18,8 +18,9 @@ public sealed class ConnectDeviceAction : ISequenceStep
 
     public string Name => $"Connect {_deviceId}";
 
-    public Task ExecuteAsync(CancellationToken cancellationToken)
+    public async Task<SequenceStepResult> ExecuteAsync(CancellationToken cancellationToken)
     {
-        return DeviceLookup.Resolve<IDevice>(_registry, _deviceId, "device").ConnectAsync(cancellationToken);
+        await DeviceLookup.Resolve<IDevice>(_registry, _deviceId, "device").ConnectAsync(cancellationToken);
+        return new SequenceStepResult();
     }
 }
