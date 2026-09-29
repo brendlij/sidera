@@ -67,17 +67,19 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void DemoSequence_IsOneRepeatOfOneExposureDefinition()
+    public void DemoSequence_IsRepeatOfSequenceGroupOfExposure()
     {
         var (vm, _) = Create();
 
         var repeat = Assert.IsType<RepeatStep>(Assert.Single(vm.DemoSequence.Steps));
         Assert.Equal(3, repeat.Count);
-        Assert.IsType<CameraExposureAction>(repeat.Child);
+        var group = Assert.IsType<SequenceGroup>(repeat.Child);
+        Assert.Equal("Imaging Block", group.Name);
+        Assert.IsType<CameraExposureAction>(Assert.Single(group.Children));
     }
 
     [Fact]
-    public void SequenceOutline_DescribesRepeatWithIndentedExposure()
+    public void SequenceOutline_DescribesRepeatGroupAndExposureWithGrowingIndent()
     {
         var (vm, _) = Create();
 
@@ -91,47 +93,35 @@ public class MainViewModelTests
             },
             item =>
             {
+                Assert.Equal("Imaging Block", item.Title);
+                Assert.Equal(string.Empty, item.Detail);
+                Assert.True(item.IndentWidth > 0);
+            },
+            item =>
+            {
                 Assert.Equal("Exposure", item.Title);
                 Assert.Equal("2s", item.Detail);
-                Assert.True(item.IndentWidth > 0);
+                Assert.True(item.IndentWidth > vm.SequenceOutline[1].IndentWidth);
             });
     }
 
     [Fact]
-    public async Task Sequence_ExposesContainerIterationAndStepForNestedExecution()
+    public async Task Sequence_ExposesHierarchyOfRunningStep()
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(400));
 
         var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.SequenceIterationText == "2 / 3");
+        await WaitUntil(() => vm.SequenceStepText.StartsWith("Repeat × 3 · 2 / 3") && vm.CurrentStepName == "Exposure 0.4s");
 
-        Assert.True(vm.HasSequenceContainer);
-        Assert.Equal("Repeat × 3", vm.SequenceContainerName);
-        Assert.Equal("Exposure 0.4s", vm.CurrentStepName);
+        Assert.Equal(
+            new[] { "Repeat × 3 · 2 / 3", "Imaging Block", "Exposure 0.4s" },
+            vm.SequenceStatusLines.Select(l => l.Text));
+        Assert.Equal(new[] { true, true, false }, vm.SequenceStatusLines.Select(l => l.IsContainer));
         await run;
 
         Assert.True(vm.IsSequenceCompleted);
         Assert.False(vm.IsSequenceFailed);
         Assert.False(vm.IsSequenceCancelled);
-    }
-
-    [Fact]
-    public async Task Sequence_DoesNotShowContainerStepAsIterationWhileNoChildIsActive()
-    {
-        var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(30));
-        var iterations = new List<string>();
-        vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(MainViewModel.SequenceIterationText))
-            {
-                iterations.Add(vm.SequenceIterationText);
-            }
-        };
-
-        await vm.RunSequenceCommand.ExecuteAsync(null);
-
-        // The top-level Repeat alone (a single step) never produces "1 / 1".
-        Assert.Equal(new[] { "1 / 3", "2 / 3", "3 / 3" }, iterations);
     }
 
     [Fact]
@@ -142,7 +132,7 @@ public class MainViewModelTests
         await vm.RunSequenceCommand.ExecuteAsync(null);
 
         Assert.Equal(SequenceState.Completed, vm.SequenceState);
-        Assert.Equal("Repeat × 3 · 3 / 3", vm.SequenceStepText);
+        Assert.Equal("Repeat × 3 · 3 / 3 › Imaging Block › Exposure 0.03s", vm.SequenceStepText);
         Assert.Equal("Exposure 0.03s", vm.CurrentStepName);
         Assert.Null(vm.SequenceError);
         Assert.Equal(DeviceConnectionState.Connected, camera.ConnectionState);
@@ -155,7 +145,7 @@ public class MainViewModelTests
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(400));
 
         var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.SequenceStepText == "Repeat × 3 · 2 / 3");
+        await WaitUntil(() => vm.SequenceStepText.StartsWith("Repeat × 3 · 2 / 3"));
 
         Assert.Equal(SequenceState.Running, vm.SequenceState);
         Assert.Equal("Exposure 0.4s", vm.CurrentStepName);
@@ -184,9 +174,14 @@ public class MainViewModelTests
 
         await vm.RunSequenceCommand.ExecuteAsync(null);
 
-        Assert.Equal(
-            new[] { "Step 1 / 1", "Repeat × 3 · 1 / 3", "Repeat × 3 · 2 / 3", "Repeat × 3 · 3 / 3" },
-            shown);
+        // A lone child never adds "1 / 1" noise, and the iterations appear in order.
+        Assert.DoesNotContain(shown, text => text.Contains("1 / 1"));
+        var iterations = shown
+            .Select(text => new[] { "1 / 3", "2 / 3", "3 / 3" }.FirstOrDefault(i => text.Contains($"· {i}")))
+            .Where(i => i is not null)
+            .Distinct()
+            .ToArray();
+        Assert.Equal(new[] { "1 / 3", "2 / 3", "3 / 3" }, iterations);
     }
 
     [Fact]
@@ -278,7 +273,7 @@ public class MainViewModelTests
         var (vm, camera) = await CreateConnected(TimeSpan.FromSeconds(10));
 
         var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.SequenceStepText == "Repeat × 3 · 1 / 3" && camera.ExposureState == CameraExposureState.Exposing);
+        await WaitUntil(() => vm.SequenceStepText.StartsWith("Repeat × 3 · 1 / 3") && camera.ExposureState == CameraExposureState.Exposing);
         vm.CancelSequenceCommand.Execute(null);
         await run;
 
@@ -304,7 +299,7 @@ public class MainViewModelTests
 
         Assert.Equal(SequenceState.Failed, vm.SequenceState);
         Assert.Contains("is not registered", vm.SequenceError);
-        Assert.Equal("Repeat × 3 · 1 / 3", vm.SequenceStepText);
+        Assert.StartsWith("Repeat × 3 · 1 / 3", vm.SequenceStepText);
         AssertManualControlsAvailableForConnectedCamera(vm);
     }
 

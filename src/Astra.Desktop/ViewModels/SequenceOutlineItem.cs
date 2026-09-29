@@ -33,6 +33,14 @@ public sealed record SequenceOutlineItem(string Title, string Detail, double Ind
                 items.Add(new SequenceOutlineItem("Repeat", $"×{repeat.Count}", indent));
                 Add(items, repeat.Child, depth + 1);
                 break;
+            case SequenceGroup group:
+                items.Add(new SequenceOutlineItem(group.Name, string.Empty, indent));
+                foreach (var child in group.Children)
+                {
+                    Add(items, child, depth + 1);
+                }
+
+                break;
             case CameraExposureAction exposure:
                 items.Add(new SequenceOutlineItem(
                     "Exposure",

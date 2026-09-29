@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Astra.Core.Devices;
@@ -111,16 +112,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial string? CurrentStepName { get; private set; }
 
-    /// <summary>Name of the container around the current step, e.g. "Repeat × 3"; <c>null</c> for a top-level step.</summary>
+    /// <summary>The containers around the running step and the step itself, outermost first.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSequenceContainer))]
-    public partial string? SequenceContainerName { get; private set; }
-
-    /// <summary>Position within the container ("2 / 3"), or within the sequence for a top-level step of several; else empty.</summary>
-    [ObservableProperty]
-    public partial string SequenceIterationText { get; private set; } = string.Empty;
-
-    public bool HasSequenceContainer => SequenceContainerName is not null;
+    public partial IReadOnlyList<SequenceStatusLine> SequenceStatusLines { get; private set; } = [];
 
     public bool IsSequenceCompleted => SequenceState == SequenceState.Completed;
     public bool IsSequenceCancelled => SequenceState == SequenceState.Cancelled;
@@ -130,13 +124,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<SequenceOutlineItem> SequenceOutline { get; }
 
     /// <summary>
-    /// Where the sequence is: "Repeat × 3 · 2 / 3" inside a repeat, "Step 2 / 5" for a top-level step;
+    /// <see cref="SequenceStatusLines"/> on one line, e.g. "Repeat × 3 · 2 / 3 › Imaging Block › Exposure 2s";
     /// empty until the first step has started.
     /// </summary>
     [ObservableProperty]
     public partial string SequenceStepText { get; private set; } = string.Empty;
 
-    /// <summary>The predefined demonstration sequence: Repeat × 3 of one exposure. Reused for every run.</summary>
+    /// <summary>The predefined demonstration sequence: Repeat × 3 of an "Imaging Block" group holding one exposure. Reused for every run.</summary>
     public Sequence DemoSequence { get; }
 
     /// <summary>Message of the exception that ended the last sequence run; <c>null</c> otherwise.</summary>
@@ -250,9 +244,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Sequence BuildDemoSequence()
     {
         // Equipment connection is separate from sequences: the user connects the camera first.
-        // One exposure definition, executed three times by the repeat.
+        // One exposure definition inside one group, executed three times by the repeat.
         var exposure = new CameraExposureAction(_deviceRegistry, _camera.Id, _sequenceExposure);
-        return new Sequence("Demo", [new RepeatStep(3, exposure)]);
+        var block = new SequenceGroup("Imaging Block", [exposure]);
+        return new Sequence("Demo", [new RepeatStep(3, block)]);
     }
 
     private bool CanConnect() =>
@@ -314,19 +309,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SequenceState = _sequenceRunner.State;
         var position = _sequenceRunner.CurrentPosition;
         CurrentStepName = position?.StepName;
-        SequenceStepText = position switch
+        var lines = SequenceStatusLine.From(position);
+        var text = string.Join(" › ", lines.Select(line => line.Text));
+        if (text != SequenceStepText)
         {
-            null => string.Empty,
-            { Parent: { } parent } => $"{parent.StepName} · {position.Index + 1} / {position.Count}",
-            _ => $"Step {position.Index + 1} / {position.Count}",
-        };
-        SequenceContainerName = position?.Parent?.StepName;
-        SequenceIterationText = position switch
-        {
-            null => string.Empty,
-            { Parent: not null } or { Count: > 1 } => $"{position.Index + 1} / {position.Count}",
-            _ => string.Empty,
-        };
+            SequenceStatusLines = lines;
+            SequenceStepText = text;
+        }
+
         IsSequenceRunning = _sequenceRunner.IsRunning;
     }
 

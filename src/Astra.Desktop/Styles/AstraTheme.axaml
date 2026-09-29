@@ -29,6 +29,10 @@
         <Setter Property="Foreground" Value="{DynamicResource AstraMuted}" />
         <Setter Property="FontSize" Value="12" />
     </Style>
+    <Style Selector="TextBlock.current">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="TextBlock.title">
         <Setter Property="FontSize" Value="17" />
         <Setter Property="FontWeight" Value="SemiBold" />

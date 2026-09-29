@@ -127,10 +127,15 @@
 
                     <!-- Live execution: nested position, current step, exposure progress -->
                     <StackPanel Spacing="6" IsVisible="{Binding IsSequenceRunning}">
-                        <TextBlock Classes="muted" Text="{Binding SequenceContainerName}"
-                                   IsVisible="{Binding HasSequenceContainer}" />
-                        <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding SequenceIterationText}" />
-                        <TextBlock Text="{Binding CurrentStepName}" />
+                        <ItemsControl ItemsSource="{Binding SequenceStatusLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SequenceStatusLine">
+                                    <TextBlock Text="{Binding Text}" Margin="0,2"
+                                               Classes.muted="{Binding IsContainer}"
+                                               Classes.current="{Binding !IsContainer}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0" IsVisible="{Binding IsExposing}">
                             <ProgressBar Minimum="0" Maximum="1" Value="{Binding ExposureProgress}"
                                          VerticalAlignment="Center" />
