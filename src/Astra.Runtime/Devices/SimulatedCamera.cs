@@ -67,7 +67,23 @@ public sealed class SimulatedCamera : ICamera
 
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
-        if (!TryTransition(DeviceConnectionState.Connected, DeviceConnectionState.Disconnecting))
+        bool disconnecting;
+        lock (_gate)
+        {
+            if (_connectionState == DeviceConnectionState.Connected
+                && _exposureState == CameraExposureState.Exposing)
+            {
+                throw new InvalidOperationException("Cannot disconnect while an exposure is running.");
+            }
+
+            disconnecting = _connectionState == DeviceConnectionState.Connected;
+            if (disconnecting)
+            {
+                _connectionState = DeviceConnectionState.Disconnecting;
+            }
+        }
+
+        if (!disconnecting)
         {
             return;
         }
@@ -108,6 +124,10 @@ public sealed class SimulatedCamera : ICamera
 
         try
         {
+            await PublishExposureStateChangedAsync(
+                CameraExposureState.Idle,
+                CameraExposureState.Exposing,
+                cancellationToken);
             await Task.Delay(duration, cancellationToken);
         }
         finally
@@ -116,7 +136,26 @@ public sealed class SimulatedCamera : ICamera
             {
                 _exposureState = CameraExposureState.Idle;
             }
+
+            await PublishExposureStateChangedAsync(
+                CameraExposureState.Exposing,
+                CameraExposureState.Idle,
+                CancellationToken.None);
         }
+    }
+
+    private Task PublishExposureStateChangedAsync(
+        CameraExposureState previous,
+        CameraExposureState current,
+        CancellationToken cancellationToken
+    )
+    {
+        return _events is null
+            ? Task.CompletedTask
+            : _events.PublishAsync(
+                new CameraExposureStateChanged(Id, previous, current),
+                cancellationToken
+            );
     }
 
     private bool TryTransition(DeviceConnectionState from, DeviceConnectionState to)

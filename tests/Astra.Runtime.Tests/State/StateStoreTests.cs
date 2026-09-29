@@ -85,6 +85,25 @@ public class StateStoreTests
     }
 
     [Fact]
+    public async Task ExposureEvents_UpdateExposureStateAndKeepConnectionState()
+    {
+        var bus = new EventBus();
+        using var store = new StateStore(bus);
+        await Publish(bus, Cam1, DeviceConnectionState.Disconnected, DeviceConnectionState.Connected);
+
+        await bus.PublishAsync(new CameraExposureStateChanged(Cam1, CameraExposureState.Idle, CameraExposureState.Exposing));
+
+        Assert.True(store.TryGet(Cam1, out var exposing));
+        Assert.Equal(new DeviceState(Cam1, DeviceConnectionState.Connected, CameraExposureState.Exposing), exposing);
+
+        await bus.PublishAsync(new CameraExposureStateChanged(Cam1, CameraExposureState.Exposing, CameraExposureState.Idle));
+        await Publish(bus, Cam1, DeviceConnectionState.Connected, DeviceConnectionState.Disconnecting);
+
+        Assert.True(store.TryGet(Cam1, out var idle));
+        Assert.Equal(new DeviceState(Cam1, DeviceConnectionState.Disconnecting, CameraExposureState.Idle), idle);
+    }
+
+    [Fact]
     public async Task Dispose_StopsUpdates()
     {
         var bus = new EventBus();

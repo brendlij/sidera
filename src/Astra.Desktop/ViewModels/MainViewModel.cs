@@ -15,7 +15,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly StateStore _stateStore;
     private readonly Action<Action> _postToUi;
     private readonly TimeSpan _exposureDuration;
-    private readonly IDisposable _subscription;
+    private readonly IDisposable _connectionSubscription;
+    private readonly IDisposable _exposureSubscription;
 
     /// <param name="postToUi">
     /// Marshals an action onto the UI thread. EventBus handlers run on whichever thread
@@ -34,10 +35,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _postToUi = postToUi;
         _exposureDuration = exposureDuration ?? TimeSpan.FromSeconds(5);
 
-        RefreshConnectionState();
-        ExposureState = camera.ExposureState;
+        RefreshState();
 
-        _subscription = eventBus.Subscribe<DeviceConnectionStateChanged>(OnConnectionStateChanged);
+        _connectionSubscription = eventBus.Subscribe<DeviceConnectionStateChanged>(OnConnectionStateChanged);
+        _exposureSubscription = eventBus.Subscribe<CameraExposureStateChanged>(OnExposureStateChanged);
     }
 
     public string CameraName => _camera.Name;
@@ -49,6 +50,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public partial DeviceConnectionState ConnectionState { get; private set; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectCommand))]
     [NotifyCanExecuteChangedFor(nameof(StartExposureCommand))]
     public partial CameraExposureState ExposureState { get; private set; }
 
@@ -59,25 +61,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Task DisconnectAsync() => _camera.DisconnectAsync();
 
     [RelayCommand(CanExecute = nameof(CanStartExposure))]
-    private async Task StartExposureAsync()
-    {
-        // The camera switches to Exposing synchronously before its first await.
-        var exposure = _camera.ExposeAsync(_exposureDuration);
-        ExposureState = _camera.ExposureState;
-
-        try
-        {
-            await exposure;
-        }
-        finally
-        {
-            ExposureState = _camera.ExposureState;
-        }
-    }
+    private Task StartExposureAsync() => _camera.ExposeAsync(_exposureDuration);
 
     private bool CanConnect() => ConnectionState == DeviceConnectionState.Disconnected;
 
-    private bool CanDisconnect() => ConnectionState == DeviceConnectionState.Connected;
+    private bool CanDisconnect() =>
+        ConnectionState == DeviceConnectionState.Connected
+        && ExposureState == CameraExposureState.Idle;
 
     private bool CanStartExposure() =>
         ConnectionState == DeviceConnectionState.Connected
@@ -85,26 +75,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _subscription.Dispose();
+        _connectionSubscription.Dispose();
+        _exposureSubscription.Dispose();
     }
 
     private Task OnConnectionStateChanged(
         DeviceConnectionStateChanged e,
         CancellationToken cancellationToken
-    )
+    ) => PostRefreshFor(e.DeviceId);
+
+    private Task OnExposureStateChanged(
+        CameraExposureStateChanged e,
+        CancellationToken cancellationToken
+    ) => PostRefreshFor(e.DeviceId);
+
+    private Task PostRefreshFor(DeviceId deviceId)
     {
-        if (e.DeviceId == _camera.Id)
+        if (deviceId == _camera.Id)
         {
-            _postToUi(RefreshConnectionState);
+            _postToUi(RefreshState);
         }
 
         return Task.CompletedTask;
     }
 
-    private void RefreshConnectionState()
+    private void RefreshState()
     {
-        ConnectionState = _stateStore.TryGet(_camera.Id, out var state)
-            ? state!.ConnectionState
-            : _camera.ConnectionState;
+        if (_stateStore.TryGet(_camera.Id, out var state))
+        {
+            ConnectionState = state!.ConnectionState;
+            ExposureState = state.ExposureState ?? CameraExposureState.Idle;
+        }
+        else
+        {
+            ConnectionState = _camera.ConnectionState;
+            ExposureState = _camera.ExposureState;
+        }
     }
 }

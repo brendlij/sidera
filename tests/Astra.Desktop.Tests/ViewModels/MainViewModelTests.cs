@@ -74,6 +74,22 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Disconnect_IsDisabledWhileExposing()
+    {
+        var (vm, camera) = Create(TimeSpan.FromMilliseconds(300));
+        await vm.ConnectCommand.ExecuteAsync(null);
+
+        var running = vm.StartExposureCommand.ExecuteAsync(null);
+
+        Assert.False(vm.DisconnectCommand.CanExecute(null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => camera.DisconnectAsync());
+
+        await running;
+
+        Assert.True(vm.DisconnectCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task ConnectionChanges_AreMarshalledThroughUiDispatcher()
     {
         var bus = new EventBus();
