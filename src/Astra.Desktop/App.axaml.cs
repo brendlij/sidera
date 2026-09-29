@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -5,14 +6,14 @@ using Avalonia.Threading;
 using Astra.Core.Devices;
 using Astra.Desktop.ViewModels;
 using Astra.Desktop.Views;
-using Astra.Runtime.Devices;
-using Astra.Runtime.Events;
-using Astra.Runtime.State;
+using Astra.Runtime;
 
 namespace Astra.Desktop;
 
 public partial class App : Application
 {
+    private bool _shutdownComplete;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -22,21 +23,43 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // StateStore must subscribe before the view model so it is updated first.
-            var eventBus = new EventBus();
-            var stateStore = new StateStore(eventBus);
-            var registry = new DeviceRegistry();
-            var camera = new SimulatedCamera(new DeviceId("camera.main"), "Main Camera", eventBus);
-            registry.Register(camera);
+            var host = new AstraRuntimeHost();
+            var camera = host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
+            host.Start();
 
-            desktop.MainWindow = new MainWindow
+            var viewModel = new MainViewModel(
+                camera,
+                host.EventBus,
+                host.StateStore,
+                action => Dispatcher.UIThread.Post(action)
+            );
+
+            desktop.MainWindow = new MainWindow { DataContext = viewModel };
+
+            // Stop the runtime asynchronously without blocking the UI thread, then shut down for real.
+            desktop.ShutdownRequested += async (_, e) =>
             {
-                DataContext = new MainViewModel(
-                    camera,
-                    eventBus,
-                    stateStore,
-                    action => Dispatcher.UIThread.Post(action)
-                ),
+                if (_shutdownComplete)
+                {
+                    return;
+                }
+
+                e.Cancel = true;
+                viewModel.Dispose();
+
+                try
+                {
+                    await host.StopAsync();
+                }
+                catch (Exception)
+                {
+                    // Nothing more to do at exit; every device was still tried.
+                }
+
+                await host.DisposeAsync();
+
+                _shutdownComplete = true;
+                desktop.Shutdown();
             };
         }
 
