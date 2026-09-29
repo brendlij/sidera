@@ -1,9 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Astra.Desktop.ViewModels"
+        xmlns:conv="using:Astra.Desktop.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+        mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="600"
         x:Class="Astra.Desktop.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
@@ -14,6 +15,11 @@
         <TextBlock Text="{Binding CameraName}" FontSize="16" Margin="0,12,0,0" />
         <TextBlock Text="{Binding ConnectionState, StringFormat='Connection: {0}'}" />
         <TextBlock Text="{Binding ExposureState, StringFormat='Exposure: {0}'}" />
+
+        <Border Background="Black" Width="400" Height="300" HorizontalAlignment="Left" Margin="0,8,0,0">
+            <Image Source="{Binding LastFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}"
+                   Stretch="Uniform" />
+        </Border>
 
         <StackPanel IsVisible="{Binding IsExposing}" Spacing="4">
             <TextBlock Text="{Binding ExposureSummary}" />

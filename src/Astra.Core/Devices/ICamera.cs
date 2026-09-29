@@ -25,5 +25,9 @@ public interface ICamera : IDevice
     /// </summary>
     event EventHandler? ExposureProgressChanged;
 
-    Task ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Runs an exposure and returns the resulting frame. A cancelled exposure throws
+    /// <see cref="OperationCanceledException"/> and produces no frame.
+    /// </summary>
+    Task<CameraFrame> ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default);
 }

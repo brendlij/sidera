@@ -15,16 +15,23 @@ public sealed class SimulatedCamera : ICamera
     private TimeSpan? _exposureDuration;
 
     private readonly IEventPublisher? _events;
+    private readonly SyntheticFrameGenerator _frameGenerator;
 
+    /// <param name="seed">
+    /// Seed for the simulated sky. With a seed the sequence of frames is reproducible;
+    /// without one every camera instance produces a different sky.
+    /// </param>
     public SimulatedCamera(
         DeviceId id,
         string name = "Simulated Camera",
-        IEventPublisher? events = null
+        IEventPublisher? events = null,
+        int? seed = null
     )
     {
         Id = id;
         Name = name;
         _events = events;
+        _frameGenerator = new SyntheticFrameGenerator(seed is { } s ? new Random(s) : new Random());
     }
 
     public DeviceId Id { get; }
@@ -126,7 +133,7 @@ public sealed class SimulatedCamera : ICamera
         }
     }
 
-    public async Task ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default)
+    public async Task<CameraFrame> ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
 
@@ -172,7 +179,9 @@ public sealed class SimulatedCamera : ICamera
             }
 
             SetElapsed(duration);
+            var frame = _frameGenerator.Generate(duration);
             completed = true;
+            return frame;
         }
         finally
         {

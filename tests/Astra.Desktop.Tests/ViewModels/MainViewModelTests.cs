@@ -117,6 +117,20 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task CompletedExposure_StoresFrame()
+    {
+        var (vm, _) = Create(TimeSpan.FromMilliseconds(50));
+        await vm.ConnectCommand.ExecuteAsync(null);
+        Assert.Null(vm.LastFrame);
+
+        await vm.StartExposureCommand.ExecuteAsync(null);
+
+        Assert.NotNull(vm.LastFrame);
+        Assert.Equal(800, vm.LastFrame!.Width);
+        Assert.Equal(TimeSpan.FromMilliseconds(50), vm.LastFrame.ExposureDuration);
+    }
+
+    [Fact]
     public async Task ConnectionChanges_AreMarshalledThroughUiDispatcher()
     {
         var bus = new EventBus();

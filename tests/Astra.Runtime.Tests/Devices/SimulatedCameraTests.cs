@@ -144,6 +144,48 @@ public class SimulatedCameraTests
     }
 
     [Fact]
+    public async Task Exposure_ReturnsFrameWithExpectedShape()
+    {
+        var (camera, _) = await CreateConnected();
+        var duration = TimeSpan.FromMilliseconds(50);
+
+        var frame = await camera.ExposeAsync(duration);
+
+        Assert.Equal(800, frame.Width);
+        Assert.Equal(600, frame.Height);
+        Assert.Equal(800 * 600, frame.Pixels.Length);
+        Assert.Equal(duration, frame.ExposureDuration);
+        Assert.Contains(frame.Pixels.ToArray(), p => p != 0);
+        Assert.Contains(frame.Pixels.ToArray(), p => p > 10_000); // at least one star
+    }
+
+    [Fact]
+    public async Task SameSeed_ProducesIdenticalFrames()
+    {
+        var first = new SimulatedCamera(new DeviceId("a"), seed: 7);
+        var second = new SimulatedCamera(new DeviceId("b"), seed: 7);
+        await first.ConnectAsync();
+        await second.ConnectAsync();
+
+        var frameA = await first.ExposeAsync(TimeSpan.FromMilliseconds(20));
+        var frameB = await second.ExposeAsync(TimeSpan.FromMilliseconds(20));
+
+        Assert.True(frameA.Pixels.Span.SequenceEqual(frameB.Pixels.Span));
+    }
+
+    [Fact]
+    public async Task CancelledExposure_ProducesNoFrame()
+    {
+        var (camera, _) = await CreateConnected();
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var exposure = camera.ExposeAsync(TimeSpan.FromSeconds(10), cts.Token);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => exposure);
+        Assert.True(exposure.IsCanceled);
+    }
+
+    [Fact]
     public async Task Progress_StartsAtZero()
     {
         var (camera, _) = await CreateConnected();

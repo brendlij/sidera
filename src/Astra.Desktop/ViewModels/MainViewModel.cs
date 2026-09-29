@@ -69,6 +69,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial double ExposureProgress { get; private set; }
 
+    /// <summary>Raw result of the last successful exposure; <c>null</c> until there is one.</summary>
+    [ObservableProperty]
+    public partial CameraFrame? LastFrame { get; private set; }
+
     public bool IsExposing => ExposureState == CameraExposureState.Exposing;
 
     public string ExposureSummary =>
@@ -81,7 +85,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Task DisconnectAsync() => _camera.DisconnectAsync();
 
     [RelayCommand(CanExecute = nameof(CanStartExposure))]
-    private Task StartExposureAsync() => _camera.ExposeAsync(_requestedExposure);
+    private async Task StartExposureAsync()
+    {
+        LastFrame = await _camera.ExposeAsync(_requestedExposure);
+    }
 
     private bool CanConnect() => ConnectionState == DeviceConnectionState.Disconnected;
 
