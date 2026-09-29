@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Astra.Core.Devices;
 using Astra.Core.Events;
 
@@ -5,7 +6,10 @@ namespace Astra.Runtime.Devices;
 
 public sealed class SimulatedCamera : ICamera
 {
+    private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(200);
+
     private readonly object _gate = new();
+    private TimeSpan _exposureElapsed;
     private DeviceConnectionState _connectionState = DeviceConnectionState.Disconnected;
     private CameraExposureState _exposureState = CameraExposureState.Idle;
     private TimeSpan? _exposureDuration;
@@ -41,6 +45,26 @@ public sealed class SimulatedCamera : ICamera
     {
         get { lock (_gate) { return _exposureDuration; } }
     }
+
+    public TimeSpan ExposureElapsed
+    {
+        get { lock (_gate) { return _exposureElapsed; } }
+    }
+
+    public double ExposureProgress
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _exposureDuration is { } duration && duration > TimeSpan.Zero
+                    ? Math.Clamp(_exposureElapsed / duration, 0.0, 1.0)
+                    : 0.0;
+            }
+        }
+    }
+
+    public event EventHandler? ExposureProgressChanged;
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -120,7 +144,11 @@ public sealed class SimulatedCamera : ICamera
 
             _exposureState = CameraExposureState.Exposing;
             _exposureDuration = duration;
+            _exposureElapsed = TimeSpan.Zero;
         }
+
+        var stopwatch = Stopwatch.StartNew();
+        var completed = false;
 
         try
         {
@@ -128,10 +156,32 @@ public sealed class SimulatedCamera : ICamera
                 CameraExposureState.Idle,
                 CameraExposureState.Exposing,
                 cancellationToken);
-            await Task.Delay(duration, cancellationToken);
+            RaiseExposureProgressChanged();
+
+            while (stopwatch.Elapsed < duration)
+            {
+                var remaining = duration - stopwatch.Elapsed;
+                await Task.Delay(
+                    remaining < ProgressInterval ? remaining : ProgressInterval,
+                    cancellationToken);
+
+                if (stopwatch.Elapsed < duration)
+                {
+                    SetElapsed(stopwatch.Elapsed);
+                }
+            }
+
+            SetElapsed(duration);
+            completed = true;
         }
         finally
         {
+            if (!completed)
+            {
+                // Cancelled: keep the portion that actually elapsed instead of jumping to 100%.
+                SetElapsed(stopwatch.Elapsed < duration ? stopwatch.Elapsed : duration);
+            }
+
             lock (_gate)
             {
                 _exposureState = CameraExposureState.Idle;
@@ -141,6 +191,31 @@ public sealed class SimulatedCamera : ICamera
                 CameraExposureState.Exposing,
                 CameraExposureState.Idle,
                 CancellationToken.None);
+        }
+    }
+
+    private void SetElapsed(TimeSpan elapsed)
+    {
+        lock (_gate)
+        {
+            _exposureElapsed = elapsed;
+        }
+
+        RaiseExposureProgressChanged();
+    }
+
+    private void RaiseExposureProgressChanged()
+    {
+        // Progress observers must not be able to break an exposure.
+        foreach (var handler in ExposureProgressChanged?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler)handler)(this, EventArgs.Empty);
+            }
+            catch
+            {
+            }
         }
     }
 

@@ -14,7 +14,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ICamera _camera;
     private readonly StateStore _stateStore;
     private readonly Action<Action> _postToUi;
-    private readonly TimeSpan _exposureDuration;
+    private readonly TimeSpan _requestedExposure;
     private readonly IDisposable _connectionSubscription;
     private readonly IDisposable _exposureSubscription;
 
@@ -33,10 +33,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _camera = camera;
         _stateStore = stateStore;
         _postToUi = postToUi;
-        _exposureDuration = exposureDuration ?? TimeSpan.FromSeconds(5);
+        _requestedExposure = exposureDuration ?? TimeSpan.FromSeconds(5);
 
         RefreshState();
 
+        _camera.ExposureProgressChanged += OnExposureProgressChanged;
         _connectionSubscription = eventBus.Subscribe<DeviceConnectionStateChanged>(OnConnectionStateChanged);
         _exposureSubscription = eventBus.Subscribe<CameraExposureStateChanged>(OnExposureStateChanged);
     }
@@ -52,7 +53,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DisconnectCommand))]
     [NotifyCanExecuteChangedFor(nameof(StartExposureCommand))]
+    [NotifyPropertyChangedFor(nameof(IsExposing))]
+    [NotifyPropertyChangedFor(nameof(ExposureSummary))]
     public partial CameraExposureState ExposureState { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExposureSummary))]
+    public partial TimeSpan ExposureElapsed { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExposureSummary))]
+    public partial TimeSpan ExposureDuration { get; private set; }
+
+    /// <summary>From 0.0 to 1.0.</summary>
+    [ObservableProperty]
+    public partial double ExposureProgress { get; private set; }
+
+    public bool IsExposing => ExposureState == CameraExposureState.Exposing;
+
+    public string ExposureSummary =>
+        $"{ExposureState} · {ExposureElapsed.TotalSeconds:0.0} / {ExposureDuration.TotalSeconds:0.0} s";
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private Task ConnectAsync() => _camera.ConnectAsync();
@@ -61,7 +81,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Task DisconnectAsync() => _camera.DisconnectAsync();
 
     [RelayCommand(CanExecute = nameof(CanStartExposure))]
-    private Task StartExposureAsync() => _camera.ExposeAsync(_exposureDuration);
+    private Task StartExposureAsync() => _camera.ExposeAsync(_requestedExposure);
 
     private bool CanConnect() => ConnectionState == DeviceConnectionState.Disconnected;
 
@@ -75,6 +95,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        _camera.ExposureProgressChanged -= OnExposureProgressChanged;
         _connectionSubscription.Dispose();
         _exposureSubscription.Dispose();
     }
@@ -88,6 +109,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         CameraExposureStateChanged e,
         CancellationToken cancellationToken
     ) => PostRefreshFor(e.DeviceId);
+
+    // Raised on the camera's thread, roughly 5 times per second during an exposure.
+    private void OnExposureProgressChanged(object? sender, EventArgs e)
+    {
+        _postToUi(RefreshProgress);
+    }
+
+    private void RefreshProgress()
+    {
+        ExposureElapsed = _camera.ExposureElapsed;
+        ExposureDuration = _camera.ExposureDuration ?? TimeSpan.Zero;
+        ExposureProgress = _camera.ExposureProgress;
+    }
 
     private Task PostRefreshFor(DeviceId deviceId)
     {
@@ -111,5 +145,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ConnectionState = _camera.ConnectionState;
             ExposureState = _camera.ExposureState;
         }
+
+        RefreshProgress();
     }
 }

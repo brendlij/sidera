@@ -144,6 +144,68 @@ public class SimulatedCameraTests
     }
 
     [Fact]
+    public async Task Progress_StartsAtZero()
+    {
+        var (camera, _) = await CreateConnected();
+
+        Assert.Equal(0.0, camera.ExposureProgress);
+        Assert.Equal(TimeSpan.Zero, camera.ExposureElapsed);
+    }
+
+    [Fact]
+    public async Task Progress_IncreasesDuringExposureAndReachesOne()
+    {
+        var (camera, _) = await CreateConnected();
+        var samples = new List<double>();
+        camera.ExposureProgressChanged += (_, _) => samples.Add(camera.ExposureProgress);
+
+        await camera.ExposeAsync(TimeSpan.FromMilliseconds(700));
+
+        Assert.True(samples.Count >= 3, $"expected several updates, got {samples.Count}");
+        Assert.Equal(samples.OrderBy(s => s), samples);
+        Assert.Contains(samples, s => s > 0.0 && s < 1.0);
+        Assert.Equal(1.0, camera.ExposureProgress);
+        Assert.Equal(TimeSpan.FromMilliseconds(700), camera.ExposureElapsed);
+    }
+
+    [Fact]
+    public async Task Progress_ResetsWhenNewExposureStarts()
+    {
+        var (camera, _) = await CreateConnected();
+        await camera.ExposeAsync(TimeSpan.FromMilliseconds(50));
+
+        var second = camera.ExposeAsync(TimeSpan.FromMilliseconds(300));
+
+        Assert.True(camera.ExposureProgress < 0.5);
+        Assert.True(camera.ExposureElapsed < TimeSpan.FromMilliseconds(150));
+        await second;
+    }
+
+    [Fact]
+    public async Task CancelledExposure_ReportsActualProgress()
+    {
+        var (camera, _) = await CreateConnected();
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            camera.ExposeAsync(TimeSpan.FromSeconds(10), cts.Token));
+
+        Assert.InRange(camera.ExposureElapsed, TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(3));
+        Assert.True(camera.ExposureProgress < 0.5);
+    }
+
+    [Fact]
+    public async Task ThrowingProgressObserver_DoesNotBreakExposure()
+    {
+        var (camera, _) = await CreateConnected();
+        camera.ExposureProgressChanged += (_, _) => throw new InvalidOperationException("boom");
+
+        await camera.ExposeAsync(TimeSpan.FromMilliseconds(250));
+
+        Assert.Equal(1.0, camera.ExposureProgress);
+    }
+
+    [Fact]
     public async Task WithoutPublisher_ConnectStillWorks()
     {
         var camera = new SimulatedCamera(new DeviceId("cam-1"));

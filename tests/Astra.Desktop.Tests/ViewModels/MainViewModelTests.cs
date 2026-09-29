@@ -90,6 +90,33 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Exposure_UpdatesProgressProperties()
+    {
+        var (vm, _) = Create(TimeSpan.FromMilliseconds(700));
+        await vm.ConnectCommand.ExecuteAsync(null);
+        var progressSeen = new List<double>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ExposureProgress))
+            {
+                progressSeen.Add(vm.ExposureProgress);
+            }
+        };
+
+        var running = vm.StartExposureCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsExposing);
+        Assert.Equal(TimeSpan.FromMilliseconds(700), vm.ExposureDuration);
+
+        await running;
+
+        Assert.Contains(progressSeen, p => p > 0.0 && p < 1.0);
+        Assert.Equal(1.0, vm.ExposureProgress);
+        Assert.Equal(TimeSpan.FromMilliseconds(700), vm.ExposureElapsed);
+        Assert.False(vm.IsExposing);
+    }
+
+    [Fact]
     public async Task ConnectionChanges_AreMarshalledThroughUiDispatcher()
     {
         var bus = new EventBus();
