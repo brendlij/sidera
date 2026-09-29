@@ -4,47 +4,151 @@
         xmlns:conv="using:Astra.Desktop.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="600"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
         x:Class="Astra.Desktop.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        SizeToContent="WidthAndHeight"
+        Width="1100" Height="700" MinWidth="820" MinHeight="560"
+        Background="{DynamicResource AstraBackground}"
+        Foreground="{DynamicResource AstraText}"
+        FontSize="13"
         Title="Astra">
 
-    <StackPanel Margin="24" Spacing="8">
-        <TextBlock Text="ASTRA" FontSize="24" FontWeight="Bold" />
-        <TextBlock Text="{Binding CameraName}" FontSize="16" Margin="0,12,0,0" />
-        <TextBlock Text="{Binding ConnectionState, StringFormat='Connection: {0}'}" />
-        <TextBlock Text="{Binding ExposureState, StringFormat='Exposure: {0}'}" />
+    <Grid ColumnDefinitions="220,*">
 
-        <Border Background="Black" Width="400" Height="300" HorizontalAlignment="Left" Margin="0,8,0,0">
-            <Image Source="{Binding LastFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}"
-                   Stretch="Uniform" />
+        <!-- Sidebar -->
+        <Border Grid.Column="0" Classes="sidebar">
+            <StackPanel Margin="20,28,20,20" Spacing="4">
+                <TextBlock Classes="wordmark" Text="ASTRA" Margin="12,0,0,28" />
+
+                <Grid ColumnDefinitions="3,*">
+                    <Border Classes="navMarker" Height="18" />
+                    <TextBlock Grid.Column="1" Classes="nav active" Text="Equipment" />
+                </Grid>
+                <Grid ColumnDefinitions="3,*">
+                    <Border Classes="navMarker" Height="18" />
+                    <TextBlock Grid.Column="1" Classes="nav active" Text="Sequencer" />
+                </Grid>
+                <TextBlock Classes="nav disabled" Text="Imaging" Margin="3,0,0,0" />
+                <TextBlock Classes="nav disabled" Text="Settings" Margin="3,0,0,0" />
+            </StackPanel>
         </Border>
 
-        <StackPanel IsVisible="{Binding IsExposing}" Spacing="4">
-            <TextBlock Text="{Binding ExposureSummary}" />
-            <ProgressBar Minimum="0" Maximum="1" Value="{Binding ExposureProgress}"
-                         ShowProgressText="True" ProgressTextFormat="{}{1:0}%" />
-        </StackPanel>
+        <!-- Main content -->
+        <Grid Grid.Column="1" Margin="28" ColumnDefinitions="*,360" ColumnSpacing="20">
 
-        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
-            <Button Content="Connect" Command="{Binding ConnectCommand}" />
-            <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
-        </StackPanel>
-        <Button Content="Start 5s Exposure" Command="{Binding StartExposureCommand}" />
+            <!-- Equipment: camera -->
+            <Border Grid.Column="0" Classes="card">
+                <Grid RowDefinitions="Auto,*,Auto,Auto" RowSpacing="16">
 
-        <TextBlock Text="SEQUENCE" FontSize="16" FontWeight="Bold" Margin="0,16,0,0" />
-        <TextBlock Text="{Binding SequenceState}" />
-        <TextBlock Text="{Binding SequenceStepText}" />
-        <TextBlock Text="{Binding CurrentStepName}" />
-        <TextBlock Text="{Binding SequenceError}" Foreground="Red"
-                   IsVisible="{Binding SequenceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Run Sequence" Command="{Binding RunSequenceCommand}" />
-            <Button Content="Cancel Sequence" Command="{Binding CancelSequenceCommand}"
-                    IsVisible="{Binding IsSequenceRunning}" />
-        </StackPanel>
-    </StackPanel>
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="title" Text="{Binding CameraName}" />
+                            <TextBlock Classes="muted" Text="{Binding CameraType}" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Classes="badge" Classes.ok="{Binding IsConnected}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Classes="dot" />
+                                <TextBlock Text="{Binding ConnectionState}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
+                    <Border Grid.Row="1" Classes="preview" MinHeight="240">
+                        <Grid>
+                            <Image Source="{Binding LastFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}"
+                                   Stretch="Uniform" />
+                            <TextBlock Classes="muted" Text="No frame yet"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       IsVisible="{Binding LastFrame, Converter={x:Static ObjectConverters.IsNull}}" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto">
+                        <Border Classes="badge" Classes.running="{Binding IsExposing}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Classes="dot" />
+                                <TextBlock Text="{Binding ExposureState}" />
+                            </StackPanel>
+                        </Border>
+                        <ProgressBar Grid.Column="1" Margin="16,0" VerticalAlignment="Center"
+                                     Minimum="0" Maximum="1" Value="{Binding ExposureProgress}"
+                                     IsVisible="{Binding IsExposing}" />
+                        <TextBlock Grid.Column="2" Classes="muted" VerticalAlignment="Center"
+                                   Text="{Binding ExposureProgressText}"
+                                   IsVisible="{Binding IsExposing}" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Connect" Command="{Binding ConnectCommand}" />
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
+                        <Button Classes="accent" Content="Start Exposure" Command="{Binding StartExposureCommand}" />
+                        <Button Content="Cancel Exposure" Command="{Binding CancelExposureCommand}"
+                                IsVisible="{Binding IsManualExposureRunning}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Sequencer -->
+            <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+                <StackPanel Spacing="18">
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="section" Text="SEQUENCE" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="badge"
+                                Classes.running="{Binding IsSequenceRunning}"
+                                Classes.ok="{Binding IsSequenceCompleted}"
+                                Classes.warn="{Binding IsSequenceCancelled}"
+                                Classes.danger="{Binding IsSequenceFailed}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Classes="dot" />
+                                <TextBlock Text="{Binding SequenceState}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Read-only outline of the sequence definition -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="muted" Text="Demo Sequence" />
+                        <Border Classes="inset">
+                            <ItemsControl ItemsSource="{Binding SequenceOutline}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SequenceOutlineItem">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                                            <Border Width="{Binding IndentWidth}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Title}" />
+                                            <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Detail}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Live execution: nested position, current step, exposure progress -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsSequenceRunning}">
+                        <TextBlock Classes="muted" Text="{Binding SequenceContainerName}"
+                                   IsVisible="{Binding HasSequenceContainer}" />
+                        <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding SequenceIterationText}" />
+                        <TextBlock Text="{Binding CurrentStepName}" />
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0" IsVisible="{Binding IsExposing}">
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding ExposureProgress}"
+                                         VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Classes="muted" Margin="12,0,0,0"
+                                       Text="{Binding ExposureProgressText}" />
+                        </Grid>
+                    </StackPanel>
+
+                    <TextBlock Classes="danger" TextWrapping="Wrap" Text="{Binding SequenceError}"
+                               IsVisible="{Binding SequenceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="accent" Content="Run Sequence" Command="{Binding RunSequenceCommand}" />
+                        <Button Content="Cancel Sequence" Command="{Binding CancelSequenceCommand}"
+                                IsVisible="{Binding IsSequenceRunning}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </Window>

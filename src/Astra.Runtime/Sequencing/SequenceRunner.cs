@@ -3,17 +3,18 @@ using Astra.Core.Sequencing;
 namespace Astra.Runtime.Sequencing;
 
 /// <summary>
-/// Runs the steps of one sequence at a time, strictly in order. The first step that throws stops
-/// the run (state <see cref="SequenceState.Failed"/>, exception rethrown); cancelling the token
-/// stops it too (state <see cref="SequenceState.Cancelled"/>, <see cref="OperationCanceledException"/> rethrown).
+/// Runs the steps of one sequence at a time, strictly in order. Container steps (such as
+/// <see cref="RepeatStep"/>) run their children through the runner, so nested executions are tracked
+/// and reported exactly like top-level ones. The first step that throws stops the run
+/// (state <see cref="SequenceState.Failed"/>, exception rethrown); cancelling the token stops it too
+/// (state <see cref="SequenceState.Cancelled"/>, <see cref="OperationCanceledException"/> rethrown).
 /// A runner can be reused once its previous run has ended.
 /// </summary>
 public sealed class SequenceRunner
 {
     private readonly object _gate = new();
     private SequenceState _state = SequenceState.Idle;
-    private int _currentStepIndex = -1;
-    private string? _currentStepName;
+    private SequenceExecutionPosition? _currentPosition;
     private Exception? _failure;
 
     public SequenceState State
@@ -23,17 +24,20 @@ public sealed class SequenceRunner
 
     public bool IsRunning => State == SequenceState.Running;
 
-    /// <summary>Index of the running step, or of the last step that ran; -1 before the first step.</summary>
-    public int CurrentStepIndex
+    /// <summary>
+    /// The innermost execution that is running, or that ran last; <c>null</c> before the first step.
+    /// For a repeat this is its child with the current iteration; its parents lead up to the top-level step.
+    /// </summary>
+    public SequenceExecutionPosition? CurrentPosition
     {
-        get { lock (_gate) { return _currentStepIndex; } }
+        get { lock (_gate) { return _currentPosition; } }
     }
 
-    /// <summary>Name of the step at <see cref="CurrentStepIndex"/>; <c>null</c> before the first step.</summary>
-    public string? CurrentStepName
-    {
-        get { lock (_gate) { return _currentStepName; } }
-    }
+    /// <summary>Index of the running top-level step, or of the last one that ran; -1 before the first step.</summary>
+    public int CurrentStepIndex => CurrentPosition?.Root.Index ?? -1;
+
+    /// <summary>Name of the top-level step at <see cref="CurrentStepIndex"/>; <c>null</c> before the first step.</summary>
+    public string? CurrentStepName => CurrentPosition?.Root.StepName;
 
     /// <summary>The exception that ended the last run, if its state is <see cref="SequenceState.Failed"/>.</summary>
     public Exception? Failure
@@ -42,15 +46,15 @@ public sealed class SequenceRunner
     }
 
     /// <summary>
-    /// Raised when <see cref="State"/>, <see cref="CurrentStepIndex"/> or <see cref="CurrentStepName"/>
-    /// changed: when a run starts, when each step starts, and when the run ends.
+    /// Raised when <see cref="State"/> or <see cref="CurrentPosition"/> changed: when a run starts,
+    /// when each step or repeated child starts, and when the run ends.
     /// Raised on the thread running the sequence; observers read the properties themselves.
     /// </summary>
     public event EventHandler? Changed;
 
     /// <summary>
-    /// Raised after a step has completed successfully and before the next step starts, with the index,
-    /// name and result of that execution. Never raised for a step that threw or was cancelled.
+    /// Raised after a step, top-level or nested, has completed successfully and before the next
+    /// execution starts, with its position and result. Never raised for an execution that threw or was cancelled.
     /// Raised on the thread running the sequence.
     /// </summary>
     public event EventHandler<SequenceStepCompletedEventArgs>? StepCompleted;
@@ -67,8 +71,7 @@ public sealed class SequenceRunner
             }
 
             _state = SequenceState.Running;
-            _currentStepIndex = -1;
-            _currentStepName = null;
+            _currentPosition = null;
             _failure = null;
         }
 
@@ -81,16 +84,8 @@ public sealed class SequenceRunner
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var step = sequence.Steps[i];
-                lock (_gate)
-                {
-                    _currentStepIndex = i;
-                    _currentStepName = step.Name;
-                }
-
-                RaiseChanged();
-
-                var result = await step.ExecuteAsync(cancellationToken);
-                RaiseStepCompleted(new SequenceStepCompletedEventArgs(i, step.Name, result));
+                var position = new SequenceExecutionPosition(step.Name, i, sequence.Steps.Count);
+                await ExecuteStepAsync(step, position, cancellationToken);
             }
 
             SetState(SequenceState.Completed);
@@ -110,6 +105,25 @@ public sealed class SequenceRunner
             SetState(SequenceState.Failed);
             throw;
         }
+    }
+
+    // One execution of one step: mark it current, run it, then report its result.
+    private async Task<SequenceStepResult> ExecuteStepAsync(
+        ISequenceStep step,
+        SequenceExecutionPosition position,
+        CancellationToken cancellationToken
+    )
+    {
+        lock (_gate)
+        {
+            _currentPosition = position;
+        }
+
+        RaiseChanged();
+
+        var result = await step.ExecuteAsync(new StepContext(this, position), cancellationToken);
+        RaiseStepCompleted(new SequenceStepCompletedEventArgs(position, result));
+        return result;
     }
 
     private void SetState(SequenceState state)
@@ -148,6 +162,21 @@ public sealed class SequenceRunner
             catch
             {
             }
+        }
+    }
+
+    // Created per execution, so a child is always positioned under the execution that started it.
+    private sealed class StepContext(SequenceRunner runner, SequenceExecutionPosition parent) : ISequenceStepContext
+    {
+        public Task<SequenceStepResult> ExecuteChildAsync(
+            ISequenceStep child,
+            int index,
+            int count,
+            CancellationToken cancellationToken
+        )
+        {
+            var position = new SequenceExecutionPosition(child.Name, index, count, parent);
+            return runner.ExecuteStepAsync(child, position, cancellationToken);
         }
     }
 }

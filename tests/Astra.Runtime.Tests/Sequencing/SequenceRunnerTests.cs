@@ -10,7 +10,7 @@ public class SequenceRunnerTests
     private sealed class LambdaStep(string name, Func<CancellationToken, Task> body) : ISequenceStep
     {
         public string Name { get; } = name;
-        public async Task<SequenceStepResult> ExecuteAsync(CancellationToken cancellationToken)
+        public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
         {
             await body(cancellationToken);
             return new SequenceStepResult();
@@ -208,8 +208,8 @@ public class SequenceRunnerTests
         await camera.ConnectAsync();
         var action = new CameraExposureAction(host.DeviceRegistry, CameraId, TimeSpan.FromMilliseconds(20));
 
-        var first = await action.ExecuteAsync(CancellationToken.None);
-        var second = await action.ExecuteAsync(CancellationToken.None);
+        var first = await action.ExecuteAsync(NoContext.Instance, CancellationToken.None);
+        var second = await action.ExecuteAsync(NoContext.Instance, CancellationToken.None);
 
         Assert.NotSame(first, second);
         var frame1 = Assert.IsType<CameraFrame>(first.Payload);
@@ -227,8 +227,8 @@ public class SequenceRunnerTests
         var connect = new ConnectDeviceAction(host.DeviceRegistry, CameraId);
         var disconnect = new DisconnectDeviceAction(host.DeviceRegistry, CameraId);
 
-        var connected = await connect.ExecuteAsync(CancellationToken.None);
-        var disconnected = await disconnect.ExecuteAsync(CancellationToken.None);
+        var connected = await connect.ExecuteAsync(NoContext.Instance, CancellationToken.None);
+        var disconnected = await disconnect.ExecuteAsync(NoContext.Instance, CancellationToken.None);
 
         Assert.Null(connected.Payload);
         Assert.Null(disconnected.Payload);
@@ -310,7 +310,7 @@ public class SequenceRunnerTests
         var action = new CameraExposureAction(registry, new DeviceId("focuser.1"), TimeSpan.FromSeconds(1));
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            action.ExecuteAsync(CancellationToken.None));
+            action.ExecuteAsync(NoContext.Instance, CancellationToken.None));
 
         Assert.Contains("'focuser.1' is not a camera", error.Message);
     }
@@ -322,7 +322,7 @@ public class SequenceRunnerTests
         var camera = host.AddSimulatedCamera(CameraId, "Main Camera");
         var action = new CameraExposureAction(host.DeviceRegistry, CameraId, TimeSpan.FromMilliseconds(20));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => action.ExecuteAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => action.ExecuteAsync(NoContext.Instance, CancellationToken.None));
 
         Assert.Equal(DeviceConnectionState.Disconnected, camera.ConnectionState);
     }

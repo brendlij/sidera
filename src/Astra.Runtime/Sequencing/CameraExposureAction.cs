@@ -28,7 +28,7 @@ public sealed class CameraExposureAction : ISequenceStep
     public string Name => string.Create(CultureInfo.InvariantCulture, $"Exposure {Duration.TotalSeconds:0.##}s");
 
     /// <summary>Returns a result whose payload is the <see cref="CameraFrame"/> of this execution.</summary>
-    public async Task<SequenceStepResult> ExecuteAsync(CancellationToken cancellationToken)
+    public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
     {
         var camera = DeviceLookup.Resolve<ICamera>(_registry, _deviceId, "camera");
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Astra.Core.Devices;
@@ -24,6 +25,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IDisposable _connectionSubscription;
     private readonly IDisposable _exposureSubscription;
     private CancellationTokenSource? _sequenceCts;
+    private CancellationTokenSource? _exposureCts;
 
     /// <param name="camera">Must be registered in the host's registry for the demo sequence to find it.</param>
     /// <param name="postToUi">
@@ -45,6 +47,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _requestedExposure = exposureDuration ?? TimeSpan.FromSeconds(5);
         _sequenceExposure = sequenceExposureDuration ?? TimeSpan.FromSeconds(2);
 
+        DemoSequence = BuildDemoSequence();
+        SequenceOutline = SequenceOutlineItem.From(DemoSequence);
+
         RefreshState();
         RefreshSequence();
 
@@ -57,11 +62,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public string CameraName => _camera.Name;
 
+    public string CameraType => _camera.Type.ToString();
+
+    public bool IsConnected => ConnectionState == DeviceConnectionState.Connected;
+
+    public string ExposureProgressText => ExposureProgress.ToString("P0");
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     [NotifyCanExecuteChangedFor(nameof(DisconnectCommand))]
     [NotifyCanExecuteChangedFor(nameof(StartExposureCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunSequenceCommand))]
+    [NotifyPropertyChangedFor(nameof(IsConnected))]
     public partial DeviceConnectionState ConnectionState { get; private set; }
 
     [ObservableProperty]
@@ -82,6 +94,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>From 0.0 to 1.0.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExposureProgressText))]
     public partial double ExposureProgress { get; private set; }
 
     /// <summary>Raw result of the last successful exposure; <c>null</c> until there is one.</summary>
@@ -89,17 +102,42 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public partial CameraFrame? LastFrame { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSequenceCompleted))]
+    [NotifyPropertyChangedFor(nameof(IsSequenceCancelled))]
+    [NotifyPropertyChangedFor(nameof(IsSequenceFailed))]
     public partial SequenceState SequenceState { get; private set; }
 
+    /// <summary>Name of the innermost step that is running (or ran last), e.g. "Exposure 2s".</summary>
     [ObservableProperty]
     public partial string? CurrentStepName { get; private set; }
 
-    /// <summary>For example "Step 2 / 5"; empty until the first step has started.</summary>
+    /// <summary>Name of the container around the current step, e.g. "Repeat × 3"; <c>null</c> for a top-level step.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSequenceContainer))]
+    public partial string? SequenceContainerName { get; private set; }
+
+    /// <summary>Position within the container ("2 / 3"), or within the sequence for a top-level step of several; else empty.</summary>
+    [ObservableProperty]
+    public partial string SequenceIterationText { get; private set; } = string.Empty;
+
+    public bool HasSequenceContainer => SequenceContainerName is not null;
+
+    public bool IsSequenceCompleted => SequenceState == SequenceState.Completed;
+    public bool IsSequenceCancelled => SequenceState == SequenceState.Cancelled;
+    public bool IsSequenceFailed => SequenceState == SequenceState.Failed;
+
+    /// <summary>Read-only outline of <see cref="DemoSequence"/> for display.</summary>
+    public IReadOnlyList<SequenceOutlineItem> SequenceOutline { get; }
+
+    /// <summary>
+    /// Where the sequence is: "Repeat × 3 · 2 / 3" inside a repeat, "Step 2 / 5" for a top-level step;
+    /// empty until the first step has started.
+    /// </summary>
     [ObservableProperty]
     public partial string SequenceStepText { get; private set; } = string.Empty;
 
-    [ObservableProperty]
-    public partial int SequenceStepCount { get; private set; }
+    /// <summary>The predefined demonstration sequence: Repeat × 3 of one exposure. Reused for every run.</summary>
+    public Sequence DemoSequence { get; }
 
     /// <summary>Message of the exception that ended the last sequence run; <c>null</c> otherwise.</summary>
     [ObservableProperty]
@@ -112,6 +150,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [NotifyCanExecuteChangedFor(nameof(RunSequenceCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelSequenceCommand))]
     public partial bool IsSequenceRunning { get; private set; }
+
+    /// <summary>True while an exposure started with the manual Start Exposure command is running.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelExposureCommand))]
+    public partial bool IsManualExposureRunning { get; private set; }
 
     public bool IsExposing => ExposureState == CameraExposureState.Exposing;
 
@@ -127,14 +170,42 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanStartExposure))]
     private async Task StartExposureAsync()
     {
-        LastFrame = await _camera.ExposeAsync(_requestedExposure);
+        var cts = new CancellationTokenSource();
+        _exposureCts = cts;
+        IsManualExposureRunning = true;
+
+        try
+        {
+            LastFrame = await _camera.ExposeAsync(_requestedExposure, cts.Token);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Cancelled by the user: the camera is idle again and no frame was produced.
+        }
+        finally
+        {
+            _exposureCts = null;
+            cts.Dispose();
+            IsManualExposureRunning = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsManualExposureRunning))]
+    private void CancelExposure()
+    {
+        try
+        {
+            _exposureCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The exposure just ended.
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanRunSequence))]
     private async Task RunSequenceAsync()
     {
-        var sequence = BuildDemoSequence();
-        SequenceStepCount = sequence.Steps.Count;
         SequenceError = null;
 
         var cts = new CancellationTokenSource();
@@ -143,7 +214,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try
         {
             // Starts synchronously and flips the runner to Running before the first await.
-            var run = _sequenceRunner.RunAsync(sequence, cts.Token);
+            var run = _sequenceRunner.RunAsync(DemoSequence, cts.Token);
             RefreshSequence();
             await run;
         }
@@ -178,13 +249,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private Sequence BuildDemoSequence()
     {
-        var id = _camera.Id;
         // Equipment connection is separate from sequences: the user connects the camera first.
-        return new Sequence("Demo", [
-            new CameraExposureAction(_deviceRegistry, id, _sequenceExposure),
-            new CameraExposureAction(_deviceRegistry, id, _sequenceExposure),
-            new CameraExposureAction(_deviceRegistry, id, _sequenceExposure),
-        ]);
+        // One exposure definition, executed three times by the repeat.
+        var exposure = new CameraExposureAction(_deviceRegistry, _camera.Id, _sequenceExposure);
+        return new Sequence("Demo", [new RepeatStep(3, exposure)]);
     }
 
     private bool CanConnect() =>
@@ -208,6 +276,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         CancelSequence();
+        CancelExposure();
         _sequenceRunner.Changed -= OnSequenceChanged;
         _sequenceRunner.StepCompleted -= OnSequenceStepCompleted;
         _camera.ExposureProgressChanged -= OnExposureProgressChanged;
@@ -243,10 +312,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void RefreshSequence()
     {
         SequenceState = _sequenceRunner.State;
-        CurrentStepName = _sequenceRunner.CurrentStepName;
-        SequenceStepText = _sequenceRunner.CurrentStepIndex < 0
-            ? string.Empty
-            : $"Step {_sequenceRunner.CurrentStepIndex + 1} / {SequenceStepCount}";
+        var position = _sequenceRunner.CurrentPosition;
+        CurrentStepName = position?.StepName;
+        SequenceStepText = position switch
+        {
+            null => string.Empty,
+            { Parent: { } parent } => $"{parent.StepName} · {position.Index + 1} / {position.Count}",
+            _ => $"Step {position.Index + 1} / {position.Count}",
+        };
+        SequenceContainerName = position?.Parent?.StepName;
+        SequenceIterationText = position switch
+        {
+            null => string.Empty,
+            { Parent: not null } or { Count: > 1 } => $"{position.Index + 1} / {position.Count}",
+            _ => string.Empty,
+        };
         IsSequenceRunning = _sequenceRunner.IsRunning;
     }
 
