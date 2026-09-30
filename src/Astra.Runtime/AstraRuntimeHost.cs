@@ -1,12 +1,14 @@
 using Astra.Core.Devices;
+using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Events;
+using Astra.Runtime.Rigs;
 using Astra.Runtime.State;
 
 namespace Astra.Runtime;
 
 /// <summary>
-/// Owns the runtime components (event bus, state store, device registry) and their lifecycle.
+/// Owns the runtime components (event bus, state store, device registry, rig registry) and their lifecycle.
 /// Devices are added explicitly; on <see cref="StopAsync"/> the host disconnects those still connected.
 /// </summary>
 public sealed class AstraRuntimeHost : IAsyncDisposable
@@ -28,17 +30,29 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         // Created here so the store always subscribes before any other consumer of the bus.
         StateStore = new StateStore(EventBus);
         DeviceRegistry = new DeviceRegistry();
+        RigRegistry = new RigRegistry(DeviceRegistry);
     }
 
     public EventBus EventBus { get; }
     public StateStore StateStore { get; }
     public DeviceRegistry DeviceRegistry { get; }
+    public RigRegistry RigRegistry { get; }
 
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>
     public void AddDevice(IDevice device)
     {
         ThrowIfDisposed();
         DeviceRegistry.Register(device);
+    }
+
+    /// <summary>
+    /// Registers a rig. The devices it refers to must already have been added to the host.
+    /// Devices are not owned by the rig and several rigs may share one.
+    /// </summary>
+    public void AddRig(Rig rig)
+    {
+        ThrowIfDisposed();
+        RigRegistry.Register(rig);
     }
 
     /// <summary>Creates a simulated camera wired to this host's event bus and registers it.</summary>

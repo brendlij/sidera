@@ -3,7 +3,6 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using Astra.Core.Devices;
 using Astra.Desktop.ViewModels;
 using Astra.Desktop.Views;
 using Astra.Runtime;
@@ -24,7 +23,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var host = new AstraRuntimeHost();
-            var camera = host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
+            var camera = DemoSetup.AddMainRig(host);
             host.Start();
 
             var viewModel = new MainViewModel(

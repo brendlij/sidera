@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.Rigs;
 
 namespace Astra.Runtime.Tests;
 
@@ -47,6 +48,58 @@ public class AstraRuntimeHostTests
         Assert.Same(camera, device);
         Assert.Throws<InvalidOperationException>(() =>
             host.AddDevice(new FakeDevice("camera.main", DeviceConnectionState.Disconnected)));
+    }
+
+    private static Rig MakeRig(string rigId, string cameraId) => new(
+        new RigId(rigId),
+        rigId,
+        new DeviceId(cameraId),
+        new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176));
+
+    [Fact]
+    public async Task Host_ExposesRigRegistry()
+    {
+        await using var host = new AstraRuntimeHost();
+
+        Assert.NotNull(host.RigRegistry);
+        Assert.Empty(host.RigRegistry.GetAll());
+    }
+
+    [Fact]
+    public async Task AddRig_MakesRigRetrievable_AndValidatesAgainstHostDevices()
+    {
+        await using var host = new AstraRuntimeHost();
+
+        Assert.Throws<InvalidOperationException>(() => host.AddRig(MakeRig("rig.main", "camera.main")));
+
+        host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
+        host.AddRig(MakeRig("rig.main", "camera.main"));
+
+        Assert.True(host.RigRegistry.TryGet(new RigId("rig.main"), out var rig));
+        Assert.Equal(new DeviceId("camera.main"), rig!.CameraId);
+    }
+
+    [Fact]
+    public async Task Host_CanHoldMultipleRigs()
+    {
+        await using var host = new AstraRuntimeHost();
+        host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
+        host.AddSimulatedCamera(new DeviceId("camera.wide"), "Wide Camera");
+
+        host.AddRig(MakeRig("rig.main", "camera.main"));
+        host.AddRig(MakeRig("rig.wide", "camera.wide"));
+
+        Assert.Equal(2, host.RigRegistry.GetAll().Count);
+    }
+
+    [Fact]
+    public async Task AddRig_AfterDispose_IsRejected()
+    {
+        var host = new AstraRuntimeHost();
+        host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
+        await host.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => host.AddRig(MakeRig("rig.main", "camera.main")));
     }
 
     [Fact]
