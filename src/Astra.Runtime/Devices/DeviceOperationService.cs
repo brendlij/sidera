@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.Mounts;
 using Astra.Core.Resources;
 using Astra.Runtime.Resources;
 using Astra.Runtime.Sequencing;
@@ -47,6 +48,21 @@ public sealed class DeviceOperationService
         using (await _resources.AcquireAsync([ResourceId.ForDevice(deviceId)], cancellationToken))
         {
             await device.DisconnectAsync(cancellationToken);
+        }
+    }
+
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a mount.</exception>
+    public async Task SlewToAsync(
+        DeviceId mountId,
+        CelestialCoordinates target,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var mount = DeviceLookup.Resolve<IMount>(_registry, mountId, "mount");
+
+        using (await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken))
+        {
+            await mount.SlewToAsync(target, cancellationToken);
         }
     }
 

@@ -72,6 +72,17 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         return camera;
     }
 
+    /// <summary>
+    /// Creates a simulated mount wired to this host's event bus and registers it. The mount is a shared
+    /// device: it is not part of any rig.
+    /// </summary>
+    public SimulatedMount AddSimulatedMount(DeviceId id, string name, TimeSpan? slewDuration = null)
+    {
+        var mount = new SimulatedMount(id, name, EventBus, slewDuration);
+        AddDevice(mount);
+        return mount;
+    }
+
     public void Start()
     {
         lock (_gate)
