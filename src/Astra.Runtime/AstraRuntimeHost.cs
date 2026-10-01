@@ -88,6 +88,22 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         return mount;
     }
 
+    /// <summary>
+    /// Creates a simulated guider wired to this host's event bus and registers it. Like a mount, the guider is
+    /// a shared device addressed by its ID: it is not part of any rig, and several guiders may coexist.
+    /// </summary>
+    public SimulatedGuider AddSimulatedGuider(
+        DeviceId id,
+        string name,
+        TimeSpan? startDuration = null,
+        TimeSpan? stopDuration = null
+    )
+    {
+        var guider = new SimulatedGuider(id, name, EventBus, startDuration, stopDuration);
+        AddDevice(guider);
+        return guider;
+    }
+
     public void Start()
     {
         lock (_gate)

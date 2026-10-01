@@ -1,4 +1,6 @@
 using Astra.Core.Devices;
+using Astra.Core.Guiding;
+using Astra.Core.Mounts;
 using Astra.Runtime.Events;
 using Astra.Runtime.State;
 
@@ -113,5 +115,104 @@ public class StateStoreTests
         await Publish(bus, Cam1, DeviceConnectionState.Disconnected, DeviceConnectionState.Connected);
 
         Assert.False(store.TryGet(Cam1, out _));
+    }
+
+    // Guiding
+
+    private static readonly DeviceId Guider1 = new("guider-1");
+    private static readonly DeviceId Guider2 = new("guider-2");
+
+    private static Task PublishGuiding(EventBus bus, DeviceId id, GuidingState from, GuidingState to)
+    {
+        return bus.PublishAsync(new GuidingStateChanged(id, from, to));
+    }
+
+    [Fact]
+    public async Task GuidingEvent_BeforeAnyConnectionEvent_CreatesADisconnectedSnapshot()
+    {
+        var bus = new EventBus();
+        using var store = new StateStore(bus);
+
+        await PublishGuiding(bus, Guider1, GuidingState.Idle, GuidingState.Starting);
+
+        Assert.True(store.TryGet(Guider1, out var state));
+        Assert.Equal(
+            new DeviceState(Guider1, DeviceConnectionState.Disconnected, GuidingState: GuidingState.Starting),
+            state);
+    }
+
+    [Fact]
+    public async Task GuidingEvents_UpdateOnlyTheGuidingField_AndConnectionEventsKeepIt()
+    {
+        var bus = new EventBus();
+        using var store = new StateStore(bus);
+        var coordinates = new CelestialCoordinates(5, 10);
+        await Publish(bus, Guider1, DeviceConnectionState.Disconnected, DeviceConnectionState.Connected);
+        await bus.PublishAsync(new CameraExposureStateChanged(Guider1, CameraExposureState.Idle, CameraExposureState.Exposing));
+        await bus.PublishAsync(new MountMotionStateChanged(Guider1, MountMotionState.Idle, MountMotionState.Tracking, coordinates));
+
+        await PublishGuiding(bus, Guider1, GuidingState.Idle, GuidingState.Starting);
+        await PublishGuiding(bus, Guider1, GuidingState.Starting, GuidingState.Guiding);
+
+        Assert.True(store.TryGet(Guider1, out var guiding));
+        Assert.Equal(
+            new DeviceState(
+                Guider1,
+                DeviceConnectionState.Connected,
+                CameraExposureState.Exposing,
+                MountMotionState.Tracking,
+                coordinates,
+                GuidingState.Guiding),
+            guiding);
+
+        await Publish(bus, Guider1, DeviceConnectionState.Connected, DeviceConnectionState.Disconnecting);
+
+        Assert.True(store.TryGet(Guider1, out var disconnecting));
+        Assert.Equal(guiding! with { ConnectionState = DeviceConnectionState.Disconnecting }, disconnecting);
+    }
+
+    [Fact]
+    public async Task ConnectionEvents_LeaveGuidingNull_ForDevicesWithoutObservedGuiding()
+    {
+        var bus = new EventBus();
+        using var store = new StateStore(bus);
+
+        await Publish(bus, Cam1, DeviceConnectionState.Disconnected, DeviceConnectionState.Connected);
+
+        Assert.True(store.TryGet(Cam1, out var state));
+        Assert.Null(state!.GuidingState);
+    }
+
+    [Fact]
+    public async Task TwoGuiders_AreTrackedIndependently()
+    {
+        var bus = new EventBus();
+        using var store = new StateStore(bus);
+
+        await Publish(bus, Guider1, DeviceConnectionState.Disconnected, DeviceConnectionState.Connected);
+        await Publish(bus, Guider2, DeviceConnectionState.Disconnected, DeviceConnectionState.Connected);
+        await PublishGuiding(bus, Guider1, GuidingState.Starting, GuidingState.Guiding);
+        await PublishGuiding(bus, Guider2, GuidingState.Idle, GuidingState.Starting);
+
+        Assert.True(store.TryGet(Guider1, out var first));
+        Assert.True(store.TryGet(Guider2, out var second));
+        Assert.Equal(GuidingState.Guiding, first!.GuidingState);
+        Assert.Equal(GuidingState.Starting, second!.GuidingState);
+    }
+
+    [Fact]
+    public async Task Dispose_StopsGuidingUpdates()
+    {
+        var bus = new EventBus();
+        var store = new StateStore(bus);
+        await PublishGuiding(bus, Guider1, GuidingState.Idle, GuidingState.Starting);
+        store.Dispose();
+
+        await PublishGuiding(bus, Guider1, GuidingState.Starting, GuidingState.Guiding);
+        await PublishGuiding(bus, Guider2, GuidingState.Idle, GuidingState.Starting);
+
+        Assert.True(store.TryGet(Guider1, out var state));
+        Assert.Equal(GuidingState.Starting, state!.GuidingState);
+        Assert.False(store.TryGet(Guider2, out _));
     }
 }
