@@ -20,7 +20,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly StateStore _stateStore;
     private readonly Action<Action> _postToUi;
     private readonly DeviceRegistry _deviceRegistry;
-    private readonly SequenceRunner _sequenceRunner = new();
+    private readonly SequenceRunner _sequenceRunner;
     private readonly TimeSpan _requestedExposure;
     private readonly TimeSpan _sequenceExposure;
     private readonly TimeSpan _sequenceDelay;
@@ -46,6 +46,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _camera = camera;
         _stateStore = host.StateStore;
         _deviceRegistry = host.DeviceRegistry;
+        _sequenceRunner = new SequenceRunner(host.ResourceManager);
         _postToUi = postToUi;
         _requestedExposure = exposureDuration ?? TimeSpan.FromSeconds(5);
         _sequenceExposure = sequenceExposureDuration ?? TimeSpan.FromSeconds(2);

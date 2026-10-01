@@ -1,5 +1,6 @@
 using System.Globalization;
 using Astra.Core.Devices;
+using Astra.Core.Resources;
 using Astra.Core.Sequencing;
 using Astra.Runtime.Devices;
 
@@ -8,7 +9,7 @@ namespace Astra.Runtime.Sequencing;
 /// <summary>
 /// Takes one exposure with a camera that is already connected; it never connects or disconnects.
 /// </summary>
-public sealed class CameraExposureAction : ISequenceStep
+public sealed class CameraExposureAction : IResourceAwareSequenceStep
 {
     private readonly DeviceRegistry _registry;
     private readonly DeviceId _deviceId;
@@ -26,6 +27,8 @@ public sealed class CameraExposureAction : ISequenceStep
     public TimeSpan Duration { get; }
 
     public string Name => string.Create(CultureInfo.InvariantCulture, $"Exposure {Duration.TotalSeconds:0.##}s");
+
+    public IReadOnlyCollection<ResourceId> RequiredResources => [ResourceId.ForDevice(_deviceId)];
 
     /// <summary>Returns a result whose payload is the <see cref="CameraFrame"/> of this execution.</summary>
     public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)

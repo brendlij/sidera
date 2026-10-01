@@ -1,4 +1,5 @@
 using Astra.Core.Sequencing;
+using Astra.Runtime.Resources;
 
 namespace Astra.Runtime.Sequencing;
 
@@ -13,9 +14,20 @@ namespace Astra.Runtime.Sequencing;
 public sealed class SequenceRunner
 {
     private readonly object _gate = new();
+    private readonly ResourceManager _resources;
     private SequenceState _state = SequenceState.Idle;
     private SequenceExecutionPosition? _currentPosition;
     private Exception? _failure;
+
+    /// <param name="resourceManager">
+    /// Coordinates exclusive resources between runners. Runners that work on the same equipment must share
+    /// one manager, normally <see cref="AstraRuntimeHost.ResourceManager"/>. Without one the runner uses a
+    /// private manager, which only coordinates its own steps.
+    /// </param>
+    public SequenceRunner(ResourceManager? resourceManager = null)
+    {
+        _resources = resourceManager ?? new ResourceManager();
+    }
 
     public SequenceState State
     {
@@ -121,7 +133,17 @@ public sealed class SequenceRunner
 
         RaiseChanged();
 
-        var result = await step.ExecuteAsync(new StepContext(this, position), cancellationToken);
+        SequenceStepResult result;
+
+        // Only steps that declare requirements acquire anything. Containers do not, so a repeat or group
+        // never holds what its children need: each child takes its own resources when it runs.
+        var required = step is IResourceAwareSequenceStep aware ? aware.RequiredResources : [];
+        using (await _resources.AcquireAsync(required, cancellationToken))
+        {
+            result = await step.ExecuteAsync(new StepContext(this, position), cancellationToken);
+        }
+
+        // Reported after the resources are released, so observers never run while holding them.
         RaiseStepCompleted(new SequenceStepCompletedEventArgs(position, result));
         return result;
     }
