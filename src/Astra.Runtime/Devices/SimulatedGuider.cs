@@ -5,17 +5,17 @@ using Astra.Core.Guiding;
 namespace Astra.Runtime.Devices;
 
 /// <summary>
-/// A guider that only pretends: starting and stopping guiding take a fixed time each, and there is no
-/// guiding loop, telemetry or background work behind the <see cref="GuidingState"/>.
+/// A guider that only pretends: starting, stopping guiding and dithering take a fixed time each, and there is no
+/// guiding loop, telemetry, settling or background work behind the <see cref="GuidingState"/>.
 /// <para>
-/// One lifecycle operation (connect, disconnect, start or stop) runs at a time; an overlapping call is
+/// One lifecycle operation (connect, disconnect, start, stop or dither) runs at a time; an overlapping call is
 /// rejected with <see cref="InvalidOperationException"/>. A cancelled or failed operation restores the
-/// stable state it started from: start → <c>Idle</c>, stop → <c>Guiding</c>, connect → disconnected.
+/// stable state it started from: start → <c>Idle</c>, stop and dither → <c>Guiding</c>, connect → disconnected.
 /// A disconnect always ends disconnected and idle; active guiding becomes idle before the disconnect is
 /// published. Calls that find the device already in their target state do nothing.
 /// </para>
 /// </summary>
-public sealed class SimulatedGuider : IGuider
+public sealed class SimulatedGuider : IDitherGuider
 {
     private static readonly TimeSpan DefaultTransitionDuration = TimeSpan.FromMilliseconds(100);
 
@@ -23,6 +23,7 @@ public sealed class SimulatedGuider : IGuider
     private readonly IEventPublisher? _events;
     private readonly TimeSpan _startDuration;
     private readonly TimeSpan _stopDuration;
+    private readonly TimeSpan _ditherDuration;
     private DeviceConnectionState _connectionState = DeviceConnectionState.Disconnected;
     private GuidingState _guidingState = GuidingState.Idle;
     private bool _busy;
@@ -32,7 +33,8 @@ public sealed class SimulatedGuider : IGuider
         string name = "Simulated Guider",
         IEventPublisher? events = null,
         TimeSpan? startDuration = null,
-        TimeSpan? stopDuration = null
+        TimeSpan? stopDuration = null,
+        TimeSpan? ditherDuration = null
     )
     {
         Id = id;
@@ -40,8 +42,10 @@ public sealed class SimulatedGuider : IGuider
         _events = events;
         _startDuration = startDuration ?? DefaultTransitionDuration;
         _stopDuration = stopDuration ?? DefaultTransitionDuration;
+        _ditherDuration = ditherDuration ?? DefaultTransitionDuration;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_startDuration, TimeSpan.Zero, nameof(startDuration));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_stopDuration, TimeSpan.Zero, nameof(stopDuration));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_ditherDuration, TimeSpan.Zero, nameof(ditherDuration));
     }
 
     public DeviceId Id { get; }
@@ -186,6 +190,57 @@ public sealed class SimulatedGuider : IGuider
             _guidingState = transitional;
         }
 
+        await RunGuidingTransitionAsync(from, transitional, to, duration, cancellationToken);
+    }
+
+    /// <summary>
+    /// Publishes <c>Guiding → Dithering → Guiding</c>. Completion means only that the simulated dither command has
+    /// finished; nothing about settling is simulated or implied.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="amplitudePixels"/> is not a finite, positive number.</exception>
+    /// <exception cref="InvalidOperationException">The guider is not connected, not guiding, or another operation is in progress.</exception>
+    public async Task DitherAsync(double amplitudePixels, CancellationToken cancellationToken = default)
+    {
+        if (!double.IsFinite(amplitudePixels) || amplitudePixels <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amplitudePixels), amplitudePixels, "Dither amplitude must be a finite, positive number of guider pixels.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            ThrowIfBusy();
+            if (_connectionState != DeviceConnectionState.Connected)
+            {
+                throw new InvalidOperationException($"Cannot dither: guider '{Id}' is not connected.");
+            }
+
+            if (_guidingState != GuidingState.Guiding)
+            {
+                throw new InvalidOperationException($"Cannot dither: guider '{Id}' is not guiding.");
+            }
+
+            _busy = true;
+            _guidingState = GuidingState.Dithering;
+        }
+
+        await RunGuidingTransitionAsync(
+            GuidingState.Guiding, GuidingState.Dithering, GuidingState.Guiding, _ditherDuration, cancellationToken);
+    }
+
+    // Called with the guard taken and the transitional state already set; restores `from` unless it succeeds.
+    // The original failure or cancellation is propagated even if publishing the restored state fails as well.
+    private async Task RunGuidingTransitionAsync(
+        GuidingState from,
+        GuidingState transitional,
+        GuidingState to,
+        TimeSpan duration,
+        CancellationToken cancellationToken
+    )
+    {
+        var targetPublished = false;
         try
         {
             try
@@ -193,12 +248,13 @@ public sealed class SimulatedGuider : IGuider
                 await PublishGuidingAsync(from, transitional, cancellationToken);
                 await Task.Delay(duration, cancellationToken);
                 await SetGuidingStateAsync(to, cancellationToken);
+                targetPublished = true;
                 // A subscriber may cancel the token and still return normally.
                 cancellationToken.ThrowIfCancellationRequested();
             }
             catch
             {
-                await SetGuidingStateAsync(from, CancellationToken.None);
+                await RestoreGuidingStateAsync(from, transitional, targetPublished);
                 throw;
             }
         }
@@ -208,13 +264,39 @@ public sealed class SimulatedGuider : IGuider
         }
     }
 
+    private async Task RestoreGuidingStateAsync(GuidingState from, GuidingState transitional, bool targetPublished)
+    {
+        GuidingState previous;
+        lock (_gate)
+        {
+            previous = _guidingState;
+            _guidingState = from;
+        }
+
+        // A dither ends where it began, so a failed final publication already left the local state at `from`
+        // while observers may still see the transitional state; republish the restored state in that case.
+        if (previous == from && !targetPublished)
+        {
+            previous = transitional;
+        }
+
+        try
+        {
+            await PublishGuidingAsync(previous, from, CancellationToken.None);
+        }
+        catch
+        {
+            // The local state is restored; the caller propagates the original failure instead of this one.
+        }
+    }
+
     // Called while holding _gate.
     private void ThrowIfBusy()
     {
         if (_busy)
         {
             throw new InvalidOperationException(
-                $"Guider '{Id}' is busy: another connect, disconnect, start or stop operation is still in progress.");
+                $"Guider '{Id}' is busy: another connect, disconnect, start, stop or dither operation is still in progress.");
         }
     }
 

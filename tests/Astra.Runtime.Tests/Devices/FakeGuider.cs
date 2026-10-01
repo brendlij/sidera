@@ -4,10 +4,10 @@ using Astra.Core.Guiding;
 namespace Astra.Runtime.Tests.Devices;
 
 /// <summary>
-/// A guider whose start and stop commands the test holds open and releases. It accepts overlapping calls
+/// A guider whose start, stop and dither commands the test holds open and releases. It accepts overlapping calls
 /// without complaint, so any waiting seen in a test comes from the ResourceManager.
 /// </summary>
-internal sealed class FakeGuider(string id, bool connected = true) : IGuider
+internal sealed class FakeGuider(string id, bool connected = true, bool guiding = false) : IDitherGuider
 {
     public sealed class Gate
     {
@@ -20,25 +20,28 @@ internal sealed class FakeGuider(string id, bool connected = true) : IGuider
     private int _disconnectCalls;
     private int _startCalls;
     private int _stopCalls;
+    private int _ditherCalls;
 
     public DeviceId Id { get; } = new(id);
     public string Name => "Fake guider";
     public DeviceType Type => DeviceType.Guider;
     public DeviceConnectionState ConnectionState { get; set; } =
         connected ? DeviceConnectionState.Connected : DeviceConnectionState.Disconnected;
-    public GuidingState GuidingState { get; private set; } = GuidingState.Idle;
+    public GuidingState GuidingState { get; private set; } = guiding ? GuidingState.Guiding : GuidingState.Idle;
 
     public int ConnectCalls => _connectCalls;
     public int DisconnectCalls => _disconnectCalls;
     public int StartCalls => _startCalls;
     public int StopCalls => _stopCalls;
+    public int DitherCalls => _ditherCalls;
+    public List<double> Amplitudes { get; } = new();
 
-    /// <summary>When true, start and stop wait on their gate until the test releases it.</summary>
+    /// <summary>When true, start, stop and dither wait on their gate until the test releases it.</summary>
     public bool Block { get; set; }
 
     public Exception? Failure { get; set; }
 
-    /// <summary>Gate of the n-th call of an operation ("start" or "stop"), created on demand.</summary>
+    /// <summary>Gate of the n-th call of an operation ("start", "stop" or "dither"), created on demand.</summary>
     public Gate GateOf(string operation, int call)
     {
         lock (_gates)
@@ -79,6 +82,16 @@ internal sealed class FakeGuider(string id, bool connected = true) : IGuider
     {
         await Run("stop", Interlocked.Increment(ref _stopCalls), cancellationToken);
         GuidingState = GuidingState.Idle;
+    }
+
+    public async Task DitherAsync(double amplitudePixels, CancellationToken cancellationToken = default)
+    {
+        lock (Amplitudes)
+        {
+            Amplitudes.Add(amplitudePixels);
+        }
+
+        await Run("dither", Interlocked.Increment(ref _ditherCalls), cancellationToken);
     }
 
     private async Task Run(string operation, int call, CancellationToken cancellationToken)

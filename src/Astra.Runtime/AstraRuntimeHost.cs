@@ -96,10 +96,11 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         DeviceId id,
         string name,
         TimeSpan? startDuration = null,
-        TimeSpan? stopDuration = null
+        TimeSpan? stopDuration = null,
+        TimeSpan? ditherDuration = null
     )
     {
-        var guider = new SimulatedGuider(id, name, EventBus, startDuration, stopDuration);
+        var guider = new SimulatedGuider(id, name, EventBus, startDuration, stopDuration, ditherDuration);
         AddDevice(guider);
         return guider;
     }

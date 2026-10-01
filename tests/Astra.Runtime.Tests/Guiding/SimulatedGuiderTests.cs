@@ -3,6 +3,7 @@ using Astra.Core.Events;
 using Astra.Core.Guiding;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Events;
+using Astra.Runtime.State;
 
 namespace Astra.Runtime.Tests.Guiding;
 
@@ -137,8 +138,28 @@ public class SimulatedGuiderTests
         Guiding(GuidingState.Stopping, GuidingState.Idle),
     ];
 
-    private static SimulatedGuider Create(IEventPublisher? events = null, TimeSpan? start = null, TimeSpan? stop = null) =>
-        new(GuiderId, events: events, startDuration: start ?? Quick, stopDuration: stop ?? Quick);
+    private static readonly IAstraEvent[] DitherEvents =
+    [
+        Guiding(GuidingState.Guiding, GuidingState.Dithering),
+        Guiding(GuidingState.Dithering, GuidingState.Guiding),
+    ];
+
+    private static SimulatedGuider Create(
+        IEventPublisher? events = null,
+        TimeSpan? start = null,
+        TimeSpan? stop = null,
+        TimeSpan? dither = null
+    ) =>
+        new(GuiderId, events: events, startDuration: start ?? Quick, stopDuration: stop ?? Quick,
+            ditherDuration: dither ?? Quick);
+
+    private static async Task<SimulatedGuider> CreateGuiding(Recorder recorder, TimeSpan? dither = null)
+    {
+        var guider = Create(recorder, dither: dither);
+        await guider.ConnectAsync();
+        await guider.StartGuidingAsync();
+        return guider;
+    }
 
     private static void AssertState(SimulatedGuider guider, DeviceConnectionState connection, GuidingState guiding)
     {
@@ -169,6 +190,7 @@ public class SimulatedGuiderTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => new SimulatedGuider(GuiderId, startDuration: duration));
         Assert.Throws<ArgumentOutOfRangeException>(() => new SimulatedGuider(GuiderId, stopDuration: duration));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SimulatedGuider(GuiderId, ditherDuration: duration));
     }
 
     // Successful lifecycle
@@ -645,6 +667,325 @@ public class SimulatedGuiderTests
         lock (failures)
         {
             Assert.Equal(11, failures.Count);
+        }
+    }
+
+    // Dithering
+
+    [Fact]
+    public void Guider_SupportsDithering()
+    {
+        Assert.IsAssignableFrom<IDitherGuider>(new SimulatedGuider(GuiderId));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(0.0)]
+    [InlineData(-1.5)]
+    public async Task Dither_RejectsInvalidAmplitudes_WithoutChangingState(double amplitude)
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        var before = recorder.Events.Length;
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => guider.DitherAsync(amplitude));
+
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal(before, recorder.Events.Length);
+    }
+
+    [Fact]
+    public async Task Dither_PublishesGuidingDitheringGuiding()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = recorder.HoldUntil(DitherEvents[0], release.Task);
+
+        var dither = guider.DitherAsync(1.5);
+        await held.WaitAsync(Bound);
+        Assert.Equal(GuidingState.Dithering, guider.GuidingState);
+        Assert.False(dither.IsCompleted);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, DitherEvents[0]], recorder.Events);
+        release.SetResult();
+        await dither.WaitAsync(Bound);
+
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, .. DitherEvents], recorder.Events);
+    }
+
+    [Fact]
+    public async Task Dither_WhileDisconnectedOrIdle_Fails_WithoutConnectingOrStarting()
+    {
+        var recorder = new Recorder();
+        var guider = Create(recorder);
+
+        var disconnected = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+        Assert.Contains("'guider.main' is not connected", disconnected.Message);
+        AssertState(guider, DeviceConnectionState.Disconnected, GuidingState.Idle);
+        Assert.Empty(recorder.Events);
+
+        await guider.ConnectAsync();
+        var idle = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+        Assert.Contains("'guider.main' is not guiding", idle.Message);
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Idle);
+        Assert.Equal(ConnectEvents, recorder.Events);
+    }
+
+    [Fact]
+    public async Task AlreadyCancelledDither_ChangesNothing_AndPublishesNothing()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        var before = recorder.Events.Length;
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => guider.DitherAsync(1, cts.Token));
+
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal(before, recorder.Events.Length);
+    }
+
+    [Fact]
+    public async Task OverlappingCalls_AreRejected_WhileDithering()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        using var cts = new CancellationTokenSource();
+        var held = recorder.Hold(DitherEvents[0]);
+
+        var dither = guider.DitherAsync(1, cts.Token);
+        await held.WaitAsync(Bound);
+
+        var again = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+        Assert.Contains("'guider.main' is busy", again.Message);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guider.StartGuidingAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guider.StopGuidingAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DisconnectAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guider.ConnectAsync());
+        Assert.Equal(GuidingState.Dithering, guider.GuidingState);
+
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => dither.WaitAsync(Bound));
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+    }
+
+    [Fact]
+    public async Task Dither_IsRejected_WhileAnotherOperationRuns()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        using var cts = new CancellationTokenSource();
+        var held = recorder.Hold(StopEvents[0]);
+
+        var stop = guider.StopGuidingAsync(cts.Token);
+        await held.WaitAsync(Bound);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+        Assert.Contains("'guider.main' is busy", error.Message);
+
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stop.WaitAsync(Bound));
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+    }
+
+    [Fact]
+    public async Task CancellationDuringDither_RestoresGuiding_AndAllowsLaterOperations()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder, dither: Long);
+        using var cts = new CancellationTokenSource();
+        var dithering = recorder.Reached(DitherEvents[0]);
+
+        var dither = guider.DitherAsync(2, cts.Token);
+        await dithering.WaitAsync(Bound);
+        Assert.Equal(GuidingState.Dithering, guider.GuidingState);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => dither.WaitAsync(Bound));
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, .. DitherEvents], recorder.Events);
+
+        recorder.OnPublish = null;
+        await guider.StopGuidingAsync();
+        await guider.DisconnectAsync();
+        AssertState(guider, DeviceConnectionState.Disconnected, GuidingState.Idle);
+    }
+
+    [Fact]
+    public async Task CancellationDuringFinalDitherPublication_KeepsGuiding_AndAllowsLaterDithers()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        using var cts = new CancellationTokenSource();
+        recorder.CancelDuring(DitherEvents[1], cts);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => guider.DitherAsync(1, cts.Token));
+
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, .. DitherEvents], recorder.Events);
+
+        recorder.OnPublish = null;
+        await guider.DitherAsync(1);
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+    }
+
+    [Fact]
+    public async Task DitherPublicationFailure_RestoresGuiding_AndReleasesTheGuard()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        recorder.OnPublish = (e, _) => e.Equals(DitherEvents[0])
+            ? throw new InvalidOperationException("publisher broke")
+            : Task.CompletedTask;
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+
+        Assert.Equal("publisher broke", error.Message);
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, .. DitherEvents], recorder.Events);
+
+        recorder.OnPublish = (e, _) => e.Equals(DitherEvents[1])
+            ? throw new InvalidOperationException("publisher broke")
+            : Task.CompletedTask;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+
+        recorder.OnPublish = null;
+        await guider.DitherAsync(1);
+        await guider.StopGuidingAsync();
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Idle);
+    }
+
+    /// <summary>Forwards publications to an inner publisher unless <see cref="FailBeforeForwarding"/> throws first.</summary>
+    private sealed class Forwarder(IEventPublisher inner) : IEventPublisher
+    {
+        public Func<IAstraEvent, Exception?>? FailBeforeForwarding { get; set; }
+
+        public Task PublishAsync<TEvent>(TEvent astraEvent, CancellationToken cancellationToken = default)
+            where TEvent : IAstraEvent
+        {
+            if (FailBeforeForwarding?.Invoke(astraEvent) is { } failure)
+            {
+                throw failure;
+            }
+
+            return inner.PublishAsync(astraEvent, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task FinalDitherPublicationFailure_RestoresGuiding_InTheSimulatorAndTheStateStore()
+    {
+        var bus = new EventBus();
+        using var store = new StateStore(bus);
+        var forwarder = new Forwarder(bus);
+        var guider = Create(forwarder);
+        await guider.ConnectAsync();
+        await guider.StartGuidingAsync();
+        var failed = false;
+        forwarder.FailBeforeForwarding = e =>
+        {
+            if (failed || !e.Equals(DitherEvents[1]))
+            {
+                return null;
+            }
+
+            failed = true;
+            return new InvalidOperationException("publisher broke");
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+
+        Assert.Equal("publisher broke", error.Message);
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.True(store.TryGet(GuiderId, out var state));
+        Assert.Equal(GuidingState.Guiding, state!.GuidingState);
+
+        await guider.DitherAsync(1);
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+    }
+
+    [Fact]
+    public async Task CleanupPublicationFailure_AfterDitherPublicationFailure_PreservesTheOriginalFailure()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder);
+        recorder.OnPublish = (e, _) =>
+            e.Equals(DitherEvents[0]) ? throw new InvalidOperationException("publisher broke")
+            : e.Equals(DitherEvents[1]) ? throw new InvalidOperationException("cleanup broke")
+            : Task.CompletedTask;
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => guider.DitherAsync(1));
+
+        Assert.Equal("publisher broke", error.Message);
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, .. DitherEvents], recorder.Events);
+
+        recorder.OnPublish = null;
+        await guider.DitherAsync(1);
+        await guider.StopGuidingAsync();
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Idle);
+    }
+
+    [Fact]
+    public async Task CleanupPublicationFailure_AfterDitherCancellation_PreservesTheCancellation()
+    {
+        var recorder = new Recorder();
+        var guider = await CreateGuiding(recorder, dither: Long);
+        using var cts = new CancellationTokenSource();
+        var dithering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        recorder.OnPublish = (e, _) =>
+        {
+            if (e.Equals(DitherEvents[0]))
+            {
+                dithering.TrySetResult();
+            }
+
+            return e.Equals(DitherEvents[1])
+                ? throw new InvalidOperationException("cleanup broke")
+                : Task.CompletedTask;
+        };
+
+        var dither = guider.DitherAsync(1, cts.Token);
+        await dithering.Task.WaitAsync(Bound);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => dither.WaitAsync(Bound));
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        Assert.Equal([.. ConnectEvents, .. StartEvents, .. DitherEvents], recorder.Events);
+
+        recorder.OnPublish = null;
+        await guider.DitherAsync(1);
+        await guider.DisconnectAsync();
+        AssertState(guider, DeviceConnectionState.Disconnected, GuidingState.Idle);
+    }
+
+    [Fact]
+    public async Task ThrowingSubscribers_DoNotBreakDithering_ThroughTheEventBus()
+    {
+        var failures = new List<EventHandlerFailure>();
+        var bus = new EventBus(failure =>
+        {
+            lock (failures)
+            {
+                failures.Add(failure);
+            }
+        });
+        bus.Subscribe<GuidingStateChanged>((_, _) => throw new InvalidOperationException("bad subscriber"));
+        var guider = Create(bus);
+        await guider.ConnectAsync();
+        await guider.StartGuidingAsync();
+
+        await guider.DitherAsync(1);
+        await guider.DitherAsync(1);
+
+        AssertState(guider, DeviceConnectionState.Connected, GuidingState.Guiding);
+        lock (failures)
+        {
+            Assert.Equal(6, failures.Count); // two for the start, two per dither
         }
     }
 }

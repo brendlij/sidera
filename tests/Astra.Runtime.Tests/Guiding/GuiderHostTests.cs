@@ -70,6 +70,46 @@ public class GuiderHostTests
     }
 
     [Fact]
+    public async Task AddSimulatedGuider_ForwardsTheDitherDuration()
+    {
+        await using var host = new AstraRuntimeHost();
+
+        var guider = host.AddSimulatedGuider(GuiderId, "Main guider", ditherDuration: Quick);
+
+        Assert.IsAssignableFrom<IDitherGuider>(guider);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            host.AddSimulatedGuider(new DeviceId("guider.bad"), "Bad", ditherDuration: TimeSpan.FromTicks(-1)));
+        Assert.False(host.DeviceRegistry.TryGet(new DeviceId("guider.bad"), out _));
+    }
+
+    [Fact]
+    public async Task SimulatedDither_IsProjectedIntoTheHostStateStore()
+    {
+        await using var host = new AstraRuntimeHost();
+        var guider = host.AddSimulatedGuider(GuiderId, "Main guider", Quick, Quick, Quick);
+        var projected = new List<GuidingState?>();
+        // The store subscribes first, so by the time this subscriber runs it has already applied the event.
+        host.EventBus.Subscribe<GuidingStateChanged>((_, _) =>
+        {
+            host.StateStore.TryGet(GuiderId, out var state);
+            projected.Add(state?.GuidingState);
+            return Task.CompletedTask;
+        });
+        await guider.ConnectAsync();
+        await guider.StartGuidingAsync();
+
+        await guider.DitherAsync(1.5);
+
+        Assert.Equal(
+            new GuidingState?[] { GuidingState.Starting, GuidingState.Guiding, GuidingState.Dithering, GuidingState.Guiding },
+            projected);
+        Assert.True(host.StateStore.TryGet(GuiderId, out var final));
+        Assert.Equal(
+            new DeviceState(GuiderId, DeviceConnectionState.Connected, GuidingState: GuidingState.Guiding),
+            final);
+    }
+
+    [Fact]
     public async Task Stop_DisconnectsAnActivelyGuidingSimulator_AndProjectsDisconnectedIdle()
     {
         await using var host = new AstraRuntimeHost();

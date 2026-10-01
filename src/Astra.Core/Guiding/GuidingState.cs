@@ -16,5 +16,11 @@ public enum GuidingState
     Guiding,
 
     /// <summary>Guiding is being stopped.</summary>
-    Stopping
+    Stopping,
+
+    /// <summary>
+    /// A dither command is running; guiding returns to <c>Guiding</c> when it has finished. Leaving this state
+    /// does not mean that guiding has settled.
+    /// </summary>
+    Dithering
 }
