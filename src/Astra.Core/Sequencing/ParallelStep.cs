@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using Astra.Core.Coordination;
 
 namespace Astra.Core.Sequencing;
 
@@ -9,7 +10,15 @@ namespace Astra.Core.Sequencing;
 /// </summary>
 public sealed class ParallelStep : ISequenceStep
 {
-    public ParallelStep(string name, IEnumerable<ISequenceStep> children)
+    /// <param name="coordinationGroup">
+    /// When set, the branches become participants of this coordination group while they run, so that they can
+    /// use safe points and coordinated operations. Without it the branches simply run side by side.
+    /// </param>
+    public ParallelStep(
+        string name,
+        IEnumerable<ISequenceStep> children,
+        CoordinationGroupId? coordinationGroup = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(children);
@@ -28,10 +37,12 @@ public sealed class ParallelStep : ISequenceStep
 
         Name = name;
         Children = list;
+        CoordinationGroup = coordinationGroup;
     }
 
     public string Name { get; }
     public IReadOnlyList<ISequenceStep> Children { get; }
+    public CoordinationGroupId? CoordinationGroup { get; }
 
     /// <summary>
     /// Starts every child through <paramref name="context"/> and waits for all of them.
@@ -99,8 +110,8 @@ public sealed class ParallelStep : ISequenceStep
     {
         try
         {
-            return await context.ExecuteChildAsync(
-                Children[index], index, Children.Count, branchesCancellation.Token);
+            return await context.ExecuteBranchAsync(
+                Children[index], index, Children.Count, CoordinationGroup, branchesCancellation.Token);
         }
         catch (OperationCanceledException) when (branchesCancellation.IsCancellationRequested)
         {

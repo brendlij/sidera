@@ -1,5 +1,6 @@
 using Astra.Core.Devices;
 using Astra.Core.Rigs;
+using Astra.Runtime.Coordination;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Events;
 using Astra.Runtime.Resources;
@@ -34,6 +35,7 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         RigRegistry = new RigRegistry(DeviceRegistry);
         ResourceManager = new ResourceManager();
         DeviceOperations = new DeviceOperationService(DeviceRegistry, ResourceManager);
+        SafePointCoordinator = new SafePointCoordinator();
     }
 
     public EventBus EventBus { get; }
@@ -46,6 +48,9 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
 
     /// <summary>Direct device operations, coordinated through <see cref="ResourceManager"/>.</summary>
     public DeviceOperationService DeviceOperations { get; }
+
+    /// <summary>Coordinates the branches of parallel steps; shared by all sequence runners of this runtime.</summary>
+    public SafePointCoordinator SafePointCoordinator { get; }
 
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>
     public void AddDevice(IDevice device)

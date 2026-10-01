@@ -1,4 +1,6 @@
+using Astra.Core.Coordination;
 using Astra.Core.Sequencing;
+using Astra.Runtime.Coordination;
 using Astra.Runtime.Resources;
 
 namespace Astra.Runtime.Sequencing;
@@ -15,6 +17,7 @@ public sealed class SequenceRunner
 {
     private readonly object _gate = new();
     private readonly ResourceManager _resources;
+    private readonly SafePointCoordinator _coordinator;
     private SequenceState _state = SequenceState.Idle;
     private SequenceExecutionPosition? _currentPosition;
     private readonly List<SequenceExecutionPosition> _active = new();
@@ -25,9 +28,14 @@ public sealed class SequenceRunner
     /// one manager, normally <see cref="AstraRuntimeHost.ResourceManager"/>. Without one the runner uses a
     /// private manager, which only coordinates its own steps.
     /// </param>
-    public SequenceRunner(ResourceManager? resourceManager = null)
+    /// <param name="safePointCoordinator">
+    /// Coordinates the branches of parallel steps that name a coordination group. Like the resource manager it
+    /// should normally be the host's, so that all runners of one runtime share it.
+    /// </param>
+    public SequenceRunner(ResourceManager? resourceManager = null, SafePointCoordinator? safePointCoordinator = null)
     {
         _resources = resourceManager ?? new ResourceManager();
+        _coordinator = safePointCoordinator ?? new SafePointCoordinator();
     }
 
     public SequenceState State
@@ -110,7 +118,7 @@ public sealed class SequenceRunner
 
                 var step = sequence.Steps[i];
                 var position = new SequenceExecutionPosition(step.Name, i, sequence.Steps.Count);
-                await ExecuteStepAsync(step, position, cancellationToken);
+                await ExecuteStepAsync(step, position, null, cancellationToken);
             }
 
             SetState(SequenceState.Completed);
@@ -136,6 +144,7 @@ public sealed class SequenceRunner
     private async Task<SequenceStepResult> ExecuteStepAsync(
         ISequenceStep step,
         SequenceExecutionPosition position,
+        BranchScope? branch,
         CancellationToken cancellationToken
     )
     {
@@ -158,7 +167,7 @@ public sealed class SequenceRunner
             {
                 // Cancelled while waiting for the resource (or just as it was handed over): do not start the step.
                 cancellationToken.ThrowIfCancellationRequested();
-                result = await step.ExecuteAsync(new StepContext(this, position), cancellationToken);
+                result = await step.ExecuteAsync(new StepContext(this, position, branch), cancellationToken);
             }
         }
         finally
@@ -216,9 +225,20 @@ public sealed class SequenceRunner
         }
     }
 
-    // Created per execution, so a child is always positioned under the execution that started it.
-    private sealed class StepContext(SequenceRunner runner, SequenceExecutionPosition parent) : ISequenceStepContext
+    // The coordination group and participant a branch belongs to; inherited by everything nested in the branch.
+    private sealed record BranchScope(CoordinationGroupId Group, ParticipantId Participant);
+
+    // Created per execution, so a child is always positioned under the execution that started it. It also holds
+    // the per-execution state of the branches this step launches, never anything on the step definition.
+    private sealed class StepContext(
+        SequenceRunner runner,
+        SequenceExecutionPosition parent,
+        BranchScope? branch
+    ) : ISequenceStepContext
     {
+        private readonly object _gate = new();
+        private IReadOnlyList<ParticipantId>? _participants;
+
         public Task<SequenceStepResult> ExecuteChildAsync(
             ISequenceStep child,
             int index,
@@ -227,7 +247,67 @@ public sealed class SequenceRunner
         )
         {
             var position = new SequenceExecutionPosition(child.Name, index, count, parent);
-            return runner.ExecuteStepAsync(child, position, cancellationToken);
+            return runner.ExecuteStepAsync(child, position, branch, cancellationToken);
+        }
+
+        public async Task<SequenceStepResult> ExecuteBranchAsync(
+            ISequenceStep child,
+            int index,
+            int count,
+            CoordinationGroupId? group,
+            CancellationToken cancellationToken
+        )
+        {
+            var position = new SequenceExecutionPosition(child.Name, index, count, parent);
+
+            if (group is not { } groupId)
+            {
+                return await runner.ExecuteStepAsync(child, position, branch, cancellationToken);
+            }
+
+            // All branches are registered together when the first one is launched, so a branch that starts
+            // running and asks for a coordinated operation cannot miss a sibling that has not started yet.
+            ParticipantId participant;
+            lock (_gate)
+            {
+                _participants ??= runner._coordinator.RegisterParticipants(groupId, count);
+                participant = _participants[index];
+            }
+
+            var failed = false;
+            try
+            {
+                return await runner.ExecuteStepAsync(
+                    child, position, new BranchScope(groupId, participant), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                failed = true;
+                throw;
+            }
+            finally
+            {
+                runner._coordinator.Unregister(groupId, participant, failed);
+            }
+        }
+
+        public Task ReachSafePointAsync(CancellationToken cancellationToken)
+        {
+            return branch is null
+                ? Task.CompletedTask
+                : runner._coordinator.ReachSafePointAsync(branch.Group, branch.Participant, cancellationToken);
+        }
+
+        public Task ExecuteWhenSafeAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken)
+        {
+            return branch is null
+                ? operation(cancellationToken)
+                : runner._coordinator.ExecuteWhenSafeAsync(
+                    branch.Group, branch.Participant, operation, cancellationToken);
         }
     }
 }

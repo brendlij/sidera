@@ -1,8 +1,12 @@
+using Astra.Core.Coordination;
 using Astra.Core.Sequencing;
 
 namespace Astra.Runtime.Tests.Sequencing;
 
-/// <summary>Context for executing a leaf step directly, outside a runner. Leaf steps never use it.</summary>
+/// <summary>
+/// Context for executing a leaf step directly, outside a runner. Leaf steps never use it for children;
+/// as outside any coordination group, a safe point does nothing and a coordinated operation just runs.
+/// </summary>
 internal sealed class NoContext : ISequenceStepContext
 {
     public static NoContext Instance { get; } = new();
@@ -13,4 +17,17 @@ internal sealed class NoContext : ISequenceStepContext
         int count,
         CancellationToken cancellationToken
     ) => throw new NotSupportedException();
+
+    public Task<SequenceStepResult> ExecuteBranchAsync(
+        ISequenceStep child,
+        int index,
+        int count,
+        CoordinationGroupId? group,
+        CancellationToken cancellationToken
+    ) => throw new NotSupportedException();
+
+    public Task ReachSafePointAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task ExecuteWhenSafeAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken) =>
+        operation(cancellationToken);
 }

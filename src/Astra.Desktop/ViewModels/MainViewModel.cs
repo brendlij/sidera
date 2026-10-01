@@ -48,7 +48,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _stateStore = host.StateStore;
         _deviceRegistry = host.DeviceRegistry;
         _operations = host.DeviceOperations;
-        _sequenceRunner = new SequenceRunner(host.ResourceManager);
+        _sequenceRunner = new SequenceRunner(host.ResourceManager, host.SafePointCoordinator);
         _postToUi = postToUi;
         _requestedExposure = exposureDuration ?? TimeSpan.FromSeconds(5);
         _sequenceExposure = sequenceExposureDuration ?? TimeSpan.FromSeconds(2);
