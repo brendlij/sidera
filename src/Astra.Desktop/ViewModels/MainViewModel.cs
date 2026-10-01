@@ -20,6 +20,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly StateStore _stateStore;
     private readonly Action<Action> _postToUi;
     private readonly DeviceRegistry _deviceRegistry;
+    private readonly DeviceOperationService _operations;
     private readonly SequenceRunner _sequenceRunner;
     private readonly TimeSpan _requestedExposure;
     private readonly TimeSpan _sequenceExposure;
@@ -46,6 +47,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _camera = camera;
         _stateStore = host.StateStore;
         _deviceRegistry = host.DeviceRegistry;
+        _operations = host.DeviceOperations;
         _sequenceRunner = new SequenceRunner(host.ResourceManager);
         _postToUi = postToUi;
         _requestedExposure = exposureDuration ?? TimeSpan.FromSeconds(5);
@@ -160,10 +162,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         $"{ExposureState} · {ExposureElapsed.TotalSeconds:0.0} / {ExposureDuration.TotalSeconds:0.0} s";
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
-    private Task ConnectAsync() => _camera.ConnectAsync();
+    private Task ConnectAsync() => _operations.ConnectAsync(_camera.Id);
 
     [RelayCommand(CanExecute = nameof(CanDisconnect))]
-    private Task DisconnectAsync() => _camera.DisconnectAsync();
+    private Task DisconnectAsync() => _operations.DisconnectAsync(_camera.Id);
 
     [RelayCommand(CanExecute = nameof(CanStartExposure))]
     private async Task StartExposureAsync()
@@ -174,7 +176,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            LastFrame = await _camera.ExposeAsync(_requestedExposure, cts.Token);
+            LastFrame = await _operations.ExposeAsync(_camera.Id, _requestedExposure, cts.Token);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {

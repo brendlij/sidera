@@ -9,7 +9,7 @@ using Astra.Runtime.State;
 namespace Astra.Runtime;
 
 /// <summary>
-/// Owns the runtime components (event bus, state store, device registry, rig registry, resource manager) and their lifecycle.
+/// Owns the runtime components (event bus, state store, device registry, rig registry, resource manager, device operations) and their lifecycle.
 /// Devices are added explicitly; on <see cref="StopAsync"/> the host disconnects those still connected.
 /// </summary>
 public sealed class AstraRuntimeHost : IAsyncDisposable
@@ -33,6 +33,7 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         DeviceRegistry = new DeviceRegistry();
         RigRegistry = new RigRegistry(DeviceRegistry);
         ResourceManager = new ResourceManager();
+        DeviceOperations = new DeviceOperationService(DeviceRegistry, ResourceManager);
     }
 
     public EventBus EventBus { get; }
@@ -42,6 +43,9 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
 
     /// <summary>The one manager that all sequence runners of this runtime share.</summary>
     public ResourceManager ResourceManager { get; }
+
+    /// <summary>Direct device operations, coordinated through <see cref="ResourceManager"/>.</summary>
+    public DeviceOperationService DeviceOperations { get; }
 
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>
     public void AddDevice(IDevice device)

@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.Resources;
 using Astra.Desktop.ViewModels;
 using Astra.Core.Sequencing;
 using Astra.Runtime;
@@ -9,18 +10,25 @@ namespace Astra.Desktop.Tests.ViewModels;
 
 public class MainViewModelTests
 {
-    private static (MainViewModel Vm, SimulatedCamera Camera) Create(
+    private static (MainViewModel Vm, SimulatedCamera Camera, AstraRuntimeHost Host) CreateWithHost(
         TimeSpan? exposure = null,
         TimeSpan? sequenceExposure = null,
-        bool registerCamera = true,
         TimeSpan? sequenceDelay = null
     )
     {
         var host = new AstraRuntimeHost();
-        var camera = registerCamera
-            ? host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera")
-            : new SimulatedCamera(new DeviceId("camera.main"), "Main Camera", host.EventBus);
+        var camera = host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
         var vm = new MainViewModel(camera, host, action => action(), exposure, sequenceExposure, sequenceDelay);
+        return (vm, camera, host);
+    }
+
+    private static (MainViewModel Vm, SimulatedCamera Camera) Create(
+        TimeSpan? exposure = null,
+        TimeSpan? sequenceExposure = null,
+        TimeSpan? sequenceDelay = null
+    )
+    {
+        var (vm, camera, _) = CreateWithHost(exposure, sequenceExposure, sequenceDelay);
         return (vm, camera);
     }
 
@@ -50,11 +58,17 @@ public class MainViewModelTests
         TimeSpan? sequenceDelay = null
     )
     {
-        var (vm, camera) = Create(
+        var (vm, camera, host) = CreateWithHost(
             sequenceExposure: sequenceExposure,
-            registerCamera: registerCamera,
             sequenceDelay: sequenceDelay ?? TimeSpan.FromMilliseconds(20));
         await vm.ConnectCommand.ExecuteAsync(null);
+
+        if (!registerCamera)
+        {
+            // Connected manually, but the sequence can no longer find the camera.
+            host.DeviceRegistry.Unregister(camera.Id);
+        }
+
         return (vm, camera);
     }
 
@@ -290,6 +304,48 @@ public class MainViewModelTests
         Assert.Equal(DeviceConnectionState.Connected, camera.ConnectionState);
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
         AssertManualControlsAvailableForConnectedCamera(vm);
+    }
+
+    [Fact]
+    public async Task ManualExposure_WaitsForResourceHeldElsewhere_EvenThoughTheUiAllowsIt()
+    {
+        var (vm, camera, host) = CreateWithHost(exposure: TimeSpan.FromMilliseconds(30));
+        await vm.ConnectCommand.ExecuteAsync(null);
+        var cameraResource = ResourceId.ForDevice(camera.Id);
+        var otherHolder = await host.ResourceManager.AcquireAsync([cameraResource]);
+
+        // The command is enabled (UX), but the runtime makes it wait: correctness comes from the ResourceManager.
+        Assert.True(vm.StartExposureCommand.CanExecute(null));
+        var run = vm.StartExposureCommand.ExecuteAsync(null);
+
+        Assert.False(run.IsCompleted);
+        Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
+        Assert.Null(vm.LastFrame);
+
+        otherHolder.Dispose();
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(vm.LastFrame);
+        Assert.False(host.ResourceManager.IsHeld(cameraResource));
+    }
+
+    [Fact]
+    public async Task ManualExposure_CancelledWhileWaitingForResource_NeverStarts()
+    {
+        var (vm, camera, host) = CreateWithHost();
+        await vm.ConnectCommand.ExecuteAsync(null);
+        var cameraResource = ResourceId.ForDevice(camera.Id);
+        using var otherHolder = await host.ResourceManager.AcquireAsync([cameraResource]);
+
+        var run = vm.StartExposureCommand.ExecuteAsync(null);
+        Assert.True(vm.IsManualExposureRunning);
+        vm.CancelExposureCommand.Execute(null);
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(vm.IsManualExposureRunning);
+        Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
+        Assert.Null(vm.LastFrame);
+        Assert.True(host.ResourceManager.IsHeld(cameraResource)); // still the other holder's
     }
 
     [Fact]
