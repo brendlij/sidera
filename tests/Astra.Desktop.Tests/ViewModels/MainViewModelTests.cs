@@ -307,6 +307,35 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task ActiveSequenceStatusLines_ShowTheSingleRunningBranchOfTheDemo_AndClearAfterwards()
+    {
+        var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(400));
+
+        var run = vm.RunSequenceCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.ActiveSequenceStatusLines.Count == 1 && vm.CurrentStepName == "Exposure 0.4s");
+
+        var line = Assert.Single(vm.ActiveSequenceStatusLines);
+        Assert.Equal("Repeat × 3 · 1 / 3 › Imaging Block · 1 / 2 › Exposure 0.4s", line.Text);
+        await run;
+
+        Assert.Empty(vm.ActiveSequenceStatusLines);
+    }
+
+    [Fact]
+    public void ActiveBranches_OfAParallelStep_AreListedOnePerRunningLeaf()
+    {
+        var root = new SequenceExecutionPosition("Parallel", 0, 1);
+        var branchA = new SequenceExecutionPosition("Exposure A", 0, 2, root);
+        var branchB = new SequenceExecutionPosition("Wait 5s", 1, 2, root);
+
+        var lines = SequenceStatusLine.ForActiveBranches([root, branchA, branchB]);
+
+        Assert.Equal(
+            new[] { "Parallel · 1 / 2 › Exposure A", "Parallel · 2 / 2 › Wait 5s" },
+            lines.Select(l => l.Text));
+    }
+
+    [Fact]
     public async Task ManualExposure_WaitsForResourceHeldElsewhere_EvenThoughTheUiAllowsIt()
     {
         var (vm, camera, host) = CreateWithHost(exposure: TimeSpan.FromMilliseconds(30));

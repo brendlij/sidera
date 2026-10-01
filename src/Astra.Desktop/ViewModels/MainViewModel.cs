@@ -130,6 +130,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<SequenceOutlineItem> SequenceOutline { get; }
 
     /// <summary>
+    /// One line per branch that is running right now (several with a parallel step), each the full path from the
+    /// top-level step to the running step. Empty when nothing runs.
+    /// </summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<SequenceStatusLine> ActiveSequenceStatusLines { get; private set; } = [];
+
+    /// <summary>
     /// <see cref="SequenceStatusLines"/> on one line, e.g. "Repeat × 3 · 2 / 3 › Imaging Block › Exposure 2s";
     /// empty until the first step has started.
     /// </summary>
@@ -321,6 +328,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             SequenceStatusLines = lines;
             SequenceStepText = text;
+        }
+
+        var active = SequenceStatusLine.ForActiveBranches(_sequenceRunner.ActivePositions);
+        if (!active.Select(l => l.Text).SequenceEqual(ActiveSequenceStatusLines.Select(l => l.Text)))
+        {
+            ActiveSequenceStatusLines = active;
         }
 
         IsSequenceRunning = _sequenceRunner.IsRunning;

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Astra.Core.Sequencing;
 
 namespace Astra.Desktop.ViewModels;
@@ -7,6 +8,19 @@ namespace Astra.Desktop.ViewModels;
 /// <param name="IsContainer">True for the lines describing containers around the running step.</param>
 public sealed record SequenceStatusLine(string Text, bool IsContainer)
 {
+    /// <summary>
+    /// One line per running leaf branch: the full path "Parallel › Imaging Block › Exposure 2s". A position is a
+    /// leaf when no other active position is nested directly inside it.
+    /// </summary>
+    public static IReadOnlyList<SequenceStatusLine> ForActiveBranches(IReadOnlyCollection<SequenceExecutionPosition> active)
+    {
+        return active
+            .Where(position => !active.Any(other => Equals(other.Parent, position)))
+            .Select(position => new SequenceStatusLine(
+                string.Join(" › ", From(position).Select(line => line.Text)), false))
+            .ToList();
+    }
+
     /// <summary>
     /// Turns the position of the running step into lines from the outside in, e.g.
     /// "Repeat × 3 · 2 / 3", "Imaging Block", "Exposure 2s". A container line carries the

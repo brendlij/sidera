@@ -17,6 +17,7 @@ public sealed class SequenceRunner
     private readonly ResourceManager _resources;
     private SequenceState _state = SequenceState.Idle;
     private SequenceExecutionPosition? _currentPosition;
+    private readonly List<SequenceExecutionPosition> _active = new();
     private Exception? _failure;
 
     /// <param name="resourceManager">
@@ -37,12 +38,22 @@ public sealed class SequenceRunner
     public bool IsRunning => State == SequenceState.Running;
 
     /// <summary>
-    /// The innermost execution that is running, or that ran last; <c>null</c> before the first step.
-    /// For a repeat this is its child with the current iteration; its parents lead up to the top-level step.
+    /// The execution that started most recently (it keeps its value after it ended); <c>null</c> before the first step.
+    /// With a single chain of nested steps this is the innermost running step, its parents lead up to the
+    /// top-level step. With parallel branches several executions are active, see <see cref="ActivePositions"/>.
     /// </summary>
     public SequenceExecutionPosition? CurrentPosition
     {
         get { lock (_gate) { return _currentPosition; } }
+    }
+
+    /// <summary>
+    /// Every execution that is in progress right now, containers and their running children alike, in the order
+    /// they started; empty when no run is active. A snapshot, safe to enumerate.
+    /// </summary>
+    public IReadOnlyCollection<SequenceExecutionPosition> ActivePositions
+    {
+        get { lock (_gate) { return _active.ToArray(); } }
     }
 
     /// <summary>Index of the running top-level step, or of the last one that ran; -1 before the first step.</summary>
@@ -58,16 +69,17 @@ public sealed class SequenceRunner
     }
 
     /// <summary>
-    /// Raised when <see cref="State"/> or <see cref="CurrentPosition"/> changed: when a run starts,
-    /// when each step or repeated child starts, and when the run ends.
-    /// Raised on the thread running the sequence; observers read the properties themselves.
+    /// Raised when <see cref="State"/>, <see cref="CurrentPosition"/> or <see cref="ActivePositions"/> changed: when a
+    /// run starts, when any step or branch starts or finishes (however it ends), and when the run ends.
+    /// Raised on whichever thread made the change, possibly from several branches at once, and never while
+    /// the runner holds a lock. Observers read the properties themselves.
     /// </summary>
     public event EventHandler? Changed;
 
     /// <summary>
     /// Raised after a step, top-level or nested, has completed successfully and before the next
     /// execution starts, with its position and result. Never raised for an execution that threw or was cancelled.
-    /// Raised on the thread running the sequence.
+    /// Raised on the thread that ran the step. Parallel branches raise it concurrently, in real completion order.
     /// </summary>
     public event EventHandler<SequenceStepCompletedEventArgs>? StepCompleted;
 
@@ -84,6 +96,7 @@ public sealed class SequenceRunner
 
             _state = SequenceState.Running;
             _currentPosition = null;
+            _active.Clear();
             _failure = null;
         }
 
@@ -129,18 +142,34 @@ public sealed class SequenceRunner
         lock (_gate)
         {
             _currentPosition = position;
+            _active.Add(position);
         }
 
         RaiseChanged();
 
         SequenceStepResult result;
 
-        // Only steps that declare requirements acquire anything. Containers do not, so a repeat or group
-        // never holds what its children need: each child takes its own resources when it runs.
-        var required = step is IResourceAwareSequenceStep aware ? aware.RequiredResources : [];
-        using (await _resources.AcquireAsync(required, cancellationToken))
+        try
         {
-            result = await step.ExecuteAsync(new StepContext(this, position), cancellationToken);
+            // Only steps that declare requirements acquire anything. Containers do not, so a repeat, group
+            // or parallel step never holds what its children need: each child takes its own resources.
+            var required = step is IResourceAwareSequenceStep aware ? aware.RequiredResources : [];
+            using (await _resources.AcquireAsync(required, cancellationToken))
+            {
+                // Cancelled while waiting for the resource (or just as it was handed over): do not start the step.
+                cancellationToken.ThrowIfCancellationRequested();
+                result = await step.ExecuteAsync(new StepContext(this, position), cancellationToken);
+            }
+        }
+        finally
+        {
+            // Success, failure or cancellation: this execution is no longer active.
+            lock (_gate)
+            {
+                _active.Remove(position);
+            }
+
+            RaiseChanged();
         }
 
         // Reported after the resources are released, so observers never run while holding them.
