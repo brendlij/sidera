@@ -23,14 +23,10 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var host = new AstraRuntimeHost();
-            var camera = DemoSetup.AddMainRig(host);
+            DemoSetup.AddDemoEquipment(host);
             host.Start();
 
-            var viewModel = new MainViewModel(
-                camera,
-                host,
-                action => Dispatcher.UIThread.Post(action)
-            );
+            var viewModel = new MainViewModel(host, action => Dispatcher.UIThread.Post(action));
 
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
 

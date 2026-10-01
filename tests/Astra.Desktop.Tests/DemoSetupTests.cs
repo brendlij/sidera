@@ -11,7 +11,7 @@ public class DemoSetupTests
     {
         await using var host = new AstraRuntimeHost();
 
-        DemoSetup.AddMainRig(host);
+        DemoSetup.AddDemoEquipment(host);
 
         Assert.True(host.RigRegistry.TryGet(new RigId("rig.main"), out var rig));
         Assert.Equal("Main Rig", rig!.Name);
@@ -26,7 +26,7 @@ public class DemoSetupTests
     {
         await using var host = new AstraRuntimeHost();
 
-        var camera = DemoSetup.AddMainRig(host);
+        var camera = DemoSetup.AddDemoEquipment(host).Camera;
 
         host.RigRegistry.TryGet(new RigId("rig.main"), out var rig);
         Assert.Equal(new DeviceId("camera.main"), rig!.CameraId);

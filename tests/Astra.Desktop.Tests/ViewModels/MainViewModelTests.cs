@@ -10,7 +10,47 @@ namespace Astra.Desktop.Tests.ViewModels;
 
 public class MainViewModelTests
 {
-    private static (MainViewModel Vm, SimulatedCamera Camera, AstraRuntimeHost Host) CreateWithHost(
+    [Theory]
+    [InlineData(AppPage.Dashboard)]
+    [InlineData(AppPage.Equipment)]
+    [InlineData(AppPage.Sequencer)]
+    [InlineData(AppPage.Imaging)]
+    public async Task Navigation_SelectsTheComposedPage(AppPage page)
+    {
+        await using var host = new AstraRuntimeHost();
+        DemoSetup.AddDemoEquipment(host);
+        using var vm = new MainViewModel(host, action => action());
+        vm.NavigateCommand.Execute(page);
+        Assert.Equal(page, vm.SelectedPage);
+        Assert.Same(page switch
+        {
+            AppPage.Equipment => (ViewModelBase)vm.Equipment,
+            AppPage.Sequencer => vm.Sequencer,
+            AppPage.Imaging => vm.Imaging,
+            _ => vm.Dashboard
+        }, vm.CurrentPage);
+        Assert.Same(vm.Sequencer, vm.Dashboard.Sequencer);
+        Assert.Same(vm.Imaging, vm.Dashboard.Imaging);
+    }
+    private sealed record TestPages(CameraViewModel Camera, SequencerViewModel Sequencer, ImagingViewModel Imaging, Sequence Sequence);
+
+    private static TestPages CreatePages(
+        SimulatedCamera camera, AstraRuntimeHost host, Action<Action> postToUi,
+        TimeSpan? exposure = null, TimeSpan? sequenceExposure = null, TimeSpan? sequenceDelay = null)
+    {
+        var activity = new SessionActivity();
+        var imaging = new ImagingViewModel();
+        var cameraVm = new CameraViewModel(camera, host, postToUi, activity, imaging, exposure ?? TimeSpan.FromSeconds(5));
+        var sequence = new Sequence("Demo", [new RepeatStep(3, new SequenceGroup("Imaging Block", [
+            new CameraExposureAction(host.DeviceRegistry, camera.Id, sequenceExposure ?? TimeSpan.FromSeconds(2)),
+            new DelayAction(sequenceDelay ?? TimeSpan.FromSeconds(1))]))]);
+        var sequencer = new SequencerViewModel(host, postToUi, activity, imaging, [cameraVm], sequence,
+            () => cameraVm.IsConnected && cameraVm.ExposureState == CameraExposureState.Idle && !cameraVm.IsManualExposureRunning
+                ? null : "Connect the camera and wait for its exposure.");
+        cameraVm.Refreshed += (_, _) => sequencer.RefreshReadiness();
+        return new TestPages(cameraVm, sequencer, imaging, sequence);
+    }
+    private static (TestPages Vm, SimulatedCamera Camera, AstraRuntimeHost Host) CreateWithHost(
         TimeSpan? exposure = null,
         TimeSpan? sequenceExposure = null,
         TimeSpan? sequenceDelay = null
@@ -18,11 +58,11 @@ public class MainViewModelTests
     {
         var host = new AstraRuntimeHost();
         var camera = host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
-        var vm = new MainViewModel(camera, host, action => action(), exposure, sequenceExposure, sequenceDelay);
+        var vm = CreatePages(camera, host, action => action(), exposure, sequenceExposure, sequenceDelay);
         return (vm, camera, host);
     }
 
-    private static (MainViewModel Vm, SimulatedCamera Camera) Create(
+    private static (TestPages Vm, SimulatedCamera Camera) Create(
         TimeSpan? exposure = null,
         TimeSpan? sequenceExposure = null,
         TimeSpan? sequenceDelay = null
@@ -42,17 +82,17 @@ public class MainViewModelTests
         }
     }
 
-    private static void AssertManualControlsAvailableForConnectedCamera(MainViewModel vm)
+    private static void AssertManualControlsAvailableForConnectedCamera(TestPages vm)
     {
-        Assert.False(vm.IsSequenceRunning);
-        Assert.False(vm.ConnectCommand.CanExecute(null));
-        Assert.True(vm.DisconnectCommand.CanExecute(null));
-        Assert.True(vm.StartExposureCommand.CanExecute(null));
-        Assert.True(vm.RunSequenceCommand.CanExecute(null));
-        Assert.False(vm.CancelSequenceCommand.CanExecute(null));
+        Assert.False(vm.Sequencer.IsRunning);
+        Assert.False(vm.Camera.ConnectCommand.CanExecute(null));
+        Assert.True(vm.Camera.DisconnectCommand.CanExecute(null));
+        Assert.True(vm.Camera.StartExposureCommand.CanExecute(null));
+        Assert.True(vm.Sequencer.RunCommand.CanExecute(null));
+        Assert.False(vm.Sequencer.CancelCommand.CanExecute(null));
     }
 
-    private static async Task<(MainViewModel Vm, SimulatedCamera Camera)> CreateConnected(
+    private static async Task<(TestPages Vm, SimulatedCamera Camera)> CreateConnected(
         TimeSpan? sequenceExposure = null,
         bool registerCamera = true,
         TimeSpan? sequenceDelay = null
@@ -61,7 +101,7 @@ public class MainViewModelTests
         var (vm, camera, host) = CreateWithHost(
             sequenceExposure: sequenceExposure,
             sequenceDelay: sequenceDelay ?? TimeSpan.FromMilliseconds(20));
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
 
         if (!registerCamera)
         {
@@ -76,13 +116,13 @@ public class MainViewModelTests
     public async Task RunSequence_IsOnlyAvailableWhenCameraIsConnectedAndIdle()
     {
         var (vm, _) = Create();
-        Assert.False(vm.RunSequenceCommand.CanExecute(null));
+        Assert.False(vm.Sequencer.RunCommand.CanExecute(null));
 
-        await vm.ConnectCommand.ExecuteAsync(null);
-        Assert.True(vm.RunSequenceCommand.CanExecute(null));
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
+        Assert.True(vm.Sequencer.RunCommand.CanExecute(null));
 
-        await vm.DisconnectCommand.ExecuteAsync(null);
-        Assert.False(vm.RunSequenceCommand.CanExecute(null));
+        await vm.Camera.DisconnectCommand.ExecuteAsync(null);
+        Assert.False(vm.Sequencer.RunCommand.CanExecute(null));
     }
 
     [Fact]
@@ -90,7 +130,7 @@ public class MainViewModelTests
     {
         var (vm, _) = Create();
 
-        var repeat = Assert.IsType<RepeatStep>(Assert.Single(vm.DemoSequence.Steps));
+        var repeat = Assert.IsType<RepeatStep>(Assert.Single(vm.Sequence.Steps));
         Assert.Equal(3, repeat.Count);
         var group = Assert.IsType<SequenceGroup>(repeat.Child);
         Assert.Equal("Imaging Block", group.Name);
@@ -106,7 +146,7 @@ public class MainViewModelTests
         var (vm, _) = Create();
 
         Assert.Collection(
-            vm.SequenceOutline,
+            vm.Sequencer.Definition,
             item =>
             {
                 Assert.Equal("Repeat", item.Title);
@@ -116,20 +156,20 @@ public class MainViewModelTests
             item =>
             {
                 Assert.Equal("Imaging Block", item.Title);
-                Assert.Equal(string.Empty, item.Detail);
+                Assert.Equal("Group", item.Detail);
                 Assert.True(item.IndentWidth > 0);
             },
             item =>
             {
                 Assert.Equal("Exposure", item.Title);
-                Assert.Equal("2s", item.Detail);
-                Assert.True(item.IndentWidth > vm.SequenceOutline[1].IndentWidth);
+                Assert.Equal("2 s", item.Detail);
+                Assert.True(item.IndentWidth > vm.Sequencer.Definition[1].IndentWidth);
             },
             item =>
             {
                 Assert.Equal("Wait", item.Title);
-                Assert.Equal("1s", item.Detail);
-                Assert.Equal(vm.SequenceOutline[2].IndentWidth, item.IndentWidth);
+                Assert.Equal("1 s", item.Detail);
+                Assert.Equal(vm.Sequencer.Definition[2].IndentWidth, item.IndentWidth);
             });
     }
 
@@ -138,18 +178,18 @@ public class MainViewModelTests
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(400));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.SequenceStepText.StartsWith("Repeat × 3 · 2 / 3") && vm.CurrentStepName == "Exposure 0.4s");
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Sequencer.StepText.StartsWith("Repeat × 3 · 2 / 3") && vm.Sequencer.StatusLines.LastOrDefault()?.Text == "Exposure 0.4s");
 
         Assert.Equal(
             new[] { "Repeat × 3 · 2 / 3", "Imaging Block · 1 / 2", "Exposure 0.4s" },
-            vm.SequenceStatusLines.Select(l => l.Text));
-        Assert.Equal(new[] { true, true, false }, vm.SequenceStatusLines.Select(l => l.IsContainer));
+            vm.Sequencer.StatusLines.Select(l => l.Text));
+        Assert.Equal(new[] { true, true, false }, vm.Sequencer.StatusLines.Select(l => l.IsContainer));
         await run;
 
-        Assert.True(vm.IsSequenceCompleted);
-        Assert.False(vm.IsSequenceFailed);
-        Assert.False(vm.IsSequenceCancelled);
+        Assert.True(vm.Sequencer.IsCompleted);
+        Assert.False(vm.Sequencer.IsFailed);
+        Assert.False(vm.Sequencer.IsCancelled);
     }
 
     [Fact]
@@ -157,12 +197,12 @@ public class MainViewModelTests
     {
         var (vm, camera) = await CreateConnected(TimeSpan.FromMilliseconds(30));
 
-        await vm.RunSequenceCommand.ExecuteAsync(null);
+        await vm.Sequencer.RunCommand.ExecuteAsync(null);
 
-        Assert.Equal(SequenceState.Completed, vm.SequenceState);
-        Assert.Equal("Repeat × 3 · 3 / 3 › Imaging Block · 2 / 2 › Wait 0.02s", vm.SequenceStepText);
-        Assert.Equal("Wait 0.02s", vm.CurrentStepName);
-        Assert.Null(vm.SequenceError);
+        Assert.Equal(SequenceState.Completed, vm.Sequencer.State);
+        Assert.Equal("Repeat × 3 · 3 / 3 › Imaging Block · 2 / 2 › Wait 0.02s", vm.Sequencer.StepText);
+        Assert.Equal("Wait 0.02s", vm.Sequencer.StatusLines.LastOrDefault()?.Text);
+        Assert.Null(vm.Sequencer.ErrorMessage);
         Assert.Equal(DeviceConnectionState.Connected, camera.ConnectionState);
         AssertManualControlsAvailableForConnectedCamera(vm);
     }
@@ -172,17 +212,17 @@ public class MainViewModelTests
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(400));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.SequenceStepText.StartsWith("Repeat × 3 · 2 / 3"));
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Sequencer.StepText.StartsWith("Repeat × 3 · 2 / 3"));
 
-        Assert.Equal(SequenceState.Running, vm.SequenceState);
-        Assert.Equal("Exposure 0.4s", vm.CurrentStepName);
-        Assert.True(vm.IsSequenceRunning);
-        Assert.False(vm.ConnectCommand.CanExecute(null));
-        Assert.False(vm.DisconnectCommand.CanExecute(null));
-        Assert.False(vm.StartExposureCommand.CanExecute(null));
-        Assert.False(vm.RunSequenceCommand.CanExecute(null));
-        Assert.True(vm.CancelSequenceCommand.CanExecute(null));
+        Assert.Equal(SequenceState.Running, vm.Sequencer.State);
+        Assert.Equal("Exposure 0.4s", vm.Sequencer.StatusLines.LastOrDefault()?.Text);
+        Assert.True(vm.Sequencer.IsRunning);
+        Assert.False(vm.Camera.ConnectCommand.CanExecute(null));
+        Assert.False(vm.Camera.DisconnectCommand.CanExecute(null));
+        Assert.False(vm.Camera.StartExposureCommand.CanExecute(null));
+        Assert.False(vm.Sequencer.RunCommand.CanExecute(null));
+        Assert.True(vm.Sequencer.CancelCommand.CanExecute(null));
 
         await run;
     }
@@ -192,15 +232,15 @@ public class MainViewModelTests
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(30));
         var shown = new List<string>();
-        vm.PropertyChanged += (_, e) =>
+        vm.Sequencer.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MainViewModel.SequenceStepText))
+            if (e.PropertyName == nameof(SequencerViewModel.StepText))
             {
-                shown.Add(vm.SequenceStepText);
+                shown.Add(vm.Sequencer.StepText);
             }
         };
 
-        await vm.RunSequenceCommand.ExecuteAsync(null);
+        await vm.Sequencer.RunCommand.ExecuteAsync(null);
 
         // A lone child never adds "1 / 1" noise, and the iterations appear in order.
         Assert.DoesNotContain(shown, text => text.Contains("1 / 1"));
@@ -216,22 +256,22 @@ public class MainViewModelTests
     public async Task SequenceExposures_UpdateLastFrameAfterEachStep()
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(30));
-        Assert.Null(vm.LastFrame);
+        Assert.Null(vm.Imaging.LatestFrame);
         var frames = new List<CameraFrame?>();
-        vm.PropertyChanged += (_, e) =>
+        vm.Imaging.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MainViewModel.LastFrame))
+            if (e.PropertyName == nameof(ImagingViewModel.LatestFrame))
             {
-                frames.Add(vm.LastFrame);
+                frames.Add(vm.Imaging.LatestFrame);
             }
         };
 
-        await vm.RunSequenceCommand.ExecuteAsync(null);
+        await vm.Sequencer.RunCommand.ExecuteAsync(null);
 
         Assert.Equal(3, frames.Count);
         Assert.All(frames, f => Assert.NotNull(f));
         Assert.Equal(3, frames.Distinct().Count());
-        Assert.Same(frames[2], vm.LastFrame);
+        Assert.Same(frames[2], vm.Imaging.LatestFrame);
     }
 
     [Fact]
@@ -239,10 +279,10 @@ public class MainViewModelTests
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(300));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.LastFrame is not null);
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Imaging.LatestFrame is not null);
 
-        Assert.True(vm.IsSequenceRunning);
+        Assert.True(vm.Sequencer.IsRunning);
         await run;
     }
 
@@ -251,12 +291,12 @@ public class MainViewModelTests
     {
         var (vm, camera) = await CreateConnected(TimeSpan.FromSeconds(10));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
         await WaitUntil(() => camera.ExposureState == CameraExposureState.Exposing);
-        vm.CancelSequenceCommand.Execute(null);
+        vm.Sequencer.CancelCommand.Execute(null);
         await run;
 
-        Assert.Null(vm.LastFrame);
+        Assert.Null(vm.Imaging.LatestFrame);
     }
 
     [Fact]
@@ -264,23 +304,23 @@ public class MainViewModelTests
     {
         var (vm, camera) = await CreateConnected(TimeSpan.FromMilliseconds(30), sequenceDelay: TimeSpan.FromSeconds(10));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.CurrentStepName == "Exposure 0.03s" && vm.LastFrame is null);
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Sequencer.StatusLines.LastOrDefault()?.Text == "Exposure 0.03s" && vm.Imaging.LatestFrame is null);
         Assert.Equal(
             new[] { "Repeat × 3 · 1 / 3", "Imaging Block · 1 / 2", "Exposure 0.03s" },
-            vm.SequenceStatusLines.Select(l => l.Text));
+            vm.Sequencer.StatusLines.Select(l => l.Text));
 
-        await WaitUntil(() => vm.CurrentStepName == "Wait 10s");
+        await WaitUntil(() => vm.Sequencer.StatusLines.LastOrDefault()?.Text == "Wait 10s");
 
         Assert.Equal(
             new[] { "Repeat × 3 · 1 / 3", "Imaging Block · 2 / 2", "Wait 10s" },
-            vm.SequenceStatusLines.Select(l => l.Text));
+            vm.Sequencer.StatusLines.Select(l => l.Text));
         // The frame of the finished exposure stays visible while waiting; no exposure runs.
-        Assert.NotNull(vm.LastFrame);
-        Assert.False(vm.IsExposing);
+        Assert.NotNull(vm.Imaging.LatestFrame);
+        Assert.False(vm.Camera.IsExposing);
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
 
-        vm.CancelSequenceCommand.Execute(null);
+        vm.Sequencer.CancelCommand.Execute(null);
         await run;
     }
 
@@ -289,18 +329,18 @@ public class MainViewModelTests
     {
         var (vm, camera) = await CreateConnected(TimeSpan.FromMilliseconds(30), sequenceDelay: TimeSpan.FromSeconds(10));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.CurrentStepName == "Wait 10s");
-        var frame = vm.LastFrame;
-        vm.CancelSequenceCommand.Execute(null);
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Sequencer.StatusLines.LastOrDefault()?.Text == "Wait 10s");
+        var frame = vm.Imaging.LatestFrame;
+        vm.Sequencer.CancelCommand.Execute(null);
         await run;
 
-        Assert.Equal(SequenceState.Cancelled, vm.SequenceState);
-        Assert.True(vm.IsSequenceCancelled);
-        Assert.Null(vm.SequenceError);
-        Assert.False(vm.IsSequenceRunning);
+        Assert.Equal(SequenceState.Cancelled, vm.Sequencer.State);
+        Assert.True(vm.Sequencer.IsCancelled);
+        Assert.Null(vm.Sequencer.ErrorMessage);
+        Assert.False(vm.Sequencer.IsRunning);
         Assert.NotNull(frame);
-        Assert.Same(frame, vm.LastFrame);
+        Assert.Same(frame, vm.Imaging.LatestFrame);
         Assert.Equal(DeviceConnectionState.Connected, camera.ConnectionState);
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
         AssertManualControlsAvailableForConnectedCamera(vm);
@@ -311,14 +351,14 @@ public class MainViewModelTests
     {
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(400));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.ActiveSequenceStatusLines.Count == 1 && vm.CurrentStepName == "Exposure 0.4s");
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Sequencer.ActiveBranches.Count == 1 && vm.Sequencer.StatusLines.LastOrDefault()?.Text == "Exposure 0.4s");
 
-        var line = Assert.Single(vm.ActiveSequenceStatusLines);
-        Assert.Equal("Repeat × 3 · 1 / 3 › Imaging Block · 1 / 2 › Exposure 0.4s", line.Text);
+        var line = Assert.Single(vm.Sequencer.ActiveBranches);
+        Assert.Equal("Repeat × 3 · 1 / 3 › Imaging Block · 1 / 2 › Exposure 0.4s", $"{line.Context} › {line.Title}");
         await run;
 
-        Assert.Empty(vm.ActiveSequenceStatusLines);
+        Assert.Empty(vm.Sequencer.ActiveBranches);
     }
 
     [Fact]
@@ -339,22 +379,22 @@ public class MainViewModelTests
     public async Task ManualExposure_WaitsForResourceHeldElsewhere_EvenThoughTheUiAllowsIt()
     {
         var (vm, camera, host) = CreateWithHost(exposure: TimeSpan.FromMilliseconds(30));
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
         var cameraResource = ResourceId.ForDevice(camera.Id);
         var otherHolder = await host.ResourceManager.AcquireAsync([cameraResource]);
 
         // The command is enabled (UX), but the runtime makes it wait: correctness comes from the ResourceManager.
-        Assert.True(vm.StartExposureCommand.CanExecute(null));
-        var run = vm.StartExposureCommand.ExecuteAsync(null);
+        Assert.True(vm.Camera.StartExposureCommand.CanExecute(null));
+        var run = vm.Camera.StartExposureCommand.ExecuteAsync(null);
 
         Assert.False(run.IsCompleted);
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
-        Assert.Null(vm.LastFrame);
+        Assert.Null(vm.Imaging.LatestFrame);
 
         otherHolder.Dispose();
         await run.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.NotNull(vm.LastFrame);
+        Assert.NotNull(vm.Imaging.LatestFrame);
         Assert.False(host.ResourceManager.IsHeld(cameraResource));
     }
 
@@ -362,18 +402,18 @@ public class MainViewModelTests
     public async Task ManualExposure_CancelledWhileWaitingForResource_NeverStarts()
     {
         var (vm, camera, host) = CreateWithHost();
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
         var cameraResource = ResourceId.ForDevice(camera.Id);
         using var otherHolder = await host.ResourceManager.AcquireAsync([cameraResource]);
 
-        var run = vm.StartExposureCommand.ExecuteAsync(null);
-        Assert.True(vm.IsManualExposureRunning);
-        vm.CancelExposureCommand.Execute(null);
+        var run = vm.Camera.StartExposureCommand.ExecuteAsync(null);
+        Assert.True(vm.Camera.IsManualExposureRunning);
+        vm.Camera.CancelExposureCommand.Execute(null);
         await run.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.False(vm.IsManualExposureRunning);
+        Assert.False(vm.Camera.IsManualExposureRunning);
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
-        Assert.Null(vm.LastFrame);
+        Assert.Null(vm.Imaging.LatestFrame);
         Assert.True(host.ResourceManager.IsHeld(cameraResource)); // still the other holder's
     }
 
@@ -381,36 +421,36 @@ public class MainViewModelTests
     public async Task CancelExposure_IsOnlyAvailableWhileManualExposureRuns()
     {
         var (vm, _) = await CreateConnected();
-        Assert.False(vm.CancelExposureCommand.CanExecute(null));
+        Assert.False(vm.Camera.CancelExposureCommand.CanExecute(null));
 
-        var run = vm.StartExposureCommand.ExecuteAsync(null);
-        Assert.True(vm.IsManualExposureRunning);
-        Assert.True(vm.CancelExposureCommand.CanExecute(null));
+        var run = vm.Camera.StartExposureCommand.ExecuteAsync(null);
+        Assert.True(vm.Camera.IsManualExposureRunning);
+        Assert.True(vm.Camera.CancelExposureCommand.CanExecute(null));
 
-        vm.CancelExposureCommand.Execute(null);
+        vm.Camera.CancelExposureCommand.Execute(null);
         await run;
 
-        Assert.False(vm.IsManualExposureRunning);
-        Assert.False(vm.CancelExposureCommand.CanExecute(null));
+        Assert.False(vm.Camera.IsManualExposureRunning);
+        Assert.False(vm.Camera.CancelExposureCommand.CanExecute(null));
     }
 
     [Fact]
     public async Task CancelExposure_StopsExposure_ProducesNoFrame_AndRestoresControls()
     {
         var (vm, camera) = Create(exposure: TimeSpan.FromSeconds(10));
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
 
-        var run = vm.StartExposureCommand.ExecuteAsync(null);
+        var run = vm.Camera.StartExposureCommand.ExecuteAsync(null);
         await WaitUntil(() => camera.ExposureState == CameraExposureState.Exposing);
-        vm.CancelExposureCommand.Execute(null);
+        vm.Camera.CancelExposureCommand.Execute(null);
         await run;
 
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
-        Assert.Equal(CameraExposureState.Idle, vm.ExposureState);
-        Assert.Null(vm.LastFrame);
-        Assert.True(vm.StartExposureCommand.CanExecute(null));
-        Assert.True(vm.DisconnectCommand.CanExecute(null));
-        Assert.Equal(DeviceConnectionState.Connected, vm.ConnectionState);
+        Assert.Equal(CameraExposureState.Idle, vm.Camera.ExposureState);
+        Assert.Null(vm.Imaging.LatestFrame);
+        Assert.True(vm.Camera.StartExposureCommand.CanExecute(null));
+        Assert.True(vm.Camera.DisconnectCommand.CanExecute(null));
+        Assert.Equal(DeviceConnectionState.Connected, vm.Camera.ConnectionState);
     }
 
     [Fact]
@@ -418,21 +458,21 @@ public class MainViewModelTests
     {
         var (vm, camera) = await CreateConnected(TimeSpan.FromSeconds(10));
 
-        var run = vm.RunSequenceCommand.ExecuteAsync(null);
-        await WaitUntil(() => vm.SequenceStepText.StartsWith("Repeat × 3 · 1 / 3") && camera.ExposureState == CameraExposureState.Exposing);
-        vm.CancelSequenceCommand.Execute(null);
+        var run = vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Sequencer.StepText.StartsWith("Repeat × 3 · 1 / 3") && camera.ExposureState == CameraExposureState.Exposing);
+        vm.Sequencer.CancelCommand.Execute(null);
         await run;
 
-        Assert.Equal(SequenceState.Cancelled, vm.SequenceState);
-        Assert.Null(vm.SequenceError);
-        Assert.False(vm.IsSequenceRunning);
+        Assert.Equal(SequenceState.Cancelled, vm.Sequencer.State);
+        Assert.Null(vm.Sequencer.ErrorMessage);
+        Assert.False(vm.Sequencer.IsRunning);
         Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
         // The cancelled sequence left the camera connected; normal camera-state rules apply again.
-        Assert.Equal(DeviceConnectionState.Connected, vm.ConnectionState);
-        Assert.True(vm.DisconnectCommand.CanExecute(null));
-        Assert.True(vm.StartExposureCommand.CanExecute(null));
-        Assert.True(vm.RunSequenceCommand.CanExecute(null));
-        Assert.False(vm.CancelSequenceCommand.CanExecute(null));
+        Assert.Equal(DeviceConnectionState.Connected, vm.Camera.ConnectionState);
+        Assert.True(vm.Camera.DisconnectCommand.CanExecute(null));
+        Assert.True(vm.Camera.StartExposureCommand.CanExecute(null));
+        Assert.True(vm.Sequencer.RunCommand.CanExecute(null));
+        Assert.False(vm.Sequencer.CancelCommand.CanExecute(null));
     }
 
     [Fact]
@@ -441,11 +481,11 @@ public class MainViewModelTests
         // Connected manually, but not registered, so the sequence cannot find the camera.
         var (vm, _) = await CreateConnected(TimeSpan.FromMilliseconds(30), registerCamera: false);
 
-        await vm.RunSequenceCommand.ExecuteAsync(null);
+        await vm.Sequencer.RunCommand.ExecuteAsync(null);
 
-        Assert.Equal(SequenceState.Failed, vm.SequenceState);
-        Assert.Contains("is not registered", vm.SequenceError);
-        Assert.StartsWith("Repeat × 3 · 1 / 3", vm.SequenceStepText);
+        Assert.Equal(SequenceState.Failed, vm.Sequencer.State);
+        Assert.Contains("is not registered", vm.Sequencer.ErrorMessage);
+        Assert.StartsWith("Repeat × 3 · 1 / 3", vm.Sequencer.StepText);
         AssertManualControlsAvailableForConnectedCamera(vm);
     }
 
@@ -455,12 +495,12 @@ public class MainViewModelTests
     {
         var (vm, _) = Create();
 
-        Assert.Equal("Main Camera", vm.CameraName);
-        Assert.Equal(DeviceConnectionState.Disconnected, vm.ConnectionState);
-        Assert.Equal(CameraExposureState.Idle, vm.ExposureState);
-        Assert.True(vm.ConnectCommand.CanExecute(null));
-        Assert.False(vm.DisconnectCommand.CanExecute(null));
-        Assert.False(vm.StartExposureCommand.CanExecute(null));
+        Assert.Equal("Main Camera", vm.Camera.Name);
+        Assert.Equal(DeviceConnectionState.Disconnected, vm.Camera.ConnectionState);
+        Assert.Equal(CameraExposureState.Idle, vm.Camera.ExposureState);
+        Assert.True(vm.Camera.ConnectCommand.CanExecute(null));
+        Assert.False(vm.Camera.DisconnectCommand.CanExecute(null));
+        Assert.False(vm.Camera.StartExposureCommand.CanExecute(null));
     }
 
     [Fact]
@@ -468,99 +508,99 @@ public class MainViewModelTests
     {
         var (vm, _) = Create();
 
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
 
-        Assert.Equal(DeviceConnectionState.Connected, vm.ConnectionState);
-        Assert.False(vm.ConnectCommand.CanExecute(null));
-        Assert.True(vm.DisconnectCommand.CanExecute(null));
-        Assert.True(vm.StartExposureCommand.CanExecute(null));
+        Assert.Equal(DeviceConnectionState.Connected, vm.Camera.ConnectionState);
+        Assert.False(vm.Camera.ConnectCommand.CanExecute(null));
+        Assert.True(vm.Camera.DisconnectCommand.CanExecute(null));
+        Assert.True(vm.Camera.StartExposureCommand.CanExecute(null));
     }
 
     [Fact]
     public async Task Disconnect_ReturnsToDisconnected()
     {
         var (vm, _) = Create();
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
 
-        await vm.DisconnectCommand.ExecuteAsync(null);
+        await vm.Camera.DisconnectCommand.ExecuteAsync(null);
 
-        Assert.Equal(DeviceConnectionState.Disconnected, vm.ConnectionState);
-        Assert.True(vm.ConnectCommand.CanExecute(null));
-        Assert.False(vm.StartExposureCommand.CanExecute(null));
+        Assert.Equal(DeviceConnectionState.Disconnected, vm.Camera.ConnectionState);
+        Assert.True(vm.Camera.ConnectCommand.CanExecute(null));
+        Assert.False(vm.Camera.StartExposureCommand.CanExecute(null));
     }
 
     [Fact]
     public async Task Exposure_ShowsExposingWhileRunningThenIdle()
     {
         var (vm, _) = Create(TimeSpan.FromMilliseconds(300));
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
 
-        var running = vm.StartExposureCommand.ExecuteAsync(null);
+        var running = vm.Camera.StartExposureCommand.ExecuteAsync(null);
 
-        Assert.Equal(CameraExposureState.Exposing, vm.ExposureState);
-        Assert.False(vm.StartExposureCommand.CanExecute(null));
+        Assert.Equal(CameraExposureState.Exposing, vm.Camera.ExposureState);
+        Assert.False(vm.Camera.StartExposureCommand.CanExecute(null));
 
         await running;
 
-        Assert.Equal(CameraExposureState.Idle, vm.ExposureState);
-        Assert.True(vm.StartExposureCommand.CanExecute(null));
+        Assert.Equal(CameraExposureState.Idle, vm.Camera.ExposureState);
+        Assert.True(vm.Camera.StartExposureCommand.CanExecute(null));
     }
 
     [Fact]
     public async Task Disconnect_IsDisabledWhileExposing()
     {
         var (vm, camera) = Create(TimeSpan.FromMilliseconds(300));
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
 
-        var running = vm.StartExposureCommand.ExecuteAsync(null);
+        var running = vm.Camera.StartExposureCommand.ExecuteAsync(null);
 
-        Assert.False(vm.DisconnectCommand.CanExecute(null));
+        Assert.False(vm.Camera.DisconnectCommand.CanExecute(null));
         await Assert.ThrowsAsync<InvalidOperationException>(() => camera.DisconnectAsync());
 
         await running;
 
-        Assert.True(vm.DisconnectCommand.CanExecute(null));
+        Assert.True(vm.Camera.DisconnectCommand.CanExecute(null));
     }
 
     [Fact]
     public async Task Exposure_UpdatesProgressProperties()
     {
         var (vm, _) = Create(TimeSpan.FromMilliseconds(700));
-        await vm.ConnectCommand.ExecuteAsync(null);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
         var progressSeen = new List<double>();
-        vm.PropertyChanged += (_, e) =>
+        vm.Camera.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MainViewModel.ExposureProgress))
+            if (e.PropertyName == nameof(CameraViewModel.ExposureProgress))
             {
-                progressSeen.Add(vm.ExposureProgress);
+                progressSeen.Add(vm.Camera.ExposureProgress);
             }
         };
 
-        var running = vm.StartExposureCommand.ExecuteAsync(null);
+        var running = vm.Camera.StartExposureCommand.ExecuteAsync(null);
 
-        Assert.True(vm.IsExposing);
-        Assert.Equal(TimeSpan.FromMilliseconds(700), vm.ExposureDuration);
+        Assert.True(vm.Camera.IsExposing);
+        Assert.Equal(TimeSpan.FromMilliseconds(700), vm.Camera.ExposureDuration);
 
         await running;
 
         Assert.Contains(progressSeen, p => p > 0.0 && p < 1.0);
-        Assert.Equal(1.0, vm.ExposureProgress);
-        Assert.Equal(TimeSpan.FromMilliseconds(700), vm.ExposureElapsed);
-        Assert.False(vm.IsExposing);
+        Assert.Equal(1.0, vm.Camera.ExposureProgress);
+        Assert.Equal(TimeSpan.FromMilliseconds(700), vm.Camera.ExposureElapsed);
+        Assert.False(vm.Camera.IsExposing);
     }
 
     [Fact]
     public async Task CompletedExposure_StoresFrame()
     {
         var (vm, _) = Create(TimeSpan.FromMilliseconds(50));
-        await vm.ConnectCommand.ExecuteAsync(null);
-        Assert.Null(vm.LastFrame);
+        await vm.Camera.ConnectCommand.ExecuteAsync(null);
+        Assert.Null(vm.Imaging.LatestFrame);
 
-        await vm.StartExposureCommand.ExecuteAsync(null);
+        await vm.Camera.StartExposureCommand.ExecuteAsync(null);
 
-        Assert.NotNull(vm.LastFrame);
-        Assert.Equal(800, vm.LastFrame!.Width);
-        Assert.Equal(TimeSpan.FromMilliseconds(50), vm.LastFrame.ExposureDuration);
+        Assert.NotNull(vm.Imaging.LatestFrame);
+        Assert.Equal(800, vm.Imaging.LatestFrame!.Width);
+        Assert.Equal(TimeSpan.FromMilliseconds(50), vm.Imaging.LatestFrame.ExposureDuration);
     }
 
     [Fact]
@@ -569,15 +609,15 @@ public class MainViewModelTests
         var host = new AstraRuntimeHost();
         var camera = host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
         var posted = new List<Action>();
-        var vm = new MainViewModel(camera, host, posted.Add);
+        var vm = CreatePages(camera, host, posted.Add);
 
         await camera.ConnectAsync();
 
-        Assert.Equal(DeviceConnectionState.Disconnected, vm.ConnectionState);
+        Assert.Equal(DeviceConnectionState.Disconnected, vm.Camera.ConnectionState);
         Assert.NotEmpty(posted);
 
         posted.ForEach(a => a());
 
-        Assert.Equal(DeviceConnectionState.Connected, vm.ConnectionState);
+        Assert.Equal(DeviceConnectionState.Connected, vm.Camera.ConnectionState);
     }
 }
