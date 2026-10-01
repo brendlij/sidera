@@ -9,7 +9,7 @@ using Astra.Runtime.Tests.Devices;
 
 namespace Astra.Runtime.Tests.Guiding;
 
-public class DitherActionTests
+public partial class DitherActionTests
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan Quick = TimeSpan.FromMilliseconds(10);

@@ -4,10 +4,10 @@ using Astra.Core.Guiding;
 namespace Astra.Runtime.Tests.Devices;
 
 /// <summary>
-/// A guider whose start, stop and dither commands the test holds open and releases. It accepts overlapping calls
-/// without complaint, so any waiting seen in a test comes from the ResourceManager.
+/// A guider whose start, stop, dither and settle commands the test holds open and releases. It accepts overlapping
+/// calls without complaint, so any waiting seen in a test comes from the ResourceManager.
 /// </summary>
-internal sealed class FakeGuider(string id, bool connected = true, bool guiding = false) : IDitherGuider
+internal sealed class FakeGuider(string id, bool connected = true, bool guiding = false) : IDitherGuider, IGuidingSettler
 {
     public sealed class Gate
     {
@@ -21,6 +21,7 @@ internal sealed class FakeGuider(string id, bool connected = true, bool guiding 
     private int _startCalls;
     private int _stopCalls;
     private int _ditherCalls;
+    private int _settleCalls;
 
     public DeviceId Id { get; } = new(id);
     public string Name => "Fake guider";
@@ -34,12 +35,17 @@ internal sealed class FakeGuider(string id, bool connected = true, bool guiding 
     public int StartCalls => _startCalls;
     public int StopCalls => _stopCalls;
     public int DitherCalls => _ditherCalls;
+    public int SettleCalls => _settleCalls;
     public List<double> Amplitudes { get; } = new();
+    public List<GuidingSettleOptions> SettleOptions { get; } = new();
 
-    /// <summary>When true, start, stop and dither wait on their gate until the test releases it.</summary>
+    /// <summary>When true, start, stop, dither and settle wait on their gate until the test releases it.</summary>
     public bool Block { get; set; }
 
     public Exception? Failure { get; set; }
+
+    /// <summary>Thrown by settle once its gate is released (or at once, when not blocking).</summary>
+    public Exception? SettleFailure { get; set; }
 
     /// <summary>Gate of the n-th call of an operation ("start", "stop" or "dither"), created on demand.</summary>
     public Gate GateOf(string operation, int call)
@@ -92,6 +98,21 @@ internal sealed class FakeGuider(string id, bool connected = true, bool guiding 
         }
 
         await Run("dither", Interlocked.Increment(ref _ditherCalls), cancellationToken);
+    }
+
+    public async Task SettleAsync(GuidingSettleOptions options, CancellationToken cancellationToken = default)
+    {
+        lock (SettleOptions)
+        {
+            SettleOptions.Add(options);
+        }
+
+        await Run("settle", Interlocked.Increment(ref _settleCalls), cancellationToken);
+
+        if (SettleFailure is not null)
+        {
+            throw SettleFailure;
+        }
     }
 
     private async Task Run(string operation, int call, CancellationToken cancellationToken)
