@@ -109,6 +109,9 @@
     <Style Selector="Border.badge.running Ellipse.dot">
         <Setter Property="Fill" Value="{DynamicResource AstraAccent}" />
     </Style>
+    <Style Selector="Border.badge.paused Ellipse.dot">
+        <Setter Property="Fill" Value="{DynamicResource AstraWarn}" />
+    </Style>
     <Style Selector="Border.badge.warn Ellipse.dot">
         <Setter Property="Fill" Value="{DynamicResource AstraWarn}" />
     </Style>

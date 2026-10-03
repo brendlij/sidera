@@ -69,7 +69,7 @@
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Classes="section" Text="SEQUENCE" VerticalAlignment="Center" />
                         <Border Grid.Column="1" Classes="badge"
-                                Classes.running="{Binding IsRunning}"
+                                Classes.running="{Binding IsRunningState}" Classes.paused="{Binding IsPauseState}"
                                 Classes.ok="{Binding IsCompleted}"
                                 Classes.warn="{Binding IsCancelled}"
                                 Classes.danger="{Binding IsFailed}">
@@ -126,7 +126,7 @@
                                 <StackPanel Spacing="4" Margin="0,4">
                                     <TextBlock Text="{Binding BranchName}" IsVisible="{Binding HasBranchName}" />
                                     <TextBlock Text="{Binding Context}" IsVisible="{Binding HasContext}" Classes="muted" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding Title}" Classes="current" />
+                                    <TextBlock Text="{Binding DisplayTitle}" Classes="current" TextWrapping="Wrap" />
                                     <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding HasProgress}" />
                                     <TextBlock Text="{Binding Camera.ExposureProgressText}" IsVisible="{Binding HasProgress}" />
                                 </StackPanel>
@@ -138,8 +138,9 @@
 
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Classes="accent" Content="Run Sequence" Command="{Binding RunCommand}" />
-                        <Button Content="Cancel Sequence" Command="{Binding CancelCommand}"
-                                IsVisible="{Binding IsRunning}" />
+                        <Button Content="Pause" Command="{Binding PauseCommand}" />
+                        <Button Content="Resume" Command="{Binding ResumeCommand}" />
+                        <Button Content="Cancel Sequence" Command="{Binding CancelCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Border>

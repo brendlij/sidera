@@ -6,5 +6,11 @@ public enum SequenceState
     Running,
     Completed,
     Failed,
-    Cancelled
+    Cancelled,
+
+    /// <summary>A pause was requested; branches finish what they are doing and stop at their next boundary.</summary>
+    Pausing,
+
+    /// <summary>Every active branch waits at a boundary; nothing new starts until the run is resumed.</summary>
+    Paused
 }

@@ -59,6 +59,24 @@ public sealed class SafePointCoordinator
     private readonly Dictionary<CoordinationGroupId, Group> _groups = new();
     private long _lastParticipant;
 
+    /// <summary>
+    /// Raised, outside the coordinator's lock, when a coordinated operation of a group became pending. Lets other
+    /// parts of the runtime re-evaluate decisions that depend on pending coordination (such as pausing).
+    /// </summary>
+    public event EventHandler<CoordinationGroupId>? RequestStarted;
+
+    private void RaiseRequestStarted(CoordinationGroupId group)
+    {
+        try
+        {
+            RequestStarted?.Invoke(this, group);
+        }
+        catch
+        {
+            // An observer must not break coordination.
+        }
+    }
+
     /// <summary>Registers <paramref name="count"/> new participants, all at once, so none can be missed by a request.</summary>
     public IReadOnlyList<ParticipantId> RegisterParticipants(CoordinationGroupId group, int count)
     {
@@ -211,6 +229,8 @@ public sealed class SafePointCoordinator
                 g.Active = request;
                 CheckBarrier(g);
             }
+
+            RaiseRequestStarted(group);
 
             try
             {

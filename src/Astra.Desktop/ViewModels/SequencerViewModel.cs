@@ -60,8 +60,18 @@ public sealed partial class SequenceNodeViewModel(SequenceNode node) : Observabl
 /// <param name="Title">The innermost running step.</param>
 /// <param name="Context">The containers around it, outermost first.</param>
 /// <param name="Camera">The camera of a running exposure, whose progress the branch shows; otherwise <c>null</c>.</param>
-public sealed record ActiveBranchViewModel(string BranchName, string Title, string Context, CameraViewModel? Camera)
+/// <param name="IsWaiting">The branch waits because of a pause; <paramref name="Title"/> is the step it will start next.</param>
+public sealed record ActiveBranchViewModel(
+    string BranchName,
+    string Title,
+    string Context,
+    CameraViewModel? Camera,
+    bool IsWaiting = false
+)
 {
+    /// <summary>What the branch shows as its current line.</summary>
+    public string DisplayTitle => IsWaiting ? $"Waiting to resume · next: {Title}" : Title;
+
     public bool HasBranchName => BranchName.Length > 0;
     public bool HasContext => Context.Length > 0;
     public bool HasProgress => Camera is not null;
@@ -124,23 +134,50 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsCancelled))]
     [NotifyPropertyChangedFor(nameof(IsFailed))]
     [NotifyPropertyChangedFor(nameof(StateText))]
+    [NotifyPropertyChangedFor(nameof(IsRunningState))]
+    [NotifyPropertyChangedFor(nameof(IsPausing))]
+    [NotifyPropertyChangedFor(nameof(IsPaused))]
+    [NotifyPropertyChangedFor(nameof(IsPauseState))]
+    [NotifyPropertyChangedFor(nameof(IsRunning))]
+    [NotifyPropertyChangedFor(nameof(HasReadinessHint))]
+    [NotifyPropertyChangedFor(nameof(CanRun))]
+    [NotifyPropertyChangedFor(nameof(CanPause))]
+    [NotifyPropertyChangedFor(nameof(CanResume))]
+    [NotifyPropertyChangedFor(nameof(CanCancel))]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PauseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResumeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial SequenceState State { get; private set; }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
-    [NotifyPropertyChangedFor(nameof(HasReadinessHint))]
-    public partial bool IsRunning { get; private set; }
+    /// <summary>A run is in progress, including while it is pausing or paused.</summary>
+    public bool IsRunning => State is SequenceState.Running or SequenceState.Pausing or SequenceState.Paused;
+
+    // What the buttons may do. Every one of them is derived from the state alone, and every change of the state
+    // re-evaluates all four commands, so no command can be left showing an earlier state.
+    public bool CanRun => !IsRunning && ReadinessHint is null;
+    public bool CanPause => State == SequenceState.Running;
+    public bool CanResume => State == SequenceState.Paused;
+    public bool CanCancel => IsRunning;
 
     public bool IsCompleted => State == SequenceState.Completed;
     public bool IsCancelled => State == SequenceState.Cancelled;
     public bool IsFailed => State == SequenceState.Failed;
 
-    public string StateText => State.ToString();
+    public bool IsRunningState => State == SequenceState.Running;
+    public bool IsPausing => State == SequenceState.Pausing;
+    public bool IsPaused => State == SequenceState.Paused;
+
+    /// <summary>The run is pausing or paused.</summary>
+    public bool IsPauseState => IsPausing || IsPaused;
+
+    public string StateText => State == SequenceState.Pausing ? "Pausing…" : State.ToString();
 
     /// <summary>Why the sequence cannot start now (for example "Connect Main Camera first."); <c>null</c> when it can.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasReadinessHint))]
+    [NotifyPropertyChangedFor(nameof(CanRun))]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     public partial string? ReadinessHint { get; private set; }
 
     public bool HasReadinessHint => ReadinessHint is not null && !IsRunning;
@@ -203,7 +240,23 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(IsRunning))]
+    // Pausing is cooperative: running steps finish, nothing new starts. Resume is only offered once the run is
+    // paused; the runner would also accept it while still pausing, to withdraw the request.
+    [RelayCommand(CanExecute = nameof(CanPause))]
+    private void Pause()
+    {
+        _runner.RequestPause();
+        RefreshExecution();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanResume))]
+    private void Resume()
+    {
+        _runner.Resume();
+        RefreshExecution();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
     {
         try
@@ -215,8 +268,6 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             // The sequence just ended.
         }
     }
-
-    private bool CanRun() => !IsRunning && ReadinessHint is null;
 
     // Raised on whichever thread changed the runner, never while it holds a lock.
     private void OnRunnerChanged(object? sender, EventArgs e) => _postToUi(RefreshExecution);
@@ -238,7 +289,6 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private void RefreshExecution()
     {
         State = _runner.State;
-        IsRunning = _runner.IsRunning;
 
         var active = _runner.ActivePositions;
         var current = _runner.CurrentPosition;
@@ -304,7 +354,12 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private List<ActiveBranchViewModel> BuildBranches(IReadOnlyCollection<SequenceExecutionPosition> active)
     {
         var branches = new List<ActiveBranchViewModel>();
-        foreach (var leaf in active.Where(p => !active.Any(other => Equals(other.Parent, p))))
+        var waiting = _runner.PausedPositions;
+
+        // A branch that waits to start its next step because of a pause is shown as waiting, not as the container
+        // around that step still "running".
+        foreach (var leaf in active.Where(p =>
+                     !active.Any(other => Equals(other.Parent, p)) && !waiting.Any(w => Equals(w.Parent, p))))
         {
             var resolved = Resolve(leaf);
             var lines = SequenceStatusLine.From(leaf);
@@ -313,6 +368,14 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
                 ? _cameras.FirstOrDefault(c => c.CameraId == exposure.CameraId)
                 : null;
             branches.Add(new ActiveBranchViewModel(resolved.BranchName ?? string.Empty, leaf.StepName, context, camera));
+        }
+
+        foreach (var next in waiting)
+        {
+            var lines = SequenceStatusLine.From(next);
+            var context = string.Join(" › ", lines.Take(lines.Count - 1).Select(line => line.Text));
+            branches.Add(new ActiveBranchViewModel(
+                Resolve(next).BranchName ?? string.Empty, next.StepName, context, null, IsWaiting: true));
         }
 
         return branches;
