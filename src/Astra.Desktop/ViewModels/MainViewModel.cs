@@ -1,4 +1,7 @@
 using System;
+using System.Threading.Tasks;
+using Astra.Desktop.Documents;
+using System.Collections.Generic;
 using System.Linq;
 using Astra.Core.Devices;
 using Astra.Core.Guiding;
@@ -22,7 +25,14 @@ public enum AppPage
 /// </summary>
 public sealed partial class MainViewModel : ViewModelBase, IDisposable
 {
-    public MainViewModel(AstraRuntimeHost host, Action<Action> postToUi, DemoOptions? options = null)
+    /// <param name="store">Where sequence documents are read and written; the file store of the current format by default.</param>
+    /// <param name="filePicker">How the user chooses sequence files; by default nothing can be chosen.</param>
+    public MainViewModel(
+        AstraRuntimeHost host,
+        Action<Action> postToUi,
+        DemoOptions? options = null,
+        ISequenceDocumentStore? store = null,
+        ISequenceFilePicker? filePicker = null)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -30,11 +40,13 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Imaging = new ImagingViewModel();
         Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
-        SequenceSetup = new SequenceSetupViewModel(
-            host.DeviceRegistry, DemoSequenceConfiguration.Default(options, host.DeviceRegistry));
+        var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
+        SequenceDraft = new SequenceDraftViewModel(host.DeviceRegistry, defaults, defaults.InitialSteps());
         Sequencer = new SequencerViewModel(
-            host, postToUi, activity, Imaging, Equipment.Cameras, SequenceSetup, CheckSelectedEquipment);
-        SequencerPage = new SequencerPageViewModel(SequenceSetup, Sequencer);
+            host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
+        SequenceDocument = new SequenceDocumentViewModel(
+            SequenceDraft, store ?? SequenceDocumentStore.CreateDefault(), filePicker ?? new NoSequenceFilePicker());
+        SequencerPage = new SequencerPageViewModel(SequenceDocument, SequenceDraft, Sequencer);
         Dashboard = new DashboardViewModel(
             Runtime, Sequencer, Imaging,
             Equipment.Rigs.FirstOrDefault(),
@@ -58,7 +70,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public DashboardViewModel Dashboard { get; }
     public EquipmentViewModel Equipment { get; }
-    public SequenceSetupViewModel SequenceSetup { get; }
+    public SequenceDraftViewModel SequenceDraft { get; }
+    public SequenceDocumentViewModel SequenceDocument { get; }
     public SequencerViewModel Sequencer { get; }
     public SequencerPageViewModel SequencerPage { get; }
     public ImagingViewModel Imaging { get; }
@@ -88,19 +101,17 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void Navigate(AppPage page) => SelectedPage = page;
 
-    // The demo sequence uses the camera, the mount and the guider; each must be connected and not busy.
-    private string? CheckSelectedEquipment()
+    // Every device a step of the sequence uses must be connected and not busy.
+    private string? CheckEquipmentOfSequence()
     {
-        var camera = Equipment.Cameras.FirstOrDefault(c => c.CameraId == SequenceSetup.SelectedCamera?.Id);
-        var mount = Equipment.Mounts.FirstOrDefault(m => m.DeviceIdText == SequenceSetup.SelectedMount?.IdText);
-        var guider = Equipment.Guiders.FirstOrDefault(g => g.DeviceIdText == SequenceSetup.SelectedGuider?.IdText);
+        var ids = SequenceDraft.Snapshot().SelectMany(step => step.DeviceIds).Select(id => id.Value).Distinct().ToList();
 
-        // A missing selection is reported by the setup itself; this is only about the state of chosen equipment.
-        if (camera is null || mount is null || guider is null)
-        {
-            return null;
-        }
-        foreach (var device in new DeviceViewModelBase[] { camera, mount, guider })
+        // A missing or unsuitable device is reported by the draft itself; this is only about the state of chosen equipment.
+        var cameras = Equipment.Cameras.Where(c => ids.Contains(c.DeviceIdText)).ToArray();
+        var mounts = Equipment.Mounts.Where(m => ids.Contains(m.DeviceIdText)).ToArray();
+        var guiders = Equipment.Guiders.Where(g => ids.Contains(g.DeviceIdText)).ToArray();
+
+        foreach (var device in cameras.Cast<DeviceViewModelBase>().Concat(mounts).Concat(guiders))
         {
             if (!device.IsConnected)
             {
@@ -108,19 +119,27 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
-        if (camera.ExposureState != CameraExposureState.Idle || camera.IsManualExposureRunning)
+        if (cameras.Any(c => c.ExposureState != CameraExposureState.Idle || c.IsManualExposureRunning))
         {
             return "Wait for the camera to finish its exposure.";
         }
 
-        if (mount.IsSlewing || mount.IsManualSlewRunning)
+        if (mounts.Any(m => m.IsSlewing || m.IsManualSlewRunning))
         {
             return "Wait for the mount to finish slewing.";
         }
 
-        return guider.GuidingState is GuidingState.Idle or GuidingState.Guiding
+        return guiders.All(g => g.GuidingState is GuidingState.Idle or GuidingState.Guiding)
             ? null
             : "Wait for the guider to finish its operation.";
+    }
+
+    // Without a window there is nothing to pick from: opening and saving as do nothing.
+    private sealed class NoSequenceFilePicker : ISequenceFilePicker
+    {
+        public Task<string?> PickOpenPathAsync() => Task.FromResult<string?>(null);
+
+        public Task<string?> PickSavePathAsync(string suggestedFileName) => Task.FromResult<string?>(null);
     }
 
     public void Dispose()

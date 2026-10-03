@@ -29,6 +29,13 @@ public sealed partial class SequenceNodeViewModel(SequenceNode node) : Observabl
     public string Detail => Node.Detail;
     public string? SubText => Node.SubText;
     public bool HasSubText => Node.SubText is not null;
+    public bool IsProblem => Node.IsProblem;
+
+    /// <summary>The step of the editor draft this row shows, when the sequence comes from one.</summary>
+    public Guid? DraftId => Node.DraftId;
+
+    public bool HasNumber => !string.IsNullOrEmpty(Node.NumberLabel);
+    public string NumberText => Node.NumberLabel ?? string.Empty;
     public double IndentWidth => Node.Depth * IndentPerLevel;
     public SequenceNodeKind Kind => Node.Kind;
 
@@ -44,6 +51,13 @@ public sealed partial class SequenceNodeViewModel(SequenceNode node) : Observabl
     public partial string? ActiveNote { get; set; }
 
     public bool HasNote => ActiveNote is not null;
+
+    /// <summary>Which repetition a running Repeat is in, for example "iteration 3 / 5"; <c>null</c> otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIteration))]
+    public partial string? IterationText { get; set; }
+
+    public bool HasIteration => IterationText is not null;
     public bool IsActive => Status == NodeStatus.Active;
     public bool IsDone => Status == NodeStatus.Done;
 
@@ -86,8 +100,8 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 {
     private readonly SequenceRunner _runner;
     private readonly Sequence? _fixedSequence;
-    private Sequence _displayedSequence;
-    private DemoSequenceConfiguration? _displayedConfiguration;
+    private string _sequenceName;
+    private IReadOnlyList<DraftRow> _shownDraft = [];
     private readonly Action<Action> _postToUi;
     private readonly SessionActivity _activity;
     private readonly ImagingViewModel _imaging;
@@ -113,8 +127,8 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// A sequencer whose sequence is built from <paramref name="setup"/> every time it runs. The definition shown
-    /// follows the setup while nothing runs, and is the one that was built for the run while one is in progress.
+    /// A sequencer whose sequence is built from <paramref name="draft"/> every time it runs. The definition shown
+    /// follows the draft while nothing runs, and is the snapshot that was built for the run while one is in progress.
     /// </summary>
     public SequencerViewModel(
         AstraRuntimeHost host,
@@ -122,9 +136,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         SessionActivity activity,
         ImagingViewModel imaging,
         IReadOnlyList<CameraViewModel> cameras,
-        SequenceSetupViewModel setup,
+        SequenceDraftViewModel draft,
         Func<string?>? readiness = null
-    ) : this(host, postToUi, activity, imaging, cameras, null, setup, readiness)
+    ) : this(host, postToUi, activity, imaging, cameras, null, draft, readiness)
     {
     }
 
@@ -135,67 +149,129 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         ImagingViewModel imaging,
         IReadOnlyList<CameraViewModel> cameras,
         Sequence? fixedSequence,
-        SequenceSetupViewModel? setup,
+        SequenceDraftViewModel? draft,
         Func<string?>? readiness
     )
     {
         _runner = new SequenceRunner(host.ResourceManager, host.SafePointCoordinator);
         _fixedSequence = fixedSequence;
-        Setup = setup;
+        _sequenceName = fixedSequence?.Name ?? SequenceDraftBuilder.SequenceName;
+        Draft = draft;
         _postToUi = postToUi;
         _activity = activity;
         _imaging = imaging;
         _cameras = cameras;
         _readiness = readiness;
 
-        _displayedSequence = fixedSequence ?? setup?.Preview ?? new Sequence("Demo", [new DelayAction(TimeSpan.FromSeconds(1))]);
         Definition = [];
-        if (fixedSequence is not null || setup?.Preview is not null)
+        if (fixedSequence is not null)
         {
-            ShowDefinition(_displayedSequence, setup?.Configuration);
+            ShowFixed(fixedSequence);
+        }
+        else if (draft is not null)
+        {
+            ShowDraft();
         }
 
         _runner.Changed += OnRunnerChanged;
         _runner.StepCompleted += OnStepCompleted;
-        if (setup is not null)
+        if (draft is not null)
         {
-            setup.Changed += OnSetupChanged;
+            draft.Changed += OnDraftChanged;
         }
 
         RefreshExecution();
         RefreshReadiness();
     }
 
-    /// <summary>The editable parameters, or <c>null</c> for a sequencer with a fixed sequence.</summary>
-    public SequenceSetupViewModel? Setup { get; }
+    /// <summary>The sequence being edited, or <c>null</c> for a sequencer with a fixed sequence.</summary>
+    public SequenceDraftViewModel? Draft { get; }
 
+    public string SequenceName => $"{_sequenceName} sequence";
 
-    public string SequenceName => $"{_displayedSequence.Name} sequence";
-
-    /// <summary>The definition, flattened in display order.</summary>
+    /// <summary>
+    /// The sequence in display order: while nothing runs the draft, one row per step; while one runs the snapshot
+    /// that was built for it, with where it is. After a run it stays until the draft changes.
+    /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
     public partial IReadOnlyList<SequenceNodeViewModel> Definition { get; private set; }
 
-    // Shows a sequence definition and maps running positions onto it. Never touches a sequence that is running.
-    private void ShowDefinition(Sequence sequence, DemoSequenceConfiguration? configuration)
+    /// <summary>The sequence has no steps.</summary>
+    public bool IsEmpty => Definition.Count == 0;
+
+    // The row of a draft step, as shown while nothing runs.
+    private sealed record DraftRow(
+        Guid Id, string Label, string Title, string Summary, string? Problem, bool IsContainer, bool IsChild);
+
+    private void ShowRoots(IReadOnlyList<SequenceNode> roots, string name)
     {
-        _displayedSequence = sequence;
-        _displayedConfiguration = configuration;
-        _roots = SequenceNodeBuilder.Build(sequence);
+        _sequenceName = name;
+        _roots = roots;
         _completed.Clear();
         _latestIteration.Clear();
         Definition = SequenceNodeBuilder.Flatten(_roots).Select(node => new SequenceNodeViewModel(node)).ToList();
         OnPropertyChanged(nameof(SequenceName));
     }
 
-    // The parameters changed. While a sequence runs, the definition shown is the one that was built for that run.
-    private void OnSetupChanged(object? sender, EventArgs e)
+    // A sequence that was given as a whole.
+    private void ShowFixed(Sequence sequence) => ShowRoots(SequenceNodeBuilder.Build(sequence), sequence.Name);
+
+    private List<DraftRow> ReadDraftRows() =>
+        Draft!.Rows.Select(step => new DraftRow(
+            step.Id, step.NumberLabel, step.Title, step.Summary, step.FirstProblem, step.IsContainer, step.IsChild)).ToList();
+
+    // The draft as rows. These have no runtime steps: nothing is built until the sequence runs.
+    private void ShowDraft()
     {
-        if (!IsRunning
-            && Setup is { Configuration: { } configuration, Preview: { } preview }
-            && configuration != _displayedConfiguration)
+        _shownDraft = ReadDraftRows();
+
+        // Rows only: steps inside a Repeat are listed after it, indented, without a tree behind them.
+        ShowRoots(
+            _shownDraft.Select(row => new SequenceNode(
+                null, row.IsContainer ? SequenceNodeKind.Repeat : SequenceNodeKind.Step, row.Title,
+                row.Problem is null ? row.Summary : string.Empty, row.Problem, row.IsChild ? 1 : 0, row.Id,
+                row.IsChild ? row.Label : $"{row.Label}.", row.Problem is not null)).ToList(),
+            SequenceDraftBuilder.SequenceName);
+    }
+
+    // The snapshot a run was built from. Its labels are those of the built draft, whatever the draft says later.
+    private void ShowSnapshot(BuiltSequence built) =>
+        ShowRoots(
+            built.Steps.Select((step, index) => SnapshotNode(step, SequenceDraftBuilder.Label(index), index, 0)).ToList(),
+            built.Sequence.Name);
+
+    // A built step as nodes that mirror the runtime tree, so that running positions can be followed through it. A
+    // Repeat is the runtime RepeatStep with the group the builder put around its steps; the group is not listed.
+    private static SequenceNode SnapshotNode(BuiltStep step, string label, int index, int depth)
+    {
+        var numberLabel = depth == 0 ? $"{label}." : label;
+        if (step is not { Step: RepeatStep { Child: SequenceGroup body } repeat, Children: { } children })
         {
-            ShowDefinition(preview, configuration);
+            return new SequenceNode(
+                step.Step, SequenceNodeKind.Step, step.Description.Title, step.Description.Summary, null, depth,
+                step.DraftId, numberLabel);
+        }
+
+        var node = new SequenceNode(
+            repeat, SequenceNodeKind.Repeat, step.Description.Title, step.Description.Summary, null, depth,
+            step.DraftId, numberLabel);
+        var group = new SequenceNode(body, SequenceNodeKind.Group, body.Name, string.Empty, null, depth + 1, isHidden: true);
+        for (var j = 0; j < children.Count; j++)
+        {
+            group.Children.Add(SnapshotNode(children[j], SequenceDraftBuilder.Label(index, j), j, depth + 1));
+        }
+
+        node.Children.Add(group);
+        return node;
+    }
+
+    // The draft changed. While a sequence runs, the definition shown is the snapshot that was built for that run.
+    private void OnDraftChanged(object? sender, EventArgs e)
+    {
+        if (!IsRunning && Draft is not null && !ReadDraftRows().SequenceEqual(_shownDraft))
+        {
+            ShowDraft();
         }
 
         OnPropertyChanged(nameof(CanRun));
@@ -228,7 +304,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
     // What the buttons may do. Every one of them is derived from the state alone, and every change of the state
     // re-evaluates all four commands, so no command can be left showing an earlier state.
-    public bool CanRun => !IsRunning && ReadinessHint is null && (Setup?.IsValid ?? true);
+    public bool CanRun => !IsRunning && ReadinessHint is null && (Draft?.IsValid ?? true);
     public bool CanPause => State == SequenceState.Running;
     public bool CanResume => State == SequenceState.Paused;
     public bool CanCancel => IsRunning;
@@ -270,13 +346,19 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
     public bool HasActiveBranches => ActiveBranches.Count > 0;
 
+    /// <summary>
+    /// The position is shown as lines of its own only while no branch shows it: every active branch already carries
+    /// the containers around its step, so showing both would say the same thing twice.
+    /// </summary>
+    public bool ShowStatusLines => IsRunning && !HasActiveBranches;
+
     /// <summary>Re-evaluates whether the sequence can start; call when the equipment changed.</summary>
     public void RefreshReadiness()
     {
-        // Also notices a device of the setup that is no longer available.
+        // Also notices a device of the draft that is no longer available.
         if (!IsRunning)
         {
-            Setup?.Revalidate();
+            Draft?.RefreshDevices();
         }
 
         ReadinessHint = _readiness?.Invoke();
@@ -289,20 +371,30 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     {
         ClearError();
 
-        // A fresh sequence from the parameters as they are now. Nothing of an earlier run is reused, and later edits
-        // cannot reach it: the editors are locked as soon as the run has started.
+        // A fresh sequence from the draft as it is now. Nothing of an earlier run is reused, and later edits cannot
+        // reach it: the run executes this sequence and shows this snapshot, and the editors are locked from the start.
         Sequence sequence;
-        try
+        if (_fixedSequence is not null)
         {
-            sequence = _fixedSequence ?? Setup!.Build();
+            sequence = _fixedSequence;
+            ShowFixed(sequence);
         }
-        catch (SequenceConfigurationException ex)
+        else
         {
-            ReportError(ex.Problems.Count == 1 ? ex.Problems[0] : $"Check the parameters: {ex.Problems[0]} (+{ex.Problems.Count - 1} more)");
-            return;
-        }
+            BuiltSequence built;
+            try
+            {
+                built = Draft!.Build();
+            }
+            catch (SequenceConfigurationException ex)
+            {
+                ReportError(ex.Problems.Count == 1 ? ex.Problems[0] : $"Check the sequence: {ex.Problems[0]} (+{ex.Problems.Count - 1} more)");
+                return;
+            }
 
-        ShowDefinition(sequence, Setup?.Configuration);
+            sequence = built.Sequence;
+            ShowSnapshot(built);
+        }
 
         var cts = new CancellationTokenSource();
         _cts = cts;
@@ -383,11 +475,10 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private void RefreshExecution()
     {
         State = _runner.State;
-        if (Setup is not null)
+        if (Draft is not null)
         {
-            Setup.IsEditable = !IsRunning;
+            Draft.IsEditable = !IsRunning;
         }
-
 
         var active = _runner.ActivePositions;
         var current = _runner.CurrentPosition;
@@ -428,6 +519,12 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         {
             vm.Status = activeNotes.ContainsKey(vm.Node) ? NodeStatus.Active : done.Contains(vm.Node) ? NodeStatus.Done : NodeStatus.Pending;
             vm.ActiveNote = activeNotes.GetValueOrDefault(vm.Node);
+
+            // Only the repetition that was started last is known; earlier ones are not shown.
+            vm.IterationText = vm is { Status: NodeStatus.Active, Node.Step: RepeatStep repeat }
+                && _latestIteration.TryGetValue(vm.Node, out var iteration)
+                    ? $"iteration {iteration + 1} / {repeat.Count}"
+                    : null;
         }
 
         var lines = SequenceStatusLine.From(current);
@@ -444,6 +541,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             ActiveBranches = branches;
         }
 
+        OnPropertyChanged(nameof(ShowStatusLines));
         ExecutionRefreshed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -536,9 +634,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         Cancel();
         _runner.Changed -= OnRunnerChanged;
         _runner.StepCompleted -= OnStepCompleted;
-        if (Setup is not null)
+        if (Draft is not null)
         {
-            Setup.Changed -= OnSetupChanged;
+            Draft.Changed -= OnDraftChanged;
         }
     }
 }

@@ -162,4 +162,25 @@
     <Style Selector="ProgressBar /template/ Border#PART_Indicator">
         <Setter Property="CornerRadius" Value="3" />
     </Style>
+
+    <!-- Step list of the sequencer: flat rows on the card, the selected one raised with an accent edge -->
+    <Style Selector="ListBox.steps">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.steps ListBoxItem">
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="AutomationProperties.Name" Value="{ReflectionBinding Title}" />
+    </Style>
+    <Style Selector="ListBox.steps ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AstraRaised}" />
+    </Style>
+    <Style Selector="ListBox.steps ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AstraRaised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AstraAccent}" />
+        <Setter Property="BorderThickness" Value="2,0,0,0" />
+    </Style>
 </Styles>

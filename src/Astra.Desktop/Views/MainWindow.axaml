@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Astra.Desktop.ViewModels"
+        xmlns:app="using:Astra.Desktop"
         xmlns:conv="using:Astra.Desktop.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -13,6 +14,74 @@
         Foreground="{DynamicResource AstraText}"
         FontSize="13"
         Title="Astra">
+
+    <Window.Resources>
+        <!-- One line of a sequence: a draft row while idle, a row of the running snapshot while it runs -->
+        <DataTemplate x:Key="SequenceNodeRow" x:DataType="vm:SequenceNodeViewModel">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,4">
+                <Border Width="{Binding IndentWidth}" />
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding NumberText}" IsVisible="{Binding HasNumber}"
+                           MinWidth="24" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="2" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Glyph}" />
+                        <TextBlock Text="{Binding Title}" Classes.current="{Binding IsActive}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding SubText}" IsVisible="{Binding HasSubText}" Classes="muted"
+                               Classes.danger="{Binding IsProblem}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding IterationText}" IsVisible="{Binding HasIteration}" Classes="muted" />
+                    <TextBlock Text="{Binding ActiveNote}" IsVisible="{Binding HasNote}" Classes="current" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Grid.Column="3" Classes="muted" Text="{Binding Detail}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="ProblemLine" x:DataType="x:String">
+            <TextBlock Classes="danger" Text="{Binding}" TextWrapping="Wrap" Margin="0,2" />
+        </DataTemplate>
+
+        <!-- What the sequence is doing and the buttons that control it -->
+        <DataTemplate x:Key="SequenceRunPanel" x:DataType="vm:SequencerViewModel">
+            <StackPanel Spacing="18">
+                <TextBlock Text="{Binding ReadinessHint}" IsVisible="{Binding HasReadinessHint}" TextWrapping="Wrap" Classes="muted" />
+                <!-- Live execution: nested position, current step, exposure progress -->
+                <StackPanel Spacing="6" IsVisible="{Binding ShowStatusLines}">
+                    <ItemsControl ItemsSource="{Binding StatusLines}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SequenceStatusLine">
+                                <TextBlock Text="{Binding Text}" Margin="0,2"
+                                           Classes.muted="{Binding IsContainer}"
+                                           Classes.current="{Binding !IsContainer}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{Binding ActiveBranches}" IsVisible="{Binding HasActiveBranches}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ActiveBranchViewModel">
+                            <StackPanel Spacing="4" Margin="0,4">
+                                <TextBlock Text="{Binding BranchName}" IsVisible="{Binding HasBranchName}" />
+                                <TextBlock Text="{Binding Context}" IsVisible="{Binding HasContext}" Classes="muted" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DisplayTitle}" Classes="current" TextWrapping="Wrap" />
+                                <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding HasProgress}" />
+                                <TextBlock Text="{Binding Camera.ExposureProgressText}" IsVisible="{Binding HasProgress}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="danger" TextWrapping="Wrap" Text="{Binding ErrorMessage}"
+                           IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+                    <Button Classes="accent" Content="Run Sequence" Command="{Binding RunCommand}" />
+                    <Button Content="Pause" Command="{Binding PauseCommand}" />
+                    <Button Content="Resume" Command="{Binding ResumeCommand}" />
+                    <Button Content="Cancel Sequence" Command="{Binding CancelCommand}" />
+                </WrapPanel>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
 
     <Window.DataTemplates>
         <DataTemplate DataType="{x:Type vm:CameraViewModel}" x:DataType="vm:CameraViewModel">
@@ -80,182 +149,266 @@
                         </Border>
                     </Grid>
 
-                    <!-- Read-only outline of the sequence definition -->
+                    <!-- Read-only outline of the sequence: the draft while idle, the running snapshot while it runs -->
                     <StackPanel Spacing="8">
                         <TextBlock Classes="muted" Text="{Binding SequenceName}" />
                         <Border Classes="inset">
-                            <ItemsControl ItemsSource="{Binding Definition}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:SequenceNodeViewModel">
-                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                                            <Border Width="{Binding IndentWidth}" />
-                                                                                        <StackPanel Grid.Column="1" Spacing="4">
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <TextBlock Text="{Binding Glyph}" />
-                                                    <TextBlock Text="{Binding Title}" Classes.current="{Binding IsActive}" />
-                                                </StackPanel>
-                                                <TextBlock Text="{Binding SubText}" IsVisible="{Binding HasSubText}" Classes="muted" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding ActiveNote}" IsVisible="{Binding HasNote}" Classes="current" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                            <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Detail}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <StackPanel>
+                                <TextBlock Classes="muted" Text="Add a step to create a sequence." Margin="0,4"
+                                           IsVisible="{Binding IsEmpty}" />
+                                <ItemsControl ItemsSource="{Binding Definition}"
+                                              ItemTemplate="{StaticResource SequenceNodeRow}" />
+                            </StackPanel>
                         </Border>
                     </StackPanel>
 
-                    <TextBlock Text="{Binding ReadinessHint}" IsVisible="{Binding HasReadinessHint}" TextWrapping="Wrap" Classes="muted" />
-                    <!-- Live execution: nested position, current step, exposure progress -->
-                    <StackPanel Spacing="6" IsVisible="{Binding IsRunning}">
-                        <ItemsControl ItemsSource="{Binding StatusLines}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:SequenceStatusLine">
-                                    <TextBlock Text="{Binding Text}" Margin="0,2"
-                                               Classes.muted="{Binding IsContainer}"
-                                               Classes.current="{Binding !IsContainer}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                    </StackPanel>
-
-                    <ItemsControl ItemsSource="{Binding ActiveBranches}" IsVisible="{Binding HasActiveBranches}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ActiveBranchViewModel">
-                                <StackPanel Spacing="4" Margin="0,4">
-                                    <TextBlock Text="{Binding BranchName}" IsVisible="{Binding HasBranchName}" />
-                                    <TextBlock Text="{Binding Context}" IsVisible="{Binding HasContext}" Classes="muted" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding DisplayTitle}" Classes="current" TextWrapping="Wrap" />
-                                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding HasProgress}" />
-                                    <TextBlock Text="{Binding Camera.ExposureProgressText}" IsVisible="{Binding HasProgress}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Classes="danger" TextWrapping="Wrap" Text="{Binding ErrorMessage}"
-                               IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Classes="accent" Content="Run Sequence" Command="{Binding RunCommand}" />
-                        <Button Content="Pause" Command="{Binding PauseCommand}" />
-                        <Button Content="Resume" Command="{Binding ResumeCommand}" />
-                        <Button Content="Cancel Sequence" Command="{Binding CancelCommand}" />
-                    </StackPanel>
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SequenceRunPanel}" />
                 </StackPanel>
             </Border>
 
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:SequencerPageViewModel}" x:DataType="vm:SequencerPageViewModel">
-            <Grid ColumnDefinitions="400,*" ColumnSpacing="20">
-                <ContentControl Grid.Column="0" Content="{Binding Setup}" VerticalAlignment="Top" />
-                <ContentControl Grid.Column="1" Content="{Binding Sequencer}" VerticalAlignment="Top" />
-            </Grid>
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:SequenceSetupViewModel}" x:DataType="vm:SequenceSetupViewModel">
-            <Border Classes="card" VerticalAlignment="Top">
-                <StackPanel Spacing="14" IsEnabled="{Binding IsEditable}">
-                    <TextBlock Classes="section" Text="SEQUENCE SETUP" />
-
-                    <TextBlock Classes="muted" Text="Target and mount" />
-                    <ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" HorizontalAlignment="Stretch">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DeviceOption">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Classes="muted" Text="{Binding IdText}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Right ascension" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding RightAscensionText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="h" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Declination" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding DeclinationText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="°" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-
-                    <TextBlock Classes="muted" Text="Imaging" Margin="0,6,0,0" />
-                    <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}" HorizontalAlignment="Stretch">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DeviceOption">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Classes="muted" Text="{Binding IdText}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Exposure" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding ExposureText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Repeat count" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding ImagingRepeatText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="×" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-
-                    <TextBlock Classes="muted" Text="Guiding" Margin="0,6,0,0" />
-                    <ComboBox ItemsSource="{Binding Guiders}" SelectedItem="{Binding SelectedGuider}" HorizontalAlignment="Stretch">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DeviceOption">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Classes="muted" Text="{Binding IdText}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                    <TextBlock Classes="muted" Text="Dither" Margin="0,6,0,0" />
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Repeat count" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding DitherRepeatText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="×" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Wait before each" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding DitherDelayText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Amplitude" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding DitherAmplitudeText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-
-                    <TextBlock Classes="muted" Text="Settle after dither" Margin="0,6,0,0" />
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Settle threshold" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding SettleThresholdText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Stable for" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding SettleStableText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-                    <Grid ColumnDefinitions="*,110,36">
-                        <TextBlock Text="Timeout" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding SettleTimeoutText}" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </Grid>
-
-                    <ItemsControl ItemsSource="{Binding ValidationErrors}" IsVisible="{Binding HasValidationErrors}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <TextBlock Classes="danger" Text="{Binding}" TextWrapping="Wrap" Margin="0,2" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+            <StackPanel Spacing="16">
+            <!-- The sequence as a document: its file, whether it has unsaved changes, and what can be done with it -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Classes="title" Text="{Binding Document.DisplayName}" />
+                    <Border Classes="badge warn" IsVisible="{Binding Document.IsDirty}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Classes="dot" />
+                            <TextBlock Text="Modified" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
+                <WrapPanel Grid.Column="1" Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                    <Button Content="New" Command="{Binding Document.NewCommand}" />
+                    <Button Content="Open…" Command="{Binding Document.OpenCommand}" />
+                    <Button Content="Save" Command="{Binding Document.SaveCommand}" />
+                    <Button Content="Save As…" Command="{Binding Document.SaveAsCommand}" />
+                </WrapPanel>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding Document.IsConfirmingDiscard}">
+                <TextBlock Text="Discard unsaved changes?" VerticalAlignment="Center" />
+                <Button Classes="accent" Content="Discard" Command="{Binding Document.ConfirmDiscardCommand}" />
+                <Button Content="Cancel" Command="{Binding Document.CancelDiscardCommand}" />
+            </StackPanel>
+            <TextBlock Classes="danger" Text="{Binding Document.ErrorMessage}" IsVisible="{Binding Document.HasError}" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,360" ColumnSpacing="20">
+                <Border Grid.Column="0" Classes="card" VerticalAlignment="Top">
+                    <StackPanel Spacing="14">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="section" Text="SEQUENCE STEPS" VerticalAlignment="Center" />
+                            <Border Grid.Column="1" Classes="badge"
+                                    Classes.running="{Binding Sequencer.IsRunningState}" Classes.paused="{Binding Sequencer.IsPauseState}"
+                                    Classes.ok="{Binding Sequencer.IsCompleted}"
+                                    Classes.warn="{Binding Sequencer.IsCancelled}"
+                                    Classes.danger="{Binding Sequencer.IsFailed}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Classes="dot" />
+                                    <TextBlock Text="{Binding Sequencer.StateText}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                            <Button Content="Add step ▾" IsEnabled="{Binding Draft.IsEditable}">
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                        <MenuItem Header="Exposure" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
+                                        <MenuItem Header="Delay" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                                        <MenuItem Header="Slew" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Slew}" />
+                                        <MenuItem Header="Start Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StartGuiding}" />
+                                        <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
+                                        <MenuItem Header="Dither" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
+                                        <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                            <Button Content="Add inside Repeat ▾" IsEnabled="{Binding Draft.CanAddChildHere}">
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                        <MenuItem Header="Exposure" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
+                                        <MenuItem Header="Delay" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                                        <MenuItem Header="Slew" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Slew}" />
+                                        <MenuItem Header="Start Guiding" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.StartGuiding}" />
+                                        <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
+                                        <MenuItem Header="Dither" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                            <Button Content="Remove" Command="{Binding Draft.RemoveStepCommand}" />
+                            <Button Content="Move Up" Command="{Binding Draft.MoveStepUpCommand}" />
+                            <Button Content="Move Down" Command="{Binding Draft.MoveStepDownCommand}" />
+                        </WrapPanel>
+
+                        <!-- The draft while nothing runs -->
+                        <StackPanel IsVisible="{Binding !Sequencer.IsRunning}">
+                            <ListBox Classes="steps" ItemsSource="{Binding Draft.Rows}" SelectedItem="{Binding Draft.SelectedStep}"
+                                     IsVisible="{Binding !Draft.IsEmpty}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StepDraftViewModel">
+                                        <Grid ColumnDefinitions="Auto,38,*,Auto">
+                                            <!-- Steps inside a Repeat are indented, next to a thin rule -->
+                                            <Grid Width="{Binding IndentWidth}">
+                                                <Border Width="2" HorizontalAlignment="Left" Margin="8,0,0,0" CornerRadius="1"
+                                                        Background="{DynamicResource AstraHover}" IsVisible="{Binding IsChild}" />
+                                            </Grid>
+                                            <TextBlock Grid.Column="1" Text="{Binding NumberLabel}" Classes="muted" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                            <StackPanel Grid.Column="2" Spacing="2">
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" IsVisible="{Binding IsContainer}" />
+                                                <TextBlock Text="{Binding Title}" IsVisible="{Binding !IsContainer}" />
+                                                <TextBlock Text="{Binding Summary}" Classes="muted" TextWrapping="Wrap"
+                                                           IsVisible="{Binding !HasProblems}" />
+                                                <TextBlock Text="{Binding FirstProblem}" Classes="muted danger" TextWrapping="Wrap"
+                                                           IsVisible="{Binding HasProblems}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="3" Classes="badge danger" IsVisible="{Binding HasProblems}" VerticalAlignment="Top">
+                                                <TextBlock Text="⚠ Invalid" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Classes="muted" Text="Add a step to create a sequence." Margin="0,8"
+                                       IsVisible="{Binding Draft.IsEmpty}" />
+                        </StackPanel>
+
+                        <!-- The snapshot of the running sequence, with where it is -->
+                        <Border Classes="inset" IsVisible="{Binding Sequencer.IsRunning}">
+                            <ItemsControl ItemsSource="{Binding Sequencer.Definition}"
+                                          ItemTemplate="{StaticResource SequenceNodeRow}" />
+                        </Border>
+
+                        <ContentControl Content="{Binding Sequencer}" ContentTemplate="{StaticResource SequenceRunPanel}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="section" Text="SELECTED STEP" />
+                        <TextBlock Classes="muted" Text="Select a step to edit it."
+                                   IsVisible="{Binding Draft.SelectedStep, Converter={x:Static ObjectConverters.IsNull}}" />
+                        <ContentControl Content="{Binding Draft.SelectedStep}" IsEnabled="{Binding Draft.IsEditable}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DevicePickerViewModel}" x:DataType="vm:DevicePickerViewModel">
+            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DeviceOption">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" />
+                            <TextBlock Classes="muted" Text="{Binding IdText}" IsVisible="{Binding HasIdText}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ExposureStepDraftViewModel}" x:DataType="vm:ExposureStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Exposure" />
+                <TextBlock Classes="muted" Text="Camera" />
+                <ContentControl Content="{Binding Camera}" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Exposure" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding ExposureText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RepeatStepDraftViewModel}" x:DataType="vm:RepeatStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Repeat" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Repeat count" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding CountText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="×" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="The steps inside run in order, once per repetition. Select the Repeat or a step inside it and use “Add inside Repeat” to add more." />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DelayStepDraftViewModel}" x:DataType="vm:DelayStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Delay" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Duration" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding DurationText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SlewStepDraftViewModel}" x:DataType="vm:SlewStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Slew" />
+                <TextBlock Classes="muted" Text="Mount" />
+                <ContentControl Content="{Binding Mount}" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Right ascension" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding RightAscensionText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="h" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Declination" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding DeclinationText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="°" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:StartGuidingStepDraftViewModel}" x:DataType="vm:StartGuidingStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Start Guiding" />
+                <TextBlock Classes="muted" Text="Guider" />
+                <ContentControl Content="{Binding Guider}" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:StopGuidingStepDraftViewModel}" x:DataType="vm:StopGuidingStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Stop Guiding" />
+                <TextBlock Classes="muted" Text="Guider" />
+                <ContentControl Content="{Binding Guider}" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DitherStepDraftViewModel}" x:DataType="vm:DitherStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Dither" />
+                <TextBlock Classes="muted" Text="Guider" />
+                <ContentControl Content="{Binding Guider}" />
+                <TextBlock Classes="muted" Text="Mount" />
+                <ContentControl Content="{Binding Mount}" />
+                <TextBlock Classes="muted" Text="Affected camera" />
+                <ContentControl Content="{Binding Camera}" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Amplitude" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding AmplitudeText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Classes="muted" Text="Settle after dither" Margin="0,6,0,0" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Threshold" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding SettleThresholdText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Stable for" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding SettleStableText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Timeout" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding SettleTimeoutText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:EquipmentViewModel}" x:DataType="vm:EquipmentViewModel">
             <StackPanel Spacing="12">

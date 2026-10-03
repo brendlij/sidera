@@ -21,9 +21,23 @@ public enum SequenceNodeKind
 /// </summary>
 public sealed class SequenceNode
 {
-    public SequenceNode(ISequenceStep step, SequenceNodeKind kind, string title, string detail, string? subText, int depth)
+    public SequenceNode(
+        ISequenceStep? step,
+        SequenceNodeKind kind,
+        string title,
+        string detail,
+        string? subText,
+        int depth,
+        Guid? draftId = null,
+        string? numberLabel = null,
+        bool isProblem = false,
+        bool isHidden = false)
     {
         Step = step;
+        DraftId = draftId;
+        NumberLabel = numberLabel;
+        IsProblem = isProblem;
+        IsHidden = isHidden;
         Kind = kind;
         Title = title;
         Detail = detail;
@@ -31,7 +45,23 @@ public sealed class SequenceNode
         Depth = depth;
     }
 
-    public ISequenceStep Step { get; }
+    /// <summary>The runtime step this node describes; <c>null</c> for a row of a draft that has not been built.</summary>
+    public ISequenceStep? Step { get; }
+
+    /// <summary>The step of the editor's draft this node was made from, if it was made from one.</summary>
+    public Guid? DraftId { get; }
+
+    /// <summary>The number shown in front of the node, for example "2." or "2.1"; <c>null</c> when nodes are not numbered.</summary>
+    public string? NumberLabel { get; }
+
+    /// <summary>
+    /// The node exists so that running positions can be followed through it, but is not listed: the group a Repeat
+    /// of the editor puts around its steps.
+    /// </summary>
+    public bool IsHidden { get; }
+
+    /// <summary>The <see cref="SubText"/> is a problem with the step, not a description.</summary>
+    public bool IsProblem { get; }
     public SequenceNodeKind Kind { get; }
     public string Title { get; }
     public string Detail { get; }
@@ -75,7 +105,11 @@ public static class SequenceNodeBuilder
         var all = new List<SequenceNode>();
         void Visit(SequenceNode node)
         {
-            all.Add(node);
+            if (!node.IsHidden)
+            {
+                all.Add(node);
+            }
+
             node.Children.ForEach(Visit);
         }
 

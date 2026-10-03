@@ -27,6 +27,13 @@ public abstract partial class ViewModelBase : ObservableObject
         ErrorMessage = message;
     }
 
+    /// <summary>A message for the user, with the exception behind it kept for diagnostics.</summary>
+    protected void ReportError(string message, Exception exception)
+    {
+        LastException = exception;
+        ErrorMessage = message;
+    }
+
     protected void ClearError()
     {
         LastException = null;

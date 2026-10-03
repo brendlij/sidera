@@ -26,9 +26,12 @@ public partial class App : Application
             DemoSetup.AddDemoEquipment(host);
             host.Start();
 
-            var viewModel = new MainViewModel(host, action => Dispatcher.UIThread.Post(action));
+            var filePicker = new AvaloniaSequenceFilePicker();
+            var viewModel = new MainViewModel(host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker);
 
-            desktop.MainWindow = new MainWindow { DataContext = viewModel };
+            var window = new MainWindow { DataContext = viewModel };
+            filePicker.Attach(window);
+            desktop.MainWindow = window;
 
             // Stop the runtime asynchronously without blocking the UI thread, then shut down for real.
             desktop.ShutdownRequested += async (_, e) =>
