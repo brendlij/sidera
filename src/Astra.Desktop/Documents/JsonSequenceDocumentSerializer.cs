@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Astra.Desktop.Documents;
 
 /// <summary>
-/// Versions 1 and 2 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
+/// Versions 1 to 4 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
 /// place that knows that: the property names, the step discriminators and the JSON parsing rules below are the
 /// version 1 file format, and nothing else in Astra should depend on them.
 /// <para>
@@ -25,10 +25,13 @@ namespace Astra.Desktop.Documents;
 /// <c>children</c>. A device that is not selected is <c>null</c>.
 /// </para>
 /// <para>
-/// Reading dispatches on the version of the document. Version 1 knows the leaf steps and Repeat; version 2, which is
-/// what is written, adds <c>sharedEquipment</c>, the Multi-Rig block (<c>multiRig</c>, with <c>tracks</c> of a
-/// <c>rigId</c> and <c>steps</c>) and the exposure of a rig track (<c>rigExposure</c>). A version 1 document is read
-/// by the same code with the version 2 additions switched off, so it means exactly what it did.
+/// Reading dispatches on the version of the document. Version 1 knows the leaf steps and Repeat; version 2 adds
+/// <c>sharedEquipment</c>, the Multi-Rig block (<c>multiRig</c>, with <c>tracks</c> of a <c>rigId</c> and <c>steps</c>)
+/// and the exposure of a rig track (<c>rigExposure</c>); version 3, which is what is written, adds the focuser and
+/// filter wheel steps (<c>moveFocuser</c> and <c>changeFilter</c> with the device, <c>rigMoveFocuser</c> and
+/// <c>rigChangeFilter</c> inside a rig track, where the track's rig is the device); version 4 adds autofocus
+/// (<c>autofocus</c> with a <c>rigId</c>, <c>rigAutofocus</c> inside a rig track on the track's rig). An older document
+/// is read by the same code with the later additions switched off, so it means exactly what it did.
 /// </para>
 /// </summary>
 public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
@@ -43,6 +46,16 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
     private const string RepeatType = "repeat";
     private const string MultiRigType = "multiRig";
     private const string RigExposureType = "rigExposure";
+
+    // Added in version 3.
+    private const string MoveFocuserType = "moveFocuser";
+    private const string ChangeFilterType = "changeFilter";
+    private const string RigMoveFocuserType = "rigMoveFocuser";
+    private const string RigChangeFilterType = "rigChangeFilter";
+
+    // Added in version 4.
+    private const string AutofocusType = "autofocus";
+    private const string RigAutofocusType = "rigAutofocus";
 
     private const string InvalidDocument = "Invalid Astra sequence document.";
 
@@ -157,6 +170,37 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             case RigExposureDocumentStep r:
                 Header(w, RigExposureType, r.Id);
                 w.WriteNumber("exposureSeconds", r.ExposureSeconds);
+                break;
+            case MoveFocuserDocumentStep f:
+                Header(w, MoveFocuserType, f.Id);
+                Device(w, "focuserId", f.FocuserId);
+                w.WriteNumber("position", f.Position);
+                break;
+            case ChangeFilterDocumentStep c:
+                Header(w, ChangeFilterType, c.Id);
+                Device(w, "filterWheelId", c.FilterWheelId);
+                w.WriteNumber("slotIndex", c.SlotIndex);
+                break;
+            case RigMoveFocuserDocumentStep f:
+                Header(w, RigMoveFocuserType, f.Id);
+                w.WriteNumber("position", f.Position);
+                break;
+            case AutofocusDocumentStep a:
+                Header(w, AutofocusType, a.Id);
+                Device(w, "rigId", a.RigId);
+                w.WriteNumber("exposureSeconds", a.ExposureSeconds);
+                w.WriteNumber("stepSize", a.StepSize);
+                w.WriteNumber("samples", a.SampleCount);
+                break;
+            case RigAutofocusDocumentStep a:
+                Header(w, RigAutofocusType, a.Id);
+                w.WriteNumber("exposureSeconds", a.ExposureSeconds);
+                w.WriteNumber("stepSize", a.StepSize);
+                w.WriteNumber("samples", a.SampleCount);
+                break;
+            case RigChangeFilterDocumentStep c:
+                Header(w, RigChangeFilterType, c.Id);
+                w.WriteNumber("slotIndex", c.SlotIndex);
                 break;
             case MultiRigDocumentStep m:
                 Header(w, MultiRigType, m.Id);
@@ -275,7 +319,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 or 2 => ReadBody(root, version),
+            1 or 2 or 3 or 4 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Astra version."),
         };
@@ -352,7 +396,9 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         var type = typeElement.GetString()!;
         var known = type is ExposureType or DelayType or SlewType or StartGuidingType or StopGuidingType or DitherType or RepeatType
-            || (version >= 2 && type is MultiRigType or RigExposureType);
+            || (version >= 2 && type is MultiRigType or RigExposureType)
+            || (version >= 3 && type is MoveFocuserType or ChangeFilterType or RigMoveFocuserType or RigChangeFilterType)
+            || (version >= 4 && type is AutofocusType or RigAutofocusType);
         if (!known)
         {
             throw Structure($"Unknown sequence step type '{type}'.");
@@ -371,12 +417,13 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             throw Structure("Multi-Rig steps can only be placed at the top level of a sequence.");
         }
 
-        if (type == RigExposureType && !inTrack)
+        if (type is RigExposureType or RigMoveFocuserType or RigChangeFilterType or RigAutofocusType && !inTrack)
         {
             throw Structure($"A '{type}' step can only be used inside a rig track.");
         }
 
-        if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType)
+        if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType
+                or MoveFocuserType or ChangeFilterType or AutofocusType)
         {
             throw Structure($"A '{type}' step cannot be used inside a rig track.");
         }
@@ -399,6 +446,18 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             StartGuidingType => new StartGuidingDocumentStep(id, ReadDevice(element, type, "guiderId")),
             StopGuidingType => new StopGuidingDocumentStep(id, ReadDevice(element, type, "guiderId")),
             RigExposureType => new RigExposureDocumentStep(id, ReadNumber(element, type, "exposureSeconds")),
+            MoveFocuserType => new MoveFocuserDocumentStep(
+                id, ReadDevice(element, type, "focuserId"), ReadWhole(element, type, "position")),
+            ChangeFilterType => new ChangeFilterDocumentStep(
+                id, ReadDevice(element, type, "filterWheelId"), ReadWhole(element, type, "slotIndex")),
+            RigMoveFocuserType => new RigMoveFocuserDocumentStep(id, ReadWhole(element, type, "position")),
+            AutofocusType => new AutofocusDocumentStep(
+                id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds"),
+                ReadWhole(element, type, "stepSize"), ReadWhole(element, type, "samples")),
+            RigAutofocusType => new RigAutofocusDocumentStep(
+                id, ReadNumber(element, type, "exposureSeconds"),
+                ReadWhole(element, type, "stepSize"), ReadWhole(element, type, "samples")),
+            RigChangeFilterType => new RigChangeFilterDocumentStep(id, ReadWhole(element, type, "slotIndex")),
             MultiRigType => ReadMultiRig(element, id, version, ids),
             DitherType => new DitherDocumentStep(
                 id,
@@ -540,6 +599,22 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var number) || !double.IsFinite(number))
         {
             throw Structure($"'{name}' of a '{type}' step must be a number.");
+        }
+
+        return number;
+    }
+
+    // A whole number that fits an int: a focuser position or a slot index. Whether it makes sense is for the editor.
+    private static int ReadWhole(JsonElement element, string type, string name)
+    {
+        if (!element.TryGetProperty(name, out var value))
+        {
+            throw Structure($"A '{type}' step is missing '{name}'.");
+        }
+
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var number))
+        {
+            throw Structure($"'{name}' of a '{type}' step must be a whole number.");
         }
 
         return number;

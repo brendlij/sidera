@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Astra.Core.Devices;
+using Astra.Core.Focusing;
+using Astra.Core.Rigs;
 using Astra.Core.Sequencing;
 using Astra.Runtime;
 using Astra.Runtime.Sequencing;
@@ -122,6 +124,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private readonly HashSet<SequenceExecutionPosition> _completed = new();
     private readonly Dictionary<SequenceNode, int> _latestIteration = new();
     private CancellationTokenSource? _cts;
+    private readonly AstraRuntimeHost _host;
+    private readonly IDisposable _autofocusSubscription;
+    private readonly Dictionary<RigId, AutofocusStatusViewModel> _autofocus = new();
 
     /// <summary>A sequencer for one fixed sequence definition, without editable parameters.</summary>
     /// <param name="readiness">Returns why the sequence cannot start right now, or <c>null</c> if it can.</param>
@@ -165,6 +170,12 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     )
     {
         _runner = new SequenceRunner(host.ResourceManager, host.SafePointCoordinator);
+        _host = host;
+        _autofocusSubscription = host.EventBus.Subscribe<AutofocusProgressChanged>((e, _) =>
+        {
+            postToUi(() => ApplyAutofocus(e));
+            return Task.CompletedTask;
+        });
         _fixedSequence = fixedSequence;
         _sequenceName = fixedSequence?.Name ?? SequenceDraftBuilder.SequenceName;
         Draft = draft;
@@ -423,6 +434,40 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     public bool HasSharedActivity => SharedActivity is not null;
 
     /// <summary>
+    /// What the autofocus of each rig is doing now, or did in the last run, in the order of the rig ids. Only what the
+    /// runs report; cleared when a new run starts.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAutofocus))]
+    public partial IReadOnlyList<AutofocusStatusViewModel> AutofocusStatuses { get; private set; } = [];
+
+    public bool HasAutofocus => AutofocusStatuses.Count > 0;
+
+    // Progress arrives on any thread and is applied on the UI thread, in the order it was published.
+    private void ApplyAutofocus(AutofocusProgressChanged e)
+    {
+        if (!_autofocus.TryGetValue(e.RigId, out var status))
+        {
+            if (e.Progress.Phase == AutofocusPhase.Stopped)
+            {
+                return; // stopped before it said anything: there is nothing to show
+            }
+
+            var name = _host.RigRegistry.TryGet(e.RigId, out var rig) && rig is not null ? rig.Name : e.RigId.Value;
+            _autofocus[e.RigId] = status = new AutofocusStatusViewModel(e.RigId, name);
+            AutofocusStatuses = _autofocus.Values.OrderBy(s => s.RigId.Value, StringComparer.Ordinal).ToList();
+        }
+
+        status.Apply(e.Progress);
+    }
+
+    private void ClearAutofocus()
+    {
+        _autofocus.Clear();
+        AutofocusStatuses = [];
+    }
+
+    /// <summary>
     /// The position is shown as lines of its own only while no branch shows it: every active branch already carries
     /// the containers around its step, so showing both would say the same thing twice.
     /// </summary>
@@ -472,6 +517,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             ShowSnapshot(built);
         }
 
+        ClearAutofocus();
         var cts = new CancellationTokenSource();
         _cts = cts;
 
@@ -782,6 +828,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         Cancel();
+        _autofocusSubscription.Dispose();
         _runner.Changed -= OnRunnerChanged;
         _runner.StepCompleted -= OnStepCompleted;
         if (Draft is not null)

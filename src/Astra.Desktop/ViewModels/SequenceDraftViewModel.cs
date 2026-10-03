@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Astra.Core.Devices;
+using Astra.Core.Events;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
+using Astra.Core.Focusing;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Core.Rigs;
@@ -33,6 +37,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private readonly RigRegistry? _rigs;
     private readonly SequenceDraftDefaults _defaults;
     private readonly ISequenceStepClipboard _clipboard;
+    private readonly IFocusMetricProvider? _focusMetrics;
+    private readonly IEventPublisher? _events;
     private HashSet<Guid> _unreadable = [];
     private bool _rebuilding;
 
@@ -42,12 +48,16 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         IEnumerable<SequenceStepDraft>? initialSteps = null,
         ISequenceStepClipboard? clipboard = null,
         RigRegistry? rigs = null,
-        SharedEquipmentDraft? shared = null)
+        SharedEquipmentDraft? shared = null,
+        IFocusMetricProvider? focusMetrics = null,
+        IEventPublisher? events = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(defaults);
         _registry = registry;
         _rigs = rigs;
+        _focusMetrics = focusMetrics;
+        _events = events;
         _defaults = defaults;
         _clipboard = clipboard ?? new SequenceStepClipboard();
         _clipboard.Changed += (_, _) => NotifyCommands();
@@ -179,14 +189,20 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
-    private SequenceDraftContext Context => new(_rigs, SharedEquipment);
+    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events);
 
     // New steps use the shared equipment of the session wherever they have a mount or a guider.
     private SequenceDraftDefaults EffectiveDefaults => _defaults with
     {
         MountId = SharedMount.SelectedId ?? _defaults.MountId,
         GuiderId = SharedGuider.SelectedId ?? _defaults.GuiderId,
+        AutofocusRigId = _defaults.AutofocusRigId ?? FirstRigWithFocuser(),
     };
+
+    // A new top-level autofocus starts with a rig it can focus: the first (by id) that has a focuser.
+    private RigId? FirstRigWithFocuser() =>
+        (_rigs?.GetAll() ?? []).Where(rig => rig.FocuserId is not null).OrderBy(rig => rig.Id.Value, StringComparer.Ordinal)
+            .Select(rig => (RigId?)rig.Id).FirstOrDefault();
 
     /// <summary>Builds a new sequence from the current draft, validating it again.</summary>
     /// <exception cref="SequenceConfigurationException">The draft is not valid.</exception>
@@ -210,6 +226,12 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             block.TriggerRig.Refresh();
         }
 
+        // The names of the slots of a wheel come from a device, or from the rig of a track, which may have just changed.
+        foreach (var choice in Rows.SelectMany(step => step.FilterChoices))
+        {
+            choice.Refresh();
+        }
+
         var parseErrors = new Dictionary<Guid, IReadOnlyList<string>>();
         var drafts = ReadAll(parseErrors);
         HasUnreadableFields = parseErrors.Count > 0;
@@ -228,12 +250,18 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             parseErrors.GetValueOrDefault(step.Id, []).Concat(validation.ProblemsOf(step.Id)).ToList();
 
         // Shows one step and everything inside it; says whether anything in it has a problem.
-        bool Present(StepDraftViewModel step, SequenceStepDraft draft, int[] path, int number)
+        bool Present(StepDraftViewModel step, SequenceStepDraft draft, int[] path, int number, Rig? rig)
         {
             var own = Problems(step);
             step.Number = number;
             step.NumberLabel = SequenceDraftBuilder.Label(path);
             sentences.AddRange(own.Select(p => $"Step {step.NumberLabel} ({SequenceDraftBuilder.TitleOf(step.Kind)}): {p}"));
+
+            // The rig of a track is the rig of everything in it: its focuser and its filter wheel.
+            var inner = draft is RigTrackDraft trackDraft && trackDraft.RigId is { } trackRigId
+                        && _rigs is not null && _rigs.TryGet(trackRigId, out var trackRig)
+                ? trackRig
+                : rig;
 
             var inside = false;
             if (step is ContainerStepDraftViewModel container)
@@ -241,7 +269,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                 var drafted = ChildDrafts(draft);
                 for (var j = 0; j < container.Children.Count; j++)
                 {
-                    inside |= Present(container.Children[j], drafted[j], [.. path, j], j + 1);
+                    inside |= Present(container.Children[j], drafted[j], [.. path, j], j + 1, draft is MultiRigStepDraft ? null : inner);
                 }
             }
 
@@ -250,14 +278,14 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             step.Show(
                 draft is RigTrackDraft track
                     ? SequenceDraftBuilder.DescribeTrack(_registry, track, context)
-                    : SequenceDraftBuilder.Describe(_registry, draft, context),
+                    : SequenceDraftBuilder.Describe(_registry, draft, context, rig),
                 shown);
             return own.Count > 0 || inside;
         }
 
         for (var i = 0; i < Steps.Count; i++)
         {
-            Present(Steps[i], drafts[i], [i], i + 1);
+            Present(Steps[i], drafts[i], [i], i + 1, null);
         }
 
         if (!sentences.SequenceEqual(ValidationErrors))
@@ -289,7 +317,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private void AddStep(SequenceStepKind kind)
     {
-        if (kind is SequenceStepKind.RigExposure or SequenceStepKind.RigTrack)
+        if (kind is SequenceStepKind.RigExposure or SequenceStepKind.RigTrack
+            or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus)
         {
             return; // these only exist inside a Multi-Rig block
         }
@@ -310,7 +339,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         }
 
         var repeat = ChildTarget!;
-        InsertAt(repeat, repeat.Children.Count, NewTrackLeaf(repeat.IsInTrack, kind));
+        InsertAt(repeat, repeat.Children.Count, NewTrackLeaf(repeat.IsInTrack ? repeat.Parent as RigTrackDraftViewModel : null, kind));
     }
 
     /// <summary>Adds a Rig Track to the selected Multi-Rig block, or to the one the selected step is in.</summary>
@@ -344,7 +373,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         var track = TrackTarget!;
         SequenceStepDraft step = kind == SequenceStepKind.Repeat
             ? new RepeatStepDraft(NewId(), _defaults.RepeatCount, [])
-            : NewTrackLeaf(inTrack: true, kind);
+            : NewTrackLeaf(track, kind);
         InsertAt(track, track.Children.Count, step);
     }
 
@@ -439,14 +468,18 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public bool CanAddChild(SequenceStepKind kind) =>
         CanAddChildHere
         && (ChildTarget!.IsInTrack
-            ? kind is SequenceStepKind.Exposure or SequenceStepKind.Delay
+            ? kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter
+                or SequenceStepKind.Autofocus
             : kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Slew
-                or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither);
+                or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither
+                or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Autofocus);
 
     public bool CanAddTrack => IsEditable && MultiRigTarget is not null;
 
     public bool CanAddTrackStep(SequenceStepKind kind) =>
-        IsEditable && TrackTarget is not null && kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Repeat;
+        IsEditable && TrackTarget is not null
+        && kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Repeat
+            or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Autofocus;
 
     public bool CanRemove => IsEditable && SelectedStep is not null;
     public bool CanMoveUp => IsEditable && SelectedStep is not null && SiblingsOf(SelectedStep).IndexOf(SelectedStep) > 0;
@@ -497,11 +530,15 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     // A step may be put into a list only if it may be a step of that list.
     private static bool Accepts(ContainerStepDraftViewModel? parent, SequenceStepKind kind) => parent switch
     {
-        null => kind is not (SequenceStepKind.RigExposure or SequenceStepKind.RigTrack),
-        RepeatStepDraftViewModel { IsInTrack: true } => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay,
+        null => kind is not (SequenceStepKind.RigExposure or SequenceStepKind.RigTrack
+            or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus),
+        RepeatStepDraftViewModel { IsInTrack: true } => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay
+            or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus,
         RepeatStepDraftViewModel => kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Slew
-            or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither,
-        RigTrackDraftViewModel => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay or SequenceStepKind.Repeat,
+            or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither
+            or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Autofocus,
+        RigTrackDraftViewModel => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay or SequenceStepKind.Repeat
+            or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus,
         _ => false,
     };
 
@@ -536,7 +573,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             var insideTrack = target.Parent is RigTrackDraftViewModel;
             if (!_clipboard.ContentChildKinds.All(child => insideTrack
                     ? child is SequenceStepKind.RigExposure or SequenceStepKind.Delay
-                    : child is not SequenceStepKind.RigExposure))
+                        or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus
+                    : child is not (SequenceStepKind.RigExposure or SequenceStepKind.RigMoveFocuser
+                        or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus)))
             {
                 return null;
             }
@@ -545,10 +584,24 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         return target;
     }
 
-    private LeafStepDraft NewTrackLeaf(bool inTrack, SequenceStepKind kind) =>
-        inTrack && kind == SequenceStepKind.Exposure
-            ? new RigExposureStepDraft(NewId(), _defaults.ExposureSeconds)
-            : EffectiveDefaults.CreateLeaf(kind);
+    // In a track the steps that use equipment are the rig's: the same menu entry makes the step of the rig, and a new
+    // focuser move starts at where the focuser of that rig stands (not where some other focuser does).
+    private LeafStepDraft NewTrackLeaf(RigTrackDraftViewModel? track, SequenceStepKind kind) => track is not null
+        ? kind switch
+        {
+            SequenceStepKind.Exposure => new RigExposureStepDraft(NewId(), _defaults.ExposureSeconds),
+            SequenceStepKind.MoveFocuser => new RigMoveFocuserStepDraft(NewId(), RigFocuserPosition(track)),
+            SequenceStepKind.ChangeFilter => EffectiveDefaults.CreateLeaf(SequenceStepKind.RigChangeFilter),
+            SequenceStepKind.Autofocus => EffectiveDefaults.CreateLeaf(SequenceStepKind.RigAutofocus),
+            _ => EffectiveDefaults.CreateLeaf(kind),
+        }
+        : EffectiveDefaults.CreateLeaf(kind);
+
+    private int RigFocuserPosition(RigTrackDraftViewModel track) =>
+        track.Rig.SelectedId is { } rigId && _rigs is not null && _rigs.TryGet(rigId, out var rig) && rig?.FocuserId is { } focuserId
+        && _registry.TryGet(focuserId, out var device) && device is IFocuser focuser
+            ? focuser.Position
+            : _defaults.FocuserPosition;
 
     // The listing is rebuilt after every change of structure. The list control clears its selection while the rows
     // are replaced; the selected step is put back afterwards.
@@ -749,6 +802,31 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         StartGuidingStepDraft g => new StartGuidingStepDraftViewModel(_registry, g),
         StopGuidingStepDraft g => new StopGuidingStepDraftViewModel(_registry, g),
         DitherStepDraft d => new DitherStepDraftViewModel(_registry, d),
+        MoveFocuserStepDraft f => new MoveFocuserStepDraftViewModel(_registry, f),
+        ChangeFilterStepDraft c => new ChangeFilterStepDraftViewModel(_registry, c),
+        RigMoveFocuserStepDraft f => new RigMoveFocuserStepDraftViewModel(f),
+        RigChangeFilterStepDraft c => RigFilterViewModel(c),
+        AutofocusStepDraft a => new AutofocusStepDraftViewModel(a, new RigPickerViewModel(_rigs, _registry, a.RigId)),
+        RigAutofocusStepDraft a => new RigAutofocusStepDraftViewModel(a),
         _ => throw new ArgumentException($"Unsupported step '{draft.GetType().Name}'.", nameof(draft)),
     };
+
+    // The slots come from the filter wheel of the rig of the track the step is in, looked up whenever they are needed:
+    // the step is created before it is put into its track, and the track can get another rig.
+    private RigChangeFilterStepDraftViewModel RigFilterViewModel(RigChangeFilterStepDraft draft)
+    {
+        RigChangeFilterStepDraftViewModel? step = null;
+        step = new RigChangeFilterStepDraftViewModel(draft, () => SlotsOfRigWheel(step));
+        return step;
+    }
+
+    private IReadOnlyList<FilterSlot>? SlotsOfRigWheel(StepDraftViewModel? step)
+    {
+        var track = Ancestors(step).OfType<RigTrackDraftViewModel>().FirstOrDefault();
+        return track?.Rig.SelectedId is { } rigId
+               && _rigs is not null && _rigs.TryGet(rigId, out var rig) && rig?.FilterWheelId is { } wheelId
+               && _registry.TryGet(wheelId, out var device) && device is IFilterWheel wheel
+            ? wheel.Slots
+            : null;
+    }
 }

@@ -20,9 +20,10 @@ public sealed record SequenceDocument(
 
     /// <summary>
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
-    /// older version could not say (shared equipment, Multi-Rig Imaging) is simply absent from a document read from it.
+    /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps
+    /// before 3, autofocus before 4) is simply absent from a document read from it.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 4;
 
     public string Format => FormatId;
     public int Version => CurrentVersion;
@@ -61,6 +62,26 @@ public sealed record DitherDocumentStep(
     double SettleStableSeconds,
     double SettleTimeoutSeconds
 ) : DocumentLeafStep(Id);
+
+/// <summary>Moves a focuser to an absolute position in focuser steps. Added in version 3.</summary>
+public sealed record MoveFocuserDocumentStep(Guid Id, string? FocuserId, int Position) : DocumentLeafStep(Id);
+
+/// <summary>Turns a filter wheel to the slot with this index. Added in version 3.</summary>
+public sealed record ChangeFilterDocumentStep(Guid Id, string? FilterWheelId, int SlotIndex) : DocumentLeafStep(Id);
+
+/// <summary>A focuser move inside a rig track, on the focuser of that track's rig. Added in version 3.</summary>
+public sealed record RigMoveFocuserDocumentStep(Guid Id, int Position) : DocumentLeafStep(Id);
+
+/// <summary>A filter change inside a rig track, on the filter wheel of that track's rig, to the slot with this index. Added in version 3.</summary>
+public sealed record RigChangeFilterDocumentStep(Guid Id, int SlotIndex) : DocumentLeafStep(Id);
+
+/// <summary>Focuses a rig: its camera and its focuser. The rig is an id, or <c>null</c>. Added in version 4.</summary>
+public sealed record AutofocusDocumentStep(Guid Id, string? RigId, double ExposureSeconds, int StepSize, int SampleCount)
+    : DocumentLeafStep(Id);
+
+/// <summary>Autofocus inside a rig track, on that track's rig; the rig is not repeated. Added in version 4.</summary>
+public sealed record RigAutofocusDocumentStep(Guid Id, double ExposureSeconds, int StepSize, int SampleCount)
+    : DocumentLeafStep(Id);
 
 /// <summary>The one container of version 1: leaf steps only, so a Repeat cannot contain a Repeat.</summary>
 public sealed record RepeatDocumentStep(Guid Id, int Count, IReadOnlyList<DocumentLeafStep> Children) : DocumentStep(Id);

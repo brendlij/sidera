@@ -17,8 +17,8 @@ public class DemoSetupTests
         Assert.Equal("Main Rig", rig!.Name);
         Assert.Equal(750, rig.Optics.FocalLengthMm);
         Assert.Equal(6248, rig.Optics.ResolutionWidth);
-        Assert.Null(rig.FocuserId);
-        Assert.Null(rig.FilterWheelId);
+        Assert.Equal(new DeviceId("focuser.main"), rig.FocuserId);
+        Assert.Equal(new DeviceId("filterwheel.main"), rig.FilterWheelId);
     }
 
     [Fact]

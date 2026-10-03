@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
+using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
 
 namespace Astra.Desktop;
@@ -22,6 +25,22 @@ public sealed record SequenceDraftDefaults
     public DeviceId? CameraId { get; init; }
     public DeviceId? MountId { get; init; }
     public DeviceId? GuiderId { get; init; }
+    public DeviceId? FocuserId { get; init; }
+    public DeviceId? FilterWheelId { get; init; }
+
+    /// <summary>The position a new focuser move starts with: where the default focuser stands.</summary>
+    public int FocuserPosition { get; init; } = SimulatedFocuser.DefaultStartPosition;
+
+    /// <summary>The slot a new filter change starts with.</summary>
+    public int FilterSlotIndex { get; init; }
+
+    /// <summary>The exposure, step size and number of samples a new autofocus starts with.</summary>
+    public double AutofocusExposureSeconds { get; init; } = 1;
+    public int AutofocusStepSize { get; init; } = 400;
+    public int AutofocusSampleCount { get; init; } = 7;
+
+    /// <summary>The rig a new top-level autofocus starts with; <c>null</c> when none is known.</summary>
+    public RigId? AutofocusRigId { get; init; }
 
     public double ExposureSeconds { get; init; } = 2;
     public double DelaySeconds { get; init; } = 2;
@@ -40,11 +59,17 @@ public sealed record SequenceDraftDefaults
             devices.OfType<T>().FirstOrDefault(d => d.Id == preferred)?.Id
             ?? devices.OfType<T>().OrderBy(d => d.Id.Value, StringComparer.Ordinal).FirstOrDefault()?.Id;
 
+        var focuserId = Pick<IFocuser>(DemoSetup.MainFocuserId);
+        var focuser = focuserId is { } id ? devices.OfType<IFocuser>().FirstOrDefault(f => f.Id == id) : null;
+
         return new SequenceDraftDefaults
         {
             CameraId = Pick<ICamera>(DemoSetup.MainCameraId),
             MountId = Pick<IMount>(DemoSetup.MountId),
             GuiderId = Pick<IGuider>(DemoSetup.GuiderId),
+            FocuserId = focuserId,
+            FilterWheelId = Pick<IFilterWheel>(DemoSetup.MainFilterWheelId),
+            FocuserPosition = focuser?.Position ?? SimulatedFocuser.DefaultStartPosition,
             ExposureSeconds = options.SequenceExposure.TotalSeconds,
             DelaySeconds = options.SequenceWait.TotalSeconds,
             DitherAmplitudePixels = options.DitherAmplitudePixels,
@@ -78,6 +103,14 @@ public sealed record SequenceDraftDefaults
             SequenceStepKind.Slew => new SlewStepDraft(id, MountId, TargetRightAscensionHours, TargetDeclinationDegrees),
             SequenceStepKind.StartGuiding => new StartGuidingStepDraft(id, GuiderId),
             SequenceStepKind.StopGuiding => new StopGuidingStepDraft(id, GuiderId),
+            SequenceStepKind.MoveFocuser => new MoveFocuserStepDraft(id, FocuserId, FocuserPosition),
+            SequenceStepKind.ChangeFilter => new ChangeFilterStepDraft(id, FilterWheelId, FilterSlotIndex),
+            SequenceStepKind.RigMoveFocuser => new RigMoveFocuserStepDraft(id, FocuserPosition),
+            SequenceStepKind.RigChangeFilter => new RigChangeFilterStepDraft(id, FilterSlotIndex),
+            SequenceStepKind.Autofocus => new AutofocusStepDraft(
+                id, AutofocusRigId, AutofocusExposureSeconds, AutofocusStepSize, AutofocusSampleCount),
+            SequenceStepKind.RigAutofocus => new RigAutofocusStepDraft(
+                id, AutofocusExposureSeconds, AutofocusStepSize, AutofocusSampleCount),
             SequenceStepKind.Dither => new DitherStepDraft(
                 id, GuiderId, MountId, CameraId, DitherAmplitudePixels,
                 SettleThresholdPixels, SettleStableSeconds, SettleTimeoutSeconds),

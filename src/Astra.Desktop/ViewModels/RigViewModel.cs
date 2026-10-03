@@ -18,9 +18,12 @@ public sealed class RigViewModel : ViewModelBase
         _rig = rig;
         Camera = cameras.FirstOrDefault(c => c.CameraId == rig.CameraId);
         CameraText = Describe(host, rig.CameraId);
-        FocuserText = rig.FocuserId is { } focuser ? Describe(host, focuser) : "None";
-        FilterWheelText = rig.FilterWheelId is { } wheel ? Describe(host, wheel) : "None";
+        FocuserText = rig.FocuserId is { } focuser ? Describe(host, focuser) : NotConfigured;
+        FilterWheelText = rig.FilterWheelId is { } wheel ? Describe(host, wheel) : NotConfigured;
     }
+
+    /// <summary>What a rig shows for a device it has none of.</summary>
+    public const string NotConfigured = "Not configured";
 
     public string Name => _rig.Name;
     public string RigIdText => _rig.Id.Value;
@@ -31,6 +34,13 @@ public sealed class RigViewModel : ViewModelBase
     public string CameraText { get; }
     public string FocuserText { get; }
     public string FilterWheelText { get; }
+
+    public bool HasFocuser => _rig.FocuserId is not null;
+    public bool HasFilterWheel => _rig.FilterWheelId is not null;
+
+    /// <summary>The optical train on one line, for example "750 mm · f/5 · 3.76 µm pixels".</summary>
+    public string OpticsText => Format(
+        $"{_rig.Optics.FocalLengthMm:0.##} mm · f/{_rig.Optics.FocalLengthMm / _rig.Optics.ApertureMm:0.#} · {_rig.Optics.PixelSizeMicrons:0.##} µm pixels");
 
     public string FocalLengthText => Format($"{_rig.Optics.FocalLengthMm:0.##} mm");
     public string ApertureText => Format($"{_rig.Optics.ApertureMm:0.##} mm");

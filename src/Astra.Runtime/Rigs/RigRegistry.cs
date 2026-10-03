@@ -1,4 +1,6 @@
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
 using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
 
@@ -76,14 +78,32 @@ public sealed class RigRegistry
                 $"Device '{rig.CameraId}' assigned as camera does not implement ICamera.");
         }
 
-        if (rig.FocuserId is { } focuserId && !_devices.TryGet(focuserId, out _))
+        if (rig.FocuserId is { } focuserId)
         {
-            throw new InvalidOperationException($"Focuser device '{focuserId}' is not registered.");
+            if (!_devices.TryGet(focuserId, out var focuser) || focuser is null)
+            {
+                throw new InvalidOperationException($"Focuser device '{focuserId}' is not registered.");
+            }
+
+            if (focuser is not IFocuser)
+            {
+                throw new InvalidOperationException(
+                    $"Device '{focuserId}' assigned as focuser does not implement IFocuser.");
+            }
         }
 
-        if (rig.FilterWheelId is { } filterWheelId && !_devices.TryGet(filterWheelId, out _))
+        if (rig.FilterWheelId is { } filterWheelId)
         {
-            throw new InvalidOperationException($"Filter wheel device '{filterWheelId}' is not registered.");
+            if (!_devices.TryGet(filterWheelId, out var wheel) || wheel is null)
+            {
+                throw new InvalidOperationException($"Filter wheel device '{filterWheelId}' is not registered.");
+            }
+
+            if (wheel is not IFilterWheel)
+            {
+                throw new InvalidOperationException(
+                    $"Device '{filterWheelId}' assigned as filter wheel does not implement IFilterWheel.");
+            }
         }
     }
 }

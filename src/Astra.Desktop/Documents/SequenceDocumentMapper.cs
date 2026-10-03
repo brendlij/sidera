@@ -73,6 +73,12 @@ public static class SequenceDocumentMapper
     {
         ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds),
         RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds),
+        MoveFocuserStepDraft f => new MoveFocuserDocumentStep(f.Id, f.FocuserId?.Value, f.Position),
+        ChangeFilterStepDraft c => new ChangeFilterDocumentStep(c.Id, c.FilterWheelId?.Value, c.SlotIndex),
+        RigMoveFocuserStepDraft f => new RigMoveFocuserDocumentStep(f.Id, f.Position),
+        AutofocusStepDraft a => new AutofocusDocumentStep(a.Id, a.RigId?.Value, a.ExposureSeconds, a.StepSize, a.SampleCount),
+        RigAutofocusStepDraft a => new RigAutofocusDocumentStep(a.Id, a.ExposureSeconds, a.StepSize, a.SampleCount),
+        RigChangeFilterStepDraft c => new RigChangeFilterDocumentStep(c.Id, c.SlotIndex),
         DelayStepDraft d => new DelayDocumentStep(d.Id, d.Seconds),
         SlewStepDraft s => new SlewDocumentStep(s.Id, s.MountId?.Value, s.RightAscensionHours, s.DeclinationDegrees),
         StartGuidingStepDraft g => new StartGuidingDocumentStep(g.Id, g.GuiderId?.Value),
@@ -99,6 +105,13 @@ public static class SequenceDocumentMapper
     {
         ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds),
         RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds),
+        MoveFocuserDocumentStep f => new MoveFocuserStepDraft(f.Id, Device(f.FocuserId), f.Position),
+        ChangeFilterDocumentStep c => new ChangeFilterStepDraft(c.Id, Device(c.FilterWheelId), c.SlotIndex),
+        RigMoveFocuserDocumentStep f => new RigMoveFocuserStepDraft(f.Id, f.Position),
+        AutofocusDocumentStep a => new AutofocusStepDraft(
+            a.Id, a.RigId is null ? null : new RigId(a.RigId), a.ExposureSeconds, a.StepSize, a.SampleCount),
+        RigAutofocusDocumentStep a => new RigAutofocusStepDraft(a.Id, a.ExposureSeconds, a.StepSize, a.SampleCount),
+        RigChangeFilterDocumentStep c => new RigChangeFilterStepDraft(c.Id, c.SlotIndex),
         DelayDocumentStep d => new DelayStepDraft(d.Id, d.DurationSeconds),
         SlewDocumentStep s => new SlewStepDraft(s.Id, Device(s.MountId), s.RaHours, s.DecDegrees),
         StartGuidingDocumentStep g => new StartGuidingStepDraft(g.Id, Device(g.GuiderId)),

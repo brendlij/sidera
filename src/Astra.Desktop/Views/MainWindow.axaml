@@ -3,6 +3,7 @@
         xmlns:vm="using:Astra.Desktop.ViewModels"
         xmlns:app="using:Astra.Desktop"
         xmlns:conv="using:Astra.Desktop.Converters"
+        xmlns:fw="using:Astra.Core.FilterWheels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
@@ -50,6 +51,23 @@
                     <TextBlock Classes="section" Text="SHARED" />
                     <TextBlock Classes="current" Text="{Binding SharedActivity}" TextWrapping="Wrap" />
                 </StackPanel>
+                <!-- What the autofocus of each rig reports: sample, position and HFR, then the best focus -->
+                <ItemsControl ItemsSource="{Binding AutofocusStatuses}" IsVisible="{Binding HasAutofocus}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AutofocusStatusViewModel">
+                            <StackPanel Spacing="2" Margin="0,0,0,10">
+                                <TextBlock Classes="section" Text="{Binding Title}" />
+                                <ItemsControl ItemsSource="{Binding Lines}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Classes="current" Text="{Binding}" TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <!-- Live execution: nested position, current step, exposure progress -->
                 <StackPanel Spacing="6" IsVisible="{Binding ShowStatusLines}">
                     <ItemsControl ItemsSource="{Binding StatusLines}">
@@ -226,6 +244,9 @@
                                         <MenuItem Header="Start Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StartGuiding}" />
                                         <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
                                         <MenuItem Header="Dither" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
+                                        <MenuItem Header="Move Focuser" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                                        <MenuItem Header="Change Filter" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
+                                        <MenuItem Header="Autofocus" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
                                         <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
                                         <MenuItem Header="Multi-Rig Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />
                                     </MenuFlyout>
@@ -237,6 +258,9 @@
                                     <MenuFlyout Placement="BottomEdgeAlignedLeft">
                                         <MenuItem Header="Exposure" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
                                         <MenuItem Header="Delay" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                                        <MenuItem Header="Move Focuser" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                                        <MenuItem Header="Change Filter" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
+                                        <MenuItem Header="Autofocus" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
                                         <MenuItem Header="Repeat" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
                                     </MenuFlyout>
                                 </Button.Flyout>
@@ -250,6 +274,9 @@
                                         <MenuItem Header="Start Guiding" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.StartGuiding}" />
                                         <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
                                         <MenuItem Header="Dither" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
+                                        <MenuItem Header="Move Focuser" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                                        <MenuItem Header="Change Filter" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
+                                        <MenuItem Header="Autofocus" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
@@ -344,6 +371,113 @@
                 </ComboBox.ItemTemplate>
             </ComboBox>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FilterChoiceViewModel}" x:DataType="vm:FilterChoiceViewModel">
+            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterOption">
+                        <StackPanel>
+                            <TextBlock Text="{Binding DisplayName}" />
+                            <TextBlock Classes="muted" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MoveFocuserStepDraftViewModel}" x:DataType="vm:MoveFocuserStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Move Focuser" />
+                <TextBlock Classes="muted" Text="Focuser" />
+                <ContentControl Content="{Binding Focuser}" />
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Position" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding PositionText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="steps" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Classes="muted" Text="{Binding RangeLabel, StringFormat='Range: {0} steps'}" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ChangeFilterStepDraftViewModel}" x:DataType="vm:ChangeFilterStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Change Filter" />
+                <TextBlock Classes="muted" Text="Filter wheel" />
+                <ContentControl Content="{Binding Wheel}" />
+                <TextBlock Classes="muted" Text="Filter" />
+                <ContentControl Content="{Binding Filter}" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigMoveFocuserStepDraftViewModel}" x:DataType="vm:RigMoveFocuserStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Move Focuser" />
+                <TextBlock Classes="muted" Text="Moves the focuser of the rig of this track." />
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Position" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding PositionText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="steps" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Classes="muted" Text="{Binding Summary}" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigChangeFilterStepDraftViewModel}" x:DataType="vm:RigChangeFilterStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Change Filter" />
+                <TextBlock Classes="muted" Text="Turns the filter wheel of the rig of this track." />
+                <TextBlock Classes="muted" Text="Filter" />
+                <ContentControl Content="{Binding Filter}" />
+                <TextBlock Classes="muted" Text="{Binding Summary}" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AutofocusStepDraftViewModel}" x:DataType="vm:AutofocusStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Autofocus" />
+                <TextBlock Classes="muted" Text="Rig" />
+                <ContentControl Content="{Binding Rig}" />
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Exposure" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding ExposureText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Step size" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding StepSizeText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="steps" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Samples" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding SamplesText}" />
+                </Grid>
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="Takes exposures with the camera of the rig at positions around the current focuser position, fits the focus curve and moves the focuser of the rig to the best one. The filter that is in place is used; nothing else moves." />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigAutofocusStepDraftViewModel}" x:DataType="vm:RigAutofocusStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Autofocus" />
+                <TextBlock Classes="muted" Text="Focuses the rig of this track: its camera and its focuser." />
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Exposure" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding ExposureText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Step size" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding StepSizeText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="steps" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,110,50">
+                    <TextBlock Text="Samples" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding SamplesText}" />
+                </Grid>
+                <TextBlock Classes="muted" Text="{Binding Summary}" />
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="The other rigs go on while this one focuses. A dither of the shared mount waits until it is done." />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:ExposureStepDraftViewModel}" x:DataType="vm:ExposureStepDraftViewModel">
             <StackPanel Spacing="14">
                 <TextBlock Classes="title" Text="Exposure" />
@@ -419,7 +553,7 @@
                 <ContentControl Content="{Binding Rig}" />
                 <TextBlock Classes="muted" Text="{Binding Summary}" />
                 <TextBlock Classes="muted" TextWrapping="Wrap"
-                           Text="Use “Add step in track” for what this rig does: exposures with its camera, delays, and Repeats of those." />
+                           Text="Use “Add step in track” for what this rig does: exposures with its camera, moving its focuser, changing its filter, delays, and Repeats of those." />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
             </StackPanel>
         </DataTemplate>
@@ -531,6 +665,8 @@
                 <TextBlock Classes="title" Text="Equipment" />
                 <ItemsControl ItemsSource="{Binding Rigs}" />
                 <ItemsControl ItemsSource="{Binding Cameras}" />
+                <ItemsControl ItemsSource="{Binding Focusers}" />
+                <ItemsControl ItemsSource="{Binding FilterWheels}" />
                 <ItemsControl ItemsSource="{Binding Mounts}" />
                 <ItemsControl ItemsSource="{Binding Guiders}" />
             </StackPanel>
@@ -539,12 +675,75 @@
             <Border Classes="card" Margin="0,0,0,12">
                 <StackPanel Spacing="8">
                     <TextBlock Classes="title" Text="{Binding Name}" />
-                    <TextBlock Text="{Binding CameraText}" />
-                    <StackPanel Orientation="Horizontal" Spacing="16">
-                        <TextBlock Text="{Binding FocalLengthText}" />
-                        <TextBlock Text="{Binding ApertureText}" />
-                        <TextBlock Text="{Binding ResolutionText}" />
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="section" Text="CAMERA" />
+                        <TextBlock Text="{Binding CameraText}" />
                     </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="section" Text="FOCUSER" />
+                        <TextBlock Text="{Binding FocuserText}" Classes.muted="{Binding !HasFocuser}" />
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="section" Text="FILTER WHEEL" />
+                        <TextBlock Text="{Binding FilterWheelText}" Classes.muted="{Binding !HasFilterWheel}" />
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="section" Text="OPTICS" />
+                        <TextBlock Text="{Binding OpticsText}" />
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <TextBlock Classes="muted" Text="{Binding ApertureText}" />
+                            <TextBlock Classes="muted" Text="{Binding ResolutionText}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FocuserViewModel}" x:DataType="vm:FocuserViewModel">
+            <Border Classes="card" Margin="0,0,0,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="title" Text="{Binding Name}" />
+                    <TextBlock Classes="muted" Text="{Binding DeviceIdText}" />
+                    <TextBlock Text="{Binding ConnectionState}" />
+                    <TextBlock Text="{Binding PositionText}" />
+                    <TextBlock Text="{Binding MotionState}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Connect" Command="{Binding ConnectCommand}" />
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
+                        <TextBox Width="120" PlaceholderText="Target position" Text="{Binding TargetInput}" />
+                        <Button Content="Move" Command="{Binding MoveCommand}" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" Text="{Binding RangeText}" />
+                    <TextBlock Classes="danger" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FilterWheelViewModel}" x:DataType="vm:FilterWheelViewModel">
+            <Border Classes="card" Margin="0,0,0,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="title" Text="{Binding Name}" />
+                    <TextBlock Classes="muted" Text="{Binding DeviceIdText}" />
+                    <TextBlock Text="{Binding ConnectionState}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding CurrentFilterText}" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" Text="{Binding SlotText}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding MotionState}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Connect" Command="{Binding ConnectCommand}" />
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
+                        <ComboBox Width="140" ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="fw:FilterSlot">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Classes="muted" Text="{Binding Index}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Content="Change" Command="{Binding ChangeCommand}" />
+                    </StackPanel>
+                    <TextBlock Classes="danger" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </DataTemplate>

@@ -4,6 +4,10 @@ using System.Globalization;
 using System.Linq;
 using Astra.Core.Coordination;
 using Astra.Core.Devices;
+using Astra.Core.Events;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
+using Astra.Core.Focusing;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Core.Rigs;
@@ -26,10 +30,16 @@ public sealed class SequenceConfigurationException(IReadOnlyList<string> problem
 public sealed record StepDescription(string Title, string Summary);
 
 /// <summary>
-/// What a draft is checked against besides the devices: the rigs a Rig Track can select, and the equipment the
-/// session shares. Both are optional; without rigs no rig is available, without shared equipment nothing is compared.
+/// What a draft is checked against besides the devices: the rigs a Rig Track can select, the equipment the session
+/// shares, and what autofocus measures focus with and reports its progress to. All are optional; without rigs no rig is
+/// available, without shared equipment nothing is compared, without a focus metric autofocus is not available.
 /// </summary>
-public sealed record SequenceDraftContext(RigRegistry? Rigs = null, SharedEquipmentDraft? Shared = null);
+public sealed record SequenceDraftContext(
+    RigRegistry? Rigs = null,
+    SharedEquipmentDraft? Shared = null,
+    IFocusMetricProvider? FocusMetrics = null,
+    IEventPublisher? Events = null
+);
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
 /// <param name="SequenceProblems">Problems of the sequence itself, for example that it has no steps.</param>
@@ -103,7 +113,8 @@ public static class SequenceDraftBuilder
     public const string MultiRigName = "Multi-Rig Imaging";
 
     /// <summary>Describes a step for display. Never throws; a missing device is shown by its id or as "no camera".</summary>
-    public static StepDescription Describe(DeviceRegistry registry, SequenceStepDraft step, SequenceDraftContext? context = null)
+    public static StepDescription Describe(
+        DeviceRegistry registry, SequenceStepDraft step, SequenceDraftContext? context = null, Rig? rig = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(step);
@@ -121,6 +132,16 @@ public static class SequenceDraftBuilder
             DitherStepDraft d => new("Dither", string.Create(
                 CultureInfo.InvariantCulture,
                 $"{d.AmplitudePixels:0.##} px · settle ≤ {d.SettleThresholdPixels:0.##} px for {d.SettleStableSeconds:0.##} s")),
+            MoveFocuserStepDraft f => new("Move Focuser", string.Create(
+                CultureInfo.InvariantCulture, $"{DeviceName(registry, f.FocuserId, "no focuser")} · {f.Position}")),
+            ChangeFilterStepDraft c => new("Change Filter",
+                $"{DeviceName(registry, c.FilterWheelId, "no filter wheel")} · {FilterName(registry, c.FilterWheelId, c.SlotIndex)}"),
+            RigMoveFocuserStepDraft f => new("Move Focuser", RigFocuserText(registry, rig, f.Position)),
+            RigChangeFilterStepDraft c => new("Change Filter", RigFilterText(registry, rig, c.SlotIndex)),
+            AutofocusStepDraft a => new("Autofocus", $"{AutofocusRigName(context, a.RigId)} · {AutofocusSettings(a.ExposureSeconds, a.StepSize, a.SampleCount)}"),
+            RigAutofocusStepDraft a => new("Autofocus", rig is not null && rig.FocuserId is null
+                ? "the rig has no focuser"
+                : AutofocusSettings(a.ExposureSeconds, a.StepSize, a.SampleCount)),
             RepeatStepDraft r => new(
                 string.Create(CultureInfo.InvariantCulture, $"Repeat × {r.Count}"),
                 r.Children.Count == 0 ? "no steps" : r.Children.Count == 1 ? "1 step" : $"{r.Children.Count} steps"),
@@ -150,6 +171,34 @@ public static class SequenceDraftBuilder
             ? new(rig.Name, DeviceName(registry, rig.CameraId, "no camera"))
             : new(rigId.Value, "rig not available");
     }
+
+    // The name of a slot of a wheel, or "slot 4" when the wheel is not known or has no such slot.
+    private static string FilterName(DeviceRegistry registry, DeviceId? wheelId, int slotIndex) =>
+        wheelId is { } id && registry.TryGet(id, out var device) && device is IFilterWheel wheel
+        && slotIndex >= 0 && slotIndex < wheel.Slots.Count
+            ? wheel.Slots[slotIndex].Name
+            : string.Create(CultureInfo.InvariantCulture, $"slot {slotIndex}");
+
+    // "1 s · step 400 · 7 samples"
+    private static string AutofocusSettings(double exposureSeconds, int stepSize, int sampleCount) =>
+        string.Create(CultureInfo.InvariantCulture, $"{exposureSeconds:0.##} s · step {stepSize} · {sampleCount} samples");
+
+    private static string AutofocusRigName(SequenceDraftContext? context, RigId? rigId) =>
+        rigId is not { } id ? "no rig" : TryGetRig(context, id, out var rig) ? rig.Name : id.Value;
+
+    // "EAF Main · 18350", or what is missing: no rig known, or a rig without a focuser.
+    private static string RigFocuserText(DeviceRegistry registry, Rig? rig, int position)
+    {
+        var text = string.Create(CultureInfo.InvariantCulture, $"{position}");
+        return rig is null ? text
+            : rig.FocuserId is not { } focuser ? "the rig has no focuser"
+            : $"{DeviceName(registry, focuser, "no focuser")} · {text}";
+    }
+
+    private static string RigFilterText(DeviceRegistry registry, Rig? rig, int slotIndex) =>
+        rig is null ? string.Create(CultureInfo.InvariantCulture, $"slot {slotIndex}")
+        : rig.FilterWheelId is not { } wheel ? "the rig has no filter wheel"
+        : $"{DeviceName(registry, wheel, "no filter wheel")} · {FilterName(registry, wheel, slotIndex)}";
 
     // "Dither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s"
     private static string DescribePolicy(MultiRigDitherPolicyDraft policy, SequenceDraftContext? context)
@@ -185,6 +234,25 @@ public static class SequenceDraftBuilder
                     if (track.RigId is { } rigId && TryGetRig(context, rigId, out var rig))
                     {
                         ids.Add(rig.CameraId);
+
+                        // The focuser and the filter wheel of a rig are only needed by a track that uses them.
+                        var local = track.Steps
+                            .SelectMany(inner => inner is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [inner])
+                            .ToList();
+                        if (rig.FocuserId is { } focuser && local.Any(inner => inner is RigMoveFocuserStepDraft))
+                        {
+                            ids.Add(focuser);
+                        }
+
+                        if (rig.FilterWheelId is { } wheel && local.Any(inner => inner is RigChangeFilterStepDraft))
+                        {
+                            ids.Add(wheel);
+                        }
+
+                        if (rig.FocuserId is { } autofocusFocuser && local.Any(inner => inner is RigAutofocusStepDraft))
+                        {
+                            ids.Add(autofocusFocuser);
+                        }
                     }
 
                     ids.AddRange(track.Steps.SelectMany(inner => inner.DeviceIds));
@@ -199,6 +267,16 @@ public static class SequenceDraftBuilder
             else
             {
                 ids.AddRange(step.DeviceIds);
+
+                // An autofocus of a rig needs the camera and the focuser of that rig.
+                foreach (var autofocus in step is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [step])
+                {
+                    if (autofocus is AutofocusStepDraft { RigId: { } rigId } && TryGetRig(context, rigId, out var rig))
+                    {
+                        ids.Add(rig.CameraId);
+                        ids.AddRange(new[] { rig.FocuserId }.OfType<DeviceId>());
+                    }
+                }
             }
         }
 
@@ -289,17 +367,17 @@ public static class SequenceDraftBuilder
         IReadOnlyList<DeviceId> Cameras
     );
 
-    // rigCamera: the camera of the rig of the track the step is in; null outside a track. orchestration: that of the block
+    // rig: the rig of the track the step is in; null outside a track. orchestration: that of the block
     // the step is in, if its policy dithers; counter: the frame counter of the track, if this is the trigger rig's.
     private static BuiltStep BuildStep(
         DeviceRegistry registry,
         SequenceStepDraft step,
         SequenceDraftContext? context,
-        DeviceId? rigCamera,
+        Rig? rig,
         Orchestration? orchestration,
         FrameCounter? counter)
     {
-        var description = Describe(registry, step, context);
+        var description = Describe(registry, step, context, rig);
         switch (step)
         {
             case MultiRigStepDraft multiRig:
@@ -315,31 +393,32 @@ public static class SequenceDraftBuilder
             case RepeatStepDraft repeat:
             {
                 // A RepeatStep repeats one child; the group makes the children of the draft one.
-                var children = BuildSteps(registry, repeat.Children, context, rigCamera, orchestration, counter);
+                var children = BuildSteps(registry, repeat.Children, context, rig, orchestration, counter);
                 var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step));
                 return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body), children);
             }
             default:
-                return new BuiltStep(step.Id, description, CreateLeaf(registry, step, rigCamera));
+                return new BuiltStep(step.Id, description, CreateLeaf(registry, step, rig, context));
         }
     }
 
     // The steps of a track or of a Repeat, and with a policy the orchestration between them: a safe point after each
-    // exposure and each delay (where the track is between two things it does, and can wait for a dither), and after
+    // exposure, delay, focuser move and filter change (where the track is between two things it does, and can wait
+    // for a dither: those are atomic, so a dither that becomes pending meanwhile waits for them to end), and after
     // each exposure of the trigger rig the step that counts it. Safe points only hold a track back while a dither is
     // pending; otherwise they cost nothing, so the tracks stay independent of each other.
     private static List<BuiltStep> BuildSteps(
         DeviceRegistry registry,
         IReadOnlyList<SequenceStepDraft> steps,
         SequenceDraftContext? context,
-        DeviceId? rigCamera,
+        Rig? rig,
         Orchestration? orchestration,
         FrameCounter? counter)
     {
         var built = new List<BuiltStep>();
         foreach (var step in steps)
         {
-            built.Add(BuildStep(registry, step, context, rigCamera, orchestration, counter));
+            built.Add(BuildStep(registry, step, context, rig, orchestration, counter));
             if (orchestration is null)
             {
                 continue;
@@ -350,7 +429,8 @@ public static class SequenceDraftBuilder
                 built.Add(TriggerStep(registry, orchestration, counter));
             }
 
-            if (step is RigExposureStepDraft or DelayStepDraft)
+            if (step is RigExposureStepDraft or DelayStepDraft or RigMoveFocuserStepDraft or RigChangeFilterStepDraft
+                or RigAutofocusStepDraft)
             {
                 built.Add(Generated(new SafePointStep()));
             }
@@ -398,15 +478,29 @@ public static class SequenceDraftBuilder
         // Validated before: the rig is selected and there.
         TryGetRig(context, track.RigId!.Value, out var rig);
         var counter = orchestration is not null && orchestration.Policy.TriggerRigId == track.RigId ? new FrameCounter() : null;
-        var steps = BuildSteps(registry, track.Steps, context, rig.CameraId, orchestration, counter);
+        var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter);
         var runtime = new RigTrackStep(track.Id, rig.Name, steps.Select(step => step.Step), counter);
         return new BuiltStep(track.Id, DescribeTrack(registry, track, context), runtime, steps);
     }
 
-    private static ISequenceStep CreateLeaf(DeviceRegistry registry, SequenceStepDraft step, DeviceId? rigCamera) => step switch
+    private static ISequenceStep CreateLeaf(DeviceRegistry registry, SequenceStepDraft step, Rig? rig, SequenceDraftContext? context) => step switch
     {
+        // Validated before: the rig is there and has a focuser, and the context has something to measure focus with.
+        AutofocusStepDraft a => AutofocusAction.ForRig(
+            registry, TryGetRig(context, a.RigId!.Value, out var autofocusRig) ? autofocusRig : null!,
+            new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
+            context!.FocusMetrics!, context.Events),
+        RigAutofocusStepDraft a => AutofocusAction.ForRig(
+            registry, rig!,
+            new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
+            context!.FocusMetrics!, context.Events),
         ExposureStepDraft e => new CameraExposureAction(registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds)),
-        RigExposureStepDraft e => new CameraExposureAction(registry, rigCamera!.Value, TimeSpan.FromSeconds(e.Seconds)),
+        RigExposureStepDraft e => new CameraExposureAction(registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds)),
+        MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
+        ChangeFilterStepDraft c => new ChangeFilterAction(registry, c.FilterWheelId!.Value, c.SlotIndex),
+        // Resolved here, at build time: the track names a rig, and the rig names its focuser and its filter wheel.
+        RigMoveFocuserStepDraft f => new MoveFocuserAction(registry, rig!.FocuserId!.Value, f.Position),
+        RigChangeFilterStepDraft c => new ChangeFilterAction(registry, rig!.FilterWheelId!.Value, c.SlotIndex),
         DelayStepDraft d => new DelayAction(TimeSpan.FromSeconds(d.Seconds)),
         SlewStepDraft s => new SlewAction(
             registry, s.MountId!.Value, new CelestialCoordinates(s.RightAscensionHours, s.DeclinationDegrees)),
@@ -443,6 +537,9 @@ public static class SequenceDraftBuilder
         private readonly List<Guid> _ids = [];
         private readonly Dictionary<DeviceId, GuidingFact> _guiding = new();
         private readonly SharedEquipmentDraft? _shared = context?.Shared;
+
+        // The rig of the Rig Track that is being checked, when it is selected and registered.
+        private Rig? _trackRig;
 
         public DraftValidation Run(IReadOnlyList<SequenceStepDraft> steps)
         {
@@ -683,6 +780,7 @@ public static class SequenceDraftBuilder
                 Report(track.Id, "A Rig Track needs at least one step.");
             }
 
+            _trackRig = track.RigId is { } selected && TryGetRig(context, selected, out var selectedRig) ? selectedRig : null;
             foreach (var step in track.Steps)
             {
                 _ids.Add(step.Id);
@@ -696,14 +794,35 @@ public static class SequenceDraftBuilder
                         break;
                 }
             }
+
+            _trackRig = null;
         }
 
-        // What a Rig Track may hold: exposures with the rig camera, delays, and Repeats of those.
+        // What a Rig Track may hold: exposures with the rig camera, delays, moves of the rig focuser, changes of the
+        // rig filter wheel, and Repeats of those.
         private void TrackLeaf(SequenceStepDraft step)
         {
             var problems = new List<string>();
             switch (step)
             {
+                case RigMoveFocuserStepDraft f:
+                    RigFocuser(f, problems);
+                    break;
+                case RigChangeFilterStepDraft c:
+                    RigFilter(c, problems);
+                    break;
+                case RigAutofocusStepDraft a:
+                    CheckAutofocus(_trackRig, a.ExposureSeconds, a.StepSize, a.SampleCount, problems);
+                    break;
+                case AutofocusStepDraft:
+                    problems.Add("Use Autofocus of the track here: its rig is the rig of the track.");
+                    break;
+                case MoveFocuserStepDraft:
+                    problems.Add("Use Move Focuser of the track here: its focuser is the focuser of the rig.");
+                    break;
+                case ChangeFilterStepDraft:
+                    problems.Add("Use Change Filter of the track here: its filter wheel is the filter wheel of the rig.");
+                    break;
                 case RigExposureStepDraft e:
                     CheckDuration(e.Seconds, "Exposure", problems);
                     break;
@@ -771,12 +890,160 @@ public static class SequenceDraftBuilder
                 case DitherStepDraft d:
                     ValidateDither(d, problems);
                     break;
+                case MoveFocuserStepDraft f:
+                    CheckDevice<IFocuser>(f.FocuserId, "focuser", problems);
+                    CheckFocuserPosition(f.FocuserId, f.Position, problems);
+                    break;
+                case ChangeFilterStepDraft c:
+                    CheckDevice<IFilterWheel>(c.FilterWheelId, "filter wheel", problems);
+                    CheckSlot(c.FilterWheelId, c.SlotIndex, problems);
+                    break;
+                case AutofocusStepDraft a:
+                    if (a.RigId is not { } autofocusRigId)
+                    {
+                        problems.Add("No rig selected.");
+                    }
+                    else if (!TryGetRig(context, autofocusRigId, out _))
+                    {
+                        problems.Add($"The rig '{autofocusRigId}' is not available.");
+                    }
+
+                    CheckAutofocus(
+                        a.RigId is { } selected && TryGetRig(context, selected, out var found) ? found : null,
+                        a.ExposureSeconds, a.StepSize, a.SampleCount, problems);
+                    break;
+                case RigAutofocusStepDraft:
+                    problems.Add("An autofocus of a rig can only be used inside a Rig Track.");
+                    break;
+                case RigMoveFocuserStepDraft:
+                    problems.Add("A focuser move of a rig can only be used inside a Rig Track.");
+                    break;
+                case RigChangeFilterStepDraft:
+                    problems.Add("A filter change of a rig can only be used inside a Rig Track.");
+                    break;
                 case MultiRigStepDraft:
                     problems.Add("Multi-Rig Imaging can only be placed at the top level of a sequence.");
                     break;
                 default:
                     problems.Add($"Unsupported step '{step.GetType().Name}'.");
                     break;
+            }
+        }
+
+        // The settings of an autofocus, and what the rig it focuses has to have: a camera and a focuser that are there,
+        // and enough focuser travel for the samples. Whether anything is connected is for the readiness to say.
+        private void CheckAutofocus(Rig? rig, double exposureSeconds, int stepSize, int sampleCount, List<string> problems)
+        {
+            CheckDuration(exposureSeconds, "Autofocus exposure", problems);
+            if (stepSize <= 0)
+            {
+                problems.Add("Autofocus step size must be greater than 0.");
+            }
+
+            if (sampleCount is < AutofocusOptions.MinimumSampleCount or > AutofocusOptions.MaximumSampleCount || sampleCount % 2 == 0)
+            {
+                problems.Add(
+                    $"Autofocus samples must be an odd number between {AutofocusOptions.MinimumSampleCount} and {AutofocusOptions.MaximumSampleCount}.");
+            }
+
+            if (context?.FocusMetrics is null)
+            {
+                problems.Add("Autofocus is not available: there is nothing to measure focus with.");
+            }
+
+            if (rig is null)
+            {
+                return; // the track or the step says what is wrong with its rig
+            }
+
+            if (rig.FocuserId is not { } focuserId)
+            {
+                problems.Add($"The rig '{rig.Id}' has no focuser.");
+            }
+            else if (!registry.TryGet(focuserId, out var device) || device is not IFocuser focuser)
+            {
+                problems.Add($"The focuser '{focuserId}' of rig '{rig.Id}' is not available.");
+            }
+            else if (stepSize > 0 && (long)focuser.MaxPosition - focuser.MinPosition < (long)(AutofocusOptions.MinimumSampleCount - 1) * stepSize)
+            {
+                problems.Add($"The focuser '{focuserId}' does not have enough travel for autofocus with a step size of {stepSize}.");
+            }
+
+            if (!registry.TryGet(rig.CameraId, out var camera) || camera is not ICamera)
+            {
+                problems.Add($"The camera '{rig.CameraId}' of rig '{rig.Id}' is not available.");
+            }
+        }
+
+        // The focuser is the one of the rig of the track: the rig must have one, and it must be there.
+        private void RigFocuser(RigMoveFocuserStepDraft step, List<string> problems)
+        {
+            if (_trackRig is not { } rig)
+            {
+                return; // the track says what is wrong with its rig
+            }
+
+            if (rig.FocuserId is not { } focuserId)
+            {
+                problems.Add($"The rig '{rig.Id}' has no focuser.");
+            }
+            else if (!registry.TryGet(focuserId, out var focuser) || focuser is not IFocuser)
+            {
+                problems.Add($"The focuser '{focuserId}' of rig '{rig.Id}' is not available.");
+            }
+            else
+            {
+                CheckFocuserPosition(focuserId, step.Position, problems);
+            }
+        }
+
+        private void RigFilter(RigChangeFilterStepDraft step, List<string> problems)
+        {
+            if (_trackRig is not { } rig)
+            {
+                return;
+            }
+
+            if (rig.FilterWheelId is not { } wheelId)
+            {
+                problems.Add($"The rig '{rig.Id}' has no filter wheel.");
+            }
+            else if (!registry.TryGet(wheelId, out var wheel) || wheel is not IFilterWheel)
+            {
+                problems.Add($"The filter wheel '{wheelId}' of rig '{rig.Id}' is not available.");
+            }
+            else
+            {
+                CheckSlot(wheelId, step.SlotIndex, problems);
+            }
+        }
+
+        // The range is the focuser's own, when it is there to ask.
+        private void CheckFocuserPosition(DeviceId? focuserId, int position, List<string> problems)
+        {
+            if (focuserId is { } id && registry.TryGet(id, out var device) && device is IFocuser focuser)
+            {
+                if (position < focuser.MinPosition || position > focuser.MaxPosition)
+                {
+                    problems.Add($"Focuser position must be between {focuser.MinPosition} and {focuser.MaxPosition}.");
+                }
+            }
+            else if (position < 0)
+            {
+                problems.Add("Focuser position cannot be negative.");
+            }
+        }
+
+        private void CheckSlot(DeviceId? wheelId, int slotIndex, List<string> problems)
+        {
+            if (slotIndex < 0)
+            {
+                problems.Add("Filter slot cannot be negative.");
+            }
+            else if (wheelId is { } id && registry.TryGet(id, out var device) && device is IFilterWheel wheel
+                     && slotIndex >= wheel.Slots.Count)
+            {
+                problems.Add($"The filter wheel '{id}' has no slot {slotIndex}.");
             }
         }
 
@@ -953,6 +1220,9 @@ public static class SequenceDraftBuilder
         SequenceStepKind.StartGuiding => "Start Guiding",
         SequenceStepKind.StopGuiding => "Stop Guiding",
         SequenceStepKind.Dither => "Dither",
+        SequenceStepKind.MoveFocuser or SequenceStepKind.RigMoveFocuser => "Move Focuser",
+        SequenceStepKind.ChangeFilter or SequenceStepKind.RigChangeFilter => "Change Filter",
+        SequenceStepKind.Autofocus or SequenceStepKind.RigAutofocus => "Autofocus",
         SequenceStepKind.Repeat => "Repeat",
         SequenceStepKind.MultiRig => MultiRigName,
         SequenceStepKind.RigTrack => "Rig Track",

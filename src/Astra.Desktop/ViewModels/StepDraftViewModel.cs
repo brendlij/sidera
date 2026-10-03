@@ -5,6 +5,9 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusing;
+using Astra.Core.Focusers;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Core.Rigs;
@@ -93,6 +96,9 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     /// <summary>Pickers of this step, so that the registry can be read again.</summary>
     internal virtual IEnumerable<DevicePickerViewModel> Pickers => [];
 
+    /// <summary>Filter choices of this step, so that the names of the slots can be looked up again.</summary>
+    internal virtual IEnumerable<FilterChoiceViewModel> FilterChoices => [];
+
     /// <summary>Rig pickers of this step, so that the rig registry can be read again.</summary>
     internal virtual IEnumerable<RigPickerViewModel> RigPickers => [];
 
@@ -142,6 +148,22 @@ public abstract partial class StepDraftViewModel : ViewModelBase
         return fallback;
     }
 
+    // A whole number: a focuser position. A field that is not one is reported, and reads as the stand-in.
+    protected static int ParseWhole(string? text, string label, List<string> errors, int fallback)
+    {
+        var trimmed = text?.Trim();
+        if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value)
+            || int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            return value;
+        }
+
+        errors.Add($"{label} must be a whole number.");
+        return fallback;
+    }
+
+    protected static bool IsFocuser(IDevice device) => device is IFocuser;
+    protected static bool IsFilterWheel(IDevice device) => device is IFilterWheel;
     protected static bool IsCamera(IDevice device) => device is ICamera;
     protected static bool IsMount(IDevice device) => device is IMount;
     protected static bool IsGuider(IDevice device) => device is IGuider;
@@ -503,4 +525,170 @@ public sealed partial class DitherStepDraftViewModel : StepDraftViewModel
         ParseNumber(SettleThresholdText, "Settle threshold", "a number of pixels", parseErrors, 1),
         ParseNumber(SettleStableText, "Settle stable time", "a number of seconds", parseErrors, double.Epsilon),
         ParseNumber(SettleTimeoutText, "Settle timeout", "a number of seconds", parseErrors, double.MaxValue));
+}
+
+/// <summary>Moves one selected focuser to an absolute position, in focuser steps.</summary>
+public sealed partial class MoveFocuserStepDraftViewModel : StepDraftViewModel
+{
+    private readonly DeviceRegistry _registry;
+
+    public MoveFocuserStepDraftViewModel(DeviceRegistry registry, MoveFocuserStepDraft draft) : base(draft.Id)
+    {
+        _registry = registry;
+        Focuser = Picker(registry, IsFocuser, draft.FocuserId);
+        Focuser.Changed += (_, _) => OnPropertyChanged(nameof(RangeLabel));
+        PositionText = draft.Position.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.MoveFocuser;
+    public DevicePickerViewModel Focuser { get; }
+
+    /// <summary>Target position in focuser steps.</summary>
+    [ObservableProperty]
+    public partial string PositionText { get; set; } = string.Empty;
+
+    /// <summary>What the selected focuser can move to, for example "0 to 50000"; empty when it is not known.</summary>
+    public string RangeLabel =>
+        Focuser.SelectedId is { } id && _registry.TryGet(id, out var device) && device is IFocuser focuser
+            ? string.Create(CultureInfo.InvariantCulture, $"{focuser.MinPosition} to {focuser.MaxPosition}")
+            : string.Empty;
+
+    internal override IEnumerable<DevicePickerViewModel> Pickers => [Focuser];
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) =>
+        new MoveFocuserStepDraft(Id, Focuser.SelectedId, ParseWhole(PositionText, "Focuser position", parseErrors, 0));
+}
+
+/// <summary>Turns one selected filter wheel to a slot that the user picks by name.</summary>
+public sealed class ChangeFilterStepDraftViewModel : StepDraftViewModel
+{
+    public ChangeFilterStepDraftViewModel(DeviceRegistry registry, ChangeFilterStepDraft draft) : base(draft.Id)
+    {
+        Wheel = Picker(registry, IsFilterWheel, draft.FilterWheelId);
+        Filter = new FilterChoiceViewModel(
+            () => Wheel.SelectedId is { } id && registry.TryGet(id, out var device) && device is IFilterWheel wheel ? wheel.Slots : null,
+            draft.SlotIndex);
+        Filter.Changed += (_, _) => NotifyEdited();
+        Wheel.Changed += (_, _) => Filter.Refresh();
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.ChangeFilter;
+    public DevicePickerViewModel Wheel { get; }
+
+    /// <summary>The slot to turn to, by name; what is kept is its index.</summary>
+    public FilterChoiceViewModel Filter { get; }
+
+    internal override IEnumerable<DevicePickerViewModel> Pickers => [Wheel];
+    internal override IEnumerable<FilterChoiceViewModel> FilterChoices => [Filter];
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) =>
+        new ChangeFilterStepDraft(Id, Wheel.SelectedId, Filter.SelectedIndex);
+}
+
+/// <summary>A focuser move inside a Rig Track: the focuser is that of the rig of the track.</summary>
+public sealed partial class RigMoveFocuserStepDraftViewModel : StepDraftViewModel
+{
+    public RigMoveFocuserStepDraftViewModel(RigMoveFocuserStepDraft draft) : base(draft.Id)
+    {
+        PositionText = draft.Position.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.RigMoveFocuser;
+
+    /// <summary>Target position in focuser steps.</summary>
+    [ObservableProperty]
+    public partial string PositionText { get; set; } = string.Empty;
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) =>
+        new RigMoveFocuserStepDraft(Id, ParseWhole(PositionText, "Focuser position", parseErrors, 0));
+}
+
+/// <summary>A filter change inside a Rig Track: the filter wheel is that of the rig of the track.</summary>
+public sealed class RigChangeFilterStepDraftViewModel : StepDraftViewModel
+{
+    /// <param name="slots">The slots of the filter wheel of the rig of the track this step is in; <c>null</c> when there is none.</param>
+    public RigChangeFilterStepDraftViewModel(RigChangeFilterStepDraft draft, Func<IReadOnlyList<FilterSlot>?> slots)
+        : base(draft.Id)
+    {
+        Filter = new FilterChoiceViewModel(slots, draft.SlotIndex);
+        Filter.Changed += (_, _) => NotifyEdited();
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.RigChangeFilter;
+
+    /// <summary>The slot to turn to, by name; what is kept is its index.</summary>
+    public FilterChoiceViewModel Filter { get; }
+
+    internal override IEnumerable<FilterChoiceViewModel> FilterChoices => [Filter];
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new RigChangeFilterStepDraft(Id, Filter.SelectedIndex);
+}
+
+/// <summary>Focuses a rig that is picked by the step: its camera and its focuser, with the settings of the step.</summary>
+public sealed partial class AutofocusStepDraftViewModel : StepDraftViewModel
+{
+    public AutofocusStepDraftViewModel(AutofocusStepDraft draft, RigPickerViewModel rig) : base(draft.Id)
+    {
+        Rig = rig;
+        rig.Changed += (_, _) => NotifyEdited();
+        ExposureText = Format(draft.ExposureSeconds);
+        StepSizeText = draft.StepSize.ToString(CultureInfo.InvariantCulture);
+        SamplesText = draft.SampleCount.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.Autofocus;
+
+    /// <summary>The rig that is focused.</summary>
+    public RigPickerViewModel Rig { get; }
+
+    /// <summary>The exposure at each sample position, in seconds.</summary>
+    [ObservableProperty]
+    public partial string ExposureText { get; set; } = string.Empty;
+
+    /// <summary>The distance between two sample positions, in focuser steps.</summary>
+    [ObservableProperty]
+    public partial string StepSizeText { get; set; } = string.Empty;
+
+    /// <summary>How many positions are sampled; odd.</summary>
+    [ObservableProperty]
+    public partial string SamplesText { get; set; } = string.Empty;
+
+    internal override IEnumerable<RigPickerViewModel> RigPickers => [Rig];
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new AutofocusStepDraft(
+        Id, Rig.SelectedId,
+        ParseNumber(ExposureText, "Autofocus exposure", "a number of seconds", parseErrors, 1),
+        ParseWhole(StepSizeText, "Autofocus step size", parseErrors, 1),
+        ParseWhole(SamplesText, "Autofocus samples", parseErrors, AutofocusOptions.MinimumSampleCount));
+}
+
+/// <summary>Autofocus inside a Rig Track: it focuses the rig of the track.</summary>
+public sealed partial class RigAutofocusStepDraftViewModel : StepDraftViewModel
+{
+    public RigAutofocusStepDraftViewModel(RigAutofocusStepDraft draft) : base(draft.Id)
+    {
+        ExposureText = Format(draft.ExposureSeconds);
+        StepSizeText = draft.StepSize.ToString(CultureInfo.InvariantCulture);
+        SamplesText = draft.SampleCount.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.RigAutofocus;
+
+    /// <summary>The exposure at each sample position, in seconds.</summary>
+    [ObservableProperty]
+    public partial string ExposureText { get; set; } = string.Empty;
+
+    /// <summary>The distance between two sample positions, in focuser steps.</summary>
+    [ObservableProperty]
+    public partial string StepSizeText { get; set; } = string.Empty;
+
+    /// <summary>How many positions are sampled; odd.</summary>
+    [ObservableProperty]
+    public partial string SamplesText { get; set; } = string.Empty;
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new RigAutofocusStepDraft(
+        Id,
+        ParseNumber(ExposureText, "Autofocus exposure", "a number of seconds", parseErrors, 1),
+        ParseWhole(StepSizeText, "Autofocus step size", parseErrors, 1),
+        ParseWhole(SamplesText, "Autofocus samples", parseErrors, AutofocusOptions.MinimumSampleCount));
 }

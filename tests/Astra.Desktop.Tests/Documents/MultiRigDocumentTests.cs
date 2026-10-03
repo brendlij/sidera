@@ -84,7 +84,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         ],
         new SharedEquipmentDocument("mount.eq6", "guider.main"));
 
-    // Version 2: round trip and wire contract
+    // The current version: round trip and wire contract
 
     [Fact]
     public async Task ABlockWithItsTracks_SurvivesAWriteAndARead_WithEveryIdRigAndValue()
@@ -144,7 +144,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         var root = json.RootElement;
 
         Assert.Equal("astra-sequence", root.GetProperty("format").GetString());
-        Assert.Equal(2, root.GetProperty("version").GetInt32());
+        Assert.Equal(4, root.GetProperty("version").GetInt32());
         Assert.Equal(["format", "version", "name", "sharedEquipment", "steps"], root.EnumerateObject().Select(p => p.Name));
         var shared = root.GetProperty("sharedEquipment");
         Assert.Equal("mount.eq6", shared.GetProperty("mountId").GetString());
@@ -214,14 +214,14 @@ public sealed class MultiRigDocumentTests : IDisposable
     }
 
     [Fact]
-    public async Task AVersion1Document_IsNotChangedByLoadingIt_AndIsWrittenAsVersion2WithTheSameSteps()
+    public async Task AVersion1Document_IsNotChangedByLoadingIt_AndIsWrittenAsTheCurrentVersionWithTheSameSteps()
     {
         var loaded = await Read(V1Sample());
 
         var rewritten = await Write(loaded);
         using var json = JsonDocument.Parse(rewritten);
 
-        Assert.Equal(2, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(4, json.RootElement.GetProperty("version").GetInt32());
         Assert.False(json.RootElement.TryGetProperty("sharedEquipment", out _)); // it never said anything about it
         var again = await Read(rewritten);
         Assert.Equal(loaded.Steps.Select(s => s.Id), again.Steps.Select(s => s.Id));
@@ -251,10 +251,10 @@ public sealed class MultiRigDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData("3")]
-    [InlineData("4")]
+    [InlineData("5")]
+    [InlineData("6")]
     [InlineData("100")]
-    public async Task ANewerVersionThanTwo_IsRejectedAsBefore(string version)
+    public async Task ANewerVersionThanFour_IsRejectedAsBefore(string version)
     {
         var ex = await Rejects("{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[]}");
 
@@ -476,7 +476,7 @@ public sealed class MultiRigDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 2,
+              "version": 4,
               "name": "Three Telescopes",
               "sharedEquipment": {
                 "mountId": "mount.eq6",
@@ -659,7 +659,7 @@ public sealed class MultiRigDocumentTests : IDisposable
     }
 
     [Fact]
-    public async Task AThreeRigSession_IsSavedAsVersion2_AndOpensAsExactlyTheSameStructure()
+    public async Task AThreeRigSession_IsSavedAsTheCurrentVersion_AndOpensAsExactlyTheSameStructure()
     {
         await using var app = Create();
         await app.Document.NewCommand.ExecuteAsync(null);
@@ -672,7 +672,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Three.astraseq"));
-        Assert.Contains("\"version\": 2", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 4", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"multiRig\"", text, StringComparison.Ordinal);
         Assert.Contains("\"mountId\": \"mount.eq6\"", text, StringComparison.Ordinal);
 
@@ -714,7 +714,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         app.Draft.Steps.OfType<RepeatStepDraftViewModel>().Single().CountText = "4";
         await app.Document.SaveCommand.ExecuteAsync(null);
         var saved = await File.ReadAllTextAsync(PathOf("Old.astraseq"));
-        Assert.Contains("\"version\": 2", saved, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 4", saved, StringComparison.Ordinal);
         Assert.Contains("\"count\": 4", saved, StringComparison.Ordinal);
     }
 

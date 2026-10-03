@@ -43,7 +43,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, defaults.InitialSteps(),
-            rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId));
+            rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
+            focusMetrics: host.FocusMetrics, events: host.EventBus);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(

@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
 using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Rigs;
@@ -175,12 +176,36 @@ public class RigRegistryTests
     public void Register_AcceptsRigWithAllDevicesPresent()
     {
         var (devices, rigs) = Create("camera.main");
-        devices.Register(new FakeDevice("focuser.main", DeviceType.Focuser));
-        devices.Register(new FakeDevice("wheel.main", DeviceType.FilterWheel));
+        devices.Register(new SimulatedFocuser(new DeviceId("focuser.main")));
+        devices.Register(new SimulatedFilterWheel(new DeviceId("wheel.main"), [new FilterSlot(0, "L")]));
 
         rigs.Register(MakeRig("rig.main", "camera.main", "focuser.main", "wheel.main"));
 
         Assert.Single(rigs.GetAll());
+    }
+
+    [Fact]
+    public void Register_RejectsADeviceAssignedAsFocuserThatIsNoFocuser()
+    {
+        var (devices, rigs) = Create("camera.main");
+        devices.Register(new FakeDevice("focuser.main", DeviceType.Focuser));
+
+        var error = Assert.Throws<InvalidOperationException>(() => rigs.Register(MakeRig("rig.main", "camera.main", "focuser.main")));
+
+        Assert.Contains("does not implement IFocuser", error.Message);
+        Assert.Empty(rigs.GetAll());
+    }
+
+    [Fact]
+    public void Register_RejectsADeviceAssignedAsFilterWheelThatIsNoFilterWheel()
+    {
+        var (devices, rigs) = Create("camera.main");
+        devices.Register(new SimulatedFocuser(new DeviceId("focuser.main")));
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => rigs.Register(MakeRig("rig.main", "camera.main", filterWheelId: "focuser.main")));
+
+        Assert.Contains("does not implement IFilterWheel", error.Message);
     }
 
     [Fact]

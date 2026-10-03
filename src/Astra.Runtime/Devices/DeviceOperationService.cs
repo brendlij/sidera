@@ -1,4 +1,6 @@
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Core.Resources;
@@ -64,6 +66,34 @@ public sealed class DeviceOperationService
         using (await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken))
         {
             await mount.SlewToAsync(target, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Moves a focuser to an absolute position. Takes the focuser resource only: a move needs no camera.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a focuser.</exception>
+    public async Task MoveFocuserToAsync(DeviceId focuserId, int target, CancellationToken cancellationToken = default)
+    {
+        var focuser = DeviceLookup.Resolve<IFocuser>(_registry, focuserId, "focuser");
+
+        using (await _resources.AcquireAsync([ResourceId.ForDevice(focuserId)], cancellationToken))
+        {
+            await focuser.MoveToAsync(target, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Turns a filter wheel to the slot with the given index. Takes the wheel resource only: it needs no camera.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a filter wheel.</exception>
+    public async Task MoveFilterWheelToAsync(DeviceId filterWheelId, int slotIndex, CancellationToken cancellationToken = default)
+    {
+        var wheel = DeviceLookup.Resolve<IFilterWheel>(_registry, filterWheelId, "filter wheel");
+
+        using (await _resources.AcquireAsync([ResourceId.ForDevice(filterWheelId)], cancellationToken))
+        {
+            await wheel.MoveToSlotAsync(slotIndex, cancellationToken);
         }
     }
 

@@ -23,7 +23,25 @@ public enum SequenceStepKind
     MultiRig,
 
     /// <summary>One rig of a Multi-Rig block; not a step that can be added to a sequence.</summary>
-    RigTrack
+    RigTrack,
+
+    /// <summary>Moves a focuser, selected by the step, to an absolute position.</summary>
+    MoveFocuser,
+
+    /// <summary>Turns a filter wheel, selected by the step, to a slot.</summary>
+    ChangeFilter,
+
+    /// <summary>Moves the focuser of the rig of its track; only exists inside a Rig Track.</summary>
+    RigMoveFocuser,
+
+    /// <summary>Turns the filter wheel of the rig of its track; only exists inside a Rig Track.</summary>
+    RigChangeFilter,
+
+    /// <summary>Focuses the camera and focuser of a rig, selected by the step.</summary>
+    Autofocus,
+
+    /// <summary>Focuses the rig of its track; only exists inside a Rig Track.</summary>
+    RigAutofocus
 }
 
 /// <summary>
@@ -115,10 +133,77 @@ public sealed record RigExposureStepDraft(Guid Id, double Seconds) : LeafStepDra
     public override IEnumerable<DeviceId> DeviceIds => [];
 }
 
+/// <summary>Moves one focuser to an absolute position, in focuser steps. For a step outside a Rig Track.</summary>
+public sealed record MoveFocuserStepDraft(Guid Id, DeviceId? FocuserId, int Position) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.MoveFocuser;
+    public override IEnumerable<DeviceId> DeviceIds => Of(FocuserId);
+}
+
+/// <summary>
+/// Turns one filter wheel to a slot. The slot is identified by its index, which is what a filter wheel offers that does
+/// not change; the name the user sees is only looked up. For a step outside a Rig Track.
+/// </summary>
+public sealed record ChangeFilterStepDraft(Guid Id, DeviceId? FilterWheelId, int SlotIndex) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.ChangeFilter;
+    public override IEnumerable<DeviceId> DeviceIds => Of(FilterWheelId);
+}
+
+/// <summary>
+/// A focuser move inside a Rig Track. The focuser is not part of it: it is the focuser of the rig of the track, so the
+/// sequence stays the same when the rig is given another focuser, and nothing can name the focuser of another rig. It
+/// is a distinct kind of step from <see cref="MoveFocuserStepDraft"/>, whose meaning does not depend on where it is.
+/// </summary>
+public sealed record RigMoveFocuserStepDraft(Guid Id, int Position) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RigMoveFocuser;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>
+/// A filter change inside a Rig Track, on the filter wheel of the rig of the track, to the slot with this index. The
+/// counterpart of <see cref="RigMoveFocuserStepDraft"/>.
+/// </summary>
+public sealed record RigChangeFilterStepDraft(Guid Id, int SlotIndex) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RigChangeFilter;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>
+/// Focuses a rig: samples the focus at positions around the current focuser position and moves to the best one. The
+/// rig selects the camera and the focuser, so there are none to choose and none that could disagree with the rig. For
+/// a step outside a Rig Track; a rig that is imaged in a Rig Track uses <see cref="RigAutofocusStepDraft"/>.
+/// </summary>
+/// <param name="RigId">The rig, or <c>null</c> when none is selected. Kept as chosen even if no such rig is registered.</param>
+/// <param name="ExposureSeconds">The exposure at each sample position.</param>
+/// <param name="StepSize">The distance between two sample positions, in focuser steps.</param>
+/// <param name="SampleCount">How many positions are sampled, symmetrically around the current one.</param>
+public sealed record AutofocusStepDraft(Guid Id, RigId? RigId, double ExposureSeconds, int StepSize, int SampleCount)
+    : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.Autofocus;
+
+    // The camera and the focuser are the rig's: see SequenceDraftBuilder.RequiredDeviceIds.
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>
+/// Autofocus inside a Rig Track: it focuses the rig of the track, with that rig camera and focuser. A distinct kind of
+/// step from <see cref="AutofocusStepDraft"/>, whose meaning does not depend on where it is.
+/// </summary>
+public sealed record RigAutofocusStepDraft(Guid Id, double ExposureSeconds, int StepSize, int SampleCount) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RigAutofocus;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
 /// <summary>
 /// One imaging rig of a Multi-Rig block and what that rig does: its steps run in order, next to the other tracks. A
 /// track is not a step of the sequence and cannot be put anywhere else. <see cref="Steps"/> are exposures with the rig
-/// camera, delays and Repeats of those; the validation refuses anything else, because a track must not do what
+/// camera, delays, moves of the rig focuser, changes of the rig filter wheel and Repeats of those; the validation
+/// refuses anything else, because a track must not do what
 /// belongs to the whole session (moving the shared mount, guiding).
 /// </summary>
 /// <param name="RigId">The rig, or <c>null</c> when none is selected. Kept as chosen even if no such rig is registered.</param>

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Runtime;
@@ -9,8 +11,8 @@ using Astra.Runtime;
 namespace Astra.Desktop.ViewModels;
 
 /// <summary>
-/// Everything registered with the runtime, as cards: the rigs, and a card for each camera, mount and guider.
-/// Other device kinds are not shown because Astra has nothing to do with them yet.
+/// Everything registered with the runtime, as cards: the rigs, and a card for each camera, focuser, filter wheel,
+/// mount and guider. Other device kinds are not shown because Astra has nothing to do with them yet.
 /// </summary>
 public sealed class EquipmentViewModel : ViewModelBase, IDisposable
 {
@@ -26,6 +28,8 @@ public sealed class EquipmentViewModel : ViewModelBase, IDisposable
 
         Cameras = devices.OfType<ICamera>()
             .Select(c => new CameraViewModel(c, host, postToUi, activity, imaging, manualExposure)).ToList();
+        Focusers = devices.OfType<IFocuser>().Select(f => new FocuserViewModel(f, host, postToUi, activity)).ToList();
+        FilterWheels = devices.OfType<IFilterWheel>().Select(w => new FilterWheelViewModel(w, host, postToUi, activity)).ToList();
         Mounts = devices.OfType<IMount>().Select(m => new MountViewModel(m, host, postToUi, activity)).ToList();
         Guiders = devices.OfType<IGuider>().Select(g => new GuiderViewModel(g, host, postToUi, activity)).ToList();
         Rigs = host.RigRegistry.GetAll().OrderBy(r => r.Id.Value, StringComparer.Ordinal)
@@ -34,13 +38,16 @@ public sealed class EquipmentViewModel : ViewModelBase, IDisposable
 
     public IReadOnlyList<RigViewModel> Rigs { get; }
     public IReadOnlyList<CameraViewModel> Cameras { get; }
+    public IReadOnlyList<FocuserViewModel> Focusers { get; }
+    public IReadOnlyList<FilterWheelViewModel> FilterWheels { get; }
     public IReadOnlyList<MountViewModel> Mounts { get; }
     public IReadOnlyList<GuiderViewModel> Guiders { get; }
 
     public bool HasRigs => Rigs.Count > 0;
 
     /// <summary>Every device card, in display order.</summary>
-    public IEnumerable<DeviceViewModelBase> Devices => Cameras.Cast<DeviceViewModelBase>().Concat(Mounts).Concat(Guiders);
+    public IEnumerable<DeviceViewModelBase> Devices => Cameras.Cast<DeviceViewModelBase>()
+        .Concat(Focusers).Concat(FilterWheels).Concat(Mounts).Concat(Guiders);
 
     public void Dispose()
     {

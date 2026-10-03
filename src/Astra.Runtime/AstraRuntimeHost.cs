@@ -1,8 +1,10 @@
 using Astra.Core.Devices;
+using Astra.Core.FilterWheels;
 using Astra.Core.Rigs;
 using Astra.Runtime.Coordination;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Events;
+using Astra.Runtime.Focusing;
 using Astra.Runtime.Resources;
 using Astra.Runtime.Rigs;
 using Astra.Runtime.State;
@@ -36,6 +38,7 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         ResourceManager = new ResourceManager();
         DeviceOperations = new DeviceOperationService(DeviceRegistry, ResourceManager);
         SafePointCoordinator = new SafePointCoordinator();
+        FocusMetrics = new SimulatedFocusMetricProvider();
     }
 
     public EventBus EventBus { get; }
@@ -51,6 +54,12 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
 
     /// <summary>Coordinates the branches of parallel steps; shared by all sequence runners of this runtime.</summary>
     public SafePointCoordinator SafePointCoordinator { get; }
+
+    /// <summary>
+    /// What measures focus for autofocus. Today it is the simulation: it knows, for each rig that was given a model with
+    /// <see cref="AddSimulatedFocusModel"/>, where that rig is in focus.
+    /// </summary>
+    public SimulatedFocusMetricProvider FocusMetrics { get; }
 
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>
     public void AddDevice(IDevice device)
@@ -103,6 +112,50 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         var guider = new SimulatedGuider(id, name, EventBus, startDuration, stopDuration, ditherDuration);
         AddDevice(guider);
         return guider;
+    }
+
+    /// <summary>
+    /// Creates a simulated focuser wired to this host's event bus and registers it. A focuser belongs to a rig
+    /// only by the rig naming its ID; it can be used on its own just the same.
+    /// </summary>
+    public SimulatedFocuser AddSimulatedFocuser(
+        DeviceId id,
+        string name,
+        int startPosition = SimulatedFocuser.DefaultStartPosition,
+        int minPosition = SimulatedFocuser.DefaultMinPosition,
+        int maxPosition = SimulatedFocuser.DefaultMaxPosition,
+        int stepsPerSecond = SimulatedFocuser.DefaultStepsPerSecond,
+        TimeSpan? minimumMoveDuration = null
+    )
+    {
+        var focuser = new SimulatedFocuser(
+            id, name, EventBus, startPosition, minPosition, maxPosition, stepsPerSecond, minimumMoveDuration);
+        AddDevice(focuser);
+        return focuser;
+    }
+
+    /// <summary>Creates a simulated filter wheel with the given slots, wired to this host's event bus, and registers it.</summary>
+    public SimulatedFilterWheel AddSimulatedFilterWheel(
+        DeviceId id,
+        string name,
+        IEnumerable<FilterSlot> slots,
+        int startSlotIndex = 0,
+        TimeSpan? moveDuration = null
+    )
+    {
+        var wheel = new SimulatedFilterWheel(id, slots, name, EventBus, startSlotIndex, moveDuration);
+        AddDevice(wheel);
+        return wheel;
+    }
+
+    /// <summary>
+    /// Says where a simulated rig is in focus (see <see cref="SimulatedFocusModel"/>). The knowledge belongs to the rig
+    /// (its camera, focuser and optics together), not to the focuser device.
+    /// </summary>
+    public void AddSimulatedFocusModel(RigId rig, SimulatedFocusModel model)
+    {
+        ThrowIfDisposed();
+        FocusMetrics.SetModel(rig, model);
     }
 
     public void Start()

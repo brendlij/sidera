@@ -14,6 +14,14 @@ public sealed record DemoOptions
     public TimeSpan GuiderStopDuration { get; init; } = TimeSpan.FromMilliseconds(300);
     public TimeSpan GuiderDitherDuration { get; init; } = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>How fast the demo focusers move, in focuser steps per second, and the shortest move.</summary>
+    public int FocuserStepsPerSecond { get; init; } = 5000;
+
+    public TimeSpan FocuserMinimumMoveDuration { get; init; } = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>How long the demo filter wheels take to turn to another slot.</summary>
+    public TimeSpan FilterWheelMoveDuration { get; init; } = TimeSpan.FromMilliseconds(800);
+
     /// <summary>Dither amplitude in guide camera pixels.</summary>
     public double DitherAmplitudePixels { get; init; } = 1.5;
 
