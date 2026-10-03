@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Astra.Core.Devices;
 using Astra.Core.Imaging;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.Imaging;
 
@@ -53,13 +56,16 @@ public static class FrameMetricsCalculator
 public sealed class FrameAnalyzer : IFrameAnalyzer
 {
     private readonly IStarDetector _detector;
+    private readonly ILogger _logger;
     private readonly ConditionalWeakTable<CameraFrame, FrameAnalysisResult> _results = new();
 
-    public FrameAnalyzer(FrameAnalysisOptions? options = null, IStarDetector? detector = null)
+    /// <param name="logger">Where each analysis is reported (Debug), and frames without enough stars (Warning).</param>
+    public FrameAnalyzer(FrameAnalysisOptions? options = null, IStarDetector? detector = null, ILogger<FrameAnalyzer>? logger = null)
     {
         Options = options ?? new FrameAnalysisOptions();
         Options.Validate();
         _detector = detector ?? new StarDetector();
+        _logger = logger ?? NullLogger<FrameAnalyzer>.Instance;
     }
 
     public FrameAnalysisOptions Options { get; }
@@ -73,11 +79,37 @@ public sealed class FrameAnalyzer : IFrameAnalyzer
             return known;
         }
 
+        var started = Stopwatch.GetTimestamp();
         var statistics = FrameStatisticsCalculator.Compute(frame, cancellationToken);
         var stars = _detector.Detect(frame, statistics, Options, cancellationToken);
         var result = new FrameAnalysisResult(statistics, stars, FrameMetricsCalculator.From(statistics, stars));
+        Report(frame, result.Metrics, Stopwatch.GetElapsedTime(started));
 
         // A cancelled analysis threw before this point and leaves nothing behind.
         return _results.GetValue(frame, _ => result);
+    }
+
+    // One line per analysis; only the aggregate, never a star or a pixel.
+    private void Report(CameraFrame frame, FrameMetrics metrics, TimeSpan duration)
+    {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Frame {Width}x{Height} analyzed in {DurationMs:0} ms: {StarCount} stars, {UsableStarCount} usable, " +
+                "{SaturatedStarCount} saturated, median HFR {MedianHfr:0.00} px, background {Background:0} ADU, noise {Noise:0.0} ADU",
+                frame.Width, frame.Height, duration.TotalMilliseconds, metrics.StarCount, metrics.UsableStarCount,
+                metrics.SaturatedStarCount, metrics.MedianHfr, metrics.Background, metrics.BackgroundSigma);
+        }
+
+        if (metrics.StarCount == 0)
+        {
+            _logger.LogWarning("No stars were detected in a {Width}x{Height} frame", frame.Width, frame.Height);
+        }
+        else if (metrics.UsableStarCount < Options.MinimumUsableStars)
+        {
+            _logger.LogWarning(
+                "Only {UsableStarCount} of {StarCount} stars are usable in a {Width}x{Height} frame; {MinimumUsableStars} are needed for focus",
+                metrics.UsableStarCount, metrics.StarCount, frame.Width, frame.Height, Options.MinimumUsableStars);
+        }
     }
 }

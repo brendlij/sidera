@@ -11,6 +11,7 @@ using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
+using Microsoft.Extensions.Logging;
 using Astra.Runtime.Rigs;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -39,6 +40,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private readonly ISequenceStepClipboard _clipboard;
     private readonly IFocusMetricProvider? _focusMetrics;
     private readonly IEventPublisher? _events;
+    private readonly ILoggerFactory? _loggers;
     private HashSet<Guid> _unreadable = [];
     private bool _rebuilding;
 
@@ -50,7 +52,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         RigRegistry? rigs = null,
         SharedEquipmentDraft? shared = null,
         IFocusMetricProvider? focusMetrics = null,
-        IEventPublisher? events = null)
+        IEventPublisher? events = null,
+        ILoggerFactory? loggers = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(defaults);
@@ -58,6 +61,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         _rigs = rigs;
         _focusMetrics = focusMetrics;
         _events = events;
+        _loggers = loggers;
         _defaults = defaults;
         _clipboard = clipboard ?? new SequenceStepClipboard();
         _clipboard.Changed += (_, _) => NotifyCommands();
@@ -189,7 +193,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
-    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events);
+    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers);
 
     // New steps use the shared equipment of the session wherever they have a mount or a guider.
     private SequenceDraftDefaults EffectiveDefaults => _defaults with

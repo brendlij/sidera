@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using Astra.Core.Devices;
 using Astra.Core.FilterWheels;
 using Astra.Core.Focusers;
@@ -6,6 +8,8 @@ using Astra.Core.Mounts;
 using Astra.Core.Resources;
 using Astra.Runtime.Resources;
 using Astra.Runtime.Sequencing;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.Devices;
 
@@ -17,19 +21,27 @@ namespace Astra.Runtime.Devices;
 /// Only for the direct path. A sequence step must not call this service: the <see cref="SequenceRunner"/>
 /// already holds the step's resources while it runs, and acquiring them a second time would block forever.
 /// </para>
+/// <para>
+/// Every operation is logged with its parameters (a focuser target, a slot, coordinates, an exposure time): the request
+/// at Information, the completion with its duration at Debug, a cancellation at Information (the user stopped it), a
+/// failure at Error with the exception. The entries carry the device id as scope. Frames are never logged.
+/// </para>
 /// </summary>
 public sealed class DeviceOperationService
 {
     private readonly DeviceRegistry _registry;
     private readonly ResourceManager _resources;
+    private readonly ILogger _logger;
 
-    public DeviceOperationService(DeviceRegistry registry, ResourceManager resources)
+    public DeviceOperationService(
+        DeviceRegistry registry, ResourceManager resources, ILogger<DeviceOperationService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(resources);
 
         _registry = registry;
         _resources = resources;
+        _logger = logger ?? NullLogger<DeviceOperationService>.Instance;
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered.</exception>
@@ -37,10 +49,15 @@ public sealed class DeviceOperationService
     {
         var device = DeviceLookup.Resolve<IDevice>(_registry, deviceId, "device");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(deviceId)], cancellationToken))
+        // The device reports connecting and connected itself (see DeviceLifecycleLogger); here only the request.
+        _logger.LogDebug("Connect requested for {DeviceType} {DeviceId}", device.Type, deviceId);
+        await Run("Connect", deviceId, async () =>
         {
-            await device.ConnectAsync(cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(deviceId)], cancellationToken))
+            {
+                await device.ConnectAsync(cancellationToken);
+            }
+        });
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered.</exception>
@@ -48,10 +65,14 @@ public sealed class DeviceOperationService
     {
         var device = DeviceLookup.Resolve<IDevice>(_registry, deviceId, "device");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(deviceId)], cancellationToken))
+        _logger.LogDebug("Disconnect requested for {DeviceType} {DeviceId}", device.Type, deviceId);
+        await Run("Disconnect", deviceId, async () =>
         {
-            await device.DisconnectAsync(cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(deviceId)], cancellationToken))
+            {
+                await device.DisconnectAsync(cancellationToken);
+            }
+        });
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered or is not a mount.</exception>
@@ -63,10 +84,16 @@ public sealed class DeviceOperationService
     {
         var mount = DeviceLookup.Resolve<IMount>(_registry, mountId, "mount");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken))
+        _logger.LogInformation(
+            "Slewing mount {DeviceId} to RA {RightAscensionHours:0.####} h, Dec {DeclinationDegrees:0.####} deg",
+            mountId, target.RightAscensionHours, target.DeclinationDegrees);
+        await Run("Slew", mountId, async () =>
         {
-            await mount.SlewToAsync(target, cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken))
+            {
+                await mount.SlewToAsync(target, cancellationToken);
+            }
+        });
     }
 
     /// <summary>
@@ -77,10 +104,15 @@ public sealed class DeviceOperationService
     {
         var focuser = DeviceLookup.Resolve<IFocuser>(_registry, focuserId, "focuser");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(focuserId)], cancellationToken))
+        _logger.LogInformation(
+            "Moving focuser {DeviceId} from position {FromPosition} to {TargetPosition}", focuserId, focuser.Position, target);
+        await Run("Focuser move", focuserId, async () =>
         {
-            await focuser.MoveToAsync(target, cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(focuserId)], cancellationToken))
+            {
+                await focuser.MoveToAsync(target, cancellationToken);
+            }
+        });
     }
 
     /// <summary>
@@ -91,10 +123,14 @@ public sealed class DeviceOperationService
     {
         var wheel = DeviceLookup.Resolve<IFilterWheel>(_registry, filterWheelId, "filter wheel");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(filterWheelId)], cancellationToken))
+        _logger.LogInformation("Turning filter wheel {DeviceId} to slot {SlotIndex}", filterWheelId, slotIndex);
+        await Run("Filter change", filterWheelId, async () =>
         {
-            await wheel.MoveToSlotAsync(slotIndex, cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(filterWheelId)], cancellationToken))
+            {
+                await wheel.MoveToSlotAsync(slotIndex, cancellationToken);
+            }
+        });
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered or is not a camera.</exception>
@@ -106,10 +142,15 @@ public sealed class DeviceOperationService
     {
         var camera = DeviceLookup.Resolve<ICamera>(_registry, cameraId, "camera");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(cameraId)], cancellationToken))
+        _logger.LogInformation(
+            "Exposing camera {DeviceId} for {ExposureSeconds} s", cameraId, duration.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture));
+        return await Run("Exposure", cameraId, async () =>
         {
-            return await camera.ExposeAsync(duration, cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(cameraId)], cancellationToken))
+            {
+                return await camera.ExposeAsync(duration, cancellationToken);
+            }
+        });
     }
 
     /// <summary>
@@ -121,11 +162,15 @@ public sealed class DeviceOperationService
     {
         var guider = DeviceLookup.Resolve<IGuider>(_registry, guiderId, "guider");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(guiderId)], cancellationToken))
+        _logger.LogInformation("Starting guiding on {DeviceId}", guiderId);
+        await Run("Start guiding", guiderId, async () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await guider.StartGuidingAsync(cancellationToken);
-        }
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(guiderId)], cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await guider.StartGuidingAsync(cancellationToken);
+            }
+        });
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered or is not a guider.</exception>
@@ -133,10 +178,49 @@ public sealed class DeviceOperationService
     {
         var guider = DeviceLookup.Resolve<IGuider>(_registry, guiderId, "guider");
 
-        using (await _resources.AcquireAsync([ResourceId.ForDevice(guiderId)], cancellationToken))
+        _logger.LogInformation("Stopping guiding on {DeviceId}", guiderId);
+        await Run("Stop guiding", guiderId, async () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await guider.StopGuidingAsync(cancellationToken);
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(guiderId)], cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await guider.StopGuidingAsync(cancellationToken);
+            }
+        });
+    }
+
+    private async Task Run(string operation, DeviceId deviceId, Func<Task> body) =>
+        await Run<object?>(operation, deviceId, async () =>
+        {
+            await body();
+            return null;
+        });
+
+    // The outcome of an operation: completed (Debug, with the time it took), cancelled (Information: the user stopped it,
+    // which is not an error) or failed (Error, with the exception). The device is the scope of all of it.
+    private async Task<T> Run<T>(string operation, DeviceId deviceId, Func<Task<T>> body)
+    {
+        using var scope = _logger.BeginScope(new KeyValuePair<string, object?>[] { new("DeviceId", deviceId.Value) });
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await body();
+            _logger.LogDebug(
+                "{Operation} on {DeviceId} completed in {DurationMs:0} ms",
+                operation, deviceId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation(
+                "{Operation} on {DeviceId} was cancelled after {DurationMs:0} ms",
+                operation, deviceId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "{Operation} on {DeviceId} failed", operation, deviceId);
+            throw;
         }
     }
 }

@@ -329,7 +329,7 @@ public class SequenceEditorRunTests
         await app.Sequencer.RunCommand.ExecuteAsync(null).WaitAsync(Bound);
 
         Assert.Equal(SequenceState.Failed, app.Sequencer.State);
-        Assert.Equal("Guiding did not settle within the time limit.", app.Sequencer.ErrorMessage);
+        Assert.StartsWith("Guiding did not settle within the time limit. See the log, execution ", app.Sequencer.ErrorMessage);
         Assert.True(app.Draft.IsEditable);
         Assert.True(app.Draft.AddStepCommand.CanExecute(SequenceStepKind.Delay));
     }

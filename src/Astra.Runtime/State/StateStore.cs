@@ -4,11 +4,18 @@ using Astra.Core.Focusers;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Runtime.Events;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.State;
 
+/// <summary>
+/// The latest known state of every device, kept up to date from the events on the bus. Every change is logged at Trace
+/// only: state changes are frequent (positions, motion) and the interesting ones are logged where they happen.
+/// </summary>
 public sealed class StateStore : IDisposable
 {
+    private readonly ILogger _logger;
     private readonly object _gate = new();
     private readonly Dictionary<DeviceId, DeviceState> _states = new();
     private readonly IDisposable _connectionSubscription;
@@ -20,9 +27,10 @@ public sealed class StateStore : IDisposable
     private readonly IDisposable _filterWheelMotionSubscription;
     private readonly IDisposable _filterWheelSlotSubscription;
 
-    public StateStore(EventBus eventBus)
+    public StateStore(EventBus eventBus, ILogger<StateStore>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(eventBus);
+        _logger = logger ?? NullLogger<StateStore>.Instance;
 
         _connectionSubscription = eventBus.Subscribe<DeviceConnectionStateChanged>(OnConnectionStateChanged);
         _exposureSubscription = eventBus.Subscribe<CameraExposureStateChanged>(OnExposureStateChanged);
@@ -67,6 +75,7 @@ public sealed class StateStore : IDisposable
         CancellationToken cancellationToken
     )
     {
+        _logger.LogTrace("State of {DeviceId}: connection {PreviousState} -> {NewState}", e.DeviceId, e.PreviousState, e.NewState);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -82,6 +91,7 @@ public sealed class StateStore : IDisposable
         CancellationToken cancellationToken
     )
     {
+        _logger.LogTrace("State of {DeviceId}: mount {NewState}", e.DeviceId, e.NewState);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -94,6 +104,7 @@ public sealed class StateStore : IDisposable
 
     private Task OnFocuserMotionStateChanged(FocuserMotionStateChanged e, CancellationToken cancellationToken)
     {
+        _logger.LogTrace("State of {DeviceId}: focuser {NewState} at {Position}", e.DeviceId, e.NewState, e.Position);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -106,6 +117,7 @@ public sealed class StateStore : IDisposable
 
     private Task OnFocuserPositionChanged(FocuserPositionChanged e, CancellationToken cancellationToken)
     {
+        _logger.LogTrace("State of {DeviceId}: focuser position {Position}", e.DeviceId, e.Position);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -118,6 +130,7 @@ public sealed class StateStore : IDisposable
 
     private Task OnFilterWheelMotionStateChanged(FilterWheelMotionStateChanged e, CancellationToken cancellationToken)
     {
+        _logger.LogTrace("State of {DeviceId}: filter wheel {NewState}", e.DeviceId, e.NewState);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -130,6 +143,7 @@ public sealed class StateStore : IDisposable
 
     private Task OnFilterWheelSlotChanged(FilterWheelSlotChanged e, CancellationToken cancellationToken)
     {
+        _logger.LogTrace("State of {DeviceId}: filter wheel slot changed", e.DeviceId);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -145,6 +159,7 @@ public sealed class StateStore : IDisposable
         CancellationToken cancellationToken
     )
     {
+        _logger.LogTrace("State of {DeviceId}: guiding {NewState}", e.DeviceId, e.NewState);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)
@@ -160,6 +175,7 @@ public sealed class StateStore : IDisposable
         CancellationToken cancellationToken
     )
     {
+        _logger.LogTrace("State of {DeviceId}: exposure {NewState}", e.DeviceId, e.NewState);
         lock (_gate)
         {
             var current = _states.GetValueOrDefault(e.DeviceId)

@@ -10,6 +10,7 @@ using Astra.Core.Rigs;
 using Astra.Core.Sequencing;
 using Astra.Runtime;
 using Astra.Runtime.Sequencing;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -169,7 +170,8 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         Func<string?>? readiness
     )
     {
-        _runner = new SequenceRunner(host.ResourceManager, host.SafePointCoordinator);
+        _runner = new SequenceRunner(
+            host.ResourceManager, host.SafePointCoordinator, host.LoggerFactory.CreateLogger<SequenceRunner>());
         _host = host;
         _autofocusSubscription = host.EventBus.Subscribe<AutofocusProgressChanged>((e, _) =>
         {
@@ -559,7 +561,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         {
             // A failure inside a Rig Track says which track it was.
             _failedTracks = FailedTracks(ex).ToHashSet();
-            ReportError(ex);
+
+            // The log has the stack trace; the execution id is what finds this run in it.
+            ReportError($"{UserFacingError.Describe(ex)} See the log, execution {_runner.ExecutionTag}.", ex);
         }
         finally
         {

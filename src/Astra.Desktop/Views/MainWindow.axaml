@@ -838,6 +838,27 @@
                 </StackPanel>
             </Border>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DiagnosticsViewModel}" x:DataType="vm:DiagnosticsViewModel">
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="title" Text="Diagnostics" />
+                    <TextBlock Classes="muted" Text="The log of this session. Attach the file to a bug report." TextWrapping="Wrap" />
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="section" Text="LOG FILE" />
+                        <TextBox Text="{Binding LogFileText}" IsReadOnly="True" TextWrapping="Wrap" AutomationProperties.AutomationId="DiagnosticsLogFile" />
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="section" Text="LOG FOLDER" />
+                        <TextBox Text="{Binding LogFolderText}" IsReadOnly="True" TextWrapping="Wrap" AutomationProperties.AutomationId="DiagnosticsLogFolder" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding LevelText, StringFormat='Log level: {0}'}" IsVisible="{Binding IsLoggingConfigured}" AutomationProperties.AutomationId="DiagnosticsLevel" />
+                    <TextBlock Text="{Binding SessionText, StringFormat='Session: {0}'}" IsVisible="{Binding IsLoggingConfigured}" AutomationProperties.AutomationId="DiagnosticsSession" />
+                    <TextBlock Text="{Binding VersionText, StringFormat='Astra {0}'}" Classes="muted" />
+                    <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}" HorizontalAlignment="Left" />
+                    <TextBlock Classes="danger" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}" x:DataType="vm:DashboardViewModel">
             <StackPanel Spacing="12">
                 <TextBlock Classes="title" Text="Dashboard" />
@@ -857,6 +878,7 @@
                 <Button Content="Equipment" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppPage.Equipment}" Classes.accent="{Binding IsEquipmentSelected}" />
                 <Button Content="Sequencer" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppPage.Sequencer}" Classes.accent="{Binding IsSequencerSelected}" />
                 <Button Content="Imaging" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppPage.Imaging}" Classes.accent="{Binding IsImagingSelected}" />
+                <Button Content="Diagnostics" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppPage.Diagnostics}" Classes.accent="{Binding IsDiagnosticsSelected}" />
             </StackPanel>
         </Border>
         <ScrollViewer Grid.Column="1" Margin="28">

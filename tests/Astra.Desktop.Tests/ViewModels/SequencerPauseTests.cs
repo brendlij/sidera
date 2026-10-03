@@ -363,7 +363,7 @@ public class SequencerPauseTests
 
         Assert.Equal(SequenceState.Failed, vm.State);
         Assert.True(vm.IsFailed);
-        Assert.Equal("The camera lost its connection.", vm.ErrorMessage);
+        Assert.StartsWith("The camera lost its connection. See the log, execution ", vm.ErrorMessage);
         await setup.Buttons.ExpectAsync(run: true, pause: false, resume: false, cancel: false);
     }
 

@@ -3,7 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
+using Astra.Core.Rigs;
 using Astra.Core.Sequencing;
+using Astra.Runtime.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Desktop;
 
@@ -24,13 +29,23 @@ public sealed class RigTrackFailedException(Guid trackId, string trackName, Exce
 /// with one difference: when a step fails, the failure says which track it was. A parallel step only reports the
 /// exception of a failed branch, so without this there is no telling the branches apart. Cancellation, including that
 /// of a branch whose sibling failed, passes through unchanged.
+/// <para>
+/// The track is a logging context: while it runs, everything its steps and their resources and coordination write to the
+/// log carries the rig and the track (<c>RigId</c>, <c>TrackId</c>), and its start and end are logged at Debug.
+/// </para>
 /// </summary>
 public sealed class RigTrackStep : ISequenceStep
 {
     private readonly FrameCounter? _counter;
+    private readonly RigId? _rigId;
+    private readonly ILogger _logger;
 
     /// <param name="counter">The count of frames of this track, if its frames are counted; set back to zero at every start.</param>
-    public RigTrackStep(Guid trackId, string name, IEnumerable<ISequenceStep> steps, FrameCounter? counter = null)
+    /// <param name="rigId">The rig of the track, for the log.</param>
+    /// <param name="logger">Where the track is reported.</param>
+    public RigTrackStep(
+        Guid trackId, string name, IEnumerable<ISequenceStep> steps, FrameCounter? counter = null,
+        RigId? rigId = null, ILogger<RigTrackStep>? logger = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(steps);
@@ -50,6 +65,8 @@ public sealed class RigTrackStep : ISequenceStep
         Name = name;
         Steps = list;
         _counter = counter;
+        _rigId = rigId;
+        _logger = logger ?? NullLogger<RigTrackStep>.Instance;
     }
 
     public Guid TrackId { get; }
@@ -61,6 +78,11 @@ public sealed class RigTrackStep : ISequenceStep
         _counter?.Reset();
         var results = new List<SequenceStepResult>(Steps.Count);
 
+        using var scope = _logger.Begin(
+            (LogContext.RigId, _rigId?.ToString() ?? Name), (LogContext.TrackId, TrackId.ToString("N")[..8]));
+        var started = Stopwatch.GetTimestamp();
+        _logger.LogDebug("Rig track {TrackName} started with {StepCount} steps", Name, Steps.Count);
+
         try
         {
             for (var i = 0; i < Steps.Count; i++)
@@ -71,17 +93,27 @@ public sealed class RigTrackStep : ISequenceStep
         }
         catch (OperationCanceledException)
         {
+            _logger.LogDebug(
+                "Rig track {TrackName} cancelled after {DurationSeconds:0.0} s", Name, Stopwatch.GetElapsedTime(started).TotalSeconds);
             throw;
         }
-        catch (RigTrackFailedException)
+        catch (RigTrackFailedException ex)
         {
+            _logger.LogWarning(
+                "Rig track {TrackName} failed after {DurationSeconds:0.0} s: {Reason}",
+                Name, Stopwatch.GetElapsedTime(started).TotalSeconds, ex.InnerException?.Message ?? ex.Message);
             throw;
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(
+                "Rig track {TrackName} failed after {DurationSeconds:0.0} s: {Reason}",
+                Name, Stopwatch.GetElapsedTime(started).TotalSeconds, ex.Message);
             throw new RigTrackFailedException(TrackId, Name, ex);
         }
 
+        _logger.LogDebug(
+            "Rig track {TrackName} completed in {DurationSeconds:0.0} s", Name, Stopwatch.GetElapsedTime(started).TotalSeconds);
         return new SequenceStepResult(results.AsReadOnly());
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Astra.Core.Devices;
 using Astra.Core.Guiding;
@@ -5,6 +6,8 @@ using Astra.Core.Mounts;
 using Astra.Core.Resources;
 using Astra.Core.Sequencing;
 using Astra.Runtime.Devices;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.Sequencing;
 
@@ -32,10 +35,17 @@ namespace Astra.Runtime.Sequencing;
 /// shows up as its own nested step under the dither command. A settle timeout, a loss of guiding or a cancellation
 /// ends the action like any other failure or cancellation of the dither.
 /// </para>
+/// <para>
+/// Diagnostics: the request, the start, the completion and the settle (started, succeeded) are Information, with the
+/// amplitude, the guider, the mount, the affected cameras and the settle thresholds; a settle timeout, a lost guider or a
+/// failed dither is a Warning or an Error with the reason. Single settle samples are not logged here. Together with the
+/// coordination entries of <see cref="Coordination.SafePointCoordinator"/> this is the trail of a coordinated dither.
+/// </para>
 /// </summary>
 public sealed class DitherAction : ISequenceStep
 {
     private readonly DitherCommand _command;
+    private readonly ILogger _logger;
 
     /// <param name="amplitudePixels">Dither amplitude in guide camera pixels.</param>
     /// <param name="cameraIds">Every camera disturbed by the dither; copied, duplicates removed.</param>
@@ -49,11 +59,13 @@ public sealed class DitherAction : ISequenceStep
         DeviceId mountId,
         IEnumerable<DeviceId> cameraIds,
         double amplitudePixels,
-        GuidingSettleOptions? settle = null
+        GuidingSettleOptions? settle = null,
+        ILogger<DitherAction>? logger = null
     )
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(cameraIds);
+        _logger = logger ?? NullLogger<DitherAction>.Instance;
 
         if (!double.IsFinite(amplitudePixels) || amplitudePixels <= 0)
         {
@@ -72,7 +84,7 @@ public sealed class DitherAction : ISequenceStep
         CameraIds = Array.AsReadOnly(cameras);
         AmplitudePixels = amplitudePixels;
         SettleOptions = settle;
-        _command = new DitherCommand(registry, this);
+        _command = new DitherCommand(registry, this, _logger);
     }
 
     public DeviceId GuiderId { get; }
@@ -99,6 +111,10 @@ public sealed class DitherAction : ISequenceStep
     /// <exception cref="GuidingSettleTimeoutException">Guiding did not settle within the timeout.</exception>
     public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "Dither requested: {AmplitudePixels} px, guider {GuiderId}, mount {MountId}, cameras {CameraIds}",
+            AmplitudePixels, GuiderId, MountId, string.Join(", ", CameraIds));
+
         // Resources are acquired by the runner for the child, i.e. only once the group is safe.
         await context.ExecuteWhenSafeAsync(
             ct => context.ExecuteChildAsync(_command, 0, 1, ct),
@@ -108,7 +124,7 @@ public sealed class DitherAction : ISequenceStep
 
     // Holds the equipment while the dither runs. Executed by the runner, which acquires its resources first, so
     // it calls the devices directly and never goes through DeviceOperationService.
-    private sealed class DitherCommand(DeviceRegistry registry, DitherAction definition) : IResourceAwareSequenceStep
+    private sealed class DitherCommand(DeviceRegistry registry, DitherAction definition, ILogger logger) : IResourceAwareSequenceStep
     {
         public string Name => "Dither command";
 
@@ -155,13 +171,52 @@ public sealed class DitherAction : ISequenceStep
                 throw new InvalidOperationException($"Guider '{guider.Id}' is not guiding.");
             }
 
-            await guider.DitherAsync(definition.AmplitudePixels, cancellationToken);
+            logger.LogInformation(
+                "Dither started: {AmplitudePixels} px on guider {GuiderId}, mount {MountId} moves, " +
+                "{CameraCount} cameras are disturbed and idle ({CameraIds})",
+                definition.AmplitudePixels, definition.GuiderId, definition.MountId, cameras.Length,
+                string.Join(", ", definition.CameraIds));
+            var started = Stopwatch.GetTimestamp();
 
-            if (settler is not null)
+            try
             {
-                // Runs under this command's lease; the settle step declares no resources of its own.
-                await context.ExecuteChildAsync(
-                    new SettleStep(settler, definition.SettleOptions!), 0, 1, cancellationToken);
+                await guider.DitherAsync(definition.AmplitudePixels, cancellationToken);
+                logger.LogInformation(
+                    "Dither completed in {DurationMs:0} ms (guider {GuiderId})",
+                    Stopwatch.GetElapsedTime(started).TotalMilliseconds, definition.GuiderId);
+
+                if (settler is not null)
+                {
+                    var options = definition.SettleOptions!;
+                    logger.LogInformation(
+                        "Settle started: error at most {MaximumErrorPixels} px for {StableSeconds} s, timeout {TimeoutSeconds} s",
+                        options.MaximumErrorPixels, options.StableDuration.TotalSeconds, options.Timeout.TotalSeconds);
+                    var settleStarted = Stopwatch.GetTimestamp();
+
+                    // Runs under this command's lease; the settle step declares no resources of its own.
+                    await context.ExecuteChildAsync(
+                        new SettleStep(settler, options), 0, 1, cancellationToken);
+                    logger.LogInformation(
+                        "Settle succeeded after {DurationSeconds:0.0} s", Stopwatch.GetElapsedTime(settleStarted).TotalSeconds);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // The run was stopped while the dither or the settle was going on: a normal end.
+                logger.LogInformation("Dither cancelled after {DurationMs:0} ms", Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                throw;
+            }
+            catch (GuidingSettleTimeoutException ex)
+            {
+                logger.LogWarning(
+                    ex, "Settle timed out: guiding did not settle within {TimeoutSeconds} s",
+                    definition.SettleOptions!.Timeout.TotalSeconds);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Dither failed on guider {GuiderId}", definition.GuiderId);
+                throw;
             }
 
             return new SequenceStepResult();

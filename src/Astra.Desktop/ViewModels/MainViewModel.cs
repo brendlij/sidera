@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Astra.Core.Devices;
 using Astra.Core.Guiding;
+using Astra.Desktop.Diagnostics;
 using Astra.Runtime;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,7 +17,8 @@ public enum AppPage
     Dashboard,
     Equipment,
     Sequencer,
-    Imaging
+    Imaging,
+    Diagnostics
 }
 
 /// <summary>
@@ -32,7 +34,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Action<Action> postToUi,
         DemoOptions? options = null,
         ISequenceDocumentStore? store = null,
-        ISequenceFilePicker? filePicker = null)
+        ISequenceFilePicker? filePicker = null,
+        LogInfo? logInfo = null,
+        IFolderOpener? folderOpener = null)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -44,7 +48,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, defaults.InitialSteps(),
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
-            focusMetrics: host.FocusMetricProvider, events: host.EventBus);
+            focusMetrics: host.FocusMetricProvider, events: host.EventBus,
+            loggers: host.LoggerFactory);
+        Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(
@@ -80,6 +86,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public SequencerPageViewModel SequencerPage { get; }
     public ImagingViewModel Imaging { get; }
     public RuntimeStatusViewModel Runtime { get; }
+    public DiagnosticsViewModel Diagnostics { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
@@ -87,6 +94,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsEquipmentSelected))]
     [NotifyPropertyChangedFor(nameof(IsSequencerSelected))]
     [NotifyPropertyChangedFor(nameof(IsImagingSelected))]
+    [NotifyPropertyChangedFor(nameof(IsDiagnosticsSelected))]
     public partial AppPage SelectedPage { get; private set; }
 
     public ViewModelBase CurrentPage => SelectedPage switch
@@ -94,6 +102,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         AppPage.Equipment => Equipment,
         AppPage.Sequencer => SequencerPage,
         AppPage.Imaging => Imaging,
+        AppPage.Diagnostics => Diagnostics,
         _ => Dashboard,
     };
 
@@ -101,6 +110,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsEquipmentSelected => SelectedPage == AppPage.Equipment;
     public bool IsSequencerSelected => SelectedPage == AppPage.Sequencer;
     public bool IsImagingSelected => SelectedPage == AppPage.Imaging;
+    public bool IsDiagnosticsSelected => SelectedPage == AppPage.Diagnostics;
 
     [RelayCommand]
     private void Navigate(AppPage page) => SelectedPage = page;

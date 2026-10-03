@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Astra.Core.Devices;
 using Astra.Core.Events;
 using Astra.Core.Focusing;
@@ -6,7 +7,10 @@ using Astra.Core.Resources;
 using Astra.Core.Rigs;
 using Astra.Core.Sequencing;
 using Astra.Runtime.Devices;
+using Astra.Runtime.Diagnostics;
 using Astra.Runtime.Focusing;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.Sequencing;
 
@@ -24,14 +28,21 @@ namespace Astra.Runtime.Sequencing;
 /// <para>
 /// Cancelling stops the exposure or the move that is running and leaves the focuser where it last arrived.
 /// </para>
+/// <para>
+/// Diagnostics: start and result (best position, HFR, samples, passes, duration) are Information, each measurement
+/// (position and HFR) is Debug, a failure is an Error with its exception, a cancellation is Information. The entries carry
+/// the rig as scope.
+/// </para>
 /// </summary>
 public sealed class AutofocusAction : IResourceAwareSequenceStep
 {
     private readonly DeviceRegistry _registry;
     private readonly IFocusMetricProvider _metrics;
     private readonly IEventPublisher? _events;
+    private readonly ILogger _logger;
 
     /// <param name="events">Where the progress of a run is published; none when nobody listens.</param>
+    /// <param name="logger">Where the run is reported.</param>
     public AutofocusAction(
         DeviceRegistry registry,
         RigId rigId,
@@ -39,7 +50,8 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
         DeviceId focuserId,
         AutofocusOptions options,
         IFocusMetricProvider metrics,
-        IEventPublisher? events = null)
+        IEventPublisher? events = null,
+        ILogger<AutofocusAction>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(options);
@@ -49,6 +61,7 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
         _registry = registry;
         _metrics = metrics;
         _events = events;
+        _logger = logger ?? NullLogger<AutofocusAction>.Instance;
         RigId = rigId;
         CameraId = cameraId;
         FocuserId = focuserId;
@@ -58,12 +71,13 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
     /// <summary>The action for a rig: its camera and its focuser.</summary>
     /// <exception cref="InvalidOperationException">The rig has no focuser.</exception>
     public static AutofocusAction ForRig(
-        DeviceRegistry registry, Rig rig, AutofocusOptions options, IFocusMetricProvider metrics, IEventPublisher? events = null)
+        DeviceRegistry registry, Rig rig, AutofocusOptions options, IFocusMetricProvider metrics, IEventPublisher? events = null,
+        ILogger<AutofocusAction>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
 
         return rig.FocuserId is { } focuserId
-            ? new AutofocusAction(registry, rig.Id, rig.CameraId, focuserId, options, metrics, events)
+            ? new AutofocusAction(registry, rig.Id, rig.CameraId, focuserId, options, metrics, events, logger)
             : throw new InvalidOperationException($"The rig '{rig.Id}' has no focuser, so it cannot be focused.");
     }
 
@@ -82,6 +96,8 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
     /// <exception cref="InvalidOperationException">A device is unknown, of the wrong kind or not connected, or a measurement failed.</exception>
     public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
     {
+        using var scope = _logger.Begin((LogContext.RigId, RigId.ToString()));
+        var started = Stopwatch.GetTimestamp();
         try
         {
             var focuser = DeviceLookup.Resolve<IFocuser>(_registry, FocuserId, "focuser");
@@ -98,16 +114,52 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
                 throw new InvalidOperationException($"Camera '{CameraId}' is not connected.");
             }
 
+            _logger.LogInformation(
+                "Autofocus started for rig {RigId}: camera {CameraId}, focuser {FocuserId} at position {InitialPosition}, " +
+                "{SampleCount} samples {StepSize} steps apart, {ExposureSeconds} s exposures",
+                RigId, CameraId, FocuserId, focuser.Position, Options.SampleCount, Options.StepSize,
+                Options.ExposureDuration.TotalSeconds);
+
             var measurer = new FocusMeasurementOperation(_registry, RigId, CameraId, FocuserId, _metrics);
-            var result = await AutofocusEngine.RunAsync(focuser, measurer, Options, Publish, cancellationToken);
+            var result = await AutofocusEngine.RunAsync(focuser, measurer, Options, Report, cancellationToken);
+
+            _logger.LogInformation(
+                "Autofocus completed for rig {RigId}: best position {BestPosition} (from {InitialPosition}), HFR {BestHfr:0.00} px, " +
+                "{SampleCount} samples in {Passes} passes, {DurationSeconds:0.0} s",
+                RigId, result.BestPosition, result.InitialPosition, result.BestHfr, result.Measurements.Count, result.Attempts,
+                Stopwatch.GetElapsedTime(started).TotalSeconds);
             return new SequenceStepResult(result);
         }
-        catch
+        catch (OperationCanceledException)
         {
             // Cancelled or failed: whatever listens is told the run is over, even though the token is cancelled.
+            _logger.LogInformation(
+                "Autofocus cancelled for rig {RigId} after {DurationSeconds:0.0} s", RigId, Stopwatch.GetElapsedTime(started).TotalSeconds);
             await Publish(new AutofocusProgress(AutofocusPhase.Stopped, 0, 0, 0), CancellationToken.None);
             throw;
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex, "Autofocus failed for rig {RigId} after {DurationSeconds:0.0} s", RigId, Stopwatch.GetElapsedTime(started).TotalSeconds);
+            await Publish(new AutofocusProgress(AutofocusPhase.Stopped, 0, 0, 0), CancellationToken.None);
+            throw;
+        }
+    }
+
+    // Every progress report goes to the listeners; each sample taken is also written to the log (Debug).
+    private Task Report(AutofocusProgress progress, CancellationToken cancellationToken)
+    {
+        if (progress is { Phase: AutofocusPhase.Measuring, SampleIndex: > 0, Position: { } position, Hfr: { } hfr })
+        {
+            _logger.LogDebug(
+                "Autofocus sample {SampleIndex} of {SampleCount} (pass {Pass}): position {Position}, HFR {Hfr:0.00} px",
+                progress.SampleIndex, progress.SampleCount, progress.Attempt, position, hfr);
+        }
+
+        return _events is null
+            ? Task.CompletedTask
+            : _events.PublishAsync(new AutofocusProgressChanged(RigId, progress), cancellationToken);
     }
 
     private Task Publish(AutofocusProgress progress, CancellationToken cancellationToken) =>

@@ -6,12 +6,15 @@ using Astra.Core.Imaging;
 using Astra.Core.Rigs;
 using Astra.Runtime.Coordination;
 using Astra.Runtime.Devices;
+using Astra.Runtime.Diagnostics;
 using Astra.Runtime.Events;
 using Astra.Runtime.Focusing;
 using Astra.Runtime.Imaging;
 using Astra.Runtime.Resources;
 using Astra.Runtime.Rigs;
 using Astra.Runtime.State;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime;
 
@@ -30,22 +33,46 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
     }
 
     private readonly object _gate = new();
+    private readonly ILogger _logger;
+    private readonly DeviceLifecycleLogger _lifecycleLogger;
     private HostState _state = HostState.Created;
 
-    public AstraRuntimeHost(FrameAnalysisOptions? analysisOptions = null)
+    /// <param name="loggerFactory">
+    /// Where the runtime writes its diagnostics. The application configures it (providers, levels) once, in its
+    /// composition root; the host never does. Without one nothing is logged. The host wraps it so that every entry of this
+    /// runtime carries the <see cref="SessionId"/>, and does not dispose it.
+    /// </param>
+    /// <param name="sessionId">The id of this run of the application in the logs; a new short id when not given.</param>
+    public AstraRuntimeHost(
+        FrameAnalysisOptions? analysisOptions = null, ILoggerFactory? loggerFactory = null, string? sessionId = null)
     {
+        SessionId = sessionId ?? SessionIds.New();
+        LoggerFactory = new SessionLoggerFactory(loggerFactory ?? NullLoggerFactory.Instance, SessionId);
+        _logger = LoggerFactory.CreateLogger<AstraRuntimeHost>();
+
         EventBus = new EventBus();
         // Created here so the store always subscribes before any other consumer of the bus.
-        StateStore = new StateStore(EventBus);
+        StateStore = new StateStore(EventBus, LoggerFactory.CreateLogger<StateStore>());
         DeviceRegistry = new DeviceRegistry();
+        _lifecycleLogger = new DeviceLifecycleLogger(EventBus, DeviceRegistry, LoggerFactory.CreateLogger<DeviceLifecycleLogger>());
         RigRegistry = new RigRegistry(DeviceRegistry);
-        ResourceManager = new ResourceManager();
-        DeviceOperations = new DeviceOperationService(DeviceRegistry, ResourceManager);
-        SafePointCoordinator = new SafePointCoordinator();
+        ResourceManager = new ResourceManager(LoggerFactory.CreateLogger<ResourceManager>());
+        DeviceOperations = new DeviceOperationService(
+            DeviceRegistry, ResourceManager, LoggerFactory.CreateLogger<DeviceOperationService>());
+        SafePointCoordinator = new SafePointCoordinator(LoggerFactory.CreateLogger<SafePointCoordinator>());
         FocusMetrics = new SimulatedFocusMetricProvider();
-        FrameAnalyzer = new FrameAnalyzer(analysisOptions);
+        FrameAnalyzer = new FrameAnalyzer(analysisOptions, logger: LoggerFactory.CreateLogger<FrameAnalyzer>());
         FocusMetricProvider = new StarHfrFocusMetricProvider(FrameAnalyzer);
     }
+
+    /// <summary>The id of this run of the application: on every log entry of this runtime, and in the log file name's session.</summary>
+    public string SessionId { get; }
+
+    /// <summary>
+    /// The loggers of everything that runs on this host (sequence runners, steps, view models). Every entry carries the
+    /// <see cref="SessionId"/>. Owned by the application, not by the host.
+    /// </summary>
+    public ILoggerFactory LoggerFactory { get; }
 
     public EventBus EventBus { get; }
     public StateStore StateStore { get; }
@@ -226,6 +253,10 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
 
             _state = HostState.Started;
         }
+
+        _logger.LogInformation(
+            "Runtime started with {DeviceCount} devices and {RigCount} rigs",
+            DeviceRegistry.GetAll().Count, RigRegistry.GetAll().Count);
     }
 
     /// <summary>
@@ -246,6 +277,7 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
             _state = HostState.Stopped;
         }
 
+        _logger.LogInformation("Runtime stopping: disconnecting the devices that are still connected");
         var failures = new List<Exception>();
 
         foreach (var device in DeviceRegistry.GetAll())
@@ -261,10 +293,12 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                _logger.LogInformation("Runtime stop was cancelled while disconnecting {DeviceId}", device.Id);
                 throw;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Device {DeviceId} could not be disconnected while the runtime stopped", device.Id);
                 failures.Add(new InvalidOperationException(
                     $"Device '{device.Id}' could not be disconnected.", ex));
             }
@@ -272,8 +306,11 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
 
         if (failures.Count > 0)
         {
+            _logger.LogWarning("Runtime stopped; {FailureCount} devices could not be disconnected", failures.Count);
             throw new AggregateException(failures);
         }
+
+        _logger.LogInformation("Runtime stopped");
     }
 
     /// <summary>
@@ -294,9 +331,10 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         {
             await StopAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // Disposal must not throw. StopAsync already tried every device.
+            // Disposal must not throw. StopAsync already tried every device, and logged each failure.
+            _logger.LogError(ex, "The runtime could not be stopped cleanly while it was disposed");
         }
 
         lock (_gate)
@@ -304,7 +342,9 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
             _state = HostState.Disposed;
         }
 
+        _lifecycleLogger.Dispose();
         StateStore.Dispose();
+        _logger.LogDebug("Runtime disposed");
     }
 
     private void ThrowIfDisposed()

@@ -9,6 +9,8 @@ namespace Astra.Desktop.Tests.ViewModels;
 /// <summary>The imaging page shows metrics only of a real analysis of the frame it shows.</summary>
 public class ImagingMetricsTests
 {
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(10);
+
     private static CameraFrame Sky(double sigma, int exposure = 1, SimulatedSkyOptions? options = null) =>
         new SimulatedSky(1, options).Render(sigma, TimeSpan.FromSeconds(1), exposure);
 
@@ -102,9 +104,9 @@ public class ImagingMetricsTests
         var oldRun = imaging.AnalysisCompletion;
         await analyzer.Started(1);
         imaging.Publish(Sky(5.0, exposure: 2), "new");
+        await oldRun.WaitAsync(Bound); // ends by its cancellation: the gate was never opened for it
         analyzer.Release();
-        analyzer.Release();
-        await Task.WhenAll(oldRun, imaging.AnalysisCompletion);
+        await imaging.AnalysisCompletion.WaitAsync(Bound);
 
         Assert.True(analyzer.WasCancelled(0));
         Assert.Equal("new", imaging.SourceText);

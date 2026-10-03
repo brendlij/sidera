@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using Astra.Core.Coordination;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.Coordination;
 
@@ -25,6 +28,12 @@ public sealed record SafePointGroupStatus(
 /// branches that reach a safe point wait there; when every required participant is at a safe point the operation
 /// runs exactly once; when it ends, however it ends, the request is removed and every waiting branch is released.
 /// Requests of one group run one after another.
+/// </para>
+/// <para>
+/// Diagnostics: the rounds are logged with the group and participant ids and how many of the required participants had
+/// arrived: the request (Information), each arrival and the release (Debug), the start and the end of the operation
+/// (Information), and a round that was called off because a participant failed (Warning). That is the trail to follow
+/// when a coordinated operation, such as a dither, does not start.
 /// </para>
 /// </summary>
 public sealed class SafePointCoordinator
@@ -57,7 +66,14 @@ public sealed class SafePointCoordinator
 
     private readonly object _gate = new();
     private readonly Dictionary<CoordinationGroupId, Group> _groups = new();
+    private readonly ILogger _logger;
     private long _lastParticipant;
+
+    /// <param name="logger">Where the coordination rounds are reported.</param>
+    public SafePointCoordinator(ILogger<SafePointCoordinator>? logger = null)
+    {
+        _logger = logger ?? NullLogger<SafePointCoordinator>.Instance;
+    }
 
     /// <summary>
     /// Raised, outside the coordinator's lock, when a coordinated operation of a group became pending. Lets other
@@ -93,6 +109,9 @@ public sealed class SafePointCoordinator
                 ids.Add(id);
             }
 
+            _logger.LogDebug(
+                "Group {CoordinationGroupId}: {Count} participants registered ({ParticipantIds})",
+                group, count, string.Join(", ", ids));
             return ids;
         }
     }
@@ -112,10 +131,18 @@ public sealed class SafePointCoordinator
                 return;
             }
 
+            _logger.LogDebug(
+                "Group {CoordinationGroupId}: participant {ParticipantId} left (failed: {Failed}, {Remaining} remaining)",
+                group, participant, failed, g.Participants.Count);
+
             if (g.Active is { OperationStarted: false } request)
             {
                 if (failed && state == ParticipantState.Running && IsRequired(g, request, participant, includeRemoved: true))
                 {
+                    _logger.LogWarning(
+                        "Group {CoordinationGroupId}: the coordinated operation is called off, participant {ParticipantId} " +
+                        "failed before it reached a safe point",
+                        group, participant);
                     request.AllSafe.TrySetException(new CoordinationAbortedException(
                         $"Participant '{participant}' failed before reaching a safe point; " +
                         "the coordinated operation was not run."));
@@ -142,6 +169,7 @@ public sealed class SafePointCoordinator
 
         Task waitForEnd;
         Group g;
+        int required, safe;
         lock (_gate)
         {
             if (!_groups.TryGetValue(group, out g!) || !g.Participants.ContainsKey(participant) || g.Active is null)
@@ -152,14 +180,23 @@ public sealed class SafePointCoordinator
             g.Participants[participant] = ParticipantState.AtSafePoint;
             CheckBarrier(g);
             waitForEnd = g.Active.Done.Task;
+            (required, safe) = Count(g, g.Active);
         }
+
+        _logger.LogDebug(
+            "Group {CoordinationGroupId}: participant {ParticipantId} reached a safe point ({Arrived} of {Required} required are safe)",
+            group, participant, safe, required);
 
         try
         {
             await waitForEnd.WaitAsync(cancellationToken);
+            _logger.LogDebug("Group {CoordinationGroupId}: participant {ParticipantId} released", group, participant);
         }
         catch (OperationCanceledException)
         {
+            _logger.LogDebug(
+                "Group {CoordinationGroupId}: participant {ParticipantId} stopped waiting at the safe point (cancelled)",
+                group, participant);
             lock (_gate)
             {
                 if (g.Participants.TryGetValue(participant, out var state) && state == ParticipantState.AtSafePoint)
@@ -222,16 +259,23 @@ public sealed class SafePointCoordinator
         try
         {
             Request request;
+            int required, safe;
             lock (_gate)
             {
                 ResetRequester(g, requester, alreadyLocked: true);
                 request = new Request(requester, participants);
                 g.Active = request;
                 CheckBarrier(g);
+                (required, safe) = Count(g, request);
             }
 
+            _logger.LogInformation(
+                "Group {CoordinationGroupId}: coordinated operation requested by {ParticipantId}; " +
+                "{Arrived} of {Required} required participants are at a safe point",
+                group, requester?.ToString() ?? "none", safe, required);
             RaiseRequestStarted(group);
 
+            var started = Stopwatch.GetTimestamp();
             try
             {
                 await request.AllSafe.Task.WaitAsync(cancellationToken);
@@ -241,7 +285,33 @@ public sealed class SafePointCoordinator
                     request.OperationStarted = true;
                 }
 
+                _logger.LogInformation(
+                    "Group {CoordinationGroupId}: all {Required} required participants are at a safe point after {WaitMs:0} ms, " +
+                    "the coordinated operation starts",
+                    group, required, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                var operationStarted = Stopwatch.GetTimestamp();
                 await operation(cancellationToken);
+                _logger.LogInformation(
+                    "Group {CoordinationGroupId}: coordinated operation completed in {DurationMs:0} ms",
+                    group, Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds);
+            }
+            catch (CoordinationAbortedException)
+            {
+                // Called off because a participant failed; already reported where it was noticed.
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation(
+                    "Group {CoordinationGroupId}: coordinated operation cancelled ({Phase})",
+                    group, request.OperationStarted ? "while it ran" : "while waiting for safe points");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    "Group {CoordinationGroupId}: coordinated operation failed: {Reason}", group, ex.Message);
+                throw;
             }
             finally
             {
@@ -258,6 +328,7 @@ public sealed class SafePointCoordinator
                 }
 
                 request.Done.TrySetResult();
+                _logger.LogDebug("Group {CoordinationGroupId}: waiting participants released", group);
             }
         }
         finally
@@ -294,6 +365,13 @@ public sealed class SafePointCoordinator
         }
 
         return g;
+    }
+
+    // Called with the lock held: how many participants the request waits for, and how many of them are safe now.
+    private static (int Required, int Safe) Count(Group g, Request request)
+    {
+        var required = g.Participants.Where(p => IsRequired(g, request, p.Key, includeRemoved: false)).ToList();
+        return (required.Count, required.Count(p => p.Value != ParticipantState.Running));
     }
 
     // Called with the lock held. Completes the request's barrier once every required participant is at a safe point.

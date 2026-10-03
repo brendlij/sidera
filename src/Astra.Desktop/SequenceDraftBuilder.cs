@@ -16,6 +16,7 @@ using Astra.Desktop.ViewModels;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Rigs;
 using Astra.Runtime.Sequencing;
+using Microsoft.Extensions.Logging;
 
 namespace Astra.Desktop;
 
@@ -38,7 +39,8 @@ public sealed record SequenceDraftContext(
     RigRegistry? Rigs = null,
     SharedEquipmentDraft? Shared = null,
     IFocusMetricProvider? FocusMetrics = null,
-    IEventPublisher? Events = null
+    IEventPublisher? Events = null,
+    ILoggerFactory? Loggers = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -396,7 +398,8 @@ public static class SequenceDraftBuilder
     private static List<BuiltStep> GeneratedAutofocus(
         DeviceRegistry registry, AutofocusPlan plan, SequenceDraftContext? context, Orchestration? orchestration, AutofocusOrigin origin)
     {
-        var action = AutofocusAction.ForRig(registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events);
+        var action = AutofocusAction.ForRig(
+            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>());
         var description = new StepDescription(
             "Autofocus", origin == AutofocusOrigin.TrackStart ? "automatic · track start" : "automatic · after filter change");
         var built = new List<BuiltStep> { new(Guid.Empty, description, action, null, IsGenerated: true, AutofocusOrigin: origin) };
@@ -477,7 +480,7 @@ public static class SequenceDraftBuilder
             {
                 if (step is RigExposureStepDraft && counter is not null)
                 {
-                    built.Add(TriggerStep(registry, orchestration, counter));
+                    built.Add(TriggerStep(registry, orchestration, counter, context?.Loggers));
                 }
 
                 if (step is RigExposureStepDraft or DelayStepDraft or RigMoveFocuserStepDraft or RigChangeFilterStepDraft
@@ -503,7 +506,8 @@ public static class SequenceDraftBuilder
     private static BuiltStep Generated(ISequenceStep step, IReadOnlyList<BuiltStep>? children = null) =>
         new(Guid.Empty, new StepDescription(step.Name, string.Empty), step, children, IsGenerated: true);
 
-    private static BuiltStep TriggerStep(DeviceRegistry registry, Orchestration orchestration, FrameCounter counter)
+    private static BuiltStep TriggerStep(
+        DeviceRegistry registry, Orchestration orchestration, FrameCounter counter, ILoggerFactory? loggers)
     {
         var policy = orchestration.Policy;
         var dither = new DitherAction(
@@ -511,7 +515,8 @@ public static class SequenceDraftBuilder
             new GuidingSettleOptions(
                 policy.SettleThresholdPixels,
                 TimeSpan.FromSeconds(policy.SettleStableSeconds),
-                TimeSpan.FromSeconds(policy.SettleTimeoutSeconds)));
+                TimeSpan.FromSeconds(policy.SettleTimeoutSeconds)),
+            loggers?.CreateLogger<DitherAction>());
         return Generated(new DitherEveryNthFrameStep(counter, policy.EveryNFrames, dither), [Generated(dither)]);
     }
 
@@ -548,7 +553,8 @@ public static class SequenceDraftBuilder
             steps.InsertRange(0, GeneratedAutofocus(registry, plan, context, orchestration, AutofocusOrigin.TrackStart));
         }
 
-        var runtime = new RigTrackStep(track.Id, rig.Name, steps.Select(step => step.Step), counter);
+        var runtime = new RigTrackStep(
+            track.Id, rig.Name, steps.Select(step => step.Step), counter, rig.Id, context?.Loggers?.CreateLogger<RigTrackStep>());
         return new BuiltStep(track.Id, DescribeTrack(registry, track, context), runtime, steps);
     }
 
@@ -558,11 +564,11 @@ public static class SequenceDraftBuilder
         AutofocusStepDraft a => AutofocusAction.ForRig(
             registry, TryGetRig(context, a.RigId!.Value, out var autofocusRig) ? autofocusRig : null!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
-            context!.FocusMetrics!, context.Events),
+            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>()),
         RigAutofocusStepDraft a => AutofocusAction.ForRig(
             registry, rig!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
-            context!.FocusMetrics!, context.Events),
+            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>()),
         ExposureStepDraft e => new CameraExposureAction(registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds)),
         RigExposureStepDraft e => new CameraExposureAction(registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds)),
         MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
@@ -580,7 +586,8 @@ public static class SequenceDraftBuilder
             new GuidingSettleOptions(
                 d.SettleThresholdPixels,
                 TimeSpan.FromSeconds(d.SettleStableSeconds),
-                TimeSpan.FromSeconds(d.SettleTimeoutSeconds))),
+                TimeSpan.FromSeconds(d.SettleTimeoutSeconds)),
+            context?.Loggers?.CreateLogger<DitherAction>()),
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
     };
 

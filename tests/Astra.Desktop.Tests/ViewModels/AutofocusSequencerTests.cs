@@ -261,7 +261,7 @@ public class AutofocusSequencerTests
         await app.Sequencer.RunCommand.ExecuteAsync(null).WaitAsync(Bound);
 
         Assert.Equal(SequenceState.Failed, app.Sequencer.State);
-        Assert.Equal("Autofocus failed: no reliable focus minimum was found.", app.Sequencer.ErrorMessage);
+        Assert.StartsWith("Autofocus failed: no reliable focus minimum was found. See the log, execution ", app.Sequencer.ErrorMessage);
         Assert.Equal([AutofocusStatusViewModel.ManualOrigin, "Autofocus stopped"], StatusOf(app, "rig.main")!.Lines);
     }
 

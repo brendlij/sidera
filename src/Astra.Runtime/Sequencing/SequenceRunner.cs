@@ -1,7 +1,11 @@
+using System.Diagnostics;
 using Astra.Core.Coordination;
 using Astra.Core.Sequencing;
 using Astra.Runtime.Coordination;
+using Astra.Runtime.Diagnostics;
 using Astra.Runtime.Resources;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astra.Runtime.Sequencing;
 
@@ -12,12 +16,22 @@ namespace Astra.Runtime.Sequencing;
 /// (state <see cref="SequenceState.Failed"/>, exception rethrown); cancelling the token stops it too
 /// (state <see cref="SequenceState.Cancelled"/>, <see cref="OperationCanceledException"/> rethrown).
 /// A runner can be reused once its previous run has ended.
+/// <para>
+/// Diagnostics: every run gets an <see cref="ExecutionId"/>, a new one per run and not stored anywhere, and everything the
+/// run does is logged in a scope that carries it (<c>SequenceExecutionId</c>), so one run can be followed through the log,
+/// including the steps, resources and coordination it causes. The run itself (started, completed, cancelled, failed with
+/// its exception, pause and resume) and parallel blocks are Information; every step's start and end is Debug. A
+/// cancellation is a normal end, not an error.
+/// </para>
 /// </summary>
 public sealed class SequenceRunner
 {
     private readonly object _gate = new();
     private readonly ResourceManager _resources;
     private readonly SafePointCoordinator _coordinator;
+    private readonly ILogger _logger;
+    private Guid _executionId;
+    private string _executionTag = string.Empty;
     private SequenceState _state = SequenceState.Idle;
     private SequenceExecutionPosition? _currentPosition;
     private readonly List<SequenceExecutionPosition> _active = new();
@@ -34,12 +48,47 @@ public sealed class SequenceRunner
     /// Coordinates the branches of parallel steps that name a coordination group. Like the resource manager it
     /// should normally be the host's, so that all runners of one runtime share it.
     /// </param>
-    public SequenceRunner(ResourceManager? resourceManager = null, SafePointCoordinator? safePointCoordinator = null)
+    /// <param name="logger">Where the run, its steps and its pauses are reported.</param>
+    public SequenceRunner(
+        ResourceManager? resourceManager = null,
+        SafePointCoordinator? safePointCoordinator = null,
+        ILogger<SequenceRunner>? logger = null)
     {
         _resources = resourceManager ?? new ResourceManager();
         _coordinator = safePointCoordinator ?? new SafePointCoordinator();
-        _pause.PhaseChanged += (_, _) => RaiseChanged();
+        _logger = logger ?? NullLogger<SequenceRunner>.Instance;
+        _pause.PhaseChanged += (_, _) =>
+        {
+            if (_pause.Phase == PausePhase.Paused)
+            {
+                using (ExecutionScope())
+                {
+                    _logger.LogInformation("Sequence paused: every branch waits at a step boundary");
+                }
+            }
+
+            RaiseChanged();
+        };
     }
+
+    /// <summary>
+    /// The identity of the run that is in progress, or of the last one: new for every <see cref="RunAsync"/>, never
+    /// stored in a document. <see cref="Guid.Empty"/> before the first run. It is what the log calls the sequence
+    /// execution, in its short form (<see cref="ExecutionTag"/>).
+    /// </summary>
+    public Guid ExecutionId
+    {
+        get { lock (_gate) { return _executionId; } }
+    }
+
+    /// <summary>The short form of <see cref="ExecutionId"/> as it appears in the log, for example <c>8f21c0aa</c>; empty before the first run.</summary>
+    public string ExecutionTag
+    {
+        get { lock (_gate) { return _executionTag; } }
+    }
+
+    // The scope of the run, for what is logged outside the flow of the run itself (a pause requested by the user).
+    private IDisposable? ExecutionScope() => _logger.Begin((LogContext.SequenceExecutionId, ExecutionTag));
 
     /// <summary>
     /// The state of the run. While a run is in progress it is <see cref="SequenceState.Running"/>, and after a pause
@@ -99,7 +148,16 @@ public sealed class SequenceRunner
             }
         }
 
-        return _pause.RequestPause();
+        var requested = _pause.RequestPause();
+        if (requested)
+        {
+            using (ExecutionScope())
+            {
+                _logger.LogInformation("Pause requested: every branch finishes its current step and waits");
+            }
+        }
+
+        return requested;
     }
 
     /// <summary>
@@ -140,7 +198,19 @@ public sealed class SequenceRunner
     /// Lets a paused run continue where it stopped. While the run is still pausing it withdraws the request instead.
     /// Returns false, and changes nothing, if no pause was requested. Cancelling a run never needs a resume.
     /// </summary>
-    public bool Resume() => _pause.Resume();
+    public bool Resume()
+    {
+        var resumed = _pause.Resume();
+        if (resumed)
+        {
+            using (ExecutionScope())
+            {
+                _logger.LogInformation("Resume requested");
+            }
+        }
+
+        return resumed;
+    }
 
     /// <summary>
     /// The execution that started most recently (it keeps its value after it ended); <c>null</c> before the first step.
@@ -201,6 +271,8 @@ public sealed class SequenceRunner
 
             _pause.Reset();
             _pause.AddLines(1); // the top-level sequence is the first line of execution
+            _executionId = Guid.NewGuid();
+            _executionTag = SessionIds.Short(_executionId);
             _state = SequenceState.Running;
             _currentPosition = null;
             _active.Clear();
@@ -209,6 +281,12 @@ public sealed class SequenceRunner
         }
 
         RaiseChanged();
+
+        // The run's scope reaches everything it starts: steps, branches, resource requests, coordination.
+        using var scope = ExecutionScope();
+        var runStarted = Stopwatch.GetTimestamp();
+        _logger.LogInformation(
+            "Sequence {SequenceName} started with {StepCount} top-level steps", sequence.Name, sequence.Steps.Count);
 
         // A coordinated operation that starts while a pause is requested must be able to finish: the branches it waits
         // for are let through their boundaries, see ExecuteStepAsync.
@@ -227,10 +305,18 @@ public sealed class SequenceRunner
             }
 
             SetState(SequenceState.Completed);
+            _logger.LogInformation(
+                "Sequence {SequenceName} completed in {DurationSeconds:0.0} s",
+                sequence.Name, Stopwatch.GetElapsedTime(runStarted).TotalSeconds);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             SetState(SequenceState.Cancelled);
+
+            // The user (or the application) stopped the run: a normal end.
+            _logger.LogInformation(
+                "Sequence {SequenceName} cancelled after {DurationSeconds:0.0} s",
+                sequence.Name, Stopwatch.GetElapsedTime(runStarted).TotalSeconds);
             throw;
         }
         catch (Exception ex)
@@ -241,6 +327,9 @@ public sealed class SequenceRunner
             }
 
             SetState(SequenceState.Failed);
+            _logger.LogError(
+                ex, "Sequence {SequenceName} failed after {DurationSeconds:0.0} s",
+                sequence.Name, Stopwatch.GetElapsedTime(runStarted).TotalSeconds);
             throw;
         }
         finally
@@ -289,6 +378,13 @@ public sealed class SequenceRunner
                         }
                     }
 
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            waiting ? "Step {StepPath} waits at the pause boundary" : "Step {StepPath} is released from the pause boundary",
+                            PathOf(position));
+                    }
+
                     RaiseChanged();
                 },
                 cancellationToken);
@@ -303,6 +399,9 @@ public sealed class SequenceRunner
         RaiseChanged();
 
         SequenceStepResult result;
+        var stepStarted = Stopwatch.GetTimestamp();
+        var path = _logger.IsEnabled(LogLevel.Debug) ? PathOf(position) : string.Empty;
+        _logger.LogDebug("Step {StepPath} started", path);
 
         try
         {
@@ -313,9 +412,27 @@ public sealed class SequenceRunner
             {
                 // Cancelled while waiting for the resource (or just as it was handed over): do not start the step.
                 cancellationToken.ThrowIfCancellationRequested();
+                if (step is ParallelStep parallel)
+                {
+                    _logger.LogInformation(
+                        "Parallel block {StepName} started with {BranchCount} branches (coordination group {CoordinationGroupId})",
+                        step.Name, parallel.Children.Count, parallel.CoordinationGroup?.ToString() ?? "none");
+                }
+
                 result = await step.ExecuteAsync(
                     new StepContext(this, position, branch, insideCoordinatedOperation), cancellationToken);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // How a run is stopped, or a sibling's failure ends the other branches: not an error of this step.
+            LogStepEnd(step, path, "cancelled", stepStarted, null);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogStepEnd(step, path, "failed", stepStarted, ex);
+            throw;
         }
         finally
         {
@@ -328,9 +445,58 @@ public sealed class SequenceRunner
             RaiseChanged();
         }
 
+        LogStepEnd(step, path, "completed", stepStarted, null);
+
         // Reported after the resources are released, so observers never run while holding them.
         RaiseStepCompleted(new SequenceStepCompletedEventArgs(position, result));
         return result;
+    }
+
+    // The end of a step: Debug for every step; a parallel block (the Multi-Rig block) is Information as well. A step that
+    // failed is reported with its reason only: the exception itself is logged once, with its stack trace, by the run.
+    private void LogStepEnd(ISequenceStep step, string path, string outcome, long started, Exception? failure)
+    {
+        var duration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            if (failure is null)
+            {
+                _logger.LogDebug("Step {StepPath} {Outcome} after {DurationMs:0} ms", path, outcome, duration);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Step {StepPath} {Outcome} after {DurationMs:0} ms: {Reason}", path, outcome, duration, failure.Message);
+            }
+        }
+
+        if (step is ParallelStep)
+        {
+            if (failure is not null)
+            {
+                _logger.LogWarning(
+                    "Parallel block {StepName} failed after {DurationSeconds:0.0} s: {Reason}",
+                    step.Name, duration / 1000, failure.Message);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Parallel block {StepName} {Outcome} after {DurationSeconds:0.0} s", step.Name, outcome, duration / 1000);
+            }
+        }
+    }
+
+    // "Multi-Rig Imaging [1/2] > Main Rig [1/2] > Exposure 5 s [3/3]": the step and its parents, with the place in each.
+    private static string PathOf(SequenceExecutionPosition position)
+    {
+        var parts = new List<string>();
+        for (var current = position; current is not null; current = current.Parent)
+        {
+            parts.Add($"{current.StepName} [{current.Index + 1}/{current.Count}]");
+        }
+
+        parts.Reverse();
+        return string.Join(" > ", parts);
     }
 
     private bool IsCoordinationPending(BranchScope? branch) =>
@@ -476,6 +642,10 @@ public sealed class SequenceRunner
             }
 
             var failed = false;
+
+            // This branch's place in the coordination: what it logs, and what its steps log, names the group and itself.
+            using var scope = runner._logger.Begin(
+                (LogContext.CoordinationGroupId, groupId.ToString()), (LogContext.ParticipantId, participant.ToString()));
             try
             {
                 return await runner.ExecuteStepAsync(
