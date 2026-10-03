@@ -129,11 +129,37 @@ public sealed record RigTrackDraft(Guid Id, RigId? RigId, IReadOnlyList<Sequence
 }
 
 /// <summary>
+/// When a Multi-Rig block dithers the shared mount, and how. The frames of the <see cref="TriggerRigId"/> are counted:
+/// after every <see cref="EveryNFrames"/>th exposure of that rig that completed, one dither of the shared mount is
+/// requested, which every other track of the block waits for at a safe point before the mount moves. It says what
+/// the user wants; how that is orchestrated is for the builder. The fields are kept when the policy is not
+/// <see cref="Enabled"/>, and then have no effect.
+/// </summary>
+/// <param name="TriggerRigId">The rig whose frames are counted; <c>null</c> when none is selected. Kept as chosen.</param>
+public sealed record MultiRigDitherPolicyDraft(
+    bool Enabled,
+    RigId? TriggerRigId,
+    int EveryNFrames,
+    double AmplitudePixels,
+    double SettleThresholdPixels,
+    double SettleStableSeconds,
+    double SettleTimeoutSeconds
+)
+{
+    /// <summary>No dithering, with the values a user starts from when switching it on.</summary>
+    public static MultiRigDitherPolicyDraft Default { get; } = new(false, null, 3, 1.5, 0.5, 1, 10);
+}
+
+/// <summary>
 /// Imaging with several rigs of one session at once, one <see cref="RigTrackDraft"/> per rig. The mount and the guider
 /// are shared by the session and are not part of the tracks. A Multi-Rig block is only found at the top level, and
-/// is finished when all of its tracks are.
+/// is finished when all of its tracks are. A <see cref="DitherPolicy"/> of <c>null</c> is the default one: no dithering.
 /// </summary>
-public sealed record MultiRigStepDraft(Guid Id, IReadOnlyList<RigTrackDraft> Tracks) : SequenceStepDraft(Id)
+public sealed record MultiRigStepDraft(
+    Guid Id,
+    IReadOnlyList<RigTrackDraft> Tracks,
+    MultiRigDitherPolicyDraft? DitherPolicy = null
+) : SequenceStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
 

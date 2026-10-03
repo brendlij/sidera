@@ -177,6 +177,19 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 }
 
                 w.WriteEndArray();
+                if (m.DitherPolicy is { } policy)
+                {
+                    w.WriteStartObject("ditherPolicy");
+                    w.WriteBoolean("enabled", policy.Enabled);
+                    Device(w, "triggerRigId", policy.TriggerRigId);
+                    w.WriteNumber("everyNFrames", policy.EveryNFrames);
+                    w.WriteNumber("amplitudePixels", policy.AmplitudePixels);
+                    w.WriteNumber("settleThresholdPixels", policy.SettleThresholdPixels);
+                    w.WriteNumber("settleStableSeconds", policy.SettleStableSeconds);
+                    w.WriteNumber("settleTimeoutSeconds", policy.SettleTimeoutSeconds);
+                    w.WriteEndObject();
+                }
+
                 break;
             case RepeatDocumentStep r:
                 Header(w, RepeatType, r.Id);
@@ -431,7 +444,41 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             tracks.Add(new RigTrackDocument(trackId, rigId, steps));
         }
 
-        return new MultiRigDocumentStep(id, tracks);
+        return new MultiRigDocumentStep(id, tracks, ReadDitherPolicy(element));
+    }
+
+    // Optional: a block without one does not dither. When it is there, it is complete.
+    private static DitherPolicyDocument? ReadDitherPolicy(JsonElement block)
+    {
+        if (!block.TryGetProperty("ditherPolicy", out var policy) || policy.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (policy.ValueKind != JsonValueKind.Object)
+        {
+            throw Structure("'ditherPolicy' must be an object.");
+        }
+
+        if (!policy.TryGetProperty("enabled", out var enabled) || enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            throw Structure("'enabled' of a 'ditherPolicy' must be true or false.");
+        }
+
+        var everyNFrames = ReadNumber(policy, "ditherPolicy", "everyNFrames");
+        if (everyNFrames != Math.Floor(everyNFrames) || Math.Abs(everyNFrames) > int.MaxValue)
+        {
+            throw Structure("'everyNFrames' of a 'ditherPolicy' must be a whole number.");
+        }
+
+        return new DitherPolicyDocument(
+            enabled.GetBoolean(),
+            ReadDevice(policy, "ditherPolicy", "triggerRigId"),
+            (int)everyNFrames,
+            ReadNumber(policy, "ditherPolicy", "amplitudePixels"),
+            ReadNumber(policy, "ditherPolicy", "settleThresholdPixels"),
+            ReadNumber(policy, "ditherPolicy", "settleStableSeconds"),
+            ReadNumber(policy, "ditherPolicy", "settleTimeoutSeconds"));
     }
 
     private static RepeatDocumentStep ReadRepeat(JsonElement element, Guid id, Place place, int version, HashSet<Guid> ids)

@@ -27,7 +27,10 @@ public sealed class RigTrackFailedException(Guid trackId, string trackName, Exce
 /// </summary>
 public sealed class RigTrackStep : ISequenceStep
 {
-    public RigTrackStep(Guid trackId, string name, IEnumerable<ISequenceStep> steps)
+    private readonly FrameCounter? _counter;
+
+    /// <param name="counter">The count of frames of this track, if its frames are counted; set back to zero at every start.</param>
+    public RigTrackStep(Guid trackId, string name, IEnumerable<ISequenceStep> steps, FrameCounter? counter = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(steps);
@@ -46,6 +49,7 @@ public sealed class RigTrackStep : ISequenceStep
         TrackId = trackId;
         Name = name;
         Steps = list;
+        _counter = counter;
     }
 
     public Guid TrackId { get; }
@@ -54,6 +58,7 @@ public sealed class RigTrackStep : ISequenceStep
 
     public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
     {
+        _counter?.Reset();
         var results = new List<SequenceStepResult>(Steps.Count);
 
         try

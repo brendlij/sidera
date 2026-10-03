@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Astra.Core.Coordination;
 using Astra.Core.Devices;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
@@ -52,12 +53,18 @@ public sealed record DraftValidation(
 /// it, in order; the group the runtime needs around several children is an internal detail and has no entry. For a
 /// Multi-Rig block it is the <see cref="ParallelStep"/> and the children are its tracks (a <see cref="RigTrackStep"/>
 /// each, with the built steps of the track as its own children).
+/// <para>
+/// Among the children of a track or of a Repeat there can be steps the builder generated for orchestration, in the
+/// place in which they run (safe points, the dither of a dither policy). They belong to no draft step: they have
+/// <see cref="IsGenerated"/> set and no draft id, and they exist only here, never in the draft or in a document.
+/// </para>
 /// </summary>
 public sealed record BuiltStep(
     Guid DraftId,
     StepDescription Description,
     ISequenceStep Step,
-    IReadOnlyList<BuiltStep>? Children = null
+    IReadOnlyList<BuiltStep>? Children = null,
+    bool IsGenerated = false
 );
 
 /// <summary>
@@ -118,7 +125,9 @@ public static class SequenceDraftBuilder
                 string.Create(CultureInfo.InvariantCulture, $"Repeat × {r.Count}"),
                 r.Children.Count == 0 ? "no steps" : r.Children.Count == 1 ? "1 step" : $"{r.Children.Count} steps"),
             MultiRigStepDraft m => new(
-                MultiRigName, m.Tracks.Count == 0 ? "no rig tracks" : m.Tracks.Count == 1 ? "1 rig track" : $"{m.Tracks.Count} rig tracks"),
+                MultiRigName,
+                (m.Tracks.Count == 0 ? "no rig tracks" : m.Tracks.Count == 1 ? "1 rig track" : $"{m.Tracks.Count} rig tracks")
+                + (m.DitherPolicy is { Enabled: true } policy ? "\n" + DescribePolicy(policy, context) : string.Empty)),
             _ => new(step.Kind.ToString(), string.Empty),
         };
     }
@@ -140,6 +149,18 @@ public static class SequenceDraftBuilder
         return TryGetRig(context, rigId, out var rig)
             ? new(rig.Name, DeviceName(registry, rig.CameraId, "no camera"))
             : new(rigId.Value, "rig not available");
+    }
+
+    // "Dither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s"
+    private static string DescribePolicy(MultiRigDitherPolicyDraft policy, SequenceDraftContext? context)
+    {
+        var rig = policy.TriggerRigId is { } id
+            ? TryGetRig(context, id, out var found) ? found.Name : id.Value
+            : "no rig";
+        var when = policy.EveryNFrames == 1 ? $"after every {rig} frame" : $"every {policy.EveryNFrames} {rig} frames";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Dither {when} · {policy.AmplitudePixels:0.##} px · settle ≤ {policy.SettleThresholdPixels:0.##} px for {policy.SettleStableSeconds:0.##} s");
     }
 
     /// <summary>The number of a step as shown to the user: "2" for a top-level step, "2.1" for the first one in step 2.</summary>
@@ -167,6 +188,12 @@ public static class SequenceDraftBuilder
                     }
 
                     ids.AddRange(track.Steps.SelectMany(inner => inner.DeviceIds));
+                }
+
+                // A dither policy moves the shared mount and uses the shared guider; without one they are not used.
+                if (multiRig.DitherPolicy is { Enabled: true } && context?.Shared is { } shared)
+                {
+                    ids.AddRange(new[] { shared.MountId, shared.GuiderId }.OfType<DeviceId>());
                 }
             }
             else
@@ -243,7 +270,7 @@ public static class SequenceDraftBuilder
 
         try
         {
-            var built = steps.Select(step => BuildStep(registry, step, context, null)).ToList();
+            var built = steps.Select(step => BuildStep(registry, step, context, null, null, null)).ToList();
             return new BuiltSequence(new Sequence(SequenceName, built.Select(b => b.Step)), built);
         }
         catch (Exception ex) when (ex is ArgumentException or OverflowException)
@@ -253,21 +280,42 @@ public static class SequenceDraftBuilder
         }
     }
 
-    // rigCamera: the camera of the rig of the track the step is in; null outside a track.
-    private static BuiltStep BuildStep(DeviceRegistry registry, SequenceStepDraft step, SequenceDraftContext? context, DeviceId? rigCamera)
+    // What a Multi-Rig block with a dither policy is orchestrated with.
+    private sealed record Orchestration(
+        CoordinationGroupId Group,
+        MultiRigDitherPolicyDraft Policy,
+        DeviceId Mount,
+        DeviceId Guider,
+        IReadOnlyList<DeviceId> Cameras
+    );
+
+    // rigCamera: the camera of the rig of the track the step is in; null outside a track. orchestration: that of the block
+    // the step is in, if its policy dithers; counter: the frame counter of the track, if this is the trigger rig's.
+    private static BuiltStep BuildStep(
+        DeviceRegistry registry,
+        SequenceStepDraft step,
+        SequenceDraftContext? context,
+        DeviceId? rigCamera,
+        Orchestration? orchestration,
+        FrameCounter? counter)
     {
         var description = Describe(registry, step, context);
         switch (step)
         {
             case MultiRigStepDraft multiRig:
             {
-                var tracks = multiRig.Tracks.Select(track => BuildTrack(registry, track, context)).ToList();
-                return new BuiltStep(step.Id, description, new ParallelStep(MultiRigName, tracks.Select(t => t.Step)), tracks);
+                var orchestrated = Orchestrate(multiRig, context);
+                var tracks = multiRig.Tracks.Select(track => BuildTrack(registry, track, context, orchestrated)).ToList();
+
+                // With a policy the tracks are the participants of a coordination group, so that a dither of the
+                // shared mount can wait for every one of them. Without one they have nothing to wait for.
+                var parallel = new ParallelStep(MultiRigName, tracks.Select(t => t.Step), orchestrated?.Group);
+                return new BuiltStep(step.Id, description, parallel, tracks);
             }
             case RepeatStepDraft repeat:
             {
                 // A RepeatStep repeats one child; the group makes the children of the draft one.
-                var children = repeat.Children.Select(child => BuildStep(registry, child, context, rigCamera)).ToList();
+                var children = BuildSteps(registry, repeat.Children, context, rigCamera, orchestration, counter);
                 var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step));
                 return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body), children);
             }
@@ -276,12 +324,82 @@ public static class SequenceDraftBuilder
         }
     }
 
-    private static BuiltStep BuildTrack(DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context)
+    // The steps of a track or of a Repeat, and with a policy the orchestration between them: a safe point after each
+    // exposure and each delay (where the track is between two things it does, and can wait for a dither), and after
+    // each exposure of the trigger rig the step that counts it. Safe points only hold a track back while a dither is
+    // pending; otherwise they cost nothing, so the tracks stay independent of each other.
+    private static List<BuiltStep> BuildSteps(
+        DeviceRegistry registry,
+        IReadOnlyList<SequenceStepDraft> steps,
+        SequenceDraftContext? context,
+        DeviceId? rigCamera,
+        Orchestration? orchestration,
+        FrameCounter? counter)
+    {
+        var built = new List<BuiltStep>();
+        foreach (var step in steps)
+        {
+            built.Add(BuildStep(registry, step, context, rigCamera, orchestration, counter));
+            if (orchestration is null)
+            {
+                continue;
+            }
+
+            if (step is RigExposureStepDraft && counter is not null)
+            {
+                built.Add(TriggerStep(registry, orchestration, counter));
+            }
+
+            if (step is RigExposureStepDraft or DelayStepDraft)
+            {
+                built.Add(Generated(new SafePointStep()));
+            }
+        }
+
+        return built;
+    }
+
+    private static BuiltStep Generated(ISequenceStep step, IReadOnlyList<BuiltStep>? children = null) =>
+        new(Guid.Empty, new StepDescription(step.Name, string.Empty), step, children, IsGenerated: true);
+
+    private static BuiltStep TriggerStep(DeviceRegistry registry, Orchestration orchestration, FrameCounter counter)
+    {
+        var policy = orchestration.Policy;
+        var dither = new DitherAction(
+            registry, orchestration.Guider, orchestration.Mount, orchestration.Cameras, policy.AmplitudePixels,
+            new GuidingSettleOptions(
+                policy.SettleThresholdPixels,
+                TimeSpan.FromSeconds(policy.SettleStableSeconds),
+                TimeSpan.FromSeconds(policy.SettleTimeoutSeconds)));
+        return Generated(new DitherEveryNthFrameStep(counter, policy.EveryNFrames, dither), [Generated(dither)]);
+    }
+
+    // Validated before: an enabled policy has a trigger rig of the block, and shared equipment.
+    private static Orchestration? Orchestrate(MultiRigStepDraft multiRig, SequenceDraftContext? context)
+    {
+        if (multiRig.DitherPolicy is not { Enabled: true } policy)
+        {
+            return null;
+        }
+
+        var cameras = multiRig.Tracks
+            .Select(track => TryGetRig(context, track.RigId!.Value, out var rig) ? rig.CameraId : (DeviceId?)null)
+            .OfType<DeviceId>()
+            .Distinct()
+            .ToList();
+        return new Orchestration(
+            new CoordinationGroupId($"multirig.{multiRig.Id:N}"), policy, context!.Shared!.MountId!.Value,
+            context.Shared.GuiderId!.Value, cameras);
+    }
+
+    private static BuiltStep BuildTrack(
+        DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context, Orchestration? orchestration)
     {
         // Validated before: the rig is selected and there.
         TryGetRig(context, track.RigId!.Value, out var rig);
-        var steps = track.Steps.Select(step => BuildStep(registry, step, context, rig.CameraId)).ToList();
-        var runtime = new RigTrackStep(track.Id, rig.Name, steps.Select(step => step.Step));
+        var counter = orchestration is not null && orchestration.Policy.TriggerRigId == track.RigId ? new FrameCounter() : null;
+        var steps = BuildSteps(registry, track.Steps, context, rig.CameraId, orchestration, counter);
+        var runtime = new RigTrackStep(track.Id, rig.Name, steps.Select(step => step.Step), counter);
         return new BuiltStep(track.Id, DescribeTrack(registry, track, context), runtime, steps);
     }
 
@@ -377,7 +495,7 @@ public static class SequenceDraftBuilder
             switch (step)
             {
                 case MultiRigStepDraft multiRig:
-                    MultiRig(multiRig);
+                    MultiRig(multiRig, Label(index));
                     break;
                 case RepeatStepDraft repeat:
                     Repeat(repeat, index, inTrack: false);
@@ -440,12 +558,14 @@ public static class SequenceDraftBuilder
             }
         }
 
-        private void MultiRig(MultiRigStepDraft multiRig)
+        private void MultiRig(MultiRigStepDraft multiRig, string label)
         {
             if (multiRig.Tracks.Count < 2)
             {
                 Report(multiRig.Id, "Multi-Rig Imaging needs at least two Rig Tracks.");
             }
+
+            DitherPolicy(multiRig, label);
 
             var rigs = new HashSet<RigId>();
             var cameras = new HashSet<DeviceId>();
@@ -455,6 +575,84 @@ public static class SequenceDraftBuilder
                 Track(track, rigs, cameras);
             }
         }
+
+        // The dither policy of a block, when it is on: what a dither of the shared mount needs, and a trigger rig that has
+        // frames to count. A policy that is off is not looked at.
+        private void DitherPolicy(MultiRigStepDraft multiRig, string label)
+        {
+            if (multiRig.DitherPolicy is not { Enabled: true } policy)
+            {
+                return;
+            }
+
+            var problems = new List<string>();
+
+            if (_shared?.MountId is null)
+            {
+                problems.Add("Dither needs a shared mount: select one in the shared equipment.");
+            }
+
+            if (_shared?.GuiderId is not { } guiderId)
+            {
+                problems.Add("Dither needs a shared guider: select one in the shared equipment.");
+            }
+            else if (registry.TryGet(guiderId, out var guider) && guider is IGuider)
+            {
+                if (guider is not IDitherGuider)
+                {
+                    problems.Add($"Guider '{guiderId}' does not support dithering.");
+                }
+                else if (guider is not IGuidingSettler)
+                {
+                    problems.Add($"Guider '{guiderId}' does not support settling.");
+                }
+            }
+
+            if (policy.TriggerRigId is not { } trigger)
+            {
+                problems.Add("No trigger rig selected.");
+            }
+            else if (multiRig.Tracks.FirstOrDefault(track => track.RigId == trigger) is not { } triggerTrack)
+            {
+                problems.Add($"The trigger rig '{trigger}' is not a track of this block.");
+            }
+            else if (!HasExposureToCount(triggerTrack))
+            {
+                problems.Add($"The trigger rig '{trigger}' has no exposure to count: dithering would never start.");
+            }
+
+            if (policy.EveryNFrames < 1)
+            {
+                problems.Add("Dither interval must be at least 1 frame.");
+            }
+
+            var usable = IsPositive(policy.SettleThresholdPixels) && IsPositive(policy.SettleStableSeconds)
+                && IsPositive(policy.SettleTimeoutSeconds);
+            CheckPositive(policy.AmplitudePixels, "Dither amplitude", "px", problems);
+            CheckPositive(policy.SettleThresholdPixels, "Settle threshold", "px", problems);
+            CheckPositive(policy.SettleStableSeconds, "Settle stable time", "s", problems);
+            CheckPositive(policy.SettleTimeoutSeconds, "Settle timeout", "s", problems);
+            if (usable && policy.SettleTimeoutSeconds <= policy.SettleStableSeconds)
+            {
+                problems.Add("Settle timeout must be longer than the stable time.");
+            }
+
+            problems.ForEach(p => Report(multiRig.Id, p));
+
+            // The dither is as much a dither of the shared guider as a Dither step: it needs guiding, which an earlier
+            // Stop Guiding of the sequence has ended.
+            if (_shared?.GuiderId is { } guiding)
+            {
+                ValidateGuidingOrder(
+                    new DitherStepDraft(multiRig.Id, guiding, _shared.MountId, null, 1, 1, 1, 2),
+                    label, -1, 0, p => Report(multiRig.Id, p));
+            }
+        }
+
+        // An exposure the track will really make: one of its own, or one inside a Repeat that runs at least once.
+        private static bool HasExposureToCount(RigTrackDraft track) =>
+            track.Steps.Any(step => step is RigExposureStepDraft
+                || step is RepeatStepDraft { Count: >= 1 } repeat && repeat.Children.Any(child => child is RigExposureStepDraft));
 
         private void Track(RigTrackDraft track, HashSet<RigId> rigs, HashSet<DeviceId> cameras)
         {

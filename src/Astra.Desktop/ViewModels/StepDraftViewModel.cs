@@ -7,6 +7,7 @@ using System.Linq;
 using Astra.Core.Devices;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
+using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -208,17 +209,115 @@ public sealed partial class RepeatStepDraftViewModel : ContainerStepDraftViewMod
 /// Imaging with several rigs at once. Its children are the Rig Tracks, one per rig; the mount and guider they share
 /// are those of the session, not of the block.
 /// </summary>
-public sealed class MultiRigStepDraftViewModel : ContainerStepDraftViewModel
+public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewModel
 {
-    public MultiRigStepDraftViewModel(MultiRigStepDraft draft, IEnumerable<StepDraftViewModel> tracks)
+    private readonly bool _constructed;
+
+    public MultiRigStepDraftViewModel(MultiRigStepDraft draft, IEnumerable<StepDraftViewModel> tracks, RigPickerViewModel triggerRig)
         : base(draft.Id, tracks)
     {
+        var policy = draft.DitherPolicy ?? MultiRigDitherPolicyDraft.Default;
+        DitherEnabled = policy.Enabled;
+        DitherEveryText = policy.EveryNFrames.ToString(CultureInfo.InvariantCulture);
+        DitherAmplitudeText = Format(policy.AmplitudePixels);
+        DitherSettleThresholdText = Format(policy.SettleThresholdPixels);
+        DitherSettleStableText = Format(policy.SettleStableSeconds);
+        DitherSettleTimeoutText = Format(policy.SettleTimeoutSeconds);
+
+        // Only the rigs of the tracks can trigger.
+        TriggerRig = triggerRig;
+        triggerRig.LimitTo = TrackRigIds;
+        triggerRig.Changed += (_, _) => NotifyEdited();
+        _constructed = true;
     }
 
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
 
+    /// <summary>The rig whose frames are counted for the dither policy: one of the rigs of the tracks.</summary>
+    public RigPickerViewModel TriggerRig { get; }
+
+    /// <summary>The block dithers the shared mount (the other fields only count when it is on).</summary>
+    [ObservableProperty]
+    public partial bool DitherEnabled { get; set; }
+
+    /// <summary>A dither is requested after this many completed frames of the trigger rig.</summary>
+    [ObservableProperty]
+    public partial string DitherEveryText { get; set; } = string.Empty;
+
+    /// <summary>Dither amplitude in guide camera pixels.</summary>
+    [ObservableProperty]
+    public partial string DitherAmplitudeText { get; set; } = string.Empty;
+
+    /// <summary>Guide error, in guide camera pixels, at or below which guiding counts as settled.</summary>
+    [ObservableProperty]
+    public partial string DitherSettleThresholdText { get; set; } = string.Empty;
+
+    /// <summary>How long the guide error must stay within the threshold, in seconds.</summary>
+    [ObservableProperty]
+    public partial string DitherSettleStableText { get; set; } = string.Empty;
+
+    /// <summary>How long to wait for guiding to settle before giving up, in seconds.</summary>
+    [ObservableProperty]
+    public partial string DitherSettleTimeoutText { get; set; } = string.Empty;
+
+    internal override IEnumerable<RigPickerViewModel> RigPickers => [TriggerRig];
+
+    partial void OnDitherEnabledChanged(bool value)
+    {
+        if (!_constructed)
+        {
+            return;
+        }
+
+        // Switching it on with no trigger yet starts from the first track, which is easy to change.
+        if (value && TriggerRig.SelectedId is null
+            && Children.OfType<RigTrackDraftViewModel>().Select(track => track.Rig.SelectedId).FirstOrDefault(id => id is not null) is { } first)
+        {
+            TriggerRig.Refresh();
+            TriggerRig.Reset(first);
+        }
+
+        NotifyEdited();
+    }
+
+    // The rigs of the tracks, as far as they are selected.
+    private IReadOnlySet<RigId> TrackRigIds() =>
+        Children.OfType<RigTrackDraftViewModel>().Select(track => track.Rig.SelectedId).OfType<RigId>().ToHashSet();
+
+    /// <summary>
+    /// The policy as the fields say it. A field that is no number reads as a stand-in and is reported, as long as the
+    /// policy is on; a policy that is off is not looked at, so a field of it that is no number reads as its default.
+    /// </summary>
+    internal MultiRigDitherPolicyDraft ReadPolicy(List<string> parseErrors)
+    {
+        var defaults = MultiRigDitherPolicyDraft.Default;
+        var errors = DitherEnabled ? parseErrors : [];
+        var on = DitherEnabled;
+
+        var everyText = DitherEveryText?.Trim();
+        var every = int.TryParse(everyText, NumberStyles.Integer, CultureInfo.CurrentCulture, out var count)
+            || int.TryParse(everyText, NumberStyles.Integer, CultureInfo.InvariantCulture, out count)
+                ? count
+                : ReportInterval(errors, on ? 1 : defaults.EveryNFrames);
+
+        return new MultiRigDitherPolicyDraft(
+            on,
+            TriggerRig.SelectedId,
+            every,
+            ParseNumber(DitherAmplitudeText, "Dither amplitude", "a number of pixels", errors, on ? 1 : defaults.AmplitudePixels),
+            ParseNumber(DitherSettleThresholdText, "Settle threshold", "a number of pixels", errors, on ? 1 : defaults.SettleThresholdPixels),
+            ParseNumber(DitherSettleStableText, "Settle stable time", "a number of seconds", errors, on ? double.Epsilon : defaults.SettleStableSeconds),
+            ParseNumber(DitherSettleTimeoutText, "Settle timeout", "a number of seconds", errors, on ? double.MaxValue : defaults.SettleTimeoutSeconds));
+    }
+
+    private static int ReportInterval(List<string> errors, int standIn)
+    {
+        errors.Add("Dither interval must be a whole number of frames.");
+        return standIn;
+    }
+
     // Without its tracks: the draft view model reads those.
-    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, []);
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors));
 }
 
 /// <summary>

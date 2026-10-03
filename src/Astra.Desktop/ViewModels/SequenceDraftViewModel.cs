@@ -204,6 +204,12 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     /// <summary>Reads all fields again and validates. Also catches a device that disappeared since the last time.</summary>
     public void Revalidate()
     {
+        // The rigs a block can be triggered by are those of its tracks, which may have just changed.
+        foreach (var block in Rows.OfType<MultiRigStepDraftViewModel>())
+        {
+            block.TriggerRig.Refresh();
+        }
+
         var parseErrors = new Dictionary<Guid, IReadOnlyList<string>>();
         var drafts = ReadAll(parseErrors);
         HasUnreadableFields = parseErrors.Count > 0;
@@ -638,7 +644,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                 break;
             case MultiRigStepDraftViewModel multiRig:
                 draft = new MultiRigStepDraft(
-                    multiRig.Id, multiRig.Children.Select(track => (RigTrackDraft)ReadStep(track, parseErrors)).ToList());
+                    multiRig.Id,
+                    multiRig.Children.Select(track => (RigTrackDraft)ReadStep(track, parseErrors)).ToList(),
+                    multiRig.ReadPolicy(errors));
                 break;
             default:
                 draft = step.Read(errors);
@@ -723,7 +731,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     private StepDraftViewModel CreateViewModel(SequenceStepDraft draft) => draft switch
     {
-        MultiRigStepDraft m => new MultiRigStepDraftViewModel(m, m.Tracks.Select(CreateViewModel)),
+        MultiRigStepDraft m => new MultiRigStepDraftViewModel(
+            m, m.Tracks.Select(CreateViewModel), new RigPickerViewModel(_rigs, _registry, m.DitherPolicy?.TriggerRigId)),
         RigTrackDraft t => new RigTrackDraftViewModel(
             t, t.Steps.Select(CreateViewModel), new RigPickerViewModel(_rigs, _registry, t.RigId)),
         RepeatStepDraft r => new RepeatStepDraftViewModel(r, r.Children.Select(CreateLeafViewModel)),

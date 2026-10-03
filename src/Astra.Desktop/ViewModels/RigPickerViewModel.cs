@@ -42,6 +42,9 @@ public sealed partial class RigPickerViewModel : ObservableObject
         _refreshing = false;
     }
 
+    /// <summary>When set, only these rigs are offered (and a selected rig that is not among them shows as missing).</summary>
+    public Func<IReadOnlySet<RigId>>? LimitTo { get; set; }
+
     public IReadOnlyList<RigOption> Options { get; private set; }
 
     [ObservableProperty]
@@ -89,7 +92,9 @@ public sealed partial class RigPickerViewModel : ObservableObject
 
     private List<RigOption> BuildOptions(RigId? selected)
     {
+        var limit = LimitTo?.Invoke();
         var options = (_rigs?.GetAll() ?? [])
+            .Where(rig => limit is null || limit.Contains(rig.Id))
             .OrderBy(rig => rig.Id.Value, StringComparer.Ordinal)
             .Select(rig => new RigOption(rig.Id, rig.Name, CameraName(rig.CameraId)))
             .ToList();

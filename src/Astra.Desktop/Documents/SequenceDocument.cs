@@ -71,8 +71,26 @@ public sealed record RigExposureDocumentStep(Guid Id, double ExposureSeconds) : 
 /// <summary>One rig of a Multi-Rig block: the rig (an id, or <c>null</c>) and what runs on it, in order.</summary>
 public sealed record RigTrackDocument(Guid Id, string? RigId, IReadOnlyList<DocumentStep> Steps);
 
+/// <summary>
+/// When the block dithers the shared mount, and how: see <c>MultiRigDitherPolicyDraft</c>. The rig is an id, or
+/// <c>null</c>. A block without a policy does not dither.
+/// </summary>
+public sealed record DitherPolicyDocument(
+    bool Enabled,
+    string? TriggerRigId,
+    int EveryNFrames,
+    double AmplitudePixels,
+    double SettleThresholdPixels,
+    double SettleStableSeconds,
+    double SettleTimeoutSeconds
+);
+
 /// <summary>Imaging with several rigs at once; only found at the top level. Added in version 2.</summary>
-public sealed record MultiRigDocumentStep(Guid Id, IReadOnlyList<RigTrackDocument> Tracks) : DocumentStep(Id);
+public sealed record MultiRigDocumentStep(
+    Guid Id,
+    IReadOnlyList<RigTrackDocument> Tracks,
+    DitherPolicyDocument? DitherPolicy = null
+) : DocumentStep(Id);
 
 public enum SequenceDocumentErrorKind
 {

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -262,12 +263,37 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
     // A built step as nodes that mirror the runtime tree, so that running positions can be followed through it:
     // a Repeat is the runtime RepeatStep with the group the builder put around its steps (the group is not listed);
-    // a Multi-Rig block is the ParallelStep with a node for each Rig Track, which runs like a group.
+    // a Multi-Rig block is the ParallelStep with a node for each Rig Track, which runs like a group; the steps the
+    // builder generated for orchestration (safe points, a dither) are nodes that are not listed, at the index at
+    // which they run, so that every running position finds its node.
     private static SequenceNode SnapshotNode(BuiltStep step, int[] path, int depth)
     {
         var label = SequenceDraftBuilder.Label(path);
         var numberLabel = depth == 0 ? $"{label}." : label;
         var description = step.Description;
+
+        // The children of a container: listed ones are numbered among themselves, generated ones are not numbered.
+        void AddChildren(SequenceNode parent, IReadOnlyList<BuiltStep> children, int childDepth)
+        {
+            var listed = 0;
+            foreach (var child in children)
+            {
+                parent.Children.Add(SnapshotNode(child, child.IsGenerated ? path : [.. path, listed++], childDepth));
+            }
+        }
+
+        if (step.IsGenerated)
+        {
+            var hidden = new SequenceNode(
+                step.Step, step.Children is null ? SequenceNodeKind.Step : SequenceNodeKind.Group, description.Title,
+                string.Empty, null, depth, isHidden: true);
+            foreach (var child in step.Children ?? [])
+            {
+                hidden.Children.Add(SnapshotNode(child, path, depth));
+            }
+
+            return hidden;
+        }
 
         switch (step)
         {
@@ -276,11 +302,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
                 var node = new SequenceNode(
                     repeat, SequenceNodeKind.Repeat, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
                 var group = new SequenceNode(body, SequenceNodeKind.Group, body.Name, string.Empty, null, depth + 1, isHidden: true);
-                for (var j = 0; j < children.Count; j++)
-                {
-                    group.Children.Add(SnapshotNode(children[j], [.. path, j], depth + 1));
-                }
-
+                AddChildren(group, children, depth + 1);
                 node.Children.Add(group);
                 return node;
             }
@@ -288,22 +310,14 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             {
                 var node = new SequenceNode(
                     parallel, SequenceNodeKind.Parallel, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
-                for (var t = 0; t < tracks.Count; t++)
-                {
-                    node.Children.Add(SnapshotNode(tracks[t], [.. path, t], depth + 1));
-                }
-
+                AddChildren(node, tracks, depth + 1);
                 return node;
             }
             case { Step: RigTrackStep track, Children: { } steps }:
             {
                 var node = new SequenceNode(
                     track, SequenceNodeKind.Group, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
-                for (var s = 0; s < steps.Count; s++)
-                {
-                    node.Children.Add(SnapshotNode(steps[s], [.. path, s], depth + 1));
-                }
-
+                AddChildren(node, steps, depth + 1);
                 return node;
             }
             default:
@@ -397,6 +411,16 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     public partial IReadOnlyList<ActiveBranchViewModel> ActiveBranches { get; private set; } = [];
 
     public bool HasActiveBranches => ActiveBranches.Count > 0;
+
+    /// <summary>
+    /// What the whole session is doing that no single track does: a dither of the shared mount that is waiting for the
+    /// tracks to be at a safe point, being made, or settling. Read from the running positions; <c>null</c> otherwise.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSharedActivity))]
+    public partial string? SharedActivity { get; private set; }
+
+    public bool HasSharedActivity => SharedActivity is not null;
 
     /// <summary>
     /// The position is shown as lines of its own only while no branch shows it: every active branch already carries
@@ -599,7 +623,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             StepText = text;
         }
 
-        var branches = BuildBranches(active);
+        var dither = ReadDither(active);
+        SharedActivity = dither?.Text;
+        var branches = BuildBranches(active, dither is not null);
         if (!branches.SequenceEqual(ActiveBranches))
         {
             ActiveBranches = branches;
@@ -612,7 +638,61 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     /// <summary>Raised on the UI thread each time the execution state was read again.</summary>
     public event EventHandler? ExecutionRefreshed;
 
-    private List<ActiveBranchViewModel> BuildBranches(IReadOnlyCollection<SequenceExecutionPosition> active)
+    // How far the dither that is running now has got, and who is still to arrive: from the positions alone. A dither is
+    // pending from the moment its step starts until its command runs; the tracks that have not reached a safe point
+    // are those whose innermost running step is something else than a safe point.
+    private DitherState? ReadDither(IReadOnlyCollection<SequenceExecutionPosition> active)
+    {
+        DitherState? state = null;
+        foreach (var position in active)
+        {
+            var resolved = Resolve(position);
+            if (resolved.Node?.Step is not DitherAction dither)
+            {
+                continue;
+            }
+
+            var stage = resolved.Exact ? 0 : resolved.InternalName?.StartsWith("Settle", StringComparison.Ordinal) == true ? 2 : 1;
+            if (state is not null && state.Stage >= stage)
+            {
+                continue;
+            }
+
+            var text = stage switch
+            {
+                1 => string.Create(CultureInfo.InvariantCulture, $"Dithering · {dither.AmplitudePixels:0.##} px"),
+                2 when dither.SettleOptions is { } settle => string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Settling · ≤ {settle.MaximumErrorPixels:0.##} px for {settle.StableDuration.TotalSeconds:0.##} s"),
+                2 => "Settling",
+                _ => "Dither pending",
+            };
+
+            if (stage == 0 && resolved.BranchName is { } requester)
+            {
+                // Tracks whose innermost step is not a safe point still have to get there.
+                var busy = active
+                    .Where(p => !active.Any(other => Equals(other.Parent, p)))
+                    .Select(Resolve)
+                    .Where(r => r.BranchName is not null && r.BranchName != requester && r.Node?.Step is not SafePointStep)
+                    .Select(r => r.BranchName)
+                    .Distinct()
+                    .Count();
+                if (busy > 0)
+                {
+                    text += $" · waiting for {busy} {(busy == 1 ? "rig" : "rigs")}";
+                }
+            }
+
+            state = new DitherState(stage, text);
+        }
+
+        return state;
+    }
+
+    private sealed record DitherState(int Stage, string Text);
+
+    private List<ActiveBranchViewModel> BuildBranches(IReadOnlyCollection<SequenceExecutionPosition> active, bool ditherPending)
     {
         var branches = new List<ActiveBranchViewModel>();
         var waiting = _runner.PausedPositions;
@@ -628,7 +708,13 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             var camera = resolved is { Exact: true, Node.Step: CameraExposureAction exposure }
                 ? _cameras.FirstOrDefault(c => c.CameraId == exposure.CameraId)
                 : null;
-            branches.Add(new ActiveBranchViewModel(resolved.BranchName ?? string.Empty, leaf.StepName, context, camera));
+            // A track at a safe point while a dither is pending is waiting for it, not "at a safe point"; the track that
+            // asked is waiting for the others for as long as its dither has not started.
+            var title = resolved is { Exact: true, Node.Step: DitherAction }
+                        || ditherPending && resolved is { Exact: true, Node.Step: SafePointStep }
+                ? "Waiting for coordinated dither"
+                : leaf.StepName;
+            branches.Add(new ActiveBranchViewModel(resolved.BranchName ?? string.Empty, title, context, camera));
         }
 
         foreach (var next in waiting)

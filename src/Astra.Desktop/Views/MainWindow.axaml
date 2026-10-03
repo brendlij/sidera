@@ -45,6 +45,11 @@
         <DataTemplate x:Key="SequenceRunPanel" x:DataType="vm:SequencerViewModel">
             <StackPanel Spacing="18">
                 <TextBlock Text="{Binding ReadinessHint}" IsVisible="{Binding HasReadinessHint}" TextWrapping="Wrap" Classes="muted" />
+                <!-- What the whole session does at the moment: a dither of the shared mount, from the running positions -->
+                <StackPanel Spacing="2" IsVisible="{Binding HasSharedActivity}">
+                    <TextBlock Classes="section" Text="SHARED" />
+                    <TextBlock Classes="current" Text="{Binding SharedActivity}" TextWrapping="Wrap" />
+                </StackPanel>
                 <!-- Live execution: nested position, current step, exposure progress -->
                 <StackPanel Spacing="6" IsVisible="{Binding ShowStatusLines}">
                     <ItemsControl ItemsSource="{Binding StatusLines}">
@@ -368,7 +373,42 @@
             <StackPanel Spacing="14">
                 <TextBlock Classes="title" Text="Multi-Rig Imaging" />
                 <TextBlock Classes="muted" TextWrapping="Wrap"
-                           Text="Each Rig Track images with one rig, at the same time as the others. The mount and the guider are shared by the session: slewing, guiding and dithering stay outside, before and after. Dither inside Multi-Rig Imaging, which has to wait for every rig, comes with a later version. The block ends when every track has ended." />
+                           Text="Each Rig Track images with one rig, at the same time as the others. The mount and the guider are shared by the session: slewing and guiding stay outside, before and after. The block ends when every track has ended." />
+
+                <!-- When the block dithers the shared mount: Astra makes the tracks wait for each other, the user says when -->
+                <TextBlock Classes="section" Text="DITHER POLICY" Margin="0,6,0,0" />
+                <CheckBox Content="Enabled" IsChecked="{Binding DitherEnabled}" />
+                <StackPanel Spacing="14" IsEnabled="{Binding DitherEnabled}">
+                    <TextBlock Classes="muted" Text="Trigger" />
+                    <ContentControl Content="{Binding TriggerRig}" />
+                    <Grid ColumnDefinitions="*,110,60">
+                        <TextBlock Text="Every" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherEveryText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="frames" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,60">
+                        <TextBlock Text="Amplitude" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherAmplitudeText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,60">
+                        <TextBlock Text="Settle threshold" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherSettleThresholdText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,60">
+                        <TextBlock Text="Stable for" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherSettleStableText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,60">
+                        <TextBlock Text="Timeout" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherSettleTimeoutText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="After this many completed frames of the trigger rig, every rig finishes what it is doing and waits; then the shared mount dithers, guiding settles, and all rigs go on." />
+                </StackPanel>
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
             </StackPanel>
         </DataTemplate>
