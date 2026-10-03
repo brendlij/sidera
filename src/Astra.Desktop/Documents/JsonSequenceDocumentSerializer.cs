@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Astra.Desktop.Documents;
 
 /// <summary>
-/// Versions 1 to 4 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
+/// Versions 1 to 5 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
 /// place that knows that: the property names, the step discriminators and the JSON parsing rules below are the
 /// version 1 file format, and nothing else in Astra should depend on them.
 /// <para>
@@ -31,7 +31,9 @@ namespace Astra.Desktop.Documents;
 /// filter wheel steps (<c>moveFocuser</c> and <c>changeFilter</c> with the device, <c>rigMoveFocuser</c> and
 /// <c>rigChangeFilter</c> inside a rig track, where the track's rig is the device); version 4 adds autofocus
 /// (<c>autofocus</c> with a <c>rigId</c>, <c>rigAutofocus</c> inside a rig track on the track's rig). An older document
-/// is read by the same code with the later additions switched off, so it means exactly what it did.
+/// is read by the same code with the later additions switched off, so it means exactly what it did. Version 5 adds the
+/// <c>autofocusPolicy</c> of a rig track; it is read only from a version 5 document, so that a document of an older
+/// version means what it meant.
 /// </para>
 /// </summary>
 public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
@@ -217,6 +219,18 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                     }
 
                     w.WriteEndArray();
+                    if (track.AutofocusPolicy is { } autofocus)
+                    {
+                        w.WriteStartObject("autofocusPolicy");
+                        w.WriteBoolean("enabled", autofocus.Enabled);
+                        w.WriteBoolean("atTrackStart", autofocus.AtTrackStart);
+                        w.WriteBoolean("afterFilterChange", autofocus.AfterFilterChange);
+                        w.WriteNumber("exposureSeconds", autofocus.ExposureSeconds);
+                        w.WriteNumber("stepSize", autofocus.StepSize);
+                        w.WriteNumber("samples", autofocus.SampleCount);
+                        w.WriteEndObject();
+                    }
+
                     w.WriteEndObject();
                 }
 
@@ -319,7 +333,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 or 2 or 3 or 4 => ReadBody(root, version),
+            1 or 2 or 3 or 4 or 5 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Astra version."),
         };
@@ -500,10 +514,37 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 steps.Add(ReadStep(step, Place.InTrack, version, ids));
             }
 
-            tracks.Add(new RigTrackDocument(trackId, rigId, steps));
+            tracks.Add(new RigTrackDocument(trackId, rigId, steps, ReadAutofocusPolicy(track, version)));
         }
 
         return new MultiRigDocumentStep(id, tracks, ReadDitherPolicy(element));
+    }
+
+    // Optional, and only in version 5: a track without one does not focus by itself. When it is there, it is complete.
+    private static AutofocusPolicyDocument? ReadAutofocusPolicy(JsonElement track, int version)
+    {
+        if (version < 5 || !track.TryGetProperty("autofocusPolicy", out var policy) || policy.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (policy.ValueKind != JsonValueKind.Object)
+        {
+            throw Structure("'autofocusPolicy' must be an object.");
+        }
+
+        bool Flag(string name) =>
+            policy.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? value.GetBoolean()
+                : throw Structure($"'{name}' of an 'autofocusPolicy' must be true or false.");
+
+        return new AutofocusPolicyDocument(
+            Flag("enabled"),
+            Flag("atTrackStart"),
+            Flag("afterFilterChange"),
+            ReadNumber(policy, "autofocusPolicy", "exposureSeconds"),
+            ReadWhole(policy, "autofocusPolicy", "stepSize"),
+            ReadWhole(policy, "autofocusPolicy", "samples"));
     }
 
     // Optional: a block without one does not dither. When it is there, it is complete.

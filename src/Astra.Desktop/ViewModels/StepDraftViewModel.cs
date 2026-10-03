@@ -346,13 +346,81 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
 /// One Rig Track: the rig it images with, and the steps that run on it. What a rig has (today: its camera) is what the
 /// steps of the track use, so those steps select no equipment of their own.
 /// </summary>
-public sealed class RigTrackDraftViewModel : ContainerStepDraftViewModel
+public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
 {
+    private readonly bool _constructed;
+
     public RigTrackDraftViewModel(RigTrackDraft draft, IEnumerable<StepDraftViewModel> steps, RigPickerViewModel rig)
         : base(draft.Id, steps)
     {
         Rig = rig;
         rig.Changed += (_, _) => NotifyEdited();
+
+        var policy = draft.AutofocusPolicy ?? RigAutofocusPolicyDraft.Default;
+        AutofocusEnabled = policy.Enabled;
+        AutofocusAtStart = policy.AtTrackStart;
+        AutofocusAfterFilterChange = policy.AfterFilterChange;
+        AutofocusExposureText = Format(policy.ExposureSeconds);
+        AutofocusStepSizeText = policy.StepSize.ToString(CultureInfo.InvariantCulture);
+        AutofocusSamplesText = policy.SampleCount.ToString(CultureInfo.InvariantCulture);
+        _constructed = true;
+    }
+
+    /// <summary>The rig of this track focuses by itself (the triggers and settings only count when it is on).</summary>
+    [ObservableProperty]
+    public partial bool AutofocusEnabled { get; set; }
+
+    /// <summary>Focus once at the start of the track.</summary>
+    [ObservableProperty]
+    public partial bool AutofocusAtStart { get; set; }
+
+    /// <summary>Focus after every Change Filter step of the track.</summary>
+    [ObservableProperty]
+    public partial bool AutofocusAfterFilterChange { get; set; }
+
+    /// <summary>The exposure at each sample position, in seconds.</summary>
+    [ObservableProperty]
+    public partial string AutofocusExposureText { get; set; } = string.Empty;
+
+    /// <summary>The distance between two sample positions, in focuser steps.</summary>
+    [ObservableProperty]
+    public partial string AutofocusStepSizeText { get; set; } = string.Empty;
+
+    /// <summary>How many positions are sampled; odd.</summary>
+    [ObservableProperty]
+    public partial string AutofocusSamplesText { get; set; } = string.Empty;
+
+    partial void OnAutofocusEnabledChanged(bool value) => EditedByUser();
+
+    partial void OnAutofocusAtStartChanged(bool value) => EditedByUser();
+
+    partial void OnAutofocusAfterFilterChangeChanged(bool value) => EditedByUser();
+
+    private void EditedByUser()
+    {
+        if (_constructed)
+        {
+            NotifyEdited();
+        }
+    }
+
+    /// <summary>
+    /// The policy as the fields say it. A field that is no number reads as a stand-in and is reported, as long as the
+    /// policy is on; a policy that is off is not looked at, so a field of it that is no number reads as its default.
+    /// </summary>
+    internal RigAutofocusPolicyDraft ReadPolicy(List<string> parseErrors)
+    {
+        var defaults = RigAutofocusPolicyDraft.Default;
+        var on = AutofocusEnabled;
+        var errors = on ? parseErrors : [];
+
+        return new RigAutofocusPolicyDraft(
+            on,
+            AutofocusAtStart,
+            AutofocusAfterFilterChange,
+            ParseNumber(AutofocusExposureText, "Autofocus exposure", "a number of seconds", errors, on ? 1 : defaults.ExposureSeconds),
+            ParseWhole(AutofocusStepSizeText, "Autofocus step size", errors, on ? 1 : defaults.StepSize),
+            ParseWhole(AutofocusSamplesText, "Autofocus samples", errors, on ? AutofocusOptions.MinimumSampleCount : defaults.SampleCount));
     }
 
     public override SequenceStepKind Kind => SequenceStepKind.RigTrack;
@@ -362,7 +430,8 @@ public sealed class RigTrackDraftViewModel : ContainerStepDraftViewModel
     internal override IEnumerable<RigPickerViewModel> RigPickers => [Rig];
 
     // Without its steps: the draft view model reads those.
-    internal override SequenceStepDraft Read(List<string> parseErrors) => new RigTrackDraft(Id, Rig.SelectedId, []);
+    internal override SequenceStepDraft Read(List<string> parseErrors) =>
+        new RigTrackDraft(Id, Rig.SelectedId, [], ReadPolicy(parseErrors));
 }
 
 /// <summary>An exposure inside a Rig Track; its camera is that of the rig of the track.</summary>

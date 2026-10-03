@@ -144,7 +144,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         var root = json.RootElement;
 
         Assert.Equal("astra-sequence", root.GetProperty("format").GetString());
-        Assert.Equal(4, root.GetProperty("version").GetInt32());
+        Assert.Equal(5, root.GetProperty("version").GetInt32());
         Assert.Equal(["format", "version", "name", "sharedEquipment", "steps"], root.EnumerateObject().Select(p => p.Name));
         var shared = root.GetProperty("sharedEquipment");
         Assert.Equal("mount.eq6", shared.GetProperty("mountId").GetString());
@@ -221,7 +221,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         var rewritten = await Write(loaded);
         using var json = JsonDocument.Parse(rewritten);
 
-        Assert.Equal(4, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
         Assert.False(json.RootElement.TryGetProperty("sharedEquipment", out _)); // it never said anything about it
         var again = await Read(rewritten);
         Assert.Equal(loaded.Steps.Select(s => s.Id), again.Steps.Select(s => s.Id));
@@ -251,10 +251,10 @@ public sealed class MultiRigDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData("5")]
     [InlineData("6")]
+    [InlineData("7")]
     [InlineData("100")]
-    public async Task ANewerVersionThanFour_IsRejectedAsBefore(string version)
+    public async Task ANewerVersionThanFive_IsRejectedAsBefore(string version)
     {
         var ex = await Rejects("{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[]}");
 
@@ -476,7 +476,7 @@ public sealed class MultiRigDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 4,
+              "version": 5,
               "name": "Three Telescopes",
               "sharedEquipment": {
                 "mountId": "mount.eq6",
@@ -672,7 +672,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Three.astraseq"));
-        Assert.Contains("\"version\": 4", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 5", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"multiRig\"", text, StringComparison.Ordinal);
         Assert.Contains("\"mountId\": \"mount.eq6\"", text, StringComparison.Ordinal);
 
@@ -714,7 +714,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         app.Draft.Steps.OfType<RepeatStepDraftViewModel>().Single().CountText = "4";
         await app.Document.SaveCommand.ExecuteAsync(null);
         var saved = await File.ReadAllTextAsync(PathOf("Old.astraseq"));
-        Assert.Contains("\"version\": 4", saved, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 5", saved, StringComparison.Ordinal);
         Assert.Contains("\"count\": 4", saved, StringComparison.Ordinal);
     }
 

@@ -552,6 +552,31 @@
                 <TextBlock Classes="muted" Text="Rig" />
                 <ContentControl Content="{Binding Rig}" />
                 <TextBlock Classes="muted" Text="{Binding Summary}" />
+
+                <!-- When the rig of this track focuses by itself: the user says when, the build puts the autofocus there -->
+                <TextBlock Classes="section" Text="AUTOFOCUS POLICY" Margin="0,6,0,0" />
+                <CheckBox Content="Enabled" IsChecked="{Binding AutofocusEnabled}" />
+                <StackPanel Spacing="10" IsEnabled="{Binding AutofocusEnabled}">
+                    <TextBlock Classes="muted" Text="Triggers" />
+                    <CheckBox Content="At track start" IsChecked="{Binding AutofocusAtStart}" />
+                    <CheckBox Content="After filter change" IsChecked="{Binding AutofocusAfterFilterChange}" />
+                    <Grid ColumnDefinitions="*,110,50">
+                        <TextBlock Text="Exposure" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding AutofocusExposureText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,50">
+                        <TextBlock Text="Step size" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding AutofocusStepSizeText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="steps" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,50">
+                        <TextBlock Text="Samples" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding AutofocusSamplesText}" />
+                    </Grid>
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="The rig focuses by itself where the triggers say: once before the first step of this track, and after each Change Filter step. An Autofocus step you add in the place of one does that focus instead." />
+                </StackPanel>
                 <TextBlock Classes="muted" TextWrapping="Wrap"
                            Text="Use “Add step in track” for what this rig does: exposures with its camera, moving its focuser, changing its filter, delays, and Repeats of those." />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />

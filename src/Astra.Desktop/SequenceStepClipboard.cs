@@ -45,7 +45,8 @@ public static class SequenceStepDraftCloner
             multiRig.Tracks.Select(track => (RigTrackDraft)Clone(track, newId)).ToList(),
             multiRig.DitherPolicy), // refers to a rig, not to a track: nothing to map
         RigTrackDraft track => new RigTrackDraft(
-            newId?.Invoke() ?? track.Id, track.RigId, track.Steps.Select(inner => Clone(inner, newId)).ToList()),
+            newId?.Invoke() ?? track.Id, track.RigId, track.Steps.Select(inner => Clone(inner, newId)).ToList(),
+            track.AutofocusPolicy), // values only: it belongs to the track, not to a step
         RepeatStepDraft repeat => new RepeatStepDraft(
             newId?.Invoke() ?? repeat.Id, repeat.Count, repeat.Children.Select(child => CloneLeaf(child, newId)).ToList()),
         LeafStepDraft leaf => CloneLeaf(leaf, newId),

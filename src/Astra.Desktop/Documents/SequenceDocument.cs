@@ -21,9 +21,9 @@ public sealed record SequenceDocument(
     /// <summary>
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
     /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps
-    /// before 3, autofocus before 4) is simply absent from a document read from it.
+    /// before 3, autofocus before 4, the autofocus policy of a track before 5) is simply absent from a document read from it.
     /// </summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public string Format => FormatId;
     public int Version => CurrentVersion;
@@ -89,8 +89,26 @@ public sealed record RepeatDocumentStep(Guid Id, int Count, IReadOnlyList<Docume
 /// <summary>An exposure inside a rig track, with the camera of that track's rig.</summary>
 public sealed record RigExposureDocumentStep(Guid Id, double ExposureSeconds) : DocumentLeafStep(Id);
 
+/// <summary>
+/// When the rig of a track focuses by itself: see <c>RigAutofocusPolicyDraft</c>. A track without one does not. Added
+/// in version 5; it changes what a sequence does, which is why an older Astra must not open it as if it did not.
+/// </summary>
+public sealed record AutofocusPolicyDocument(
+    bool Enabled,
+    bool AtTrackStart,
+    bool AfterFilterChange,
+    double ExposureSeconds,
+    int StepSize,
+    int SampleCount
+);
+
 /// <summary>One rig of a Multi-Rig block: the rig (an id, or <c>null</c>) and what runs on it, in order.</summary>
-public sealed record RigTrackDocument(Guid Id, string? RigId, IReadOnlyList<DocumentStep> Steps);
+public sealed record RigTrackDocument(
+    Guid Id,
+    string? RigId,
+    IReadOnlyList<DocumentStep> Steps,
+    AutofocusPolicyDocument? AutofocusPolicy = null
+);
 
 /// <summary>
 /// When the block dithers the shared mount, and how: see <c>MultiRigDitherPolicyDraft</c>. The rig is an id, or

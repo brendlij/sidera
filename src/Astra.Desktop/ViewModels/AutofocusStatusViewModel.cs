@@ -15,7 +15,19 @@ namespace Astra.Desktop.ViewModels;
 /// </summary>
 public sealed partial class AutofocusStatusViewModel : ObservableObject
 {
+    /// <summary>What the line says for an autofocus that is a step the user wrote.</summary>
+    public const string ManualOrigin = "Manual sequence step";
+
+    /// <summary>What the line says for an autofocus the policy of the track asked for.</summary>
+    public static string AutomaticOrigin(AutofocusOrigin origin) => origin switch
+    {
+        AutofocusOrigin.TrackStart => "Automatic · track start",
+        AutofocusOrigin.AfterFilterChange => "Automatic · after filter change",
+        _ => "Automatic",
+    };
+
     private readonly List<FocusMeasurement> _measurements = [];
+    private IReadOnlyList<string> _body = [];
 
     public AutofocusStatusViewModel(RigId rigId, string rigName)
     {
@@ -29,7 +41,14 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
     /// <summary>For example "AUTOFOCUS · MAIN".</summary>
     public string Title { get; }
 
-    /// <summary>The lines under the title: "Sample 4 / 7", "Position 20100", "HFR 2.14 px", or the result.</summary>
+    /// <summary>
+    /// Why this autofocus runs: "Manual sequence step", "Automatic · track start" or "Automatic · after filter change";
+    /// <c>null</c> when that is not known.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? Origin { get; private set; }
+
+    /// <summary>The lines under the title: the origin, then "Sample 4 / 7", "Position 20100", "HFR 2.14 px", or the result.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<string> Lines { get; private set; }
 
@@ -52,6 +71,13 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
     /// <summary>The samples of the run so far, in the order they were taken.</summary>
     public IReadOnlyList<FocusMeasurement> Measurements => _measurements;
 
+    /// <summary>Says why the autofocus that starts now runs.</summary>
+    public void SetOrigin(string? origin)
+    {
+        Origin = origin;
+        Lines = Compose();
+    }
+
     /// <summary>Takes what the run reported.</summary>
     public void Apply(AutofocusProgress progress)
     {
@@ -64,51 +90,62 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
                     if (progress.Attempt == 1)
                     {
                         _measurements.Clear();
+                        IsCompleted = false;
+                        BestPosition = null;
+                        BestHfr = null;
                     }
 
-                    Lines = [Invariant($"Sampling {progress.SampleCount} focus positions"), .. Pass(progress)];
+                    Show([Invariant($"Sampling {progress.SampleCount} focus positions"), .. Pass(progress)]);
                 }
                 else
                 {
                     _measurements.Add(new FocusMeasurement(progress.Position!.Value, progress.Hfr!.Value));
-                    Lines =
+                    Show(
                     [
                         Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount}"),
                         Invariant($"Position {progress.Position}"),
                         Invariant($"HFR {progress.Hfr:0.00} px"),
                         .. Pass(progress),
-                    ];
+                    ]);
                 }
 
                 break;
             case AutofocusPhase.Fitting:
-                Lines = ["Fitting focus curve", .. Pass(progress)];
+                Show(["Fitting focus curve", .. Pass(progress)]);
                 break;
             case AutofocusPhase.Moving:
-                Lines = ["Moving to best focus", Invariant($"{progress.BestPosition} steps")];
+                Show(["Moving to best focus", Invariant($"{progress.BestPosition} steps")]);
                 break;
             case AutofocusPhase.Verifying:
-                Lines = ["Checking the focus", Invariant($"Position {progress.BestPosition}")];
+                Show(["Checking the focus", Invariant($"Position {progress.BestPosition}")]);
                 break;
             case AutofocusPhase.Completed:
                 IsActive = false;
                 IsCompleted = true;
                 BestPosition = progress.BestPosition;
                 BestHfr = progress.BestHfr;
-                Lines =
+                Show(
                 [
                     "Best focus",
                     Invariant($"{progress.BestPosition} steps"),
                     "HFR",
                     Invariant($"{progress.BestHfr:0.00} px"),
-                ];
+                ]);
                 break;
             case AutofocusPhase.Stopped:
                 IsActive = false;
-                Lines = ["Autofocus stopped"];
+                Show(["Autofocus stopped"]);
                 break;
         }
     }
+
+    private void Show(IReadOnlyList<string> body)
+    {
+        _body = body;
+        Lines = Compose();
+    }
+
+    private IReadOnlyList<string> Compose() => Origin is null ? _body : [Origin, .. _body];
 
     // Only a second pattern says so: the first one needs no remark.
     private static IEnumerable<string> Pass(AutofocusProgress progress) =>

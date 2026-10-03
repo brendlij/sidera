@@ -62,7 +62,8 @@ public static class SequenceDocumentMapper
         MultiRigStepDraft m => new MultiRigDocumentStep(
             m.Id,
             m.Tracks.Select(track => new RigTrackDocument(
-                track.Id, track.RigId?.Value, track.Steps.Select(ToDocumentStep).ToList())).ToList(),
+                track.Id, track.RigId?.Value, track.Steps.Select(ToDocumentStep).ToList(),
+                ToDocumentAutofocusPolicy(track.AutofocusPolicy))).ToList(),
             ToDocumentPolicy(m.DitherPolicy)),
         RepeatStepDraft r => new RepeatDocumentStep(r.Id, r.Count, r.Children.Select(ToDocumentLeaf).ToList()),
         LeafStepDraft leaf => ToDocumentLeaf(leaf),
@@ -94,7 +95,8 @@ public static class SequenceDocumentMapper
         MultiRigDocumentStep m => new MultiRigStepDraft(
             m.Id,
             m.Tracks.Select(track => new RigTrackDraft(
-                track.Id, track.RigId is null ? null : new RigId(track.RigId), track.Steps.Select(ToDraftStep).ToList())).ToList(),
+                track.Id, track.RigId is null ? null : new RigId(track.RigId), track.Steps.Select(ToDraftStep).ToList(),
+                ToDraftAutofocusPolicy(track.AutofocusPolicy))).ToList(),
             ToDraftPolicy(m.DitherPolicy)),
         RepeatDocumentStep r => new RepeatStepDraft(r.Id, r.Count, r.Children.Select(ToDraftLeaf).ToList()),
         DocumentLeafStep leaf => ToDraftLeaf(leaf),
@@ -131,6 +133,19 @@ public static class SequenceDocumentMapper
             : new DitherPolicyDocument(
                 policy.Enabled, policy.TriggerRigId?.Value, policy.EveryNFrames, policy.AmplitudePixels,
                 policy.SettleThresholdPixels, policy.SettleStableSeconds, policy.SettleTimeoutSeconds);
+
+    // The default policy is what a document without one means, so it is not written.
+    private static AutofocusPolicyDocument? ToDocumentAutofocusPolicy(RigAutofocusPolicyDraft? policy) =>
+        policy is null || policy == RigAutofocusPolicyDraft.Default
+            ? null
+            : new AutofocusPolicyDocument(
+                policy.Enabled, policy.AtTrackStart, policy.AfterFilterChange, policy.ExposureSeconds, policy.StepSize, policy.SampleCount);
+
+    private static RigAutofocusPolicyDraft? ToDraftAutofocusPolicy(AutofocusPolicyDocument? policy) =>
+        policy is null
+            ? null
+            : new RigAutofocusPolicyDraft(
+                policy.Enabled, policy.AtTrackStart, policy.AfterFilterChange, policy.ExposureSeconds, policy.StepSize, policy.SampleCount);
 
     private static MultiRigDitherPolicyDraft? ToDraftPolicy(DitherPolicyDocument? policy) =>
         policy is null

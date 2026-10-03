@@ -200,6 +200,37 @@ public sealed record RigAutofocusStepDraft(Guid Id, double ExposureSeconds, int 
 }
 
 /// <summary>
+/// When the rig of a Rig Track focuses by itself, and how: the user's intent, not steps. With the policy enabled, an
+/// autofocus is generated at the start of the track (<see cref="AtTrackStart"/>: once, before the first step of the
+/// track that does something) and after every Change Filter step of the track (<see cref="AfterFilterChange"/>), at the
+/// place in the sequence where that step runs. An explicit autofocus step in the place of a generated one is used
+/// instead of it: there is never both. The fields are kept when the policy is not <see cref="Enabled"/>, and then have
+/// no effect. Nothing here is a step: generated autofocus runs are neither listed nor saved.
+/// </summary>
+public sealed record RigAutofocusPolicyDraft(
+    bool Enabled,
+    bool AtTrackStart,
+    bool AfterFilterChange,
+    double ExposureSeconds,
+    int StepSize,
+    int SampleCount
+)
+{
+    /// <summary>No automatic autofocus, with the values a user starts from when switching it on.</summary>
+    public static RigAutofocusPolicyDraft Default { get; } = new(false, false, false, 1, 400, 7);
+
+    /// <summary>The policy has something to do: it is enabled and at least one trigger is selected.</summary>
+    public bool IsActive => Enabled && (AtTrackStart || AfterFilterChange);
+}
+
+/// <summary>Why an autofocus that nobody wrote into the sequence runs.</summary>
+public enum AutofocusOrigin
+{
+    TrackStart,
+    AfterFilterChange
+}
+
+/// <summary>
 /// One imaging rig of a Multi-Rig block and what that rig does: its steps run in order, next to the other tracks. A
 /// track is not a step of the sequence and cannot be put anywhere else. <see cref="Steps"/> are exposures with the rig
 /// camera, delays, moves of the rig focuser, changes of the rig filter wheel and Repeats of those; the validation
@@ -207,7 +238,12 @@ public sealed record RigAutofocusStepDraft(Guid Id, double ExposureSeconds, int 
 /// belongs to the whole session (moving the shared mount, guiding).
 /// </summary>
 /// <param name="RigId">The rig, or <c>null</c> when none is selected. Kept as chosen even if no such rig is registered.</param>
-public sealed record RigTrackDraft(Guid Id, RigId? RigId, IReadOnlyList<SequenceStepDraft> Steps) : SequenceStepDraft(Id)
+public sealed record RigTrackDraft(
+    Guid Id,
+    RigId? RigId,
+    IReadOnlyList<SequenceStepDraft> Steps,
+    RigAutofocusPolicyDraft? AutofocusPolicy = null
+) : SequenceStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.RigTrack;
     public override IEnumerable<DeviceId> DeviceIds => [];

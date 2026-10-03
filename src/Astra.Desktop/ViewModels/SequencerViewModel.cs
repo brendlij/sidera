@@ -297,7 +297,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         {
             var hidden = new SequenceNode(
                 step.Step, step.Children is null ? SequenceNodeKind.Step : SequenceNodeKind.Group, description.Title,
-                string.Empty, null, depth, isHidden: true);
+                string.Empty, null, depth, isHidden: true, autofocusOrigin: step.AutofocusOrigin);
             foreach (var child in step.Children ?? [])
             {
                 hidden.Children.Add(SnapshotNode(child, path, depth));
@@ -458,7 +458,29 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             AutofocusStatuses = _autofocus.Values.OrderBy(s => s.RigId.Value, StringComparer.Ordinal).ToList();
         }
 
+        // A new run of this rig's autofocus says why it runs: the step that is running is a node of the snapshot, and it
+        // either is an autofocus the user wrote or one the policy of the track generated.
+        if (e.Progress is { Phase: AutofocusPhase.Measuring, Attempt: 1, SampleIndex: 0 })
+        {
+            status.SetOrigin(OriginOfRunningAutofocus(e.RigId));
+        }
+
         status.Apply(e.Progress);
+    }
+
+    private string? OriginOfRunningAutofocus(RigId rig)
+    {
+        foreach (var position in _runner.ActivePositions)
+        {
+            if (Resolve(position).Node is { Step: AutofocusAction action } node && action.RigId == rig)
+            {
+                return node.AutofocusOrigin is { } origin
+                    ? AutofocusStatusViewModel.AutomaticOrigin(origin)
+                    : AutofocusStatusViewModel.ManualOrigin;
+            }
+        }
+
+        return null;
     }
 
     private void ClearAutofocus()

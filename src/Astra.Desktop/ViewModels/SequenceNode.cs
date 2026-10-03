@@ -31,8 +31,10 @@ public sealed class SequenceNode
         Guid? draftId = null,
         string? numberLabel = null,
         bool isProblem = false,
-        bool isHidden = false)
+        bool isHidden = false,
+        AutofocusOrigin? autofocusOrigin = null)
     {
+        AutofocusOrigin = autofocusOrigin;
         Step = step;
         DraftId = draftId;
         NumberLabel = numberLabel;
@@ -59,6 +61,12 @@ public sealed class SequenceNode
     /// of the editor puts around its steps.
     /// </summary>
     public bool IsHidden { get; }
+
+    /// <summary>
+    /// Why this autofocus runs, when it is one the policy of a track generated: it has no draft step. <c>null</c> for
+    /// every other node, and for an autofocus the user wrote.
+    /// </summary>
+    public AutofocusOrigin? AutofocusOrigin { get; }
 
     /// <summary>The <see cref="SubText"/> is a problem with the step, not a description.</summary>
     public bool IsProblem { get; }

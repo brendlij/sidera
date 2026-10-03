@@ -74,7 +74,8 @@ public sealed record BuiltStep(
     StepDescription Description,
     ISequenceStep Step,
     IReadOnlyList<BuiltStep>? Children = null,
-    bool IsGenerated = false
+    bool IsGenerated = false,
+    AutofocusOrigin? AutofocusOrigin = null
 );
 
 /// <summary>
@@ -167,9 +168,23 @@ public static class SequenceDraftBuilder
             return new("Rig Track", "no rig selected");
         }
 
-        return TryGetRig(context, rigId, out var rig)
-            ? new(rig.Name, DeviceName(registry, rig.CameraId, "no camera"))
-            : new(rigId.Value, "rig not available");
+        if (!TryGetRig(context, rigId, out var rig))
+        {
+            return new(rigId.Value, "rig not available");
+        }
+
+        // A track whose rig focuses by itself says when; one that does not says nothing.
+        var summary = DeviceName(registry, rig.CameraId, "no camera");
+        if (track.AutofocusPolicy is { Enabled: true } policy)
+        {
+            var when = policy is { AtTrackStart: true, AfterFilterChange: true } ? "track start + filter change"
+                : policy.AtTrackStart ? "track start"
+                : policy.AfterFilterChange ? "filter change"
+                : "no trigger";
+            summary += $"\nAutofocus: {when}";
+        }
+
+        return new(rig.Name, summary);
     }
 
     // The name of a slot of a wheel, or "slot 4" when the wheel is not known or has no such slot.
@@ -249,7 +264,8 @@ public static class SequenceDraftBuilder
                             ids.Add(wheel);
                         }
 
-                        if (rig.FocuserId is { } autofocusFocuser && local.Any(inner => inner is RigAutofocusStepDraft))
+                        if (rig.FocuserId is { } autofocusFocuser
+                            && (local.Any(inner => inner is RigAutofocusStepDraft) || track.AutofocusPolicy is { IsActive: true }))
                         {
                             ids.Add(autofocusFocuser);
                         }
@@ -348,7 +364,7 @@ public static class SequenceDraftBuilder
 
         try
         {
-            var built = steps.Select(step => BuildStep(registry, step, context, null, null, null)).ToList();
+            var built = steps.Select(step => BuildStep(registry, step, context, null, null, null, null)).ToList();
             return new BuiltSequence(new Sequence(SequenceName, built.Select(b => b.Step)), built);
         }
         catch (Exception ex) when (ex is ArgumentException or OverflowException)
@@ -356,6 +372,40 @@ public static class SequenceDraftBuilder
             // The steps validate their own arguments too; anything the checks above missed ends up here.
             throw new SequenceConfigurationException([UserFacingError.Describe(ex)]);
         }
+    }
+
+    // What the autofocus policy of a Rig Track asks for, once it is known to be enabled with a trigger and the rig is known.
+    private sealed record AutofocusPlan(Rig Rig, AutofocusOptions Options, bool AtTrackStart, bool AfterFilterChange);
+
+    private static AutofocusPlan? PlanOf(RigTrackDraft track, Rig? rig) =>
+        rig is not null && track.AutofocusPolicy is { IsActive: true } policy
+            ? new AutofocusPlan(
+                rig,
+                new AutofocusOptions(TimeSpan.FromSeconds(policy.ExposureSeconds), policy.StepSize, policy.SampleCount),
+                policy.AtTrackStart,
+                policy.AfterFilterChange)
+            : null;
+
+    // The first step of the track that does something, in the order it runs: the first step, or the first one in the
+    // Repeat when the track starts with a Repeat.
+    private static SequenceStepDraft? FirstExecutableStep(IReadOnlyList<SequenceStepDraft> steps) =>
+        steps.FirstOrDefault() is RepeatStepDraft repeat ? repeat.Children.FirstOrDefault() : steps.FirstOrDefault();
+
+    // An autofocus the policy asks for: the existing action, labelled with why it runs, followed by the safe point that
+    // every atomic step of an orchestrated track has. It is no draft step and has no id.
+    private static List<BuiltStep> GeneratedAutofocus(
+        DeviceRegistry registry, AutofocusPlan plan, SequenceDraftContext? context, Orchestration? orchestration, AutofocusOrigin origin)
+    {
+        var action = AutofocusAction.ForRig(registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events);
+        var description = new StepDescription(
+            "Autofocus", origin == AutofocusOrigin.TrackStart ? "automatic · track start" : "automatic · after filter change");
+        var built = new List<BuiltStep> { new(Guid.Empty, description, action, null, IsGenerated: true, AutofocusOrigin: origin) };
+        if (orchestration is not null)
+        {
+            built.Add(Generated(new SafePointStep()));
+        }
+
+        return built;
     }
 
     // What a Multi-Rig block with a dither policy is orchestrated with.
@@ -375,7 +425,8 @@ public static class SequenceDraftBuilder
         SequenceDraftContext? context,
         Rig? rig,
         Orchestration? orchestration,
-        FrameCounter? counter)
+        FrameCounter? counter,
+        AutofocusPlan? autofocus)
     {
         var description = Describe(registry, step, context, rig);
         switch (step)
@@ -393,7 +444,7 @@ public static class SequenceDraftBuilder
             case RepeatStepDraft repeat:
             {
                 // A RepeatStep repeats one child; the group makes the children of the draft one.
-                var children = BuildSteps(registry, repeat.Children, context, rig, orchestration, counter);
+                var children = BuildSteps(registry, repeat.Children, context, rig, orchestration, counter, autofocus);
                 var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step));
                 return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body), children);
             }
@@ -413,26 +464,36 @@ public static class SequenceDraftBuilder
         SequenceDraftContext? context,
         Rig? rig,
         Orchestration? orchestration,
-        FrameCounter? counter)
+        FrameCounter? counter,
+        AutofocusPlan? autofocus)
     {
         var built = new List<BuiltStep>();
-        foreach (var step in steps)
+        for (var i = 0; i < steps.Count; i++)
         {
-            built.Add(BuildStep(registry, step, context, rig, orchestration, counter));
-            if (orchestration is null)
+            var step = steps[i];
+            built.Add(BuildStep(registry, step, context, rig, orchestration, counter, autofocus));
+
+            if (orchestration is not null)
             {
-                continue;
+                if (step is RigExposureStepDraft && counter is not null)
+                {
+                    built.Add(TriggerStep(registry, orchestration, counter));
+                }
+
+                if (step is RigExposureStepDraft or DelayStepDraft or RigMoveFocuserStepDraft or RigChangeFilterStepDraft
+                    or RigAutofocusStepDraft)
+                {
+                    built.Add(Generated(new SafePointStep()));
+                }
             }
 
-            if (step is RigExposureStepDraft && counter is not null)
+            // After a Change Filter that went through (a step that failed or was cancelled does not get here), the
+            // policy focuses before the next step, wherever this step runs: in a Repeat once per iteration. An explicit
+            // autofocus right after it is that focus: the rule looks at the next step of the same list, nothing else.
+            if (step is RigChangeFilterStepDraft && autofocus is { AfterFilterChange: true }
+                && !(i + 1 < steps.Count && steps[i + 1] is RigAutofocusStepDraft))
             {
-                built.Add(TriggerStep(registry, orchestration, counter));
-            }
-
-            if (step is RigExposureStepDraft or DelayStepDraft or RigMoveFocuserStepDraft or RigChangeFilterStepDraft
-                or RigAutofocusStepDraft)
-            {
-                built.Add(Generated(new SafePointStep()));
+                built.AddRange(GeneratedAutofocus(registry, autofocus, context, orchestration, AutofocusOrigin.AfterFilterChange));
             }
         }
 
@@ -478,7 +539,15 @@ public static class SequenceDraftBuilder
         // Validated before: the rig is selected and there.
         TryGetRig(context, track.RigId!.Value, out var rig);
         var counter = orchestration is not null && orchestration.Policy.TriggerRigId == track.RigId ? new FrameCounter() : null;
-        var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter);
+        var plan = PlanOf(track, rig);
+        var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter, plan);
+
+        // At the start of the track, once: before the first step that does something, unless that is an autofocus.
+        if (plan is { AtTrackStart: true } && FirstExecutableStep(track.Steps) is not RigAutofocusStepDraft)
+        {
+            steps.InsertRange(0, GeneratedAutofocus(registry, plan, context, orchestration, AutofocusOrigin.TrackStart));
+        }
+
         var runtime = new RigTrackStep(track.Id, rig.Name, steps.Select(step => step.Step), counter);
         return new BuiltStep(track.Id, DescribeTrack(registry, track, context), runtime, steps);
     }
@@ -781,6 +850,7 @@ public static class SequenceDraftBuilder
             }
 
             _trackRig = track.RigId is { } selected && TryGetRig(context, selected, out var selectedRig) ? selectedRig : null;
+            CheckAutofocusPolicy(track);
             foreach (var step in track.Steps)
             {
                 _ids.Add(step.Id);
@@ -928,6 +998,30 @@ public static class SequenceDraftBuilder
                     problems.Add($"Unsupported step '{step.GetType().Name}'.");
                     break;
             }
+        }
+
+        // The policy of a track, when it is enabled: something to trigger it, settings an autofocus can run with, a rig
+        // that can focus, and for a trigger on filter changes a filter wheel. A policy that is off is not looked at.
+        private void CheckAutofocusPolicy(RigTrackDraft track)
+        {
+            if (track.AutofocusPolicy is not { Enabled: true } policy)
+            {
+                return;
+            }
+
+            var problems = new List<string>();
+            if (!policy.AtTrackStart && !policy.AfterFilterChange)
+            {
+                problems.Add("Enable at least one Autofocus trigger.");
+            }
+
+            CheckAutofocus(_trackRig, policy.ExposureSeconds, policy.StepSize, policy.SampleCount, problems);
+            if (policy.AfterFilterChange && _trackRig is { FilterWheelId: null } rig)
+            {
+                problems.Add($"The rig '{rig.Id}' has no filter wheel, so Autofocus cannot follow a filter change.");
+            }
+
+            problems.ForEach(p => Report(track.Id, p));
         }
 
         // The settings of an autofocus, and what the rig it focuses has to have: a camera and a focuser that are there,

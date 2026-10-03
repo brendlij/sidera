@@ -693,7 +693,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                 break;
             case RigTrackDraftViewModel track:
                 draft = new RigTrackDraft(
-                    track.Id, track.Rig.SelectedId, track.Children.Select(child => ReadStep(child, parseErrors)).ToList());
+                    track.Id, track.Rig.SelectedId, track.Children.Select(child => ReadStep(child, parseErrors)).ToList(),
+                    track.ReadPolicy(errors));
                 break;
             case MultiRigStepDraftViewModel multiRig:
                 draft = new MultiRigStepDraft(

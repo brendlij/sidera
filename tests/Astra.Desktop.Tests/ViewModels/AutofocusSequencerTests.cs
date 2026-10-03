@@ -152,7 +152,7 @@ public class AutofocusSequencerTests
         Assert.True(done.IsCompleted);
         Assert.InRange(done.BestPosition!.Value, DemoSetup.MainBestFocus - 50, DemoSetup.MainBestFocus + 50);
         Assert.InRange(done.BestHfr!.Value, 1.8, 1.85);
-        Assert.Equal(["Best focus", $"{done.BestPosition} steps", "HFR", $"{done.BestHfr!.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)} px"], done.Lines);
+        Assert.Equal([AutofocusStatusViewModel.ManualOrigin, "Best focus", $"{done.BestPosition} steps", "HFR", $"{done.BestHfr!.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)} px"], done.Lines);
         Assert.Equal(14, done.Measurements.Count); // two patterns from 1800 steps away
         Assert.Contains(lines, l => l.StartsWith("Sample ", StringComparison.Ordinal)); // seen while running
         Assert.Equal(SequenceState.Completed, app.Sequencer.State);
@@ -244,7 +244,7 @@ public class AutofocusSequencerTests
 
         Assert.Equal(SequenceState.Cancelled, app.Sequencer.State);
         var status = StatusOf(app, "rig.main")!;
-        Assert.Equal(["Autofocus stopped"], status.Lines);
+        Assert.Equal([AutofocusStatusViewModel.ManualOrigin, "Autofocus stopped"], status.Lines);
         Assert.False(status.IsActive);
         Assert.True(app.Draft.IsEditable);
         Assert.Equal("None in use", app.Vm.Runtime.HeldText);
@@ -262,7 +262,7 @@ public class AutofocusSequencerTests
 
         Assert.Equal(SequenceState.Failed, app.Sequencer.State);
         Assert.Equal("Autofocus failed: no reliable focus minimum was found.", app.Sequencer.ErrorMessage);
-        Assert.Equal(["Autofocus stopped"], StatusOf(app, "rig.main")!.Lines);
+        Assert.Equal([AutofocusStatusViewModel.ManualOrigin, "Autofocus stopped"], StatusOf(app, "rig.main")!.Lines);
     }
 
     [Fact]
