@@ -26,6 +26,9 @@ public sealed class CameraExposureAction : IResourceAwareSequenceStep
 
     public TimeSpan Duration { get; }
 
+    /// <summary>The camera this action exposes with.</summary>
+    public DeviceId CameraId => _deviceId;
+
     public string Name => string.Create(CultureInfo.InvariantCulture, $"Exposure {Duration.TotalSeconds:0.##}s");
 
     public IReadOnlyCollection<ResourceId> RequiredResources => [ResourceId.ForDevice(_deviceId)];

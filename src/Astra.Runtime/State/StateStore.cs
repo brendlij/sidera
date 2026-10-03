@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Runtime.Events;
 
@@ -11,6 +12,7 @@ public sealed class StateStore : IDisposable
     private readonly IDisposable _connectionSubscription;
     private readonly IDisposable _exposureSubscription;
     private readonly IDisposable _mountSubscription;
+    private readonly IDisposable _guidingSubscription;
 
     public StateStore(EventBus eventBus)
     {
@@ -19,6 +21,7 @@ public sealed class StateStore : IDisposable
         _connectionSubscription = eventBus.Subscribe<DeviceConnectionStateChanged>(OnConnectionStateChanged);
         _exposureSubscription = eventBus.Subscribe<CameraExposureStateChanged>(OnExposureStateChanged);
         _mountSubscription = eventBus.Subscribe<MountMotionStateChanged>(OnMountMotionStateChanged);
+        _guidingSubscription = eventBus.Subscribe<GuidingStateChanged>(OnGuidingStateChanged);
     }
 
     public bool TryGet(DeviceId id, out DeviceState? state)
@@ -42,6 +45,7 @@ public sealed class StateStore : IDisposable
         _connectionSubscription.Dispose();
         _exposureSubscription.Dispose();
         _mountSubscription.Dispose();
+        _guidingSubscription.Dispose();
     }
 
     private Task OnConnectionStateChanged(
@@ -69,6 +73,21 @@ public sealed class StateStore : IDisposable
             var current = _states.GetValueOrDefault(e.DeviceId)
                 ?? new DeviceState(e.DeviceId, DeviceConnectionState.Disconnected);
             _states[e.DeviceId] = current with { MotionState = e.NewState, Coordinates = e.Coordinates };
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OnGuidingStateChanged(
+        GuidingStateChanged e,
+        CancellationToken cancellationToken
+    )
+    {
+        lock (_gate)
+        {
+            var current = _states.GetValueOrDefault(e.DeviceId)
+                ?? new DeviceState(e.DeviceId, DeviceConnectionState.Disconnected);
+            _states[e.DeviceId] = current with { GuidingState = e.NewState };
         }
 
         return Task.CompletedTask;

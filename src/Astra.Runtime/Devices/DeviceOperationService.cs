@@ -1,4 +1,5 @@
 using Astra.Core.Devices;
+using Astra.Core.Guiding;
 using Astra.Core.Mounts;
 using Astra.Core.Resources;
 using Astra.Runtime.Resources;
@@ -78,6 +79,34 @@ public sealed class DeviceOperationService
         using (await _resources.AcquireAsync([ResourceId.ForDevice(cameraId)], cancellationToken))
         {
             return await camera.ExposeAsync(duration, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Starts guiding. The guider's resource is held only while the command runs: once guiding has started,
+    /// the call completes and releases it while guiding stays active.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a guider.</exception>
+    public async Task StartGuidingAsync(DeviceId guiderId, CancellationToken cancellationToken = default)
+    {
+        var guider = DeviceLookup.Resolve<IGuider>(_registry, guiderId, "guider");
+
+        using (await _resources.AcquireAsync([ResourceId.ForDevice(guiderId)], cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await guider.StartGuidingAsync(cancellationToken);
+        }
+    }
+
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a guider.</exception>
+    public async Task StopGuidingAsync(DeviceId guiderId, CancellationToken cancellationToken = default)
+    {
+        var guider = DeviceLookup.Resolve<IGuider>(_registry, guiderId, "guider");
+
+        using (await _resources.AcquireAsync([ResourceId.ForDevice(guiderId)], cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await guider.StopGuidingAsync(cancellationToken);
         }
     }
 }
