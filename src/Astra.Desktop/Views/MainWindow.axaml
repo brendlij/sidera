@@ -236,6 +236,9 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+                            <Button Content="Duplicate" Command="{Binding Draft.DuplicateStepCommand}" />
+                            <Button Content="Copy" Command="{Binding Draft.CopyStepCommand}" />
+                            <Button Content="Paste" Command="{Binding Draft.PasteStepCommand}" />
                             <Button Content="Remove" Command="{Binding Draft.RemoveStepCommand}" />
                             <Button Content="Move Up" Command="{Binding Draft.MoveStepUpCommand}" />
                             <Button Content="Move Down" Command="{Binding Draft.MoveStepDownCommand}" />
