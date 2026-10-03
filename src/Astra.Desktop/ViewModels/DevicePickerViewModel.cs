@@ -71,6 +71,22 @@ public sealed partial class DevicePickerViewModel : ObservableObject
         }
     }
 
+    /// <summary>Selects <paramref name="id"/> without it counting as a choice of the user (used when a document is opened).</summary>
+    public void Reset(DeviceId? id)
+    {
+        _refreshing = true;
+        try
+        {
+            Options = BuildOptions(id);
+            OnPropertyChanged(nameof(Options));
+            Selected = id is { } selected ? Options.First(o => o.Id == selected) : null;
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
     partial void OnSelectedChanged(DeviceOption? value)
     {
         if (!_refreshing)

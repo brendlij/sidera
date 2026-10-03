@@ -90,7 +90,7 @@ public class SequenceDraftViewModelTests
         }
 
         Assert.Equal(
-            AllKinds.Where(k => k != SequenceStepKind.Repeat).OrderBy(k => k),
+            AllKinds.Where(k => k is not (SequenceStepKind.Repeat or SequenceStepKind.RigExposure or SequenceStepKind.MultiRig or SequenceStepKind.RigTrack)).OrderBy(k => k),
             draft.Steps.Select(s => s.Kind).OrderBy(k => k));
         Assert.True(draft.IsValid, string.Join(" ", draft.ValidationErrors));
         Assert.Equal(6, draft.Build().Sequence.Steps.Count);

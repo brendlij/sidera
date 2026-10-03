@@ -16,7 +16,10 @@ public enum NodeStatus
 {
     Pending,
     Active,
-    Done
+    Done,
+
+    /// <summary>A Rig Track that ended the run with a failure.</summary>
+    Failed
 }
 
 /// <summary>One line of the sequence definition, with where the running sequence is relative to it.</summary>
@@ -42,6 +45,7 @@ public sealed partial class SequenceNodeViewModel(SequenceNode node) : Observabl
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsActive))]
     [NotifyPropertyChangedFor(nameof(IsDone))]
+    [NotifyPropertyChangedFor(nameof(IsFailedNode))]
     [NotifyPropertyChangedFor(nameof(Glyph))]
     public partial NodeStatus Status { get; set; }
 
@@ -60,11 +64,16 @@ public sealed partial class SequenceNodeViewModel(SequenceNode node) : Observabl
     public bool HasIteration => IterationText is not null;
     public bool IsActive => Status == NodeStatus.Active;
     public bool IsDone => Status == NodeStatus.Done;
+    public bool IsFailedNode => Status == NodeStatus.Failed;
+
+    /// <summary>The node holds other nodes: a Repeat, a Rig Track, a Multi-Rig block, a group.</summary>
+    public bool IsContainer => Node.Kind != SequenceNodeKind.Step;
 
     public string Glyph => Status switch
     {
         NodeStatus.Done => "✓",
         NodeStatus.Active => "●",
+        NodeStatus.Failed => "✕",
         _ => "○",
     };
 }
@@ -108,6 +117,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private readonly IReadOnlyList<CameraViewModel> _cameras;
     private readonly Func<string?>? _readiness;
     private IReadOnlyList<SequenceNode> _roots = [];
+    private HashSet<Guid> _failedTracks = [];
     private readonly HashSet<SequenceExecutionPosition> _completed = new();
     private readonly Dictionary<SequenceNode, int> _latestIteration = new();
     private CancellationTokenSource? _cts;
@@ -202,10 +212,11 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
     // The row of a draft step, as shown while nothing runs.
     private sealed record DraftRow(
-        Guid Id, string Label, string Title, string Summary, string? Problem, bool IsContainer, bool IsChild);
+        Guid Id, string Label, string Title, string Summary, string? Problem, SequenceStepKind Kind, int Depth);
 
     private void ShowRoots(IReadOnlyList<SequenceNode> roots, string name)
     {
+        _failedTracks = [];
         _sequenceName = name;
         _roots = roots;
         _completed.Clear();
@@ -219,51 +230,86 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
     private List<DraftRow> ReadDraftRows() =>
         Draft!.Rows.Select(step => new DraftRow(
-            step.Id, step.NumberLabel, step.Title, step.Summary, step.FirstProblem, step.IsContainer, step.IsChild)).ToList();
+            step.Id, step.NumberLabel, step.Title, step.Summary, step.FirstProblem, step.Kind, step.Depth)).ToList();
 
     // The draft as rows. These have no runtime steps: nothing is built until the sequence runs.
     private void ShowDraft()
     {
         _shownDraft = ReadDraftRows();
 
-        // Rows only: steps inside a Repeat are listed after it, indented, without a tree behind them.
+        // Rows only: what is inside a container is listed after it, indented, without a tree behind them.
         ShowRoots(
             _shownDraft.Select(row => new SequenceNode(
-                null, row.IsContainer ? SequenceNodeKind.Repeat : SequenceNodeKind.Step, row.Title,
-                row.Problem is null ? row.Summary : string.Empty, row.Problem, row.IsChild ? 1 : 0, row.Id,
-                row.IsChild ? row.Label : $"{row.Label}.", row.Problem is not null)).ToList(),
+                null, KindOf(row.Kind), row.Title,
+                row.Problem is null ? row.Summary : string.Empty, row.Problem, row.Depth, row.Id,
+                row.Depth == 0 ? $"{row.Label}." : row.Label, row.Problem is not null)).ToList(),
             SequenceDraftBuilder.SequenceName);
     }
+
+    private static SequenceNodeKind KindOf(SequenceStepKind kind) => kind switch
+    {
+        SequenceStepKind.Repeat => SequenceNodeKind.Repeat,
+        SequenceStepKind.MultiRig => SequenceNodeKind.Parallel,
+        SequenceStepKind.RigTrack => SequenceNodeKind.Group,
+        _ => SequenceNodeKind.Step,
+    };
 
     // The snapshot a run was built from. Its labels are those of the built draft, whatever the draft says later.
     private void ShowSnapshot(BuiltSequence built) =>
         ShowRoots(
-            built.Steps.Select((step, index) => SnapshotNode(step, SequenceDraftBuilder.Label(index), index, 0)).ToList(),
+            built.Steps.Select((step, index) => SnapshotNode(step, [index], 0)).ToList(),
             built.Sequence.Name);
 
-    // A built step as nodes that mirror the runtime tree, so that running positions can be followed through it. A
-    // Repeat is the runtime RepeatStep with the group the builder put around its steps; the group is not listed.
-    private static SequenceNode SnapshotNode(BuiltStep step, string label, int index, int depth)
+    // A built step as nodes that mirror the runtime tree, so that running positions can be followed through it:
+    // a Repeat is the runtime RepeatStep with the group the builder put around its steps (the group is not listed);
+    // a Multi-Rig block is the ParallelStep with a node for each Rig Track, which runs like a group.
+    private static SequenceNode SnapshotNode(BuiltStep step, int[] path, int depth)
     {
+        var label = SequenceDraftBuilder.Label(path);
         var numberLabel = depth == 0 ? $"{label}." : label;
-        if (step is not { Step: RepeatStep { Child: SequenceGroup body } repeat, Children: { } children })
-        {
-            return new SequenceNode(
-                step.Step, SequenceNodeKind.Step, step.Description.Title, step.Description.Summary, null, depth,
-                step.DraftId, numberLabel);
-        }
+        var description = step.Description;
 
-        var node = new SequenceNode(
-            repeat, SequenceNodeKind.Repeat, step.Description.Title, step.Description.Summary, null, depth,
-            step.DraftId, numberLabel);
-        var group = new SequenceNode(body, SequenceNodeKind.Group, body.Name, string.Empty, null, depth + 1, isHidden: true);
-        for (var j = 0; j < children.Count; j++)
+        switch (step)
         {
-            group.Children.Add(SnapshotNode(children[j], SequenceDraftBuilder.Label(index, j), j, depth + 1));
-        }
+            case { Step: RepeatStep { Child: SequenceGroup body } repeat, Children: { } children }:
+            {
+                var node = new SequenceNode(
+                    repeat, SequenceNodeKind.Repeat, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
+                var group = new SequenceNode(body, SequenceNodeKind.Group, body.Name, string.Empty, null, depth + 1, isHidden: true);
+                for (var j = 0; j < children.Count; j++)
+                {
+                    group.Children.Add(SnapshotNode(children[j], [.. path, j], depth + 1));
+                }
 
-        node.Children.Add(group);
-        return node;
+                node.Children.Add(group);
+                return node;
+            }
+            case { Step: ParallelStep parallel, Children: { } tracks }:
+            {
+                var node = new SequenceNode(
+                    parallel, SequenceNodeKind.Parallel, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
+                for (var t = 0; t < tracks.Count; t++)
+                {
+                    node.Children.Add(SnapshotNode(tracks[t], [.. path, t], depth + 1));
+                }
+
+                return node;
+            }
+            case { Step: RigTrackStep track, Children: { } steps }:
+            {
+                var node = new SequenceNode(
+                    track, SequenceNodeKind.Group, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
+                for (var s = 0; s < steps.Count; s++)
+                {
+                    node.Children.Add(SnapshotNode(steps[s], [.. path, s], depth + 1));
+                }
+
+                return node;
+            }
+            default:
+                return new SequenceNode(
+                    step.Step, SequenceNodeKind.Step, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
+        }
     }
 
     // The draft changed. While a sequence runs, the definition shown is the snapshot that was built for that run.
@@ -272,6 +318,12 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         if (!IsRunning && Draft is not null && !ReadDraftRows().SequenceEqual(_shownDraft))
         {
             ShowDraft();
+        }
+
+        // What the sequence needs may have changed with the draft: another step, another rig.
+        if (!IsRunning)
+        {
+            ReadinessHint = _readiness?.Invoke();
         }
 
         OnPropertyChanged(nameof(CanRun));
@@ -413,6 +465,8 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
+            // A failure inside a Rig Track says which track it was.
+            _failedTracks = FailedTracks(ex).ToHashSet();
             ReportError(ex);
         }
         finally
@@ -425,6 +479,13 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             RefreshReadiness();
         }
     }
+
+    private static IEnumerable<Guid> FailedTracks(Exception exception) => exception switch
+    {
+        RigTrackFailedException track => [track.TrackId],
+        AggregateException aggregate => aggregate.InnerExceptions.SelectMany(FailedTracks),
+        _ => [],
+    };
 
     // Pausing is cooperative: running steps finish, nothing new starts. Resume is only offered once the run is
     // paused; the runner would also accept it while still pausing, to withdraw the request.
@@ -517,7 +578,10 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
         foreach (var vm in Definition)
         {
-            vm.Status = activeNotes.ContainsKey(vm.Node) ? NodeStatus.Active : done.Contains(vm.Node) ? NodeStatus.Done : NodeStatus.Pending;
+            vm.Status = vm.Node.DraftId is { } draftId && _failedTracks.Contains(draftId) ? NodeStatus.Failed
+                : activeNotes.ContainsKey(vm.Node) ? NodeStatus.Active
+                : done.Contains(vm.Node) ? NodeStatus.Done
+                : NodeStatus.Pending;
             vm.ActiveNote = activeNotes.GetValueOrDefault(vm.Node);
 
             // Only the repetition that was started last is known; earlier ones are not shown.

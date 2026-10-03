@@ -10,17 +10,26 @@ namespace Astra.Desktop.Documents;
 /// <see cref="SequenceDocumentMapper"/> converts it to and from drafts, and a <see cref="ISequenceDocumentSerializer"/>
 /// to and from bytes.
 /// </summary>
-public sealed record SequenceDocument(string? Name, IReadOnlyList<DocumentStep> Steps)
+public sealed record SequenceDocument(
+    string? Name,
+    IReadOnlyList<DocumentStep> Steps,
+    SharedEquipmentDocument? SharedEquipment = null)
 {
     /// <summary>The value every Astra sequence document carries to say what it is.</summary>
     public const string FormatId = "astra-sequence";
 
-    /// <summary>The version of the format that serializers write today. Documents in memory are always this version.</summary>
-    public const int CurrentVersion = 1;
+    /// <summary>
+    /// The version of the format that serializers write today. Documents in memory are always this version; what an
+    /// older version could not say (shared equipment, Multi-Rig Imaging) is simply absent from a document read from it.
+    /// </summary>
+    public const int CurrentVersion = 2;
 
     public string Format => FormatId;
     public int Version => CurrentVersion;
 }
+
+/// <summary>The mount and the guider that the whole session shares; <c>null</c> for one that is not selected.</summary>
+public sealed record SharedEquipmentDocument(string? MountId, string? GuiderId);
 
 /// <summary>A step of a document. Its <see cref="Id"/> is the identity of the editable step and survives saving and opening.</summary>
 public abstract record DocumentStep(Guid Id);
@@ -55,6 +64,15 @@ public sealed record DitherDocumentStep(
 
 /// <summary>The one container of version 1: leaf steps only, so a Repeat cannot contain a Repeat.</summary>
 public sealed record RepeatDocumentStep(Guid Id, int Count, IReadOnlyList<DocumentLeafStep> Children) : DocumentStep(Id);
+
+/// <summary>An exposure inside a rig track, with the camera of that track's rig.</summary>
+public sealed record RigExposureDocumentStep(Guid Id, double ExposureSeconds) : DocumentLeafStep(Id);
+
+/// <summary>One rig of a Multi-Rig block: the rig (an id, or <c>null</c>) and what runs on it, in order.</summary>
+public sealed record RigTrackDocument(Guid Id, string? RigId, IReadOnlyList<DocumentStep> Steps);
+
+/// <summary>Imaging with several rigs at once; only found at the top level. Added in version 2.</summary>
+public sealed record MultiRigDocumentStep(Guid Id, IReadOnlyList<RigTrackDocument> Tracks) : DocumentStep(Id);
 
 public enum SequenceDocumentErrorKind
 {

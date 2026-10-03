@@ -41,12 +41,15 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
-        SequenceDraft = new SequenceDraftViewModel(host.DeviceRegistry, defaults, defaults.InitialSteps());
+        SequenceDraft = new SequenceDraftViewModel(
+            host.DeviceRegistry, defaults, defaults.InitialSteps(),
+            rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId));
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(
             SequenceDraft, store ?? SequenceDocumentStore.CreateDefault(), filePicker ?? new NoSequenceFilePicker());
-        SequencerPage = new SequencerPageViewModel(SequenceDocument, SequenceDraft, Sequencer);
+        SequencerPage = new SequencerPageViewModel(
+            SequenceDocument, SequenceDraft, Sequencer, new SharedEquipmentViewModel(SequenceDraft, Equipment));
         Dashboard = new DashboardViewModel(
             Runtime, Sequencer, Imaging,
             Equipment.Rigs.FirstOrDefault(),
@@ -104,7 +107,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     // Every device a step of the sequence uses must be connected and not busy.
     private string? CheckEquipmentOfSequence()
     {
-        var ids = SequenceDraft.Snapshot().SelectMany(step => step.DeviceIds).Select(id => id.Value).Distinct().ToList();
+        var ids = SequenceDraft.RequiredDeviceIds().Select(id => id.Value).ToList();
 
         // A missing or unsuitable device is reported by the draft itself; this is only about the state of chosen equipment.
         var cameras = Equipment.Cameras.Where(c => ids.Contains(c.DeviceIdText)).ToArray();

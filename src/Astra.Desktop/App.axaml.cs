@@ -24,6 +24,7 @@ public partial class App : Application
         {
             var host = new AstraRuntimeHost();
             DemoSetup.AddDemoEquipment(host);
+            DemoSetup.AddDemoRigs(host);
             host.Start();
 
             var filePicker = new AvaloniaSequenceFilePicker();

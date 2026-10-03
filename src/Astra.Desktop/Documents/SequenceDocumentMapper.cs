@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Astra.Core.Devices;
+using Astra.Core.Rigs;
 
 namespace Astra.Desktop.Documents;
 
@@ -14,10 +15,30 @@ namespace Astra.Desktop.Documents;
 /// </summary>
 public static class SequenceDocumentMapper
 {
-    public static SequenceDocument ToDocument(IReadOnlyList<SequenceStepDraft> steps, string? name = null)
+    public static SequenceDocument ToDocument(
+        IReadOnlyList<SequenceStepDraft> steps, string? name = null, SharedEquipmentDraft? shared = null)
     {
         ArgumentNullException.ThrowIfNull(steps);
-        return new SequenceDocument(name, steps.Select(ToDocumentStep).ToList());
+        return new SequenceDocument(
+            name,
+            steps.Select(ToDocumentStep).ToList(),
+            shared is null ? null : new SharedEquipmentDocument(shared.MountId?.Value, shared.GuiderId?.Value));
+    }
+
+    /// <summary>The session's shared equipment as the document has it; <c>null</c> for a document that says nothing about it.</summary>
+    /// <exception cref="SequenceDocumentException">The document holds a device id that no draft can have.</exception>
+    public static SharedEquipmentDraft? ToSharedEquipment(SequenceDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        try
+        {
+            return document.SharedEquipment is { } shared ? new SharedEquipmentDraft(Device(shared.MountId), Device(shared.GuiderId)) : null;
+        }
+        catch (ArgumentException ex)
+        {
+            throw new SequenceDocumentException(SequenceDocumentErrorKind.Structure, "Invalid device ID in the sequence.", ex);
+        }
     }
 
     /// <exception cref="SequenceDocumentException">The document holds a value that no draft can have.</exception>
@@ -38,6 +59,10 @@ public static class SequenceDocumentMapper
 
     private static DocumentStep ToDocumentStep(SequenceStepDraft step) => step switch
     {
+        MultiRigStepDraft m => new MultiRigDocumentStep(
+            m.Id,
+            m.Tracks.Select(track => new RigTrackDocument(
+                track.Id, track.RigId?.Value, track.Steps.Select(ToDocumentStep).ToList())).ToList()),
         RepeatStepDraft r => new RepeatDocumentStep(r.Id, r.Count, r.Children.Select(ToDocumentLeaf).ToList()),
         LeafStepDraft leaf => ToDocumentLeaf(leaf),
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
@@ -46,6 +71,7 @@ public static class SequenceDocumentMapper
     private static DocumentLeafStep ToDocumentLeaf(LeafStepDraft step) => step switch
     {
         ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds),
+        RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds),
         DelayStepDraft d => new DelayDocumentStep(d.Id, d.Seconds),
         SlewStepDraft s => new SlewDocumentStep(s.Id, s.MountId?.Value, s.RightAscensionHours, s.DeclinationDegrees),
         StartGuidingStepDraft g => new StartGuidingDocumentStep(g.Id, g.GuiderId?.Value),
@@ -58,6 +84,10 @@ public static class SequenceDocumentMapper
 
     private static SequenceStepDraft ToDraftStep(DocumentStep step) => step switch
     {
+        MultiRigDocumentStep m => new MultiRigStepDraft(
+            m.Id,
+            m.Tracks.Select(track => new RigTrackDraft(
+                track.Id, track.RigId is null ? null : new RigId(track.RigId), track.Steps.Select(ToDraftStep).ToList())).ToList()),
         RepeatDocumentStep r => new RepeatStepDraft(r.Id, r.Count, r.Children.Select(ToDraftLeaf).ToList()),
         DocumentLeafStep leaf => ToDraftLeaf(leaf),
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
@@ -66,6 +96,7 @@ public static class SequenceDocumentMapper
     private static LeafStepDraft ToDraftLeaf(DocumentLeafStep step) => step switch
     {
         ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds),
+        RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds),
         DelayDocumentStep d => new DelayStepDraft(d.Id, d.DurationSeconds),
         SlewDocumentStep s => new SlewStepDraft(s.Id, Device(s.MountId), s.RaHours, s.DecDegrees),
         StartGuidingDocumentStep g => new StartGuidingStepDraft(g.Id, Device(g.GuiderId)),

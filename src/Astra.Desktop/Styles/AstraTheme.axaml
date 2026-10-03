@@ -48,6 +48,9 @@
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="LetterSpacing" Value="4" />
     </Style>
+    <Style Selector="TextBlock.container">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="TextBlock.danger">
         <Setter Property="Foreground" Value="{DynamicResource AstraDanger}" />
     </Style>

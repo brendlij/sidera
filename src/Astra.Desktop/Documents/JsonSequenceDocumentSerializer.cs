@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Astra.Desktop.Documents;
 
 /// <summary>
-/// Version 1 of the Astra sequence document format, which happens to be encoded as JSON text. This class is the only
+/// Versions 1 and 2 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
 /// place that knows that: the property names, the step discriminators and the JSON parsing rules below are the
 /// version 1 file format, and nothing else in Astra should depend on them.
 /// <para>
@@ -25,8 +25,10 @@ namespace Astra.Desktop.Documents;
 /// <c>children</c>. A device that is not selected is <c>null</c>.
 /// </para>
 /// <para>
-/// Reading dispatches on the version of the document, so that a later version can be added next to
-/// <see cref="ReadVersion1"/>, with a migration where that is better than a second reader.
+/// Reading dispatches on the version of the document. Version 1 knows the leaf steps and Repeat; version 2, which is
+/// what is written, adds <c>sharedEquipment</c>, the Multi-Rig block (<c>multiRig</c>, with <c>tracks</c> of a
+/// <c>rigId</c> and <c>steps</c>) and the exposure of a rig track (<c>rigExposure</c>). A version 1 document is read
+/// by the same code with the version 2 additions switched off, so it means exactly what it did.
 /// </para>
 /// </summary>
 public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
@@ -39,6 +41,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
     private const string StopGuidingType = "stopGuiding";
     private const string DitherType = "dither";
     private const string RepeatType = "repeat";
+    private const string MultiRigType = "multiRig";
+    private const string RigExposureType = "rigExposure";
 
     private const string InvalidDocument = "Invalid Astra sequence document.";
 
@@ -94,6 +98,14 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             w.WriteString("name", document.Name);
         }
 
+        if (document.SharedEquipment is { } shared)
+        {
+            w.WriteStartObject("sharedEquipment");
+            Device(w, "mountId", shared.MountId);
+            Device(w, "guiderId", shared.GuiderId);
+            w.WriteEndObject();
+        }
+
         w.WriteStartArray("steps");
         foreach (var step in document.Steps)
         {
@@ -141,6 +153,30 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 w.WriteNumber("settleThresholdPixels", d.SettleThresholdPixels);
                 w.WriteNumber("settleStableSeconds", d.SettleStableSeconds);
                 w.WriteNumber("settleTimeoutSeconds", d.SettleTimeoutSeconds);
+                break;
+            case RigExposureDocumentStep r:
+                Header(w, RigExposureType, r.Id);
+                w.WriteNumber("exposureSeconds", r.ExposureSeconds);
+                break;
+            case MultiRigDocumentStep m:
+                Header(w, MultiRigType, m.Id);
+                w.WriteStartArray("tracks");
+                foreach (var track in m.Tracks)
+                {
+                    w.WriteStartObject();
+                    w.WriteString("id", track.Id.ToString("D", CultureInfo.InvariantCulture));
+                    Device(w, "rigId", track.RigId);
+                    w.WriteStartArray("steps");
+                    foreach (var inner in track.Steps)
+                    {
+                        WriteStep(w, inner);
+                    }
+
+                    w.WriteEndArray();
+                    w.WriteEndObject();
+                }
+
+                w.WriteEndArray();
                 break;
             case RepeatDocumentStep r:
                 Header(w, RepeatType, r.Id);
@@ -226,13 +262,13 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 => ReadVersion1(root),
+            1 or 2 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Astra version."),
         };
     }
 
-    private static SequenceDocument ReadVersion1(JsonElement root)
+    private static SequenceDocument ReadBody(JsonElement root, int version)
     {
         string? name = null;
         if (root.TryGetProperty("name", out var nameElement) && nameElement.ValueKind != JsonValueKind.Null)
@@ -250,19 +286,46 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             throw Structure("The sequence has no list of steps.");
         }
 
+        var shared = version >= 2 ? ReadSharedEquipment(root) : null;
+
         var ids = new HashSet<Guid>();
         var steps = new List<DocumentStep>();
         foreach (var element in stepsElement.EnumerateArray())
         {
-            steps.Add(ReadStep(element, insideRepeat: false, ids));
+            steps.Add(ReadStep(element, Place.Top, version, ids));
         }
 
-        return new SequenceDocument(name, steps);
+        return new SequenceDocument(name, steps, shared);
+    }
+
+    private static SharedEquipmentDocument? ReadSharedEquipment(JsonElement root)
+    {
+        if (!root.TryGetProperty("sharedEquipment", out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw Structure("'sharedEquipment' must be an object.");
+        }
+
+        return new SharedEquipmentDocument(
+            ReadDevice(element, "sharedEquipment", "mountId"), ReadDevice(element, "sharedEquipment", "guiderId"));
+    }
+
+    // Where a step is found decides which steps may be there.
+    private enum Place
+    {
+        Top,
+        InRepeat,
+        InTrack,
+        InTrackRepeat,
     }
 
     // Unknown properties are ignored: a later writer of version 1 may add information that does not change what a
     // step is. What does change it is rejected: an unknown step type, a leaf that has children, a Repeat in a Repeat.
-    private static DocumentStep ReadStep(JsonElement element, bool insideRepeat, HashSet<Guid> ids)
+    private static DocumentStep ReadStep(JsonElement element, Place place, int version, HashSet<Guid> ids)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -275,17 +338,37 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         var type = typeElement.GetString()!;
-        if (type is not (ExposureType or DelayType or SlewType or StartGuidingType or StopGuidingType or DitherType or RepeatType))
+        var known = type is ExposureType or DelayType or SlewType or StartGuidingType or StopGuidingType or DitherType or RepeatType
+            || (version >= 2 && type is MultiRigType or RigExposureType);
+        if (!known)
         {
             throw Structure($"Unknown sequence step type '{type}'.");
         }
 
-        if (type == RepeatType && insideRepeat)
+        var inTrack = place is Place.InTrack or Place.InTrackRepeat;
+        var inRepeat = place is Place.InRepeat or Place.InTrackRepeat;
+
+        if (type == RepeatType && inRepeat)
         {
             throw Structure("Repeat steps cannot contain another Repeat.");
         }
 
-        if (type != RepeatType && element.TryGetProperty("children", out _))
+        if (type == MultiRigType && place != Place.Top)
+        {
+            throw Structure("Multi-Rig steps can only be placed at the top level of a sequence.");
+        }
+
+        if (type == RigExposureType && !inTrack)
+        {
+            throw Structure($"A '{type}' step can only be used inside a rig track.");
+        }
+
+        if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType)
+        {
+            throw Structure($"A '{type}' step cannot be used inside a rig track.");
+        }
+
+        if (type is not (RepeatType or MultiRigType) && element.TryGetProperty("children", out _))
         {
             throw Structure($"A '{type}' step cannot contain other steps.");
         }
@@ -302,6 +385,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 ReadNumber(element, type, "raHours"), ReadNumber(element, type, "decDegrees")),
             StartGuidingType => new StartGuidingDocumentStep(id, ReadDevice(element, type, "guiderId")),
             StopGuidingType => new StopGuidingDocumentStep(id, ReadDevice(element, type, "guiderId")),
+            RigExposureType => new RigExposureDocumentStep(id, ReadNumber(element, type, "exposureSeconds")),
+            MultiRigType => ReadMultiRig(element, id, version, ids),
             DitherType => new DitherDocumentStep(
                 id,
                 ReadDevice(element, type, "guiderId"),
@@ -311,11 +396,45 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 ReadNumber(element, type, "settleThresholdPixels"),
                 ReadNumber(element, type, "settleStableSeconds"),
                 ReadNumber(element, type, "settleTimeoutSeconds")),
-            _ => ReadRepeat(element, id, ids),
+            _ => ReadRepeat(element, id, place, version, ids),
         };
     }
 
-    private static RepeatDocumentStep ReadRepeat(JsonElement element, Guid id, HashSet<Guid> ids)
+    private static MultiRigDocumentStep ReadMultiRig(JsonElement element, Guid id, int version, HashSet<Guid> ids)
+    {
+        if (!element.TryGetProperty("tracks", out var tracksElement) || tracksElement.ValueKind != JsonValueKind.Array)
+        {
+            throw Structure($"A '{MultiRigType}' step is missing its list of 'tracks'.");
+        }
+
+        var tracks = new List<RigTrackDocument>();
+        foreach (var track in tracksElement.EnumerateArray())
+        {
+            if (track.ValueKind != JsonValueKind.Object)
+            {
+                throw Structure("A rig track must be an object.");
+            }
+
+            var trackId = ReadId(track, "rigTrack", ids);
+            var rigId = ReadDevice(track, "rigTrack", "rigId");
+            if (!track.TryGetProperty("steps", out var stepsElement) || stepsElement.ValueKind != JsonValueKind.Array)
+            {
+                throw Structure("A rig track is missing its list of 'steps'.");
+            }
+
+            var steps = new List<DocumentStep>();
+            foreach (var step in stepsElement.EnumerateArray())
+            {
+                steps.Add(ReadStep(step, Place.InTrack, version, ids));
+            }
+
+            tracks.Add(new RigTrackDocument(trackId, rigId, steps));
+        }
+
+        return new MultiRigDocumentStep(id, tracks);
+    }
+
+    private static RepeatDocumentStep ReadRepeat(JsonElement element, Guid id, Place place, int version, HashSet<Guid> ids)
     {
         if (!element.TryGetProperty("count", out var countElement))
         {
@@ -336,7 +455,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         var children = new List<DocumentLeafStep>();
         foreach (var child in childrenElement.EnumerateArray())
         {
-            children.Add((DocumentLeafStep)ReadStep(child, insideRepeat: true, ids));
+            children.Add((DocumentLeafStep)ReadStep(
+                child, place == Place.InTrack ? Place.InTrackRepeat : Place.InRepeat, version, ids));
         }
 
         return new RepeatDocumentStep(id, count, children);

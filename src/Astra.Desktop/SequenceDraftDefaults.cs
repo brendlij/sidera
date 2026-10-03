@@ -58,8 +58,12 @@ public sealed record SequenceDraftDefaults
     public int RepeatCount { get; init; } = 2;
 
     /// <summary>A new step of <paramref name="kind"/> with a new id and these defaults; a Repeat starts empty.</summary>
-    public SequenceStepDraft Create(SequenceStepKind kind) =>
-        kind == SequenceStepKind.Repeat ? new RepeatStepDraft(Guid.NewGuid(), RepeatCount, []) : CreateLeaf(kind);
+    public SequenceStepDraft Create(SequenceStepKind kind) => kind switch
+    {
+        SequenceStepKind.Repeat => new RepeatStepDraft(Guid.NewGuid(), RepeatCount, []),
+        SequenceStepKind.MultiRig => new MultiRigStepDraft(Guid.NewGuid(), []),
+        _ => CreateLeaf(kind),
+    };
 
     /// <summary>A new leaf step of <paramref name="kind"/>, as it is added to the sequence or to a Repeat.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a leaf step.</exception>
@@ -69,6 +73,7 @@ public sealed record SequenceDraftDefaults
         return kind switch
         {
             SequenceStepKind.Exposure => new ExposureStepDraft(id, CameraId, ExposureSeconds),
+            SequenceStepKind.RigExposure => new RigExposureStepDraft(id, ExposureSeconds),
             SequenceStepKind.Delay => new DelayStepDraft(id, DelaySeconds),
             SequenceStepKind.Slew => new SlewStepDraft(id, MountId, TargetRightAscensionHours, TargetDeclinationDegrees),
             SequenceStepKind.StartGuiding => new StartGuidingStepDraft(id, GuiderId),

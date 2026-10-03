@@ -21,11 +21,12 @@
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,4">
                 <Border Width="{Binding IndentWidth}" />
                 <TextBlock Grid.Column="1" Classes="muted" Text="{Binding NumberText}" IsVisible="{Binding HasNumber}"
-                           MinWidth="24" VerticalAlignment="Top" />
+                           MinWidth="34" Margin="0,0,6,0" VerticalAlignment="Top" />
                 <StackPanel Grid.Column="2" Spacing="4">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="{Binding Glyph}" />
-                        <TextBlock Text="{Binding Title}" Classes.current="{Binding IsActive}" />
+                        <TextBlock Text="{Binding Title}" Classes.current="{Binding IsActive}"
+                                   Classes.container="{Binding IsContainer}" Classes.danger="{Binding IsFailedNode}" />
                     </StackPanel>
                     <TextBlock Text="{Binding SubText}" IsVisible="{Binding HasSubText}" Classes="muted"
                                Classes.danger="{Binding IsProblem}" TextWrapping="Wrap" />
@@ -221,6 +222,17 @@
                                         <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
                                         <MenuItem Header="Dither" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
                                         <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
+                                        <MenuItem Header="Multi-Rig Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                            <Button Content="Add Rig Track" Command="{Binding Draft.AddTrackCommand}" IsVisible="{Binding Draft.IsMultiRigContext}" />
+                            <Button Content="Add step in track ▾" IsEnabled="{Binding Draft.IsEditable}" IsVisible="{Binding Draft.IsMultiRigContext}">
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                        <MenuItem Header="Exposure" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
+                                        <MenuItem Header="Delay" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                                        <MenuItem Header="Repeat" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
@@ -250,7 +262,7 @@
                                      IsVisible="{Binding !Draft.IsEmpty}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:StepDraftViewModel">
-                                        <Grid ColumnDefinitions="Auto,38,*,Auto">
+                                        <Grid ColumnDefinitions="Auto,52,*,Auto">
                                             <!-- Steps inside a Repeat are indented, next to a thin rule -->
                                             <Grid Width="{Binding IndentWidth}">
                                                 <Border Width="2" HorizontalAlignment="Left" Margin="8,0,0,0" CornerRadius="1"
@@ -286,14 +298,32 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
-                    <StackPanel Spacing="14">
-                        <TextBlock Classes="section" Text="SELECTED STEP" />
-                        <TextBlock Classes="muted" Text="Select a step to edit it."
-                                   IsVisible="{Binding Draft.SelectedStep, Converter={x:Static ObjectConverters.IsNull}}" />
-                        <ContentControl Content="{Binding Draft.SelectedStep}" IsEnabled="{Binding Draft.IsEditable}" />
-                    </StackPanel>
-                </Border>
+                <StackPanel Grid.Column="1" Spacing="16" VerticalAlignment="Top">
+                    <!-- What the whole session shares: one mount, usually one guider -->
+                    <Border Classes="card">
+                        <StackPanel Spacing="10" DataContext="{Binding Shared}" x:DataType="vm:SharedEquipmentViewModel">
+                            <TextBlock Classes="section" Text="SHARED EQUIPMENT" />
+                            <StackPanel Spacing="10" IsEnabled="{Binding Draft.IsEditable}">
+                                <TextBlock Classes="muted" Text="Mount" />
+                                <ContentControl Content="{Binding Mount}" />
+                                <TextBlock Classes="muted" Text="{Binding MountText}" />
+                                <TextBlock Classes="muted" Text="Guider" Margin="0,4,0,0" />
+                                <ContentControl Content="{Binding Guider}" />
+                                <TextBlock Classes="muted" Text="{Binding GuiderText}" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Draft.SharedProblems}" ItemTemplate="{StaticResource ProblemLine}"
+                                          IsVisible="{Binding Draft.HasSharedProblems}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="card">
+                        <StackPanel Spacing="14">
+                            <TextBlock Classes="section" Text="SELECTED STEP" />
+                            <TextBlock Classes="muted" Text="Select a step to edit it."
+                                       IsVisible="{Binding Draft.SelectedStep, Converter={x:Static ObjectConverters.IsNull}}" />
+                            <ContentControl Content="{Binding Draft.SelectedStep}" IsEnabled="{Binding Draft.IsEditable}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </Grid>
             </StackPanel>
         </DataTemplate>
@@ -314,6 +344,49 @@
                 <TextBlock Classes="title" Text="Exposure" />
                 <TextBlock Classes="muted" Text="Camera" />
                 <ContentControl Content="{Binding Camera}" />
+                <Grid ColumnDefinitions="*,110,36">
+                    <TextBlock Text="Exposure" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding ExposureText}" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigPickerViewModel}" x:DataType="vm:RigPickerViewModel">
+            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RigOption">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" />
+                            <TextBlock Classes="muted" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MultiRigStepDraftViewModel}" x:DataType="vm:MultiRigStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Multi-Rig Imaging" />
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="Each Rig Track images with one rig, at the same time as the others. The mount and the guider are shared by the session: slewing, guiding and dithering stay outside, before and after. Dither inside Multi-Rig Imaging, which has to wait for every rig, comes with a later version. The block ends when every track has ended." />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigTrackDraftViewModel}" x:DataType="vm:RigTrackDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Rig Track" />
+                <TextBlock Classes="muted" Text="Rig" />
+                <ContentControl Content="{Binding Rig}" />
+                <TextBlock Classes="muted" Text="{Binding Summary}" />
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="Use “Add step in track” for what this rig does: exposures with its camera, delays, and Repeats of those." />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigExposureStepDraftViewModel}" x:DataType="vm:RigExposureStepDraftViewModel">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="title" Text="Exposure" />
+                <TextBlock Classes="muted" Text="Uses the camera of the rig of this track." />
                 <Grid ColumnDefinitions="*,110,36">
                     <TextBlock Text="Exposure" VerticalAlignment="Center" />
                     <TextBox Grid.Column="1" Text="{Binding ExposureText}" />

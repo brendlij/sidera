@@ -5,9 +5,11 @@ using System.Linq;
 using Astra.Core.Devices;
 using Astra.Core.Guiding;
 using Astra.Core.Mounts;
+using Astra.Core.Rigs;
 using Astra.Core.Sequencing;
 using Astra.Desktop.ViewModels;
 using Astra.Runtime.Devices;
+using Astra.Runtime.Rigs;
 using Astra.Runtime.Sequencing;
 
 namespace Astra.Desktop;
@@ -22,15 +24,23 @@ public sealed class SequenceConfigurationException(IReadOnlyList<string> problem
 /// <summary>How a step is shown: a title, and a one-line summary of its parameters.</summary>
 public sealed record StepDescription(string Title, string Summary);
 
-/// <summary>What is wrong with a draft: per step (also steps inside a Repeat), and about the sequence as a whole.</summary>
+/// <summary>
+/// What a draft is checked against besides the devices: the rigs a Rig Track can select, and the equipment the
+/// session shares. Both are optional; without rigs no rig is available, without shared equipment nothing is compared.
+/// </summary>
+public sealed record SequenceDraftContext(RigRegistry? Rigs = null, SharedEquipmentDraft? Shared = null);
+
+/// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
 /// <param name="SequenceProblems">Problems of the sequence itself, for example that it has no steps.</param>
-/// <param name="StepProblems">Problems by <see cref="SequenceStepDraft.Id"/>; steps without problems are absent.</param>
+/// <param name="StepProblems">Problems by <see cref="SequenceStepDraft.Id"/> (or track id); steps without problems are absent.</param>
+/// <param name="SharedProblems">Problems of the shared equipment: a device that is not there, or of the wrong kind.</param>
 public sealed record DraftValidation(
     IReadOnlyList<string> SequenceProblems,
-    IReadOnlyDictionary<Guid, IReadOnlyList<string>> StepProblems
+    IReadOnlyDictionary<Guid, IReadOnlyList<string>> StepProblems,
+    IReadOnlyList<string>? SharedProblems = null
 )
 {
-    public bool IsValid => SequenceProblems.Count == 0 && StepProblems.Count == 0;
+    public bool IsValid => SequenceProblems.Count == 0 && StepProblems.Count == 0 && (SharedProblems?.Count ?? 0) == 0;
 
     public IReadOnlyList<string> ProblemsOf(Guid stepId) =>
         StepProblems.TryGetValue(stepId, out var problems) ? problems : [];
@@ -39,7 +49,9 @@ public sealed record DraftValidation(
 /// <summary>
 /// A runtime step together with the draft step it was built from, and how that step was described. For a Repeat,
 /// <see cref="Step"/> is the runtime <see cref="RepeatStep"/> and <see cref="Children"/> are the built steps inside
-/// it, in order; the group the runtime needs around several children is an internal detail and has no entry.
+/// it, in order; the group the runtime needs around several children is an internal detail and has no entry. For a
+/// Multi-Rig block it is the <see cref="ParallelStep"/> and the children are its tracks (a <see cref="RigTrackStep"/>
+/// each, with the built steps of the track as its own children).
 /// </summary>
 public sealed record BuiltStep(
     Guid DraftId,
@@ -56,14 +68,18 @@ public sealed record BuiltSequence(Sequence Sequence, IReadOnlyList<BuiltStep> S
 
 /// <summary>
 /// Turns a list of <see cref="SequenceStepDraft"/>s into a runtime <see cref="Sequence"/>: one existing step per
-/// draft step, in the draft's order, and for a Repeat a <see cref="RepeatStep"/> around a <see cref="SequenceGroup"/>
-/// of its children (the repeat runs one child, the group is how that child becomes several). Every call makes new
-/// step objects, so a run is never affected by a later edit. It checks everything itself and does not rely on what
-/// the editor allowed.
+/// draft step, in the draft's order; for a Repeat a <see cref="RepeatStep"/> around a <see cref="SequenceGroup"/> of
+/// its children (the repeat runs one child, the group is how that child becomes several); for a Multi-Rig block a
+/// <see cref="ParallelStep"/> with one <see cref="RigTrackStep"/> per Rig Track. Every call makes new step objects,
+/// so a run is never affected by a later edit. It checks everything itself and does not rely on what the editor
+/// allowed.
 /// <para>
-/// Nothing runs next to anything else, also inside a Repeat. A <see cref="DitherAction"/> therefore needs no
-/// coordination group and no safe points: it runs when its guider, mount and camera are free, exactly as the runtime
-/// defines for a dither outside a coordination group.
+/// A dither outside a Multi-Rig block needs no coordination group and no safe points: it runs when its guider, mount
+/// and camera are free, as the runtime defines for a dither outside a coordination group. Inside a Multi-Rig block it
+/// would have to wait for every track's exposure to be at a safe point before the shared mount moves, which this
+/// builder does not (yet) compile, so a dither, like everything else that moves the shared mount or the guider
+/// (slewing, starting and stopping guiding), is not allowed in a Rig Track. The tracks run next to each other with
+/// the camera of their rig as their only equipment, and so cannot get in each other's way.
 /// </para>
 /// <para>
 /// Guiding is checked by playing the draft through: each guider is guiding, stopped, or unknown (before the first
@@ -77,9 +93,10 @@ public static class SequenceDraftBuilder
 {
     public const string SequenceName = "Custom";
     public const string RepeatBodyName = "Repeat body";
+    public const string MultiRigName = "Multi-Rig Imaging";
 
     /// <summary>Describes a step for display. Never throws; a missing device is shown by its id or as "no camera".</summary>
-    public static StepDescription Describe(DeviceRegistry registry, SequenceStepDraft step)
+    public static StepDescription Describe(DeviceRegistry registry, SequenceStepDraft step, SequenceDraftContext? context = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(step);
@@ -87,6 +104,7 @@ public static class SequenceDraftBuilder
         return step switch
         {
             ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}"),
+            RigExposureStepDraft e => new("Exposure", Seconds(e.Seconds)),
             DelayStepDraft d => new("Delay", Seconds(d.Seconds)),
             SlewStepDraft s => new("Slew", string.Create(
                 CultureInfo.InvariantCulture,
@@ -99,129 +117,125 @@ public static class SequenceDraftBuilder
             RepeatStepDraft r => new(
                 string.Create(CultureInfo.InvariantCulture, $"Repeat × {r.Count}"),
                 r.Children.Count == 0 ? "no steps" : r.Children.Count == 1 ? "1 step" : $"{r.Children.Count} steps"),
+            MultiRigStepDraft m => new(
+                MultiRigName, m.Tracks.Count == 0 ? "no rig tracks" : m.Tracks.Count == 1 ? "1 rig track" : $"{m.Tracks.Count} rig tracks"),
             _ => new(step.Kind.ToString(), string.Empty),
         };
     }
 
-    /// <summary>The number of a step as shown to the user: "2" for a top-level step, "2.1" for the first one in step 2.</summary>
-    public static string Label(int index, int? childIndex = null) =>
-        childIndex is { } child
-            ? string.Create(CultureInfo.InvariantCulture, $"{index + 1}.{child + 1}")
-            : (index + 1).ToString(CultureInfo.InvariantCulture);
+    /// <summary>
+    /// Describes a Rig Track: the rig's name, and its camera. A rig that is not selected, or not there, is described
+    /// as such, with the id it was selected by.
+    /// </summary>
+    public static StepDescription DescribeTrack(DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context = null)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(track);
 
-    /// <summary>Checks the whole draft, one level of Repeat deep, without building anything.</summary>
-    public static DraftValidation Validate(DeviceRegistry registry, IReadOnlyList<SequenceStepDraft> steps)
+        if (track.RigId is not { } rigId)
+        {
+            return new("Rig Track", "no rig selected");
+        }
+
+        return TryGetRig(context, rigId, out var rig)
+            ? new(rig.Name, DeviceName(registry, rig.CameraId, "no camera"))
+            : new(rigId.Value, "rig not available");
+    }
+
+    /// <summary>The number of a step as shown to the user: "2" for a top-level step, "2.1" for the first one in step 2.</summary>
+    public static string Label(params int[] path) =>
+        string.Join('.', path.Select(index => (index + 1).ToString(CultureInfo.InvariantCulture)));
+
+    /// <summary>
+    /// The devices a draft needs for running: those its steps name, and the camera of each rig of a Multi-Rig block.
+    /// Only what is actually used; the shared equipment of the session is not needed unless a step uses it.
+    /// </summary>
+    public static IReadOnlyCollection<DeviceId> RequiredDeviceIds(IEnumerable<SequenceStepDraft> steps, SequenceDraftContext? context = null)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+
+        var ids = new List<DeviceId>();
+        foreach (var step in steps)
+        {
+            if (step is MultiRigStepDraft multiRig)
+            {
+                foreach (var track in multiRig.Tracks)
+                {
+                    if (track.RigId is { } rigId && TryGetRig(context, rigId, out var rig))
+                    {
+                        ids.Add(rig.CameraId);
+                    }
+
+                    ids.AddRange(track.Steps.SelectMany(inner => inner.DeviceIds));
+                }
+            }
+            else
+            {
+                ids.AddRange(step.DeviceIds);
+            }
+        }
+
+        return ids.Distinct().ToList();
+    }
+
+    /// <summary>Checks the whole draft, containers and tracks included, without building anything.</summary>
+    public static DraftValidation Validate(
+        DeviceRegistry registry, IReadOnlyList<SequenceStepDraft> steps, SequenceDraftContext? context = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(steps);
-
-        var sequenceProblems = new List<string>();
-        var stepProblems = new Dictionary<Guid, List<string>>();
-
-        void Report(Guid id, string problem)
-        {
-            if (!stepProblems.TryGetValue(id, out var list))
-            {
-                stepProblems[id] = list = [];
-            }
-
-            if (!list.Contains(problem))
-            {
-                list.Add(problem);
-            }
-        }
-
-        if (steps.Count == 0)
-        {
-            sequenceProblems.Add("The sequence has no steps.");
-        }
-
-        var guiding = new Dictionary<DeviceId, GuidingFact>();
-        var ids = new List<Guid>();
-
-        for (var i = 0; i < steps.Count; i++)
-        {
-            var step = steps[i];
-            ids.Add(step.Id);
-
-            if (step is not RepeatStepDraft repeat)
-            {
-                var problems = new List<string>();
-                ValidateStep(registry, step, problems);
-                problems.ForEach(p => Report(step.Id, p));
-                ValidateGuidingOrder(step, Label(i), -1, 0, guiding, p => Report(step.Id, p));
-                continue;
-            }
-
-            if (repeat.Count < 1)
-            {
-                Report(repeat.Id, "Repeat count must be at least 1.");
-            }
-
-            if (repeat.Children.Count == 0)
-            {
-                Report(repeat.Id, "Repeat must contain at least one step.");
-            }
-
-            foreach (var child in repeat.Children)
-            {
-                ids.Add(child.Id);
-                var problems = new List<string>();
-                ValidateStep(registry, child, problems);
-                problems.ForEach(p => Report(child.Id, p));
-            }
-
-            // The body is played once, and a second time if it runs again: the second pass meets what the first left.
-            for (var pass = 0; pass < (repeat.Count > 1 ? 2 : 1); pass++)
-            {
-                for (var j = 0; j < repeat.Children.Count; j++)
-                {
-                    var child = repeat.Children[j];
-                    ValidateGuidingOrder(child, Label(i, j), i, pass, guiding, p => Report(child.Id, p));
-                }
-            }
-        }
-
-        if (ids.Distinct().Count() != ids.Count)
-        {
-            sequenceProblems.Add("Two steps share the same id.");
-        }
-
-        return new DraftValidation(
-            sequenceProblems,
-            stepProblems.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value));
+        return new Validator(registry, context).Run(steps);
     }
 
     /// <summary>The problems of <paramref name="validation"/> as sentences naming the step, in step order.</summary>
     public static IReadOnlyList<string> Sentences(IReadOnlyList<SequenceStepDraft> steps, DraftValidation validation)
     {
         var sentences = new List<string>(validation.SequenceProblems);
+        sentences.AddRange(validation.SharedProblems ?? []);
 
-        void Add(SequenceStepDraft step, string label)
+        void Add(Guid id, string label, string title) =>
+            sentences.AddRange(validation.ProblemsOf(id).Select(p => $"Step {label} ({title}): {p}"));
+
+        void AddStep(SequenceStepDraft step, int[] path)
         {
-            var title = TitleOf(step.Kind);
-            sentences.AddRange(validation.ProblemsOf(step.Id).Select(p => $"Step {label} ({title}): {p}"));
+            Add(step.Id, Label(path), TitleOf(step.Kind));
+            switch (step)
+            {
+                case RepeatStepDraft repeat:
+                    for (var j = 0; j < repeat.Children.Count; j++)
+                    {
+                        AddStep(repeat.Children[j], [.. path, j]);
+                    }
+
+                    break;
+                case MultiRigStepDraft multiRig:
+                    for (var t = 0; t < multiRig.Tracks.Count; t++)
+                    {
+                        var track = multiRig.Tracks[t];
+                        Add(track.Id, Label([.. path, t]), "Rig Track");
+                        for (var s = 0; s < track.Steps.Count; s++)
+                        {
+                            AddStep(track.Steps[s], [.. path, t, s]);
+                        }
+                    }
+
+                    break;
+            }
         }
 
         for (var i = 0; i < steps.Count; i++)
         {
-            Add(steps[i], Label(i));
-            if (steps[i] is RepeatStepDraft repeat)
-            {
-                for (var j = 0; j < repeat.Children.Count; j++)
-                {
-                    Add(repeat.Children[j], Label(i, j));
-                }
-            }
+            AddStep(steps[i], [i]);
         }
 
         return sentences;
     }
 
     /// <exception cref="SequenceConfigurationException">The draft is not valid.</exception>
-    public static BuiltSequence Build(DeviceRegistry registry, IReadOnlyList<SequenceStepDraft> steps)
+    public static BuiltSequence Build(
+        DeviceRegistry registry, IReadOnlyList<SequenceStepDraft> steps, SequenceDraftContext? context = null)
     {
-        var validation = Validate(registry, steps);
+        var validation = Validate(registry, steps, context);
         if (!validation.IsValid)
         {
             throw new SequenceConfigurationException(Sentences(steps, validation));
@@ -229,7 +243,7 @@ public static class SequenceDraftBuilder
 
         try
         {
-            var built = steps.Select(step => BuildStep(registry, step)).ToList();
+            var built = steps.Select(step => BuildStep(registry, step, context, null)).ToList();
             return new BuiltSequence(new Sequence(SequenceName, built.Select(b => b.Step)), built);
         }
         catch (Exception ex) when (ex is ArgumentException or OverflowException)
@@ -239,23 +253,42 @@ public static class SequenceDraftBuilder
         }
     }
 
-    private static BuiltStep BuildStep(DeviceRegistry registry, SequenceStepDraft step)
+    // rigCamera: the camera of the rig of the track the step is in; null outside a track.
+    private static BuiltStep BuildStep(DeviceRegistry registry, SequenceStepDraft step, SequenceDraftContext? context, DeviceId? rigCamera)
     {
-        var description = Describe(registry, step);
-        if (step is not RepeatStepDraft repeat)
+        var description = Describe(registry, step, context);
+        switch (step)
         {
-            return new BuiltStep(step.Id, description, CreateLeaf(registry, step));
+            case MultiRigStepDraft multiRig:
+            {
+                var tracks = multiRig.Tracks.Select(track => BuildTrack(registry, track, context)).ToList();
+                return new BuiltStep(step.Id, description, new ParallelStep(MultiRigName, tracks.Select(t => t.Step)), tracks);
+            }
+            case RepeatStepDraft repeat:
+            {
+                // A RepeatStep repeats one child; the group makes the children of the draft one.
+                var children = repeat.Children.Select(child => BuildStep(registry, child, context, rigCamera)).ToList();
+                var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step));
+                return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body), children);
+            }
+            default:
+                return new BuiltStep(step.Id, description, CreateLeaf(registry, step, rigCamera));
         }
-
-        // A RepeatStep repeats one child; the group makes the children of the draft one.
-        var children = repeat.Children.Select(child => BuildStep(registry, child)).ToList();
-        var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step));
-        return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body), children);
     }
 
-    private static ISequenceStep CreateLeaf(DeviceRegistry registry, SequenceStepDraft step) => step switch
+    private static BuiltStep BuildTrack(DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context)
+    {
+        // Validated before: the rig is selected and there.
+        TryGetRig(context, track.RigId!.Value, out var rig);
+        var steps = track.Steps.Select(step => BuildStep(registry, step, context, rig.CameraId)).ToList();
+        var runtime = new RigTrackStep(track.Id, rig.Name, steps.Select(step => step.Step));
+        return new BuiltStep(track.Id, DescribeTrack(registry, track, context), runtime, steps);
+    }
+
+    private static ISequenceStep CreateLeaf(DeviceRegistry registry, SequenceStepDraft step, DeviceId? rigCamera) => step switch
     {
         ExposureStepDraft e => new CameraExposureAction(registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds)),
+        RigExposureStepDraft e => new CameraExposureAction(registry, rigCamera!.Value, TimeSpan.FromSeconds(e.Seconds)),
         DelayStepDraft d => new DelayAction(TimeSpan.FromSeconds(d.Seconds)),
         SlewStepDraft s => new SlewAction(
             registry, s.MountId!.Value, new CelestialCoordinates(s.RightAscensionHours, s.DeclinationDegrees)),
@@ -270,166 +303,437 @@ public static class SequenceDraftBuilder
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
     };
 
-    private static void ValidateStep(DeviceRegistry registry, SequenceStepDraft step, List<string> problems)
+    private static bool TryGetRig(SequenceDraftContext? context, RigId id, out Rig rig)
     {
-        switch (step)
+        if (context?.Rigs is { } rigs && rigs.TryGet(id, out var found) && found is not null)
         {
-            case ExposureStepDraft e:
-                CheckDevice<ICamera>(registry, e.CameraId, "camera", problems);
-                CheckDuration(e.Seconds, "Exposure", problems);
-                break;
-            case DelayStepDraft d:
-                CheckDuration(d.Seconds, "Delay", problems);
-                break;
-            case SlewStepDraft s:
-                CheckDevice<IMount>(registry, s.MountId, "mount", problems);
-                try
-                {
-                    _ = new CelestialCoordinates(s.RightAscensionHours, s.DeclinationDegrees);
-                }
-                catch (ArgumentException ex)
-                {
-                    problems.Add(UserFacingError.Describe(ex));
-                }
-
-                break;
-            case StartGuidingStepDraft g:
-                CheckDevice<IGuider>(registry, g.GuiderId, "guider", problems);
-                break;
-            case StopGuidingStepDraft g:
-                CheckDevice<IGuider>(registry, g.GuiderId, "guider", problems);
-                break;
-            case DitherStepDraft d:
-                ValidateDither(registry, d, problems);
-                break;
-            default:
-                problems.Add($"Unsupported step '{step.GetType().Name}'.");
-                break;
+            rig = found;
+            return true;
         }
+
+        rig = null!;
+        return false;
     }
 
-    // What DitherAction and GuidingSettleOptions require, plus what the dither command asks of the guider when it runs.
-    private static void ValidateDither(DeviceRegistry registry, DitherStepDraft d, List<string> problems)
+    // The checks of one validation run, with what has been found so far.
+    private sealed class Validator(DeviceRegistry registry, SequenceDraftContext? context)
     {
-        CheckDevice<IGuider>(registry, d.GuiderId, "guider", problems);
-        CheckDevice<IMount>(registry, d.MountId, "mount", problems);
-        CheckDevice<ICamera>(registry, d.CameraId, "camera", problems);
+        // What the last step that touched a guider did to it, where, and in which pass over which Repeat body (-1: none).
+        private readonly record struct GuidingFact(bool IsGuiding, string Label, int Scope, int Pass);
 
-        if (d.GuiderId is { } id && registry.TryGet(id, out var guider) && guider is IGuider)
+        private readonly Dictionary<Guid, List<string>> _problems = new();
+        private readonly List<Guid> _ids = [];
+        private readonly Dictionary<DeviceId, GuidingFact> _guiding = new();
+        private readonly SharedEquipmentDraft? _shared = context?.Shared;
+
+        public DraftValidation Run(IReadOnlyList<SequenceStepDraft> steps)
         {
-            if (guider is not IDitherGuider)
+            var sequenceProblems = new List<string>();
+            var sharedProblems = new List<string>();
+
+            if (steps.Count == 0)
             {
-                problems.Add($"Guider '{id}' does not support dithering.");
+                sequenceProblems.Add("The sequence has no steps.");
             }
-            else if (guider is not IGuidingSettler)
+
+            if (_shared is not null)
             {
-                problems.Add($"Guider '{id}' does not support settling.");
+                CheckDevice<IMount>(_shared.MountId, "mount", sharedProblems, required: false, shared: true);
+                CheckDevice<IGuider>(_shared.GuiderId, "guider", sharedProblems, required: false, shared: true);
             }
+
+            for (var i = 0; i < steps.Count; i++)
+            {
+                TopLevel(steps[i], i);
+            }
+
+            if (_ids.Distinct().Count() != _ids.Count)
+            {
+                sequenceProblems.Add("Two steps share the same id.");
+            }
+
+            return new DraftValidation(
+                sequenceProblems,
+                _problems.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value),
+                sharedProblems);
         }
 
-        CheckPositive(d.AmplitudePixels, "Dither amplitude", "px", problems);
-
-        var usable = IsPositive(d.SettleThresholdPixels) && IsPositive(d.SettleStableSeconds) && IsPositive(d.SettleTimeoutSeconds);
-        CheckPositive(d.SettleThresholdPixels, "Settle threshold", "px", problems);
-        CheckPositive(d.SettleStableSeconds, "Settle stable time", "s", problems);
-        CheckPositive(d.SettleTimeoutSeconds, "Settle timeout", "s", problems);
-        if (usable && d.SettleTimeoutSeconds <= d.SettleStableSeconds)
+        private void Report(Guid id, string problem)
         {
-            problems.Add("Settle timeout must be longer than the stable time.");
-        }
-    }
-
-    // What the last step that touched a guider did to it, where, and in which pass over which Repeat body (-1: none).
-    private readonly record struct GuidingFact(bool IsGuiding, string Label, int Scope, int Pass);
-
-    // Start needs a guider that is not guiding, stop and dither need one that is. That is only knowable from what
-    // earlier steps of the draft did, so only a contradiction with an earlier step is reported.
-    private static void ValidateGuidingOrder(
-        SequenceStepDraft step,
-        string label,
-        int scope,
-        int pass,
-        Dictionary<DeviceId, GuidingFact> guiding,
-        Action<string> report)
-    {
-        string Where(GuidingFact fact) =>
-            fact.Pass < pass ? $"step {fact.Label} in the previous repetition" : $"step {fact.Label}";
-
-        // In the second pass only what the first pass of this body left behind is new: whatever came from before
-        // the Repeat was already met, and reported, in the first pass.
-        void Report(GuidingFact fact, string problem)
-        {
-            if (pass == 0 || fact.Scope == scope)
+            if (!_problems.TryGetValue(id, out var list))
             {
-                report(problem);
+                _problems[id] = list = [];
+            }
+
+            if (!list.Contains(problem))
+            {
+                list.Add(problem);
             }
         }
 
-        switch (step)
+        private void TopLevel(SequenceStepDraft step, int index)
         {
-            case StartGuidingStepDraft { GuiderId: { } id }:
-                if (guiding.TryGetValue(id, out var started) && started.IsGuiding)
+            _ids.Add(step.Id);
+            switch (step)
+            {
+                case MultiRigStepDraft multiRig:
+                    MultiRig(multiRig);
+                    break;
+                case RepeatStepDraft repeat:
+                    Repeat(repeat, index, inTrack: false);
+                    break;
+                default:
+                    Own(step, Label(index), -1, 0);
+                    break;
+            }
+        }
+
+        // A step outside tracks: its own values, the shared equipment, and what it does to the guiding.
+        private void Own(SequenceStepDraft step, string label, int scope, int pass)
+        {
+            if (pass == 0)
+            {
+                var problems = new List<string>();
+                ValidateStep(step, problems);
+                problems.ForEach(p => Report(step.Id, p));
+                SharedMismatches(step);
+            }
+
+            ValidateGuidingOrder(step, label, scope, pass, p => Report(step.Id, p));
+        }
+
+        private void Repeat(RepeatStepDraft repeat, int index, bool inTrack)
+        {
+            if (repeat.Count < 1)
+            {
+                Report(repeat.Id, "Repeat count must be at least 1.");
+            }
+
+            if (repeat.Children.Count == 0)
+            {
+                Report(repeat.Id, "Repeat must contain at least one step.");
+            }
+
+            if (inTrack)
+            {
+                foreach (var child in repeat.Children)
                 {
-                    Report(started, $"Guiding was already started by {Where(started)}.");
+                    _ids.Add(child.Id);
+                    TrackLeaf(child);
                 }
 
-                guiding[id] = new GuidingFact(true, label, scope, pass);
-                break;
-            case StopGuidingStepDraft { GuiderId: { } id }:
-                if (guiding.TryGetValue(id, out var stopped) && !stopped.IsGuiding)
+                return;
+            }
+
+            foreach (var child in repeat.Children)
+            {
+                _ids.Add(child.Id);
+            }
+
+            // The body is played once, and a second time if it runs again: the second pass meets what the first left.
+            for (var pass = 0; pass < (repeat.Count > 1 ? 2 : 1); pass++)
+            {
+                for (var j = 0; j < repeat.Children.Count; j++)
                 {
-                    Report(stopped, $"Guiding was already stopped by {Where(stopped)}.");
+                    Own(repeat.Children[j], Label(index, j), index, pass);
                 }
+            }
+        }
 
-                guiding[id] = new GuidingFact(false, label, scope, pass);
-                break;
-            case DitherStepDraft { GuiderId: { } id }:
-                if (guiding.TryGetValue(id, out var state) && !state.IsGuiding)
+        private void MultiRig(MultiRigStepDraft multiRig)
+        {
+            if (multiRig.Tracks.Count < 2)
+            {
+                Report(multiRig.Id, "Multi-Rig Imaging needs at least two Rig Tracks.");
+            }
+
+            var rigs = new HashSet<RigId>();
+            var cameras = new HashSet<DeviceId>();
+            foreach (var track in multiRig.Tracks)
+            {
+                _ids.Add(track.Id);
+                Track(track, rigs, cameras);
+            }
+        }
+
+        private void Track(RigTrackDraft track, HashSet<RigId> rigs, HashSet<DeviceId> cameras)
+        {
+            if (track.RigId is not { } rigId)
+            {
+                Report(track.Id, "No rig selected.");
+            }
+            else if (!TryGetRig(context, rigId, out var rig))
+            {
+                Report(track.Id, $"The rig '{rigId}' is not available.");
+            }
+            else if (!rigs.Add(rigId))
+            {
+                Report(track.Id, $"The rig '{rigId}' is already used by another track.");
+            }
+            else if (!registry.TryGet(rig.CameraId, out var camera) || camera is not ICamera)
+            {
+                Report(track.Id, $"The camera '{rig.CameraId}' of rig '{rigId}' is not available.");
+            }
+            else if (!cameras.Add(rig.CameraId))
+            {
+                // Two rigs that name the same camera would expose it twice at once.
+                Report(track.Id, $"The camera '{rig.CameraId}' is already used by another track.");
+            }
+
+            if (track.Steps.Count == 0)
+            {
+                Report(track.Id, "A Rig Track needs at least one step.");
+            }
+
+            foreach (var step in track.Steps)
+            {
+                _ids.Add(step.Id);
+                switch (step)
                 {
-                    Report(state, $"Dither needs guiding, but {Where(state)} stopped it.");
+                    case RepeatStepDraft repeat:
+                        Repeat(repeat, 0, inTrack: true);
+                        break;
+                    default:
+                        TrackLeaf(step);
+                        break;
                 }
+            }
+        }
 
-                break;
-        }
-    }
+        // What a Rig Track may hold: exposures with the rig camera, delays, and Repeats of those.
+        private void TrackLeaf(SequenceStepDraft step)
+        {
+            var problems = new List<string>();
+            switch (step)
+            {
+                case RigExposureStepDraft e:
+                    CheckDuration(e.Seconds, "Exposure", problems);
+                    break;
+                case DelayStepDraft d:
+                    CheckDuration(d.Seconds, "Delay", problems);
+                    break;
+                case ExposureStepDraft:
+                    problems.Add("Use an exposure of the track here: its camera is the camera of the rig.");
+                    break;
+                case SlewStepDraft:
+                    problems.Add("Slewing moves the shared mount and cannot be done inside a Rig Track.");
+                    break;
+                case StartGuidingStepDraft or StopGuidingStepDraft:
+                    problems.Add("Guiding is shared by the whole session and cannot be started or stopped inside a Rig Track.");
+                    break;
+                case DitherStepDraft:
+                    problems.Add("Dither is not available inside Multi-Rig Imaging yet: it has to wait until every rig is at a safe point.");
+                    break;
+                case MultiRigStepDraft:
+                    problems.Add("Multi-Rig Imaging cannot be placed inside a Rig Track.");
+                    break;
+                case RepeatStepDraft:
+                    problems.Add("A Repeat inside a Rig Track cannot contain another Repeat.");
+                    break;
+                default:
+                    problems.Add($"Unsupported step '{step.GetType().Name}'.");
+                    break;
+            }
 
-    private static void CheckDevice<T>(DeviceRegistry registry, DeviceId? id, string kind, List<string> problems)
-        where T : class, IDevice
-    {
-        if (id is not { } deviceId)
-        {
-            problems.Add($"No {kind} selected.");
+            problems.ForEach(p => Report(step.Id, p));
         }
-        else if (!registry.TryGet(deviceId, out var device) || device is null)
-        {
-            problems.Add($"The {kind} '{deviceId}' is not available.");
-        }
-        else if (device is not T)
-        {
-            problems.Add($"'{deviceId}' is not a {kind}.");
-        }
-    }
 
-    private static bool IsPositive(double value) => double.IsFinite(value) && value > 0;
+        private void ValidateStep(SequenceStepDraft step, List<string> problems)
+        {
+            switch (step)
+            {
+                case ExposureStepDraft e:
+                    CheckDevice<ICamera>(e.CameraId, "camera", problems);
+                    CheckDuration(e.Seconds, "Exposure", problems);
+                    break;
+                case RigExposureStepDraft:
+                    problems.Add("An exposure with the camera of a rig can only be used inside a Rig Track.");
+                    break;
+                case DelayStepDraft d:
+                    CheckDuration(d.Seconds, "Delay", problems);
+                    break;
+                case SlewStepDraft s:
+                    CheckDevice<IMount>(s.MountId, "mount", problems);
+                    try
+                    {
+                        _ = new CelestialCoordinates(s.RightAscensionHours, s.DeclinationDegrees);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        problems.Add(UserFacingError.Describe(ex));
+                    }
 
-    private static void CheckPositive(double value, string label, string unit, List<string> problems)
-    {
-        if (!IsPositive(value))
-        {
-            problems.Add($"{label} must be greater than 0 {unit}.");
+                    break;
+                case StartGuidingStepDraft g:
+                    CheckDevice<IGuider>(g.GuiderId, "guider", problems);
+                    break;
+                case StopGuidingStepDraft g:
+                    CheckDevice<IGuider>(g.GuiderId, "guider", problems);
+                    break;
+                case DitherStepDraft d:
+                    ValidateDither(d, problems);
+                    break;
+                case MultiRigStepDraft:
+                    problems.Add("Multi-Rig Imaging can only be placed at the top level of a sequence.");
+                    break;
+                default:
+                    problems.Add($"Unsupported step '{step.GetType().Name}'.");
+                    break;
+            }
         }
-    }
 
-    // A positive duration that a TimeSpan can hold.
-    private static void CheckDuration(double seconds, string label, List<string> problems)
-    {
-        if (!IsPositive(seconds))
+        // What DitherAction and GuidingSettleOptions require, plus what the dither command asks of the guider when it runs.
+        private void ValidateDither(DitherStepDraft d, List<string> problems)
         {
-            problems.Add($"{label} must be greater than 0 s.");
+            CheckDevice<IGuider>(d.GuiderId, "guider", problems);
+            CheckDevice<IMount>(d.MountId, "mount", problems);
+            CheckDevice<ICamera>(d.CameraId, "camera", problems);
+
+            if (d.GuiderId is { } id && registry.TryGet(id, out var guider) && guider is IGuider)
+            {
+                if (guider is not IDitherGuider)
+                {
+                    problems.Add($"Guider '{id}' does not support dithering.");
+                }
+                else if (guider is not IGuidingSettler)
+                {
+                    problems.Add($"Guider '{id}' does not support settling.");
+                }
+            }
+
+            CheckPositive(d.AmplitudePixels, "Dither amplitude", "px", problems);
+
+            var usable = IsPositive(d.SettleThresholdPixels) && IsPositive(d.SettleStableSeconds) && IsPositive(d.SettleTimeoutSeconds);
+            CheckPositive(d.SettleThresholdPixels, "Settle threshold", "px", problems);
+            CheckPositive(d.SettleStableSeconds, "Settle stable time", "s", problems);
+            CheckPositive(d.SettleTimeoutSeconds, "Settle timeout", "s", problems);
+            if (usable && d.SettleTimeoutSeconds <= d.SettleStableSeconds)
+            {
+                problems.Add("Settle timeout must be longer than the stable time.");
+            }
         }
-        else if (seconds > TimeSpan.MaxValue.TotalSeconds)
+
+        // A step that moves the mount or runs the guider must use the mount and guider the session says it shares.
+        private void SharedMismatches(SequenceStepDraft step)
         {
-            problems.Add($"{label} is too long.");
+            if (_shared is null)
+            {
+                return;
+            }
+
+            void Mismatch(DeviceId? used, DeviceId? shared, string kind)
+            {
+                if (used is { } usedId && shared is { } sharedId && usedId != sharedId)
+                {
+                    Report(step.Id, $"The {kind} '{usedId}' is not the session's shared {kind} '{sharedId}'.");
+                }
+            }
+
+            switch (step)
+            {
+                case SlewStepDraft s:
+                    Mismatch(s.MountId, _shared.MountId, "mount");
+                    break;
+                case StartGuidingStepDraft g:
+                    Mismatch(g.GuiderId, _shared.GuiderId, "guider");
+                    break;
+                case StopGuidingStepDraft g:
+                    Mismatch(g.GuiderId, _shared.GuiderId, "guider");
+                    break;
+                case DitherStepDraft d:
+                    Mismatch(d.GuiderId, _shared.GuiderId, "guider");
+                    Mismatch(d.MountId, _shared.MountId, "mount");
+                    break;
+            }
+        }
+
+        // Start needs a guider that is not guiding, stop and dither need one that is. That is only knowable from what
+        // earlier steps of the draft did, so only a contradiction with an earlier step is reported.
+        private void ValidateGuidingOrder(SequenceStepDraft step, string label, int scope, int pass, Action<string> report)
+        {
+            string Where(GuidingFact fact) =>
+                fact.Pass < pass ? $"step {fact.Label} in the previous repetition" : $"step {fact.Label}";
+
+            // In the second pass only what the first pass of this body left behind is new: whatever came from before
+            // the Repeat was already met, and reported, in the first pass.
+            void Report(GuidingFact fact, string problem)
+            {
+                if (pass == 0 || fact.Scope == scope)
+                {
+                    report(problem);
+                }
+            }
+
+            switch (step)
+            {
+                case StartGuidingStepDraft { GuiderId: { } id }:
+                    if (_guiding.TryGetValue(id, out var started) && started.IsGuiding)
+                    {
+                        Report(started, $"Guiding was already started by {Where(started)}.");
+                    }
+
+                    _guiding[id] = new GuidingFact(true, label, scope, pass);
+                    break;
+                case StopGuidingStepDraft { GuiderId: { } id }:
+                    if (_guiding.TryGetValue(id, out var stopped) && !stopped.IsGuiding)
+                    {
+                        Report(stopped, $"Guiding was already stopped by {Where(stopped)}.");
+                    }
+
+                    _guiding[id] = new GuidingFact(false, label, scope, pass);
+                    break;
+                case DitherStepDraft { GuiderId: { } id }:
+                    if (_guiding.TryGetValue(id, out var state) && !state.IsGuiding)
+                    {
+                        Report(state, $"Dither needs guiding, but {Where(state)} stopped it.");
+                    }
+
+                    break;
+            }
+        }
+
+        private void CheckDevice<T>(DeviceId? id, string kind, List<string> problems, bool required = true, bool shared = false)
+            where T : class, IDevice
+        {
+            var what = shared ? $"shared {kind}" : kind;
+            if (id is not { } deviceId)
+            {
+                if (required)
+                {
+                    problems.Add($"No {kind} selected.");
+                }
+            }
+            else if (!registry.TryGet(deviceId, out var device) || device is null)
+            {
+                problems.Add($"The {what} '{deviceId}' is not available.");
+            }
+            else if (device is not T)
+            {
+                problems.Add($"'{deviceId}' is not a {kind}.");
+            }
+        }
+
+        private static bool IsPositive(double value) => double.IsFinite(value) && value > 0;
+
+        private static void CheckPositive(double value, string label, string unit, List<string> problems)
+        {
+            if (!IsPositive(value))
+            {
+                problems.Add($"{label} must be greater than 0 {unit}.");
+            }
+        }
+
+        // A positive duration that a TimeSpan can hold.
+        private static void CheckDuration(double seconds, string label, List<string> problems)
+        {
+            if (!IsPositive(seconds))
+            {
+                problems.Add($"{label} must be greater than 0 s.");
+            }
+            else if (seconds > TimeSpan.MaxValue.TotalSeconds)
+            {
+                problems.Add($"{label} is too long.");
+            }
         }
     }
 
@@ -445,12 +749,15 @@ public static class SequenceDraftBuilder
     public static string TitleOf(SequenceStepKind kind) => kind switch
     {
         SequenceStepKind.Exposure => "Exposure",
+        SequenceStepKind.RigExposure => "Exposure",
         SequenceStepKind.Delay => "Delay",
         SequenceStepKind.Slew => "Slew",
         SequenceStepKind.StartGuiding => "Start Guiding",
         SequenceStepKind.StopGuiding => "Stop Guiding",
         SequenceStepKind.Dither => "Dither",
         SequenceStepKind.Repeat => "Repeat",
+        SequenceStepKind.MultiRig => MultiRigName,
+        SequenceStepKind.RigTrack => "Rig Track",
         _ => kind.ToString(),
     };
 }

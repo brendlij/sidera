@@ -40,6 +40,11 @@ public static class SequenceStepDraftCloner
 
     private static SequenceStepDraft Clone(SequenceStepDraft step, Func<Guid>? newId) => step switch
     {
+        MultiRigStepDraft multiRig => new MultiRigStepDraft(
+            newId?.Invoke() ?? multiRig.Id,
+            multiRig.Tracks.Select(track => (RigTrackDraft)Clone(track, newId)).ToList()),
+        RigTrackDraft track => new RigTrackDraft(
+            newId?.Invoke() ?? track.Id, track.RigId, track.Steps.Select(inner => Clone(inner, newId)).ToList()),
         RepeatStepDraft repeat => new RepeatStepDraft(
             newId?.Invoke() ?? repeat.Id, repeat.Count, repeat.Children.Select(child => CloneLeaf(child, newId)).ToList()),
         LeafStepDraft leaf => CloneLeaf(leaf, newId),
@@ -63,6 +68,9 @@ public interface ISequenceStepClipboard
     /// <summary>What the copied step is; <c>null</c> when nothing has been copied.</summary>
     SequenceStepKind? ContentKind { get; }
 
+    /// <summary>What the steps directly inside the copied step are (a Repeat's steps); empty for any other step.</summary>
+    IReadOnlyList<SequenceStepKind> ContentChildKinds { get; }
+
     /// <summary>Keeps a snapshot of <paramref name="step"/>, replacing what was there.</summary>
     void Copy(SequenceStepDraft step);
 
@@ -81,6 +89,9 @@ public sealed class SequenceStepClipboard : ISequenceStepClipboard
     public bool HasContent => _content is not null;
 
     public SequenceStepKind? ContentKind => _content?.Kind;
+
+    public IReadOnlyList<SequenceStepKind> ContentChildKinds =>
+        _content is RepeatStepDraft repeat ? repeat.Children.Select(child => child.Kind).Distinct().ToList() : [];
 
     public event EventHandler? Changed;
 

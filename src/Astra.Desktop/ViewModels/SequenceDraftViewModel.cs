@@ -2,21 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Astra.Core.Devices;
+using Astra.Core.Guiding;
+using Astra.Core.Mounts;
+using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
+using Astra.Runtime.Rigs;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Astra.Desktop.ViewModels;
 
 /// <summary>
-/// The sequence the user is editing: an ordered list of steps, of which a Repeat holds an ordered list of steps of
-/// its own, one level deep and no deeper. Steps can be added, removed and moved among their siblings, and the one
-/// step whose parameters are shown is the selected one, a step of the sequence or one inside a Repeat.
+/// The sequence the user is editing: an ordered list of steps. A Repeat holds steps of its own; a Multi-Rig block holds
+/// Rig Tracks, which hold exposures, delays and Repeats of those; nothing nests deeper than that. Steps can be added,
+/// removed and moved among their siblings, and the one step whose parameters are shown is the selected one, wherever
+/// it is. The session's shared equipment (the mount and the guider) is part of the draft.
 /// It is only a draft. Nothing in it is executed: every run builds a fresh runtime sequence from a snapshot of it
 /// (<see cref="Build"/>), and while a sequence runs <see cref="IsEditable"/> is false and every command that
 /// changes the list is unavailable.
 /// <para>
-/// After every change all steps are read again and validated: each step shows its own problems, a Repeat also says
+/// After every change all steps are read again and validated: each step shows its own problems, a container also says
 /// that a step inside has one, and <see cref="ValidationErrors"/> lists all of them. <see cref="IsValid"/> is only
 /// what the editor says; <see cref="Build"/> validates again on its own.
 /// </para>
@@ -24,6 +30,7 @@ namespace Astra.Desktop.ViewModels;
 public sealed partial class SequenceDraftViewModel : ViewModelBase
 {
     private readonly DeviceRegistry _registry;
+    private readonly RigRegistry? _rigs;
     private readonly SequenceDraftDefaults _defaults;
     private readonly ISequenceStepClipboard _clipboard;
     private HashSet<Guid> _unreadable = [];
@@ -33,14 +40,22 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         DeviceRegistry registry,
         SequenceDraftDefaults defaults,
         IEnumerable<SequenceStepDraft>? initialSteps = null,
-        ISequenceStepClipboard? clipboard = null)
+        ISequenceStepClipboard? clipboard = null,
+        RigRegistry? rigs = null,
+        SharedEquipmentDraft? shared = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(defaults);
         _registry = registry;
+        _rigs = rigs;
         _defaults = defaults;
         _clipboard = clipboard ?? new SequenceStepClipboard();
         _clipboard.Changed += (_, _) => NotifyCommands();
+
+        SharedMount = new DevicePickerViewModel(registry, device => device is IMount, shared?.MountId);
+        SharedGuider = new DevicePickerViewModel(registry, device => device is IGuider, shared?.GuiderId);
+        SharedMount.Changed += OnSharedChanged;
+        SharedGuider.Changed += OnSharedChanged;
 
         Steps = [];
         Rows = [];
@@ -57,16 +72,35 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         Revalidate();
     }
 
-    /// <summary>The steps of the sequence itself, in order; a Repeat holds the steps inside it.</summary>
+    /// <summary>The steps of the sequence itself, in order; containers hold the steps inside them.</summary>
     public ObservableCollection<StepDraftViewModel> Steps { get; }
+
+    /// <summary>All steps as they are listed: each step of the sequence, followed by everything inside it.</summary>
+    public ObservableCollection<StepDraftViewModel> Rows { get; }
 
     /// <summary>The copied step, kept for the session: it outlives New and Open, so steps can be copied between sequences.</summary>
     public ISequenceStepClipboard Clipboard => _clipboard;
 
-    /// <summary>All steps as they are listed: each step of the sequence, followed by the steps inside it if it is a Repeat.</summary>
-    public ObservableCollection<StepDraftViewModel> Rows { get; }
+    /// <summary>The mount the whole session shares.</summary>
+    public DevicePickerViewModel SharedMount { get; }
 
-    /// <summary>The step whose parameters are shown: a step of the sequence, or one inside a Repeat.</summary>
+    /// <summary>The guider the whole session shares.</summary>
+    public DevicePickerViewModel SharedGuider { get; }
+
+    /// <summary>The shared equipment as selected now.</summary>
+    public SharedEquipmentDraft SharedEquipment => new(SharedMount.SelectedId, SharedGuider.SelectedId);
+
+    /// <summary>The shared equipment a new sequence starts with: what the defaults name.</summary>
+    public SharedEquipmentDraft DefaultSharedEquipment => new(_defaults.MountId, _defaults.GuiderId);
+
+    /// <summary>What is wrong with the shared equipment: a device that is not there, or of the wrong kind.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSharedProblems))]
+    public partial IReadOnlyList<string> SharedProblems { get; private set; } = [];
+
+    public bool HasSharedProblems => SharedProblems.Count > 0;
+
+    /// <summary>The step whose parameters are shown: any step, also one inside a container.</summary>
     [ObservableProperty]
     public partial StepDraftViewModel? SelectedStep { get; set; }
 
@@ -89,9 +123,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public event EventHandler? Changed;
 
     /// <summary>
-    /// Raised when the user (or code acting for them) changed the draft: a step added, removed or moved, a parameter
-    /// or a device edited. Not raised when the draft is only read again (equipment came or went), nor by
-    /// <see cref="ReplaceSteps"/>, nor by anything about running the sequence.
+    /// Raised when the user (or code acting for them) changed the draft: a step added, removed or moved, a parameter,
+    /// a device or a rig edited, the shared equipment changed. Not raised when the draft is only read again
+    /// (equipment came or went), nor by <see cref="ReplaceSteps"/>, nor by anything about running the sequence.
     /// </summary>
     public event EventHandler? Modified;
 
@@ -99,14 +133,27 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public bool HasUnreadableFields { get; private set; }
 
     /// <summary>
-    /// Replaces the whole sequence, for example with a document that was opened. All new step view models are made
-    /// before anything of the current sequence is touched.
+    /// Replaces the whole sequence, for example with a document that was opened, and the shared equipment with it.
+    /// All new step view models are made before anything of the current sequence is touched.
     /// </summary>
-    public void ReplaceSteps(IEnumerable<SequenceStepDraft> steps)
+    public void Replace(IEnumerable<SequenceStepDraft> steps, SharedEquipmentDraft? shared)
     {
         ArgumentNullException.ThrowIfNull(steps);
         var created = steps.Select(CreateViewModel).ToList();
+        SharedMount.Reset(shared?.MountId);
+        SharedGuider.Reset(shared?.GuiderId);
+        Install(created);
+    }
 
+    /// <summary>Replaces the steps and keeps the shared equipment as it is.</summary>
+    public void ReplaceSteps(IEnumerable<SequenceStepDraft> steps)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+        Install(steps.Select(CreateViewModel).ToList());
+    }
+
+    private void Install(List<StepDraftViewModel> created)
+    {
         foreach (var old in Steps)
         {
             Detach(old);
@@ -128,6 +175,19 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     /// <summary>The steps as values: the draft that would be built, with unreadable fields replaced by stand-ins.</summary>
     public IReadOnlyList<SequenceStepDraft> Snapshot() => ReadAll(new Dictionary<Guid, IReadOnlyList<string>>());
 
+    /// <summary>The devices the sequence needs for running: those its steps name, and the cameras of the rigs of its tracks.</summary>
+    public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
+        SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
+
+    private SequenceDraftContext Context => new(_rigs, SharedEquipment);
+
+    // New steps use the shared equipment of the session wherever they have a mount or a guider.
+    private SequenceDraftDefaults EffectiveDefaults => _defaults with
+    {
+        MountId = SharedMount.SelectedId ?? _defaults.MountId,
+        GuiderId = SharedGuider.SelectedId ?? _defaults.GuiderId,
+    };
+
     /// <summary>Builds a new sequence from the current draft, validating it again.</summary>
     /// <exception cref="SequenceConfigurationException">The draft is not valid.</exception>
     public BuiltSequence Build()
@@ -138,7 +198,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             throw new SequenceConfigurationException(ValidationErrors);
         }
 
-        return SequenceDraftBuilder.Build(_registry, Snapshot());
+        return SequenceDraftBuilder.Build(_registry, Snapshot(), Context);
     }
 
     /// <summary>Reads all fields again and validates. Also catches a device that disappeared since the last time.</summary>
@@ -148,44 +208,50 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         var drafts = ReadAll(parseErrors);
         HasUnreadableFields = parseErrors.Count > 0;
         _unreadable = [.. parseErrors.Keys];
-        var validation = SequenceDraftBuilder.Validate(_registry, drafts);
+        var context = Context;
+        var validation = SequenceDraftBuilder.Validate(_registry, drafts, context);
 
         var sentences = new List<string>(validation.SequenceProblems);
+        sentences.AddRange(validation.SharedProblems ?? []);
+        if (!(validation.SharedProblems ?? []).SequenceEqual(SharedProblems))
+        {
+            SharedProblems = validation.SharedProblems ?? [];
+        }
 
         List<string> Problems(StepDraftViewModel step) =>
             parseErrors.GetValueOrDefault(step.Id, []).Concat(validation.ProblemsOf(step.Id)).ToList();
 
+        // Shows one step and everything inside it; says whether anything in it has a problem.
+        bool Present(StepDraftViewModel step, SequenceStepDraft draft, int[] path, int number)
+        {
+            var own = Problems(step);
+            step.Number = number;
+            step.NumberLabel = SequenceDraftBuilder.Label(path);
+            sentences.AddRange(own.Select(p => $"Step {step.NumberLabel} ({SequenceDraftBuilder.TitleOf(step.Kind)}): {p}"));
+
+            var inside = false;
+            if (step is ContainerStepDraftViewModel container)
+            {
+                var drafted = ChildDrafts(draft);
+                for (var j = 0; j < container.Children.Count; j++)
+                {
+                    inside |= Present(container.Children[j], drafted[j], [.. path, j], j + 1);
+                }
+            }
+
+            // A container shows that something inside it needs attention; the sentences name the step itself.
+            IReadOnlyList<string> shown = inside ? [.. own, "A step inside has a problem."] : own;
+            step.Show(
+                draft is RigTrackDraft track
+                    ? SequenceDraftBuilder.DescribeTrack(_registry, track, context)
+                    : SequenceDraftBuilder.Describe(_registry, draft, context),
+                shown);
+            return own.Count > 0 || inside;
+        }
+
         for (var i = 0; i < Steps.Count; i++)
         {
-            var step = Steps[i];
-            var problems = Problems(step);
-            step.Number = i + 1;
-            step.NumberLabel = SequenceDraftBuilder.Label(i);
-            sentences.AddRange(problems.Select(p => $"Step {step.NumberLabel} ({TitleOf(step)}): {p}"));
-
-            if (step is RepeatStepDraftViewModel repeat)
-            {
-                var repeatDraft = (RepeatStepDraft)drafts[i];
-                var childProblems = false;
-                for (var j = 0; j < repeat.Children.Count; j++)
-                {
-                    var child = repeat.Children[j];
-                    var own = Problems(child);
-                    child.Number = j + 1;
-                    child.NumberLabel = SequenceDraftBuilder.Label(i, j);
-                    child.Show(SequenceDraftBuilder.Describe(_registry, repeatDraft.Children[j]), own);
-                    sentences.AddRange(own.Select(p => $"Step {child.NumberLabel} ({TitleOf(child)}): {p}"));
-                    childProblems |= own.Count > 0;
-                }
-
-                // The Repeat shows that something inside it needs attention; the sentences name the step itself.
-                IReadOnlyList<string> shown = childProblems ? [.. problems, "A step inside has a problem."] : problems;
-                repeat.Show(SequenceDraftBuilder.Describe(_registry, repeatDraft), shown);
-            }
-            else
-            {
-                step.Show(SequenceDraftBuilder.Describe(_registry, drafts[i]), problems);
-            }
+            Present(Steps[i], drafts[i], [i], i + 1);
         }
 
         if (!sentences.SequenceEqual(ValidationErrors))
@@ -197,10 +263,15 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Reads the device registry again (equipment may have come or gone), then validates.</summary>
+    /// <summary>Reads the device and rig registries again (equipment may have come or gone), then validates.</summary>
     public void RefreshDevices()
     {
-        foreach (var picker in Rows.SelectMany(step => step.Pickers))
+        foreach (var picker in Rows.SelectMany(step => step.Pickers).Append(SharedMount).Append(SharedGuider))
+        {
+            picker.Refresh();
+        }
+
+        foreach (var picker in Rows.SelectMany(step => step.RigPickers))
         {
             picker.Refresh();
         }
@@ -208,39 +279,75 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         Revalidate();
     }
 
-    /// <summary>Adds a step to the end of the sequence itself, also when a step inside a Repeat is selected.</summary>
+    /// <summary>Adds a step to the end of the sequence itself, wherever the selection is.</summary>
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private void AddStep(SequenceStepKind kind)
     {
-        var step = CreateViewModel(_defaults.Create(kind));
-        Attach(step);
-        Steps.Add(step);
-        RebuildRows();
-        SelectedStep = step;
-        Revalidate();
-        Modified?.Invoke(this, EventArgs.Empty);
+        if (kind is SequenceStepKind.RigExposure or SequenceStepKind.RigTrack)
+        {
+            return; // these only exist inside a Multi-Rig block
+        }
+
+        InsertAt(null, Steps.Count, EffectiveDefaults.Create(kind));
     }
 
-    /// <summary>Adds a leaf step to the end of the selected Repeat, or of the Repeat the selected step is in.</summary>
+    /// <summary>
+    /// Adds a step to the end of the selected Repeat, or of the Repeat the selected step is in. Inside a Rig Track an
+    /// exposure is the exposure of the rig.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddChild))]
     private void AddChild(SequenceStepKind kind)
     {
+        if (!CanAddChild(kind))
+        {
+            return;
+        }
+
         var repeat = ChildTarget!;
-        var child = CreateLeafViewModel(_defaults.CreateLeaf(kind));
-        child.Parent = repeat;
-        Attach(child);
-        repeat.Children.Add(child);
-        RebuildRows();
-        SelectedStep = child;
-        Revalidate();
-        Modified?.Invoke(this, EventArgs.Empty);
+        InsertAt(repeat, repeat.Children.Count, NewTrackLeaf(repeat.IsInTrack, kind));
+    }
+
+    /// <summary>Adds a Rig Track to the selected Multi-Rig block, or to the one the selected step is in.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddTrack))]
+    private void AddTrack()
+    {
+        if (!CanAddTrack)
+        {
+            return;
+        }
+
+        var multiRig = MultiRigTarget!;
+        var used = multiRig.Children.OfType<RigTrackDraftViewModel>().Select(track => track.Rig.SelectedId).ToHashSet();
+        var rig = (_rigs?.GetAll() ?? [])
+            .OrderBy(r => r.Id.Value, StringComparer.Ordinal)
+            .Select(r => (RigId?)r.Id)
+            .FirstOrDefault(id => !used.Contains(id));
+
+        InsertAt(multiRig, multiRig.Children.Count, new RigTrackDraft(NewId(), rig, []));
+    }
+
+    /// <summary>Adds an exposure, a delay or a Repeat to the end of the selected Rig Track, or of the one the selected step is in.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddTrackStep))]
+    private void AddTrackStep(SequenceStepKind kind)
+    {
+        if (!CanAddTrackStep(kind))
+        {
+            return;
+        }
+
+        var track = TrackTarget!;
+        SequenceStepDraft step = kind == SequenceStepKind.Repeat
+            ? new RepeatStepDraft(NewId(), _defaults.RepeatCount, [])
+            : NewTrackLeaf(inTrack: true, kind);
+        InsertAt(track, track.Children.Count, step);
     }
 
     /// <summary>
     /// Puts a copy of the selected step, with new ids, right after it, in the same list: a step of the sequence after
-    /// that step, a step inside a Repeat after that step inside the Repeat, a Repeat with all its steps after the
-    /// Repeat. The copy is selected. It is not checked for sense: a second Start Guiding is added, and the validation
-    /// says what is wrong with it.
+    /// that step, a step inside a Repeat after that step inside the Repeat, a Repeat or a Multi-Rig block with
+    /// everything inside it after it. The copy is selected. It is not checked for sense: a second Start Guiding is
+    /// added, and the validation says what is wrong with it. A Rig Track is not duplicated on its own: two tracks of
+    /// one rig cannot run.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanDuplicate))]
     private void DuplicateStep()
@@ -255,7 +362,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         InsertAfter(source, clone);
     }
 
-    /// <summary>Keeps a snapshot of the selected step, with its steps if it is a Repeat, on the clipboard. The sequence is not changed.</summary>
+    /// <summary>Keeps a snapshot of the selected step, with everything inside it, on the clipboard. The sequence is not changed.</summary>
     [RelayCommand(CanExecute = nameof(CanCopy))]
     private void CopyStep()
     {
@@ -267,9 +374,10 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     /// <summary>
     /// Pastes a copy of the clipboard, with new ids, and selects it. Where it goes: with nothing selected at the end of
-    /// the sequence; with a step of the sequence or a Repeat selected after it in the sequence; with a step inside a
-    /// Repeat selected, a copied step goes after it inside the Repeat. A copied Repeat cannot go inside a Repeat, and
-    /// then pasting is not available (nothing is put on another level instead).
+    /// the sequence; with a Rig Track selected at the end of the track; with any other step selected right after it in
+    /// its own list, so a Repeat or a Multi-Rig block is never entered. It goes only where such a step may be: a copied
+    /// Repeat cannot go inside a Repeat, an exposure with a camera not into a track, and so on. Then pasting is not
+    /// available (nothing is put on another level instead).
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanPaste))]
     private void PasteStep()
@@ -279,9 +387,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             return;
         }
 
-        var clone = _clipboard.CreateClone(AllIds());
-        var selected = SelectedStep;
-        InsertAfter(selected is { IsChild: true } && clone is LeafStepDraft ? selected : selected?.Parent ?? selected, clone);
+        var target = FindPasteTarget()!;
+        InsertAt(target.Parent, target.Index, _clipboard.CreateClone(AllIds()));
     }
 
     [RelayCommand(CanExecute = nameof(CanRemove))]
@@ -294,7 +401,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         siblings.RemoveAt(index);
         RebuildRows();
 
-        // The next step in the same list, else the one before; after the last step of a Repeat, the Repeat.
+        // The next step in the same list, else the one before; after the last step of a container, the container.
         SelectedStep = siblings.Count > 0 ? siblings[Math.Min(index, siblings.Count - 1)] : step.Parent;
         Revalidate();
         Modified?.Invoke(this, EventArgs.Empty);
@@ -309,32 +416,55 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public bool CanAdd => IsEditable;
 
     /// <summary>The Repeat that a new child would go into: the selected one, or the one the selected step is in.</summary>
-    public RepeatStepDraftViewModel? ChildTarget => SelectedStep as RepeatStepDraftViewModel ?? SelectedStep?.Parent;
+    public RepeatStepDraftViewModel? ChildTarget => SelectedStep as RepeatStepDraftViewModel ?? SelectedStep?.Parent as RepeatStepDraftViewModel;
+
+    /// <summary>The Multi-Rig block of the selection: the selected one, or the one the selected step is in.</summary>
+    public MultiRigStepDraftViewModel? MultiRigTarget => Ancestors(SelectedStep).OfType<MultiRigStepDraftViewModel>().FirstOrDefault();
+
+    /// <summary>The Rig Track of the selection: the selected one, or the one the selected step is in.</summary>
+    public RigTrackDraftViewModel? TrackTarget => Ancestors(SelectedStep).OfType<RigTrackDraftViewModel>().FirstOrDefault();
+
+    /// <summary>The selection is a Multi-Rig block or something inside one: tracks and track steps can be added.</summary>
+    public bool IsMultiRigContext => MultiRigTarget is not null;
 
     /// <summary>Steps can be added inside a Repeat right now.</summary>
     public bool CanAddChildHere => IsEditable && ChildTarget is not null;
 
-    public bool CanAddChild(SequenceStepKind kind) => CanAddChildHere && kind != SequenceStepKind.Repeat;
+    public bool CanAddChild(SequenceStepKind kind) =>
+        CanAddChildHere
+        && (ChildTarget!.IsInTrack
+            ? kind is SequenceStepKind.Exposure or SequenceStepKind.Delay
+            : kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Slew
+                or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither);
+
+    public bool CanAddTrack => IsEditable && MultiRigTarget is not null;
+
+    public bool CanAddTrackStep(SequenceStepKind kind) =>
+        IsEditable && TrackTarget is not null && kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Repeat;
 
     public bool CanRemove => IsEditable && SelectedStep is not null;
-
-    // A step whose fields do not all read as numbers cannot be copied faithfully; it has to be fixed first.
-    public bool CanDuplicate => IsEditable && SelectedStep is { } step && IsReadable(step);
-    public bool CanCopy => CanDuplicate;
-
-    public bool CanPaste => IsEditable
-        && _clipboard.HasContent
-        && !(SelectedStep is { IsChild: true } && _clipboard.ContentKind == SequenceStepKind.Repeat);
     public bool CanMoveUp => IsEditable && SelectedStep is not null && SiblingsOf(SelectedStep).IndexOf(SelectedStep) > 0;
 
     public bool CanMoveDown => IsEditable && SelectedStep is not null
         && SiblingsOf(SelectedStep) is var siblings && siblings.IndexOf(SelectedStep) is var i && i >= 0 && i < siblings.Count - 1;
 
+    // A step whose fields do not all read as numbers cannot be copied faithfully; it has to be fixed first.
+    public bool CanDuplicate => IsEditable && SelectedStep is { } step && step is not RigTrackDraftViewModel && IsReadable(step);
+    public bool CanCopy => CanDuplicate;
+
+    public bool CanPaste => IsEditable && _clipboard.HasContent && FindPasteTarget() is not null;
+
     partial void OnIsEditableChanged(bool value) => NotifyCommands();
 
     partial void OnSelectedStepChanged(StepDraftViewModel? value) => NotifyCommands();
 
-    // Steps move among their siblings only: never out of a Repeat, and never into one.
+    private void OnSharedChanged(object? sender, EventArgs e)
+    {
+        Revalidate();
+        Modified?.Invoke(this, EventArgs.Empty);
+    }
+
+    // Steps move among their siblings only: never out of a container, and never into one.
     private void MoveSelected(int offset)
     {
         var selected = SelectedStep!;
@@ -349,6 +479,71 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     private ObservableCollection<StepDraftViewModel> SiblingsOf(StepDraftViewModel step) => step.Parent?.Children ?? Steps;
 
+    // The selected step and then the containers around it, innermost first.
+    private static IEnumerable<StepDraftViewModel> Ancestors(StepDraftViewModel? step)
+    {
+        for (var current = step; current is not null; current = current.Parent)
+        {
+            yield return current;
+        }
+    }
+
+    // A step may be put into a list only if it may be a step of that list.
+    private static bool Accepts(ContainerStepDraftViewModel? parent, SequenceStepKind kind) => parent switch
+    {
+        null => kind is not (SequenceStepKind.RigExposure or SequenceStepKind.RigTrack),
+        RepeatStepDraftViewModel { IsInTrack: true } => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay,
+        RepeatStepDraftViewModel => kind is SequenceStepKind.Exposure or SequenceStepKind.Delay or SequenceStepKind.Slew
+            or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither,
+        RigTrackDraftViewModel => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay or SequenceStepKind.Repeat,
+        _ => false,
+    };
+
+    private sealed record PasteTarget(ContainerStepDraftViewModel? Parent, int Index);
+
+    // A copied Repeat also brings its steps: they must be steps that a Repeat at that place may hold.
+    private PasteTarget? FindPasteTarget()
+    {
+        var kind = _clipboard.ContentKind!.Value;
+        var selected = SelectedStep;
+        PasteTarget target;
+        if (selected is null)
+        {
+            target = new PasteTarget(null, Steps.Count);
+        }
+        else if (selected is RigTrackDraftViewModel track)
+        {
+            target = new PasteTarget(track, track.Children.Count);
+        }
+        else
+        {
+            target = new PasteTarget(selected.Parent, SiblingsOf(selected).IndexOf(selected) + 1);
+        }
+
+        if (!Accepts(target.Parent, kind))
+        {
+            return null;
+        }
+
+        if (kind == SequenceStepKind.Repeat)
+        {
+            var insideTrack = target.Parent is RigTrackDraftViewModel;
+            if (!_clipboard.ContentChildKinds.All(child => insideTrack
+                    ? child is SequenceStepKind.RigExposure or SequenceStepKind.Delay
+                    : child is not SequenceStepKind.RigExposure))
+            {
+                return null;
+            }
+        }
+
+        return target;
+    }
+
+    private LeafStepDraft NewTrackLeaf(bool inTrack, SequenceStepKind kind) =>
+        inTrack && kind == SequenceStepKind.Exposure
+            ? new RigExposureStepDraft(NewId(), _defaults.ExposureSeconds)
+            : EffectiveDefaults.CreateLeaf(kind);
+
     // The listing is rebuilt after every change of structure. The list control clears its selection while the rows
     // are replaced; the selected step is put back afterwards.
     private void RebuildRows()
@@ -358,16 +553,22 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         try
         {
             Rows.Clear();
-            foreach (var step in Steps)
+
+            void Add(StepDraftViewModel step)
             {
                 Rows.Add(step);
-                if (step is RepeatStepDraftViewModel repeat)
+                if (step is ContainerStepDraftViewModel container)
                 {
-                    foreach (var child in repeat.Children)
+                    foreach (var child in container.Children)
                     {
-                        Rows.Add(child);
+                        Add(child);
                     }
                 }
+            }
+
+            foreach (var step in Steps)
+            {
+                Add(step);
             }
         }
         finally
@@ -394,6 +595,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
         OnPropertyChanged(nameof(CanAdd));
         OnPropertyChanged(nameof(CanAddChildHere));
+        OnPropertyChanged(nameof(CanAddTrack));
+        OnPropertyChanged(nameof(IsMultiRigContext));
         OnPropertyChanged(nameof(CanRemove));
         OnPropertyChanged(nameof(CanDuplicate));
         OnPropertyChanged(nameof(CanCopy));
@@ -402,6 +605,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanMoveDown));
         AddStepCommand.NotifyCanExecuteChanged();
         AddChildCommand.NotifyCanExecuteChanged();
+        AddTrackCommand.NotifyCanExecuteChanged();
+        AddTrackStepCommand.NotifyCanExecuteChanged();
         RemoveStepCommand.NotifyCanExecuteChanged();
         DuplicateStepCommand.NotifyCanExecuteChanged();
         CopyStepCommand.NotifyCanExecuteChanged();
@@ -410,33 +615,34 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         MoveStepDownCommand.NotifyCanExecuteChanged();
     }
 
-    // Reads every step, the steps inside a Repeat with their own problems.
+    // Reads every step, everything inside it included, each field with its own problems.
     private List<SequenceStepDraft> ReadAll(Dictionary<Guid, IReadOnlyList<string>> parseErrors) =>
         Steps.Select(step => ReadStep(step, parseErrors)).ToList();
 
-    // Reads one step with the steps inside it, as a draft that shares nothing with the view models.
+    // Reads one step with everything inside it, as a draft that shares nothing with the view models.
     private static SequenceStepDraft ReadStep(StepDraftViewModel step, Dictionary<Guid, IReadOnlyList<string>> parseErrors)
     {
         var errors = new List<string>();
         SequenceStepDraft draft;
-        if (step is RepeatStepDraftViewModel repeat)
+        switch (step)
         {
-            var children = new List<LeafStepDraft>(repeat.Children.Count);
-            foreach (var child in repeat.Children)
-            {
-                var childErrors = new List<string>();
-                children.Add((LeafStepDraft)child.Read(childErrors));
-                if (childErrors.Count > 0)
-                {
-                    parseErrors[child.Id] = childErrors;
-                }
-            }
-
-            draft = new RepeatStepDraft(repeat.Id, repeat.ReadCount(errors), children);
-        }
-        else
-        {
-            draft = step.Read(errors);
+            case RepeatStepDraftViewModel repeat:
+                draft = new RepeatStepDraft(
+                    repeat.Id,
+                    repeat.ReadCount(errors),
+                    repeat.Children.Select(child => (LeafStepDraft)ReadStep(child, parseErrors)).ToList());
+                break;
+            case RigTrackDraftViewModel track:
+                draft = new RigTrackDraft(
+                    track.Id, track.Rig.SelectedId, track.Children.Select(child => ReadStep(child, parseErrors)).ToList());
+                break;
+            case MultiRigStepDraftViewModel multiRig:
+                draft = new MultiRigStepDraft(
+                    multiRig.Id, multiRig.Children.Select(track => (RigTrackDraft)ReadStep(track, parseErrors)).ToList());
+                break;
+            default:
+                draft = step.Read(errors);
+                break;
         }
 
         if (errors.Count > 0)
@@ -447,54 +653,65 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         return draft;
     }
 
+    private static IReadOnlyList<SequenceStepDraft> ChildDrafts(SequenceStepDraft draft) => draft switch
+    {
+        RepeatStepDraft repeat => repeat.Children,
+        RigTrackDraft track => track.Steps,
+        MultiRigStepDraft multiRig => multiRig.Tracks,
+        _ => [],
+    };
+
     private bool IsReadable(StepDraftViewModel step) =>
         !_unreadable.Contains(step.Id)
-        && (step is not RepeatStepDraftViewModel repeat || repeat.Children.All(child => !_unreadable.Contains(child.Id)));
+        && (step is not ContainerStepDraftViewModel container || container.Children.All(IsReadable));
 
-    // The ids of every step of the sequence, steps inside Repeats included.
+    // The ids of every step of the sequence, steps inside containers and tracks included.
     private HashSet<Guid> AllIds() => [.. Rows.Select(row => row.Id)];
 
-    // Puts a new step right after its anchor in the anchor's own list (a step inside a Repeat stays inside it), or at the
-    // end of the sequence without an anchor; selects it and reports the change.
-    private void InsertAfter(StepDraftViewModel? anchor, SequenceStepDraft draft)
+    private Guid NewId()
     {
-        var siblings = anchor is null ? Steps : SiblingsOf(anchor);
-        var index = anchor is null ? Steps.Count : siblings.IndexOf(anchor) + 1;
-
-        StepDraftViewModel step;
-        if (anchor?.Parent is { } repeat)
+        var taken = AllIds();
+        Guid id;
+        do
         {
-            step = CreateLeafViewModel((LeafStepDraft)draft);
-            step.Parent = repeat;
+            id = Guid.NewGuid();
         }
-        else
-        {
-            step = CreateViewModel(draft);
-        }
+        while (taken.Contains(id));
 
+        return id;
+    }
+
+    // Puts a new step into a container (or the sequence itself) at an index; selects it and reports the change.
+    private void InsertAt(ContainerStepDraftViewModel? parent, int index, SequenceStepDraft draft)
+    {
+        var step = CreateViewModel(draft);
+        step.Parent = parent;
         Attach(step);
-        siblings.Insert(index, step);
+        (parent?.Children ?? Steps).Insert(index, step);
         RebuildRows();
         SelectedStep = step;
         Revalidate();
         Modified?.Invoke(this, EventArgs.Empty);
     }
 
+    private void InsertAfter(StepDraftViewModel anchor, SequenceStepDraft draft) =>
+        InsertAt(anchor.Parent, SiblingsOf(anchor).IndexOf(anchor) + 1, draft);
+
     private void Attach(StepDraftViewModel step)
     {
         step.Edited += OnStepEdited;
-        if (step is RepeatStepDraftViewModel repeat)
+        if (step is ContainerStepDraftViewModel container)
         {
-            repeat.Children.ToList().ForEach(Attach);
+            container.Children.ToList().ForEach(Attach);
         }
     }
 
     private void Detach(StepDraftViewModel step)
     {
         step.Edited -= OnStepEdited;
-        if (step is RepeatStepDraftViewModel repeat)
+        if (step is ContainerStepDraftViewModel container)
         {
-            repeat.Children.ToList().ForEach(Detach);
+            container.Children.ToList().ForEach(Detach);
         }
     }
 
@@ -506,6 +723,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     private StepDraftViewModel CreateViewModel(SequenceStepDraft draft) => draft switch
     {
+        MultiRigStepDraft m => new MultiRigStepDraftViewModel(m, m.Tracks.Select(CreateViewModel)),
+        RigTrackDraft t => new RigTrackDraftViewModel(
+            t, t.Steps.Select(CreateViewModel), new RigPickerViewModel(_rigs, _registry, t.RigId)),
         RepeatStepDraft r => new RepeatStepDraftViewModel(r, r.Children.Select(CreateLeafViewModel)),
         LeafStepDraft leaf => CreateLeafViewModel(leaf),
         _ => throw new ArgumentException($"Unsupported step '{draft.GetType().Name}'.", nameof(draft)),
@@ -514,6 +734,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private StepDraftViewModel CreateLeafViewModel(LeafStepDraft draft) => draft switch
     {
         ExposureStepDraft e => new ExposureStepDraftViewModel(_registry, e),
+        RigExposureStepDraft e => new RigExposureStepDraftViewModel(e),
         DelayStepDraft d => new DelayStepDraftViewModel(d),
         SlewStepDraft s => new SlewStepDraftViewModel(_registry, s),
         StartGuidingStepDraft g => new StartGuidingStepDraftViewModel(_registry, g),
@@ -521,6 +742,4 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         DitherStepDraft d => new DitherStepDraftViewModel(_registry, d),
         _ => throw new ArgumentException($"Unsupported step '{draft.GetType().Name}'.", nameof(draft)),
     };
-
-    private static string TitleOf(StepDraftViewModel step) => SequenceDraftBuilder.TitleOf(step.Kind);
 }

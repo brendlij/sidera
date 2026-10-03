@@ -44,17 +44,23 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     [ObservableProperty]
     public partial string NumberLabel { get; internal set; } = string.Empty;
 
-    /// <summary>The Repeat this step is in, or <c>null</c> for a step of the sequence itself.</summary>
-    public RepeatStepDraftViewModel? Parent { get; internal set; }
+    /// <summary>
+    /// The container this step is in (a Repeat, a Rig Track, a Multi-Rig block), or <c>null</c> for a step of the
+    /// sequence itself.
+    /// </summary>
+    public ContainerStepDraftViewModel? Parent { get; internal set; }
 
     public bool IsTopLevel => Parent is null;
     public bool IsChild => Parent is not null;
 
-    /// <summary>The step holds other steps (a Repeat).</summary>
+    /// <summary>How many containers the step is inside of: 0 for a step of the sequence itself.</summary>
+    public int Depth => Parent is null ? 0 : Parent.Depth + 1;
+
+    /// <summary>The step holds other steps (a Repeat, a Rig Track, a Multi-Rig block).</summary>
     public virtual bool IsContainer => false;
 
     /// <summary>How far the row is indented in the list.</summary>
-    public double IndentWidth => Parent is null ? 0 : 28;
+    public double IndentWidth => Depth * 28;
 
     [ObservableProperty]
     public partial string Title { get; private set; }
@@ -85,6 +91,9 @@ public abstract partial class StepDraftViewModel : ViewModelBase
 
     /// <summary>Pickers of this step, so that the registry can be read again.</summary>
     internal virtual IEnumerable<DevicePickerViewModel> Pickers => [];
+
+    /// <summary>Rig pickers of this step, so that the rig registry can be read again.</summary>
+    internal virtual IEnumerable<RigPickerViewModel> RigPickers => [];
 
     internal void Show(StepDescription description, IReadOnlyList<string> problems)
     {
@@ -137,14 +146,10 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     protected static bool IsGuider(IDevice device) => device is IGuider;
 }
 
-/// <summary>
-/// A Repeat: runs its <see cref="Children"/> in order, as many times as the count says. The children are ordinary
-/// leaf step view models with this Repeat as <see cref="StepDraftViewModel.Parent"/>, edited with the same editors
-/// as the steps of the sequence. The draft view model reads them; this one only reads its own count.
-/// </summary>
-public sealed partial class RepeatStepDraftViewModel : StepDraftViewModel
+/// <summary>A step that holds other steps. Its <see cref="Children"/> have it as their <see cref="StepDraftViewModel.Parent"/>.</summary>
+public abstract class ContainerStepDraftViewModel : StepDraftViewModel
 {
-    public RepeatStepDraftViewModel(RepeatStepDraft draft, IEnumerable<StepDraftViewModel> children) : base(draft.Id)
+    protected ContainerStepDraftViewModel(Guid id, IEnumerable<StepDraftViewModel> children) : base(id)
     {
         Children = [];
         foreach (var child in children)
@@ -152,19 +157,35 @@ public sealed partial class RepeatStepDraftViewModel : StepDraftViewModel
             child.Parent = this;
             Children.Add(child);
         }
-
-        CountText = draft.Count.ToString(CultureInfo.InvariantCulture);
     }
-
-    public override SequenceStepKind Kind => SequenceStepKind.Repeat;
-    public override bool IsContainer => true;
 
     /// <summary>The steps inside, in order.</summary>
     public ObservableCollection<StepDraftViewModel> Children { get; }
 
+    public override bool IsContainer => true;
+}
+
+/// <summary>
+/// A Repeat: runs its <see cref="ContainerStepDraftViewModel.Children"/> in order, as many times as the count says.
+/// The children are ordinary leaf step view models, edited with the same editors as the steps of the sequence. The
+/// draft view model reads them; this one only reads its own count.
+/// </summary>
+public sealed partial class RepeatStepDraftViewModel : ContainerStepDraftViewModel
+{
+    public RepeatStepDraftViewModel(RepeatStepDraft draft, IEnumerable<StepDraftViewModel> children)
+        : base(draft.Id, children)
+    {
+        CountText = draft.Count.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.Repeat;
+
     /// <summary>How many times the steps inside run.</summary>
     [ObservableProperty]
     public partial string CountText { get; set; } = string.Empty;
+
+    /// <summary>The Repeat is inside a Rig Track: what it may hold is what a track may hold.</summary>
+    public bool IsInTrack => Parent is RigTrackDraftViewModel;
 
     internal int ReadCount(List<string> parseErrors)
     {
@@ -181,6 +202,64 @@ public sealed partial class RepeatStepDraftViewModel : StepDraftViewModel
 
     // Without its children: the draft view model reads those, with their own problems.
     internal override SequenceStepDraft Read(List<string> parseErrors) => new RepeatStepDraft(Id, ReadCount(parseErrors), []);
+}
+
+/// <summary>
+/// Imaging with several rigs at once. Its children are the Rig Tracks, one per rig; the mount and guider they share
+/// are those of the session, not of the block.
+/// </summary>
+public sealed class MultiRigStepDraftViewModel : ContainerStepDraftViewModel
+{
+    public MultiRigStepDraftViewModel(MultiRigStepDraft draft, IEnumerable<StepDraftViewModel> tracks)
+        : base(draft.Id, tracks)
+    {
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
+
+    // Without its tracks: the draft view model reads those.
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, []);
+}
+
+/// <summary>
+/// One Rig Track: the rig it images with, and the steps that run on it. What a rig has (today: its camera) is what the
+/// steps of the track use, so those steps select no equipment of their own.
+/// </summary>
+public sealed class RigTrackDraftViewModel : ContainerStepDraftViewModel
+{
+    public RigTrackDraftViewModel(RigTrackDraft draft, IEnumerable<StepDraftViewModel> steps, RigPickerViewModel rig)
+        : base(draft.Id, steps)
+    {
+        Rig = rig;
+        rig.Changed += (_, _) => NotifyEdited();
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.RigTrack;
+
+    public RigPickerViewModel Rig { get; }
+
+    internal override IEnumerable<RigPickerViewModel> RigPickers => [Rig];
+
+    // Without its steps: the draft view model reads those.
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new RigTrackDraft(Id, Rig.SelectedId, []);
+}
+
+/// <summary>An exposure inside a Rig Track; its camera is that of the rig of the track.</summary>
+public sealed partial class RigExposureStepDraftViewModel : StepDraftViewModel
+{
+    public RigExposureStepDraftViewModel(RigExposureStepDraft draft) : base(draft.Id)
+    {
+        ExposureText = Format(draft.Seconds);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.RigExposure;
+
+    /// <summary>Exposure time in seconds.</summary>
+    [ObservableProperty]
+    public partial string ExposureText { get; set; } = string.Empty;
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) =>
+        new RigExposureStepDraft(Id, ParseNumber(ExposureText, "Exposure", "a number of seconds", parseErrors, 1));
 }
 
 public sealed partial class ExposureStepDraftViewModel : StepDraftViewModel

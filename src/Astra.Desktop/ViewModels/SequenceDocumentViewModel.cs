@@ -151,7 +151,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
     private void StartNew()
     {
         ClearError();
-        Draft.ReplaceSteps([]);
+        Draft.Replace([], Draft.DefaultSharedEquipment);
         FilePath = null;
         IsDirty = true;
     }
@@ -169,6 +169,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
             // Read, checked and mapped in full before anything of the current sequence is touched.
             var document = await _store.LoadAsync(path);
             var drafts = SequenceDocumentMapper.ToDrafts(document);
+            var shared = SequenceDocumentMapper.ToSharedEquipment(document);
 
             if (!Draft.IsEditable)
             {
@@ -176,7 +177,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
                 return;
             }
 
-            Draft.ReplaceSteps(drafts);
+            Draft.Replace(drafts, shared);
             FilePath = path;
             IsDirty = false;
             ClearError();
@@ -208,7 +209,8 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
         var revision = _revision;
         try
         {
-            var document = SequenceDocumentMapper.ToDocument(Draft.Snapshot(), Path.GetFileNameWithoutExtension(path));
+            var document = SequenceDocumentMapper.ToDocument(
+                Draft.Snapshot(), Path.GetFileNameWithoutExtension(path), Draft.SharedEquipment);
             await _store.SaveAsync(path, document);
         }
         catch (SequenceDocumentException ex)

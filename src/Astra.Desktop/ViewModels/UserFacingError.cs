@@ -14,6 +14,7 @@ public static class UserFacingError
 
         return exception switch
         {
+            RigTrackFailedException track => $"{track.TrackName}: {Describe(track.InnerException ?? track)}",
             CoordinationAbortedException => "Cancelled: another branch failed before the coordinated step could run.",
             OperationCanceledException => "Cancelled.",
             GuidingSettleTimeoutException => "Guiding did not settle within the time limit.",

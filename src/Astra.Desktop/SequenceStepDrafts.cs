@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Astra.Core.Devices;
+using Astra.Core.Rigs;
 
 namespace Astra.Desktop;
 
@@ -13,7 +14,16 @@ public enum SequenceStepKind
     StartGuiding,
     StopGuiding,
     Dither,
-    Repeat
+    Repeat,
+
+    /// <summary>An exposure with the camera of the rig of its track; only exists inside a Rig Track.</summary>
+    RigExposure,
+
+    /// <summary>Imaging with several rigs at once, one Rig Track each.</summary>
+    MultiRig,
+
+    /// <summary>One rig of a Multi-Rig block; not a step that can be added to a sequence.</summary>
+    RigTrack
 }
 
 /// <summary>
@@ -94,3 +104,42 @@ public sealed record RepeatStepDraft(Guid Id, int Count, IReadOnlyList<LeafStepD
     public override SequenceStepKind Kind => SequenceStepKind.Repeat;
     public override IEnumerable<DeviceId> DeviceIds => Children.SelectMany(child => child.DeviceIds);
 }
+
+/// <summary>
+/// An exposure inside a Rig Track. The camera is not part of it: it is the camera of the rig of the track, which a rig
+/// has exactly one of, so there is nothing to select and nothing that could disagree with the rig.
+/// </summary>
+public sealed record RigExposureStepDraft(Guid Id, double Seconds) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RigExposure;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>
+/// One imaging rig of a Multi-Rig block and what that rig does: its steps run in order, next to the other tracks. A
+/// track is not a step of the sequence and cannot be put anywhere else. <see cref="Steps"/> are exposures with the rig
+/// camera, delays and Repeats of those; the validation refuses anything else, because a track must not do what
+/// belongs to the whole session (moving the shared mount, guiding).
+/// </summary>
+/// <param name="RigId">The rig, or <c>null</c> when none is selected. Kept as chosen even if no such rig is registered.</param>
+public sealed record RigTrackDraft(Guid Id, RigId? RigId, IReadOnlyList<SequenceStepDraft> Steps) : SequenceStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RigTrack;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>
+/// Imaging with several rigs of one session at once, one <see cref="RigTrackDraft"/> per rig. The mount and the guider
+/// are shared by the session and are not part of the tracks. A Multi-Rig block is only found at the top level, and
+/// is finished when all of its tracks are.
+/// </summary>
+public sealed record MultiRigStepDraft(Guid Id, IReadOnlyList<RigTrackDraft> Tracks) : SequenceStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
+
+    // The cameras of the rigs are known to the rig registry, not to the draft: see SequenceDraftBuilder.RequiredDeviceIds.
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>The equipment that the whole session shares: one mount and, usually, one guider.</summary>
+public sealed record SharedEquipmentDraft(DeviceId? MountId, DeviceId? GuiderId);

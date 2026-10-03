@@ -1,3 +1,4 @@
+using System;
 using Astra.Core.Coordination;
 using Astra.Core.Devices;
 using Astra.Core.Rigs;
@@ -25,8 +26,33 @@ public static class DemoSetup
     public static readonly DeviceId MountId = new("mount.eq6");
     public static readonly DeviceId GuiderId = new("guider.main");
 
+    public static readonly RigId WideRigId = new("rig.wide");
+    public static readonly DeviceId WideCameraId = new("camera.wide");
+    public static readonly RigId NarrowRigId = new("rig.narrow");
+    public static readonly DeviceId NarrowCameraId = new("camera.narrow");
+
     /// <summary>The coordination group of the demo sequence's parallel branches.</summary>
     public static readonly CoordinationGroupId CoordinationGroup = new("session.demo");
+
+    /// <summary>
+    /// Adds a wide and a narrow field rig to the demo, each with a simulated camera of its own: with the main rig a
+    /// session of three telescopes on one mount and one guider, which is what Multi-Rig Imaging is for. The mount and
+    /// the guider of <see cref="AddDemoEquipment"/> stay the shared equipment. Nothing is connected.
+    /// </summary>
+    public static void AddDemoRigs(AstraRuntimeHost host)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+
+        var wide = host.AddSimulatedCamera(WideCameraId, "Wide Camera");
+        host.AddRig(new Rig(
+            WideRigId, "Wide Rig", wide.Id,
+            new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176)));
+
+        var narrow = host.AddSimulatedCamera(NarrowCameraId, "Narrow Camera");
+        host.AddRig(new Rig(
+            NarrowRigId, "Narrow Rig", narrow.Id,
+            new OpticalTrain(1200, 200, 3.76, 17.6, 13.2, 4656, 3520)));
+    }
 
     public static DemoEquipment AddDemoEquipment(AstraRuntimeHost host, DemoOptions? options = null)
     {

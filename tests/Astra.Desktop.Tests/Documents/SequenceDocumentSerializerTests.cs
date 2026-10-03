@@ -156,7 +156,7 @@ public class SequenceDocumentSerializerTests
         var root = json.RootElement;
 
         Assert.Equal("astra-sequence", root.GetProperty("format").GetString());
-        Assert.Equal(1, root.GetProperty("version").GetInt32());
+        Assert.Equal(2, root.GetProperty("version").GetInt32());
         Assert.Equal("M42 Session", root.GetProperty("name").GetString());
         Assert.Equal(JsonValueKind.Array, root.GetProperty("steps").ValueKind);
         Assert.Equal(["format", "version", "name", "steps"], root.EnumerateObject().Select(p => p.Name));
@@ -356,8 +356,8 @@ public class SequenceDocumentSerializerTests
     }
 
     [Theory]
-    [InlineData("2")]
     [InlineData("3")]
+    [InlineData("4")]
     [InlineData("999")]
     public async Task ANewerVersion_IsRejectedWithItsOwnMessage_WhateverElseIsInIt(string version)
     {
@@ -624,7 +624,7 @@ public class SequenceDocumentSerializerTests
     [Fact]
     public async Task TheDocumentedExample_IsTheDocumentThatTheSerializerWrites()
     {
-        var document = new SequenceDocument("Demo Session",
+        var document = new SequenceDocument("Demo Session", SharedEquipment: new SharedEquipmentDocument("mount.eq6", "guider.main"), Steps:
         [
             new StartGuidingDocumentStep(Guid.Parse("11111111-1111-4111-8111-111111111111"), "guider.main"),
             new RepeatDocumentStep(Guid.Parse("22222222-2222-4222-8222-222222222222"), 3,
@@ -643,8 +643,12 @@ public class SequenceDocumentSerializerTests
             """
             {
               "format": "astra-sequence",
-              "version": 1,
+              "version": 2,
               "name": "Demo Session",
+              "sharedEquipment": {
+                "mountId": "mount.eq6",
+                "guiderId": "guider.main"
+              },
               "steps": [
                 {
                   "type": "startGuiding",
