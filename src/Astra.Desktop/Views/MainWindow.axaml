@@ -3,6 +3,7 @@
         xmlns:vm="using:Astra.Desktop.ViewModels"
         xmlns:app="using:Astra.Desktop"
         xmlns:conv="using:Astra.Desktop.Converters"
+        xmlns:ctl="using:Astra.Desktop.Controls"
         xmlns:fw="using:Astra.Core.FilterWheels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -813,12 +814,27 @@
                     <Border Classes="preview" Height="360">
                         <Grid>
                             <Image Source="{Binding LatestFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}" Stretch="Uniform" />
+                            <ctl:StarOverlay Stars="{Binding Stars}" FrameWidth="{Binding LatestFrame.Width}" FrameHeight="{Binding LatestFrame.Height}"
+                                             IsVisible="{Binding ShowStars}" />
                             <TextBlock Text="No frame yet" Classes="muted" IsVisible="{Binding !HasFrame}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
                     <TextBlock Text="{Binding SourceText}" />
                     <TextBlock Text="{Binding DimensionsText}" />
                     <TextBlock Text="{Binding ExposureText}" />
+                    <StackPanel Spacing="4" IsVisible="{Binding CanAnalyze}">
+                        <TextBlock Classes="muted" Text="Frame analysis" />
+                        <TextBlock Text="Analysing frame…" IsVisible="{Binding IsAnalyzing}" AutomationProperties.AutomationId="ImagingAnalysisStatus" />
+                        <TextBlock Text="{Binding AnalysisMessage}" IsVisible="{Binding HasAnalysisMessage}" TextWrapping="Wrap" AutomationProperties.AutomationId="ImagingAnalysisMessage" />
+                        <StackPanel Spacing="2" IsVisible="{Binding HasMetrics}">
+                            <TextBlock Text="{Binding StarsText, StringFormat='Stars: {0}'}" AutomationProperties.AutomationId="ImagingStars" />
+                            <TextBlock Text="{Binding MedianHfrText, StringFormat='Median HFR: {0}'}" AutomationProperties.AutomationId="ImagingMedianHfr" />
+                            <TextBlock Text="{Binding BackgroundText, StringFormat='Background: {0}'}" AutomationProperties.AutomationId="ImagingBackground" />
+                            <TextBlock Text="{Binding NoiseText, StringFormat='Noise: {0}'}" AutomationProperties.AutomationId="ImagingNoise" />
+                            <TextBlock Text="{Binding SaturatedText, StringFormat='Saturated stars: {0}'}" AutomationProperties.AutomationId="ImagingSaturated" />
+                        </StackPanel>
+                        <CheckBox Content="Show stars" IsChecked="{Binding ShowStars}" IsEnabled="{Binding HasMetrics}" AutomationProperties.AutomationId="ImagingShowStars" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </DataTemplate>

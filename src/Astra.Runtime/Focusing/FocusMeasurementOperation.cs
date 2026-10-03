@@ -1,6 +1,7 @@
 using Astra.Core.Devices;
 using Astra.Core.Focusing;
 using Astra.Core.Focusers;
+using Astra.Core.Imaging;
 using Astra.Core.Rigs;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Sequencing;
@@ -72,6 +73,11 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
         {
             measurement = await _metrics.MeasureAsync(
                 new FocusMetricInput(_rigId, _cameraId, _focuserId, position, frame), cancellationToken);
+        }
+        catch (FrameAnalysisException ex)
+        {
+            // The frame could not be measured (no stars, too few): for the user that is why the autofocus failed.
+            throw new AutofocusFailedException($"Autofocus failed: {ex.Reason}.");
         }
         catch (ArgumentException ex)
         {

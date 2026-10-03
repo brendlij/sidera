@@ -150,8 +150,8 @@ public class AutofocusSequencerTests
         await run;
         var done = StatusOf(app, "rig.main")!;
         Assert.True(done.IsCompleted);
-        Assert.InRange(done.BestPosition!.Value, DemoSetup.MainBestFocus - 50, DemoSetup.MainBestFocus + 50);
-        Assert.InRange(done.BestHfr!.Value, 1.8, 1.85);
+        Assert.InRange(done.BestPosition!.Value, DemoSetup.MainBestFocus - 100, DemoSetup.MainBestFocus + 100);
+        Assert.InRange(done.BestHfr!.Value, 1.6, 2.0);
         Assert.Equal([AutofocusStatusViewModel.ManualOrigin, "Best focus", $"{done.BestPosition} steps", "HFR", $"{done.BestHfr!.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)} px"], done.Lines);
         Assert.Equal(14, done.Measurements.Count); // two patterns from 1800 steps away
         Assert.Contains(lines, l => l.StartsWith("Sample ", StringComparison.Ordinal)); // seen while running

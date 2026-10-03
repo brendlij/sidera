@@ -1,10 +1,14 @@
 using Astra.Core.Devices;
 using Astra.Core.FilterWheels;
+using Astra.Core.Focusers;
+using Astra.Core.Focusing;
+using Astra.Core.Imaging;
 using Astra.Core.Rigs;
 using Astra.Runtime.Coordination;
 using Astra.Runtime.Devices;
 using Astra.Runtime.Events;
 using Astra.Runtime.Focusing;
+using Astra.Runtime.Imaging;
 using Astra.Runtime.Resources;
 using Astra.Runtime.Rigs;
 using Astra.Runtime.State;
@@ -28,7 +32,7 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
     private readonly object _gate = new();
     private HostState _state = HostState.Created;
 
-    public AstraRuntimeHost()
+    public AstraRuntimeHost(FrameAnalysisOptions? analysisOptions = null)
     {
         EventBus = new EventBus();
         // Created here so the store always subscribes before any other consumer of the bus.
@@ -39,6 +43,8 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         DeviceOperations = new DeviceOperationService(DeviceRegistry, ResourceManager);
         SafePointCoordinator = new SafePointCoordinator();
         FocusMetrics = new SimulatedFocusMetricProvider();
+        FrameAnalyzer = new FrameAnalyzer(analysisOptions);
+        FocusMetricProvider = new StarHfrFocusMetricProvider(FrameAnalyzer);
     }
 
     public EventBus EventBus { get; }
@@ -61,6 +67,18 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
     /// </summary>
     public SimulatedFocusMetricProvider FocusMetrics { get; }
 
+    /// <summary>
+    /// The one analysis of frames (statistics, stars, HFR): what autofocus measures with and what the imaging page shows,
+    /// so that a frame is analysed once.
+    /// </summary>
+    public IFrameAnalyzer FrameAnalyzer { get; }
+
+    /// <summary>
+    /// What autofocus measures focus with: the HFR of the stars in the frame that the camera exposed. It does not know
+    /// where focus is. <see cref="FocusMetrics"/> is the direct simulated alternative, kept for tests of the algorithm.
+    /// </summary>
+    public IFocusMetricProvider FocusMetricProvider { get; }
+
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>
     public void AddDevice(IDevice device)
     {
@@ -82,8 +100,45 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
     public SimulatedCamera AddSimulatedCamera(DeviceId id, string name, int? seed = null)
     {
         var camera = new SimulatedCamera(id, name, EventBus, seed);
+
+        // Stars at fixed places whose width follows the focus of the rig the camera is part of, when that rig has a
+        // simulated focus (see AddSimulatedFocusModel); otherwise the camera keeps its random sky.
+        camera.Sky = new SimulatedSky(seed ?? StableHash(id.Value));
+        camera.PsfSigmaSource = () => PsfSigmaOf(id);
         AddDevice(camera);
         return camera;
+    }
+
+    // The relation between the HFR of a Gaussian star and its sigma: HFR = sigma * sqrt(2 ln 2).
+    private static readonly double HfrPerSigma = Math.Sqrt(2 * Math.Log(2));
+
+    // What focus does to the stars of a camera: from the focuser position of its rig, through the simulated focus of
+    // that rig. The sky is drawn from the width only; nothing of the HFR it will be measured as is handed over.
+    private double? PsfSigmaOf(DeviceId cameraId)
+    {
+        var rig = RigRegistry.GetAll().FirstOrDefault(r => r.CameraId == cameraId && r.FocuserId is not null);
+        if (rig?.FocuserId is not { } focuserId
+            || !FocusMetrics.TryGetModel(rig.Id, out var model) || model is null
+            || !DeviceRegistry.TryGet(focuserId, out var device) || device is not IFocuser focuser)
+        {
+            return null;
+        }
+
+        return model.HfrAt(focuser.Position) / HfrPerSigma;
+    }
+
+    private static int StableHash(string text)
+    {
+        unchecked
+        {
+            var hash = (int)2166136261;
+            foreach (var c in text)
+            {
+                hash = (hash ^ c) * 16777619;
+            }
+
+            return hash;
+        }
     }
 
     /// <summary>

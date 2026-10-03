@@ -37,14 +37,14 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         options ??= new DemoOptions();
         var activity = new SessionActivity();
 
-        Imaging = new ImagingViewModel();
+        Imaging = new ImagingViewModel(host.FrameAnalyzer, postToUi);
         Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, defaults.InitialSteps(),
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
-            focusMetrics: host.FocusMetrics, events: host.EventBus);
+            focusMetrics: host.FocusMetricProvider, events: host.EventBus);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(
@@ -148,6 +148,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        Imaging.Dispose();
         Sequencer.Dispose();
         Equipment.Dispose();
     }

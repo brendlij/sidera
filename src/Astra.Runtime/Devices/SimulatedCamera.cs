@@ -16,6 +16,7 @@ public sealed class SimulatedCamera : ICamera
 
     private readonly IEventPublisher? _events;
     private readonly SyntheticFrameGenerator _frameGenerator;
+    private int _exposureCount;
 
     /// <param name="seed">
     /// Seed for the simulated sky. With a seed the sequence of frames is reproducible;
@@ -37,6 +38,18 @@ public sealed class SimulatedCamera : ICamera
     public DeviceId Id { get; }
     public string Name { get; }
     public DeviceType Type => DeviceType.Camera;
+
+    /// <summary>
+    /// A fixed star field this camera sees, when there is one. With a <see cref="PsfSigmaSource"/> that gives a width,
+    /// the frames are this sky with its stars that wide; without either they are the random sky of old.
+    /// </summary>
+    public SimulatedSky? Sky { get; set; }
+
+    /// <summary>
+    /// The width (Gaussian sigma, in pixels) the stars have right now, which is what focus does to them; <c>null</c>
+    /// when there is nothing that decides it. Read when an exposure ends.
+    /// </summary>
+    public Func<double?>? PsfSigmaSource { get; set; }
 
     public DeviceConnectionState ConnectionState
     {
@@ -179,7 +192,9 @@ public sealed class SimulatedCamera : ICamera
             }
 
             SetElapsed(duration);
-            var frame = _frameGenerator.Generate(duration);
+            var frame = Sky is { } sky && PsfSigmaSource?.Invoke() is { } sigma
+                ? sky.Render(sigma, duration, Interlocked.Increment(ref _exposureCount))
+                : _frameGenerator.Generate(duration);
             completed = true;
             return frame;
         }
