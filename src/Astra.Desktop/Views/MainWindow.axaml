@@ -146,6 +146,117 @@
             </Border>
 
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SequencerPageViewModel}" x:DataType="vm:SequencerPageViewModel">
+            <Grid ColumnDefinitions="400,*" ColumnSpacing="20">
+                <ContentControl Grid.Column="0" Content="{Binding Setup}" VerticalAlignment="Top" />
+                <ContentControl Grid.Column="1" Content="{Binding Sequencer}" VerticalAlignment="Top" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SequenceSetupViewModel}" x:DataType="vm:SequenceSetupViewModel">
+            <Border Classes="card" VerticalAlignment="Top">
+                <StackPanel Spacing="14" IsEnabled="{Binding IsEditable}">
+                    <TextBlock Classes="section" Text="SEQUENCE SETUP" />
+
+                    <TextBlock Classes="muted" Text="Target and mount" />
+                    <ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DeviceOption">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Classes="muted" Text="{Binding IdText}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Right ascension" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding RightAscensionText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="h" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Declination" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DeclinationText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="°" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock Classes="muted" Text="Imaging" Margin="0,6,0,0" />
+                    <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}" HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DeviceOption">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Classes="muted" Text="{Binding IdText}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Exposure" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding ExposureText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Repeat count" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding ImagingRepeatText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="×" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock Classes="muted" Text="Guiding" Margin="0,6,0,0" />
+                    <ComboBox ItemsSource="{Binding Guiders}" SelectedItem="{Binding SelectedGuider}" HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DeviceOption">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Classes="muted" Text="{Binding IdText}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock Classes="muted" Text="Dither" Margin="0,6,0,0" />
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Repeat count" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherRepeatText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="×" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Wait before each" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherDelayText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Amplitude" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding DitherAmplitudeText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock Classes="muted" Text="Settle after dither" Margin="0,6,0,0" />
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Settle threshold" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding SettleThresholdText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="px" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Stable for" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding SettleStableText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,110,36">
+                        <TextBlock Text="Timeout" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding SettleTimeoutText}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="s" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding ValidationErrors}" IsVisible="{Binding HasValidationErrors}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="danger" Text="{Binding}" TextWrapping="Wrap" Margin="0,2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:EquipmentViewModel}" x:DataType="vm:EquipmentViewModel">
             <StackPanel Spacing="12">
                 <TextBlock Classes="title" Text="Equipment" />

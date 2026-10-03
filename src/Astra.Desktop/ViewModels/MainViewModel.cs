@@ -30,10 +30,11 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Imaging = new ImagingViewModel();
         Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
+        SequenceSetup = new SequenceSetupViewModel(
+            host.DeviceRegistry, DemoSequenceConfiguration.Default(options, host.DeviceRegistry));
         Sequencer = new SequencerViewModel(
-            host, postToUi, activity, Imaging, Equipment.Cameras,
-            DemoSequenceFactory.Create(host.DeviceRegistry, options),
-            CheckDemoEquipment);
+            host, postToUi, activity, Imaging, Equipment.Cameras, SequenceSetup, CheckSelectedEquipment);
+        SequencerPage = new SequencerPageViewModel(SequenceSetup, Sequencer);
         Dashboard = new DashboardViewModel(
             Runtime, Sequencer, Imaging,
             Equipment.Rigs.FirstOrDefault(),
@@ -57,7 +58,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public DashboardViewModel Dashboard { get; }
     public EquipmentViewModel Equipment { get; }
+    public SequenceSetupViewModel SequenceSetup { get; }
     public SequencerViewModel Sequencer { get; }
+    public SequencerPageViewModel SequencerPage { get; }
     public ImagingViewModel Imaging { get; }
     public RuntimeStatusViewModel Runtime { get; }
 
@@ -72,7 +75,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public ViewModelBase CurrentPage => SelectedPage switch
     {
         AppPage.Equipment => Equipment,
-        AppPage.Sequencer => Sequencer,
+        AppPage.Sequencer => SequencerPage,
         AppPage.Imaging => Imaging,
         _ => Dashboard,
     };
@@ -86,17 +89,17 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private void Navigate(AppPage page) => SelectedPage = page;
 
     // The demo sequence uses the camera, the mount and the guider; each must be connected and not busy.
-    private string? CheckDemoEquipment()
+    private string? CheckSelectedEquipment()
     {
-        var camera = Equipment.Cameras.FirstOrDefault(c => c.CameraId == DemoSetup.MainCameraId);
-        var mount = Equipment.Mounts.FirstOrDefault(m => m.DeviceIdText == DemoSetup.MountId.Value);
-        var guider = Equipment.Guiders.FirstOrDefault(g => g.DeviceIdText == DemoSetup.GuiderId.Value);
+        var camera = Equipment.Cameras.FirstOrDefault(c => c.CameraId == SequenceSetup.SelectedCamera?.Id);
+        var mount = Equipment.Mounts.FirstOrDefault(m => m.DeviceIdText == SequenceSetup.SelectedMount?.IdText);
+        var guider = Equipment.Guiders.FirstOrDefault(g => g.DeviceIdText == SequenceSetup.SelectedGuider?.IdText);
 
+        // A missing selection is reported by the setup itself; this is only about the state of chosen equipment.
         if (camera is null || mount is null || guider is null)
         {
-            return "The equipment of the demo sequence is not registered.";
+            return null;
         }
-
         foreach (var device in new DeviceViewModelBase[] { camera, mount, guider })
         {
             if (!device.IsConnected)

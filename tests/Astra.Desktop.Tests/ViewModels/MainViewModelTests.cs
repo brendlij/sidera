@@ -25,7 +25,7 @@ public class MainViewModelTests
         Assert.Same(page switch
         {
             AppPage.Equipment => (ViewModelBase)vm.Equipment,
-            AppPage.Sequencer => vm.Sequencer,
+            AppPage.Sequencer => vm.SequencerPage,
             AppPage.Imaging => vm.Imaging,
             _ => vm.Dashboard
         }, vm.CurrentPage);

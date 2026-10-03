@@ -85,17 +85,20 @@ public sealed record ActiveBranchViewModel(
 public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 {
     private readonly SequenceRunner _runner;
-    private readonly Sequence _sequence;
+    private readonly Sequence? _fixedSequence;
+    private Sequence _displayedSequence;
+    private DemoSequenceConfiguration? _displayedConfiguration;
     private readonly Action<Action> _postToUi;
     private readonly SessionActivity _activity;
     private readonly ImagingViewModel _imaging;
     private readonly IReadOnlyList<CameraViewModel> _cameras;
     private readonly Func<string?>? _readiness;
-    private readonly IReadOnlyList<SequenceNode> _roots;
+    private IReadOnlyList<SequenceNode> _roots = [];
     private readonly HashSet<SequenceExecutionPosition> _completed = new();
     private readonly Dictionary<SequenceNode, int> _latestIteration = new();
     private CancellationTokenSource? _cts;
 
+    /// <summary>A sequencer for one fixed sequence definition, without editable parameters.</summary>
     /// <param name="readiness">Returns why the sequence cannot start right now, or <c>null</c> if it can.</param>
     public SequencerViewModel(
         AstraRuntimeHost host,
@@ -105,29 +108,99 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         IReadOnlyList<CameraViewModel> cameras,
         Sequence sequence,
         Func<string?>? readiness = null
+    ) : this(host, postToUi, activity, imaging, cameras, sequence, null, readiness)
+    {
+    }
+
+    /// <summary>
+    /// A sequencer whose sequence is built from <paramref name="setup"/> every time it runs. The definition shown
+    /// follows the setup while nothing runs, and is the one that was built for the run while one is in progress.
+    /// </summary>
+    public SequencerViewModel(
+        AstraRuntimeHost host,
+        Action<Action> postToUi,
+        SessionActivity activity,
+        ImagingViewModel imaging,
+        IReadOnlyList<CameraViewModel> cameras,
+        SequenceSetupViewModel setup,
+        Func<string?>? readiness = null
+    ) : this(host, postToUi, activity, imaging, cameras, null, setup, readiness)
+    {
+    }
+
+    private SequencerViewModel(
+        AstraRuntimeHost host,
+        Action<Action> postToUi,
+        SessionActivity activity,
+        ImagingViewModel imaging,
+        IReadOnlyList<CameraViewModel> cameras,
+        Sequence? fixedSequence,
+        SequenceSetupViewModel? setup,
+        Func<string?>? readiness
     )
     {
         _runner = new SequenceRunner(host.ResourceManager, host.SafePointCoordinator);
-        _sequence = sequence;
+        _fixedSequence = fixedSequence;
+        Setup = setup;
         _postToUi = postToUi;
         _activity = activity;
         _imaging = imaging;
         _cameras = cameras;
         _readiness = readiness;
 
-        _roots = SequenceNodeBuilder.Build(sequence);
-        Definition = SequenceNodeBuilder.Flatten(_roots).Select(node => new SequenceNodeViewModel(node)).ToList();
+        _displayedSequence = fixedSequence ?? setup?.Preview ?? new Sequence("Demo", [new DelayAction(TimeSpan.FromSeconds(1))]);
+        Definition = [];
+        if (fixedSequence is not null || setup?.Preview is not null)
+        {
+            ShowDefinition(_displayedSequence, setup?.Configuration);
+        }
 
         _runner.Changed += OnRunnerChanged;
         _runner.StepCompleted += OnStepCompleted;
+        if (setup is not null)
+        {
+            setup.Changed += OnSetupChanged;
+        }
+
         RefreshExecution();
         RefreshReadiness();
     }
 
-    public string SequenceName => $"{_sequence.Name} sequence";
+    /// <summary>The editable parameters, or <c>null</c> for a sequencer with a fixed sequence.</summary>
+    public SequenceSetupViewModel? Setup { get; }
+
+
+    public string SequenceName => $"{_displayedSequence.Name} sequence";
 
     /// <summary>The definition, flattened in display order.</summary>
-    public IReadOnlyList<SequenceNodeViewModel> Definition { get; }
+    [ObservableProperty]
+    public partial IReadOnlyList<SequenceNodeViewModel> Definition { get; private set; }
+
+    // Shows a sequence definition and maps running positions onto it. Never touches a sequence that is running.
+    private void ShowDefinition(Sequence sequence, DemoSequenceConfiguration? configuration)
+    {
+        _displayedSequence = sequence;
+        _displayedConfiguration = configuration;
+        _roots = SequenceNodeBuilder.Build(sequence);
+        _completed.Clear();
+        _latestIteration.Clear();
+        Definition = SequenceNodeBuilder.Flatten(_roots).Select(node => new SequenceNodeViewModel(node)).ToList();
+        OnPropertyChanged(nameof(SequenceName));
+    }
+
+    // The parameters changed. While a sequence runs, the definition shown is the one that was built for that run.
+    private void OnSetupChanged(object? sender, EventArgs e)
+    {
+        if (!IsRunning
+            && Setup is { Configuration: { } configuration, Preview: { } preview }
+            && configuration != _displayedConfiguration)
+        {
+            ShowDefinition(preview, configuration);
+        }
+
+        OnPropertyChanged(nameof(CanRun));
+        RunCommand.NotifyCanExecuteChanged();
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsCompleted))]
@@ -155,7 +228,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
 
     // What the buttons may do. Every one of them is derived from the state alone, and every change of the state
     // re-evaluates all four commands, so no command can be left showing an earlier state.
-    public bool CanRun => !IsRunning && ReadinessHint is null;
+    public bool CanRun => !IsRunning && ReadinessHint is null && (Setup?.IsValid ?? true);
     public bool CanPause => State == SequenceState.Running;
     public bool CanResume => State == SequenceState.Paused;
     public bool CanCancel => IsRunning;
@@ -200,7 +273,14 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     /// <summary>Re-evaluates whether the sequence can start; call when the equipment changed.</summary>
     public void RefreshReadiness()
     {
+        // Also notices a device of the setup that is no longer available.
+        if (!IsRunning)
+        {
+            Setup?.Revalidate();
+        }
+
         ReadinessHint = _readiness?.Invoke();
+        OnPropertyChanged(nameof(CanRun));
         RunCommand.NotifyCanExecuteChanged();
     }
 
@@ -208,8 +288,21 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private async Task RunAsync()
     {
         ClearError();
-        _completed.Clear();
-        _latestIteration.Clear();
+
+        // A fresh sequence from the parameters as they are now. Nothing of an earlier run is reused, and later edits
+        // cannot reach it: the editors are locked as soon as the run has started.
+        Sequence sequence;
+        try
+        {
+            sequence = _fixedSequence ?? Setup!.Build();
+        }
+        catch (SequenceConfigurationException ex)
+        {
+            ReportError(ex.Problems.Count == 1 ? ex.Problems[0] : $"Check the parameters: {ex.Problems[0]} (+{ex.Problems.Count - 1} more)");
+            return;
+        }
+
+        ShowDefinition(sequence, Setup?.Configuration);
 
         var cts = new CancellationTokenSource();
         _cts = cts;
@@ -217,7 +310,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         try
         {
             // Starts synchronously and flips the runner to Running before the first await.
-            var run = _runner.RunAsync(_sequence, cts.Token);
+            var run = _runner.RunAsync(sequence, cts.Token);
             _activity.IsSequenceRunning = true;
             RefreshExecution();
             await run;
@@ -236,6 +329,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             cts.Dispose();
             _activity.IsSequenceRunning = false;
             RefreshExecution();
+
             RefreshReadiness();
         }
     }
@@ -289,6 +383,11 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private void RefreshExecution()
     {
         State = _runner.State;
+        if (Setup is not null)
+        {
+            Setup.IsEditable = !IsRunning;
+        }
+
 
         var active = _runner.ActivePositions;
         var current = _runner.CurrentPosition;
@@ -437,5 +536,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         Cancel();
         _runner.Changed -= OnRunnerChanged;
         _runner.StepCompleted -= OnStepCompleted;
+        if (Setup is not null)
+        {
+            Setup.Changed -= OnSetupChanged;
+        }
     }
 }
