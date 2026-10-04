@@ -266,7 +266,8 @@ public class CameraStopTests
 
         await rig.Camera.DisposeAsync();
 
-        Assert.Equal(1, rig.Log.Count("AbortExposure"));
+        // The release aborts; the polling exposure may ask for an abort of its own at the same moment, so at least once.
+        Assert.True(rig.Log.Count("AbortExposure") >= 1);
         await Assert.ThrowsAnyAsync<Exception>(() => exposure);
         Assert.Equal(CameraExposureState.Idle, rig.Camera.ExposureState);
     }

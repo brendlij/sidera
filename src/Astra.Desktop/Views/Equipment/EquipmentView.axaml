@@ -7,95 +7,47 @@
              x:DataType="vm:EquipmentViewModel">
 
     <!--
-        The equipment workspace. It has a context bar (the devices operated directly, and each rig when there are any), under it
-        the pages of the selected context, and under that the page: the overview of everything, the overview of a rig, or the page
-        of one kind of device, which uses the whole width. A way back is always shown. Adding and editing a device is a form
-        that opens over the page.
+        The equipment: a tab for each kind of device, and on each the choice of the driver with connect beside it, then the device.
+        Nothing is added or removed by hand: choosing a driver (or none) is how the equipment is set up.
     -->
-    <Panel>
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16">
+        <ctl:PageHeader Title="Equipment" />
 
-            <ctl:PageHeader Title="Equipment">
-                <Button Classes="secondary" Command="{Binding AddDeviceCommand}" IsVisible="{Binding CanManage}" AutomationProperties.Name="Add device">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <PathIcon Data="{StaticResource IconAdd}" />
-                        <TextBlock Text="Add device" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </ctl:PageHeader>
+        <StackPanel Grid.Row="1" Spacing="8">
+            <Border Classes="notice-danger" IsVisible="{Binding HasProblems}">
+                <TextBlock Classes="danger" Text="{Binding ProblemsText}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="notice-danger" IsVisible="{Binding HasNotice}">
+                <TextBlock Classes="danger" Text="{Binding NoticeText}" TextWrapping="Wrap" />
+            </Border>
+        </StackPanel>
 
-            <equipment:EquipmentBreadcrumbView Grid.Row="1" IsVisible="{Binding IsContextShown}" />
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding Slots}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="20" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeviceSlotViewModel">
+                    <RadioButton Classes="tab" GroupName="EquipmentSlot" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                 AutomationProperties.Name="{Binding Title}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
-            <StackPanel Grid.Row="2" Spacing="8">
-                <Border Classes="notice-danger" IsVisible="{Binding HasProblems}">
-                    <TextBlock Classes="danger" Text="{Binding ProblemsText}" TextWrapping="Wrap" />
-                </Border>
-                <Border Classes="notice-danger" IsVisible="{Binding HasNotice}">
-                    <TextBlock Classes="danger" Text="{Binding NoticeText}" TextWrapping="Wrap" />
-                </Border>
-            </StackPanel>
+        <Border Grid.Row="3" Classes="divider" />
 
-            <!-- The contexts: Standalone, and one tab for each rig -->
-            <ItemsControl Grid.Row="3" ItemsSource="{Binding Contexts}" IsVisible="{Binding HasDevices}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="4" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:EquipmentContextViewModel">
-                        <RadioButton Classes="segment" GroupName="EquipmentContext" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                     AutomationProperties.Name="{Binding Title}" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+        <ctl:EmptyState Grid.Row="4" Icon="{StaticResource IconEquipment}" Title="Nothing selected" Margin="0,96"
+                        Message="Choose a kind of device above, then pick its driver."
+                        IsVisible="{Binding SelectedSlot, Converter={x:Static ObjectConverters.IsNull}}" />
 
-            <!-- The pages of the selected context -->
-            <StackPanel Grid.Row="4" Spacing="0" IsVisible="{Binding IsContextShown}">
-                <ItemsControl ItemsSource="{Binding Pages}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="20" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:EquipmentPageViewModel">
-                            <RadioButton Classes="tab" GroupName="EquipmentPage" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                         AutomationProperties.Name="{Binding Title}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <Border Classes="divider" />
-            </StackPanel>
-
-            <Panel Grid.Row="5">
-                <equipment:EquipmentLandingView IsVisible="{Binding IsLanding}" />
-
-                <ContentControl Content="{Binding SelectedRig}" IsVisible="{Binding IsRigOverview}">
-                    <ContentControl.ContentTemplate>
-                        <DataTemplate x:DataType="vm:RigViewModel">
-                            <equipment:RigOverviewView />
-                        </DataTemplate>
-                    </ContentControl.ContentTemplate>
-                </ContentControl>
-
-                <equipment:DeviceWorkspaceView IsVisible="{Binding IsDeviceWorkspace}" />
-
-                <ctl:EmptyState Icon="{StaticResource IconEquipment}" Title="Nothing here yet" IsVisible="{Binding IsContextEmpty}"
-                                Message="This context has no device. Devices appear here when they are added to Astra." />
-            </Panel>
-        </Grid>
-
-        <!-- The form for adding or editing a device, over the page: the page behind it waits -->
-        <Grid IsVisible="{Binding IsEditorOpen}">
-            <Border Background="{DynamicResource AstraScrim}" />
-            <ContentControl Content="{Binding Editor}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{StaticResource InsetPage}">
-                <ContentControl.ContentTemplate>
-                    <DataTemplate x:DataType="vm:DeviceEditorViewModel">
-                        <equipment:DeviceEditorView />
-                    </DataTemplate>
-                </ContentControl.ContentTemplate>
-            </ContentControl>
-        </Grid>
-    </Panel>
+        <ContentControl Grid.Row="4" Content="{Binding SelectedSlot}">
+            <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="vm:DeviceSlotViewModel">
+                    <equipment:DeviceSlotView />
+                </DataTemplate>
+            </ContentControl.ContentTemplate>
+        </ContentControl>
+    </Grid>
 </UserControl>

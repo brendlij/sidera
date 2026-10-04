@@ -97,15 +97,11 @@
             </ctl:WorkspaceSection>
         </WrapPanel>
 
-        <!-- The settings above are the defaults of this camera: what its exposures use unless a sequence step says otherwise -->
-        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,24" IsVisible="{Binding Settings.HasSettings}">
-            <Button Classes="primary" Content="Apply" Command="{Binding Settings.ApplyCommand}" AutomationProperties.Name="Apply camera settings" />
-            <Button Content="Discard" Command="{Binding Settings.DiscardCommand}" />
-            <TextBlock Classes="meta" VerticalAlignment="Center" Text="These are the defaults of this camera; a sequence step can set its own." />
-        </StackPanel>
+        <!-- A change is applied as it is made: these are the defaults of this camera, what its exposures use unless a sequence step says otherwise -->
+        <TextBlock Classes="meta" Margin="2,0,0,24" Text="Changes apply as you make them. They are the defaults of this camera; a sequence step can set its own."
+                   IsVisible="{Binding Settings.HasSettings}" />
         <TextBlock Classes="secondary" Margin="0,0,0,24" Text="Connect the camera to see which settings it supports."
                    IsVisible="{Binding Settings.IsUnavailable}" />
 
-        <workspaces:DriverSectionView />
     </StackPanel>
 </UserControl>

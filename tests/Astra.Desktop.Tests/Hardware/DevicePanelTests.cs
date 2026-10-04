@@ -259,6 +259,38 @@ public sealed class DevicePanelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AChoiceIsAppliedByItself_WithoutAnApplyButton()
+    {
+        var simulated = new SimulatedCamera(new DeviceId("camera.sim"), seed: 1);
+        var (panel, camera) = CameraPanel(simulated);
+        await camera.ConnectAsync();
+        await Settle(() => panel.IsAvailable);
+
+        panel.CoolerOn = true;
+
+        await Settle(() => camera.Settings!.CoolerOn == true);
+        panel.SelectedBinX = 2;
+        await Settle(() => camera.Settings!.BinX == 2);
+    }
+
+    [Fact]
+    public async Task ATypedValueIsAppliedWhenTheTypingHasPaused_AndAnUnfinishedOneIsLeftAlone()
+    {
+        var simulated = new SimulatedCamera(new DeviceId("camera.sim"), seed: 1);
+        var (panel, camera) = CameraPanel(simulated);
+        await camera.ConnectAsync();
+        await Settle(() => panel.IsAvailable);
+
+        panel.Gain.Text = "4x"; // not a number yet
+        await Task.Delay(1300);
+        Assert.False(panel.HasError);
+        Assert.Equal(0, camera.Settings!.Gain);
+
+        panel.Gain.Text = "40";
+        await Settle(() => camera.Settings!.Gain == 40);
+    }
+
+    [Fact]
     public async Task TheCoolerIsNotSwitchedOnByAConnect()
     {
         var preferences = new MemoryPreferences();

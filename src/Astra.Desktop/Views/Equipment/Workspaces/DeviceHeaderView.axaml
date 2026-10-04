@@ -6,41 +6,17 @@
              x:DataType="vm:DeviceDetailViewModel">
 
     <!--
-        The same header for every device: its name and what it is, its connection and the one button that changes it, and an
-        overflow menu for the configuration (driver setup, edit, remove), which is kept apart from the normal controls. A mount
-        also has a Stop that is always there.
+        What the device is doing, the same for every device: its connection, its activity, and the problems it reports. A mount also
+        has a Stop that is always there. Choosing, setting up and connecting the device is the row above.
     -->
     <StackPanel Spacing="12">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-            <StackPanel Spacing="4" VerticalAlignment="Center">
-                <TextBlock Classes="page-title" Text="{Binding Device.Name}" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Classes="meta" Text="{Binding Device.DeviceIdText}" />
-                    <TextBlock Classes="meta" Text="{Binding Device.BackendText}" />
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                <ctl:StatusIndicator Kind="{Binding Device.StatusKind}" Text="{Binding Device.StatusText}" />
-                <TextBlock Classes="secondary" Text="{Binding Device.ActivityText, StringFormat={}· {0}}" VerticalAlignment="Center"
-                           IsVisible="{Binding Device.IsConnected}" />
-                <StackPanel IsVisible="{Binding Device.IsConnected}">
-                    <Button Classes="danger" Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding HasStop}"
-                            AutomationProperties.Name="Stop all movement" />
-                </StackPanel>
-                <Button Content="Connect" Command="{Binding Device.ConnectCommand}" IsVisible="{Binding Device.IsDisconnected}" />
-                <Button Content="Disconnect" Command="{Binding Device.DisconnectCommand}" IsVisible="{Binding Device.IsConnected}" />
-                <Button Classes="ghost" Content="⋯" AutomationProperties.Name="More"
-                        IsVisible="{Binding Configuration, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <Button.Flyout>
-                        <MenuFlyout Placement="BottomEdgeAlignedRight">
-                            <MenuItem Header="Driver setup…" Command="{Binding Configuration.SetupDriverCommand}" IsVisible="{Binding Configuration.IsAscom}" />
-                            <MenuItem Header="Edit device…" Command="{Binding Configuration.EditCommand}" />
-                            <MenuItem Header="Remove device…" Command="{Binding Configuration.RemoveCommand}" />
-                        </MenuFlyout>
-                    </Button.Flyout>
-                </Button>
-            </StackPanel>
-        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <ctl:StatusIndicator Kind="{Binding Device.StatusKind}" Text="{Binding Device.StatusText}" />
+            <TextBlock Classes="secondary" Text="{Binding Device.ActivityText, StringFormat={}· {0}}" VerticalAlignment="Center"
+                       IsVisible="{Binding Device.IsConnected}" />
+            <Button Classes="danger" Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding HasStop}"
+                    AutomationProperties.Name="Stop all movement" />
+        </StackPanel>
 
         <Border Classes="notice-danger" IsVisible="{Binding Device.HasError}">
             <TextBlock Classes="danger" Text="{Binding Device.ErrorMessage}" TextWrapping="Wrap" />
@@ -50,20 +26,6 @@
         </Border>
         <Border Classes="panel" IsVisible="{Binding Panel.HasNotice}">
             <TextBlock Classes="secondary" Text="{Binding Panel.NoticeText}" TextWrapping="Wrap" />
-        </Border>
-
-        <!-- Configuration: why it cannot be changed now, the outcome of the last request, and the question before a removal -->
-        <Border Classes="panel" IsVisible="{Binding Configuration.HasMessage}">
-            <TextBlock Classes="danger" Text="{Binding Configuration.MessageText}" TextWrapping="Wrap" />
-        </Border>
-        <Border Classes="panel" IsVisible="{Binding Configuration.IsConfirmingRemove}">
-            <StackPanel Spacing="12">
-                <TextBlock Text="{Binding Device.Name, StringFormat=Remove {0} from the equipment?}" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Classes="danger" Content="Remove" Command="{Binding Configuration.ConfirmRemoveCommand}" />
-                    <Button Content="Keep" Command="{Binding Configuration.CancelRemoveCommand}" />
-                </StackPanel>
-            </StackPanel>
         </Border>
     </StackPanel>
 </UserControl>

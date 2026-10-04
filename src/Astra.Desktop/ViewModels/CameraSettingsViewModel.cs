@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Astra.Core.Devices;
 using Astra.Desktop.Hardware;
@@ -168,12 +169,12 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
         }
 
         OnPropertyChanged(nameof(SubframeHint));
-        MarkEdit();
+        MarkEdit(immediate: true);
     }
 
-    partial void OnSelectedReadoutChanged(int value) => MarkEdit();
+    partial void OnSelectedReadoutChanged(int value) => MarkEdit(immediate: true);
 
-    partial void OnFastReadoutChanged(bool value) => MarkEdit();
+    partial void OnFastReadoutChanged(bool value) => MarkEdit(immediate: true);
 
     partial void OnStartXTextChanged(string value) => MarkEdit();
 
@@ -185,7 +186,7 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
 
     partial void OnTargetTemperatureTextChanged(string value) => MarkEdit();
 
-    partial void OnCoolerOnChanged(bool value) => MarkEdit();
+    partial void OnCoolerOnChanged(bool value) => MarkEdit(immediate: true);
 
     private bool _loading;
 
@@ -194,16 +195,73 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
     {
         if (property is nameof(IntegerControlInput.Text) or nameof(IntegerControlInput.SelectedIndex))
         {
-            MarkEdit();
+            MarkEdit(immediate: property == nameof(IntegerControlInput.SelectedIndex));
         }
     }
 
-    private void MarkEdit()
+    // What is typed or picked is applied to the camera by itself: a choice at once, a typed value when the typing has paused. A value that is
+    // not (yet) a number is left alone until it is one; a complete value the camera cannot take is reported, as it was with the button.
+    private static readonly TimeSpan PickDelay = TimeSpan.FromMilliseconds(120);
+    private static readonly TimeSpan TypingDelay = TimeSpan.FromMilliseconds(900);
+    private CancellationTokenSource? _autoApply;
+
+    private void MarkEdit(bool immediate = false)
     {
-        if (!_loading)
+        if (_loading)
         {
-            _editing = true;
+            return;
         }
+
+        _editing = true;
+        _autoApply?.Cancel();
+        var cts = _autoApply = new CancellationTokenSource();
+        _ = AutoApplyAsync(immediate ? PickDelay : TypingDelay, cts.Token);
+    }
+
+    private async Task AutoApplyAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                await Task.Delay(delay, cancellationToken);
+                if (!_editing)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (ReadChange().IsEmpty)
+                    {
+                        _editing = false;
+                        return;
+                    }
+                }
+                catch (FormatException)
+                {
+                    return; // still being typed
+                }
+
+                if (ApplyCommand.CanExecute(null))
+                {
+                    await ApplyCommand.ExecuteAsync(null);
+                    return;
+                }
+
+                delay = TimeSpan.FromMilliseconds(300); // busy with something else: try again shortly
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Another edit came, or the panel is gone.
+        }
+    }
+
+    public override void Dispose()
+    {
+        _autoApply?.Cancel();
+        base.Dispose();
     }
 
     partial void OnSelectedBinYChanged(int value)

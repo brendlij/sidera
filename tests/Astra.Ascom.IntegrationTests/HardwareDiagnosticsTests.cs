@@ -1,3 +1,4 @@
+using Astra.Ascom.Discovery;
 using Astra.Ascom.Drivers;
 using Astra.Ascom.Infrastructure;
 using Xunit.Abstractions;
@@ -538,4 +539,32 @@ public sealed class HardwareCameraStopDiagnostics(ITestOutputHelper output)
             });
         }
     }
+}
+
+public sealed class HardwareSetupDialogDiagnostics(ITestOutputHelper output)
+{
+    // Opens the setup dialog of the real camera driver the way Astra does. A window opens: it has to be closed by hand.
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_SetupDialog_ThroughTheSetupService()
+    {
+        if (Environment.GetEnvironmentVariable("ASTRA_ASCOM_MANUAL") != "1")
+        {
+            return;
+        }
+
+        if (Environment.GetEnvironmentVariable("ASTRA_DPI_AWARE") == "1")
+        {
+            output.WriteLine("per-monitor v2 DPI awareness: " + NativeDpi.SetProcessDpiAwarenessContext(-4));
+        }
+
+        var result = await new AscomSetupService(new ComAscomDriverFactory()).ShowAsync(
+            AscomDeviceKind.Camera, Environment.GetEnvironmentVariable("ASTRA_ASCOM_CAMERA")!);
+        output.WriteLine($"completed {result.Completed}, problem {result.Problem}");
+    }
+}
+
+internal static class NativeDpi
+{
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern bool SetProcessDpiAwarenessContext(nint value);
 }
