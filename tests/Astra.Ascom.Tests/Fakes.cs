@@ -132,6 +132,12 @@ public sealed class FakeFocuserDriver(CallLog log) : FakeDriver(log), IAscomFocu
 
     public Exception? PositionThrowsWhileMoving { get; set; }
 
+    /// <summary>After a Halt that stops the focuser, the first this many position reads still say where it was (the EAF does this).</summary>
+    public int StalePositionReadsAfterHalt { get; set; }
+
+    private int _staleReads;
+    private int _stalePosition;
+
     public int MaxIncrementValue { get; set; } = 50000;
     public double? StepSizeValue { get; set; } = 1.5;
 
@@ -179,6 +185,12 @@ public sealed class FakeFocuserDriver(CallLog log) : FakeDriver(log), IAscomFocu
                 if (_moving && PositionThrowsWhileMoving is not null)
                 {
                     throw PositionThrowsWhileMoving;
+                }
+
+                if (_staleReads > 0)
+                {
+                    _staleReads--;
+                    return _stalePosition;
                 }
 
                 return PositionValue;
@@ -231,6 +243,7 @@ public sealed class FakeFocuserDriver(CallLog log) : FakeDriver(log), IAscomFocu
             if (HaltStops && _moving)
             {
                 _moving = false;
+                (_stalePosition, _staleReads) = (PositionValue, StalePositionReadsAfterHalt);
                 PositionValue = (_start + _target) / 2;
             }
         }

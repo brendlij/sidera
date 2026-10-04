@@ -358,6 +358,22 @@ public class FocuserTests
     }
 
     [Fact]
+    public async Task AfterAHalt_ThePositionIsReadUntilItHasSettled_NotJustOnce()
+    {
+        // The real EAF says "not moving" at once after Halt, but its position still catches up for a moment.
+        var rig = await Connected(d => (d.HoldMove, d.HaltStops, d.StalePositionReadsAfterHalt) = (true, true, 2));
+        using var cts = new CancellationTokenSource();
+        var move = rig.Focuser.MoveToAsync(35000, cts.Token);
+        await WaitUntilMoving(rig);
+
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => move);
+        Assert.Equal(30000, rig.Focuser.Position);
+        Assert.Equal(30000, rig.Events.Of<FocuserMotionStateChanged>().Last().Position);
+    }
+
+    [Fact]
     public async Task ADriverWithoutHalt_IsNotClaimedToHaveStopped()
     {
         var rig = await Connected(d => (d.HoldMove, d.HaltThrows) = (true, new ASCOM.MethodNotImplementedException("Halt")));

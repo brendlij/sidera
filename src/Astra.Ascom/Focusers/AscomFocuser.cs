@@ -355,7 +355,7 @@ public sealed class AscomFocuser : AscomDevice<IAscomFocuserDriver>, IFocuserCon
         {
             if (!ended)
             {
-                var where = await ReadPositionQuietlyAsync() ?? Position;
+                var where = await ReadSettledPositionAsync() ?? Position;
                 SetPosition(where);
                 SetIdle();
                 if (announced)
@@ -490,6 +490,37 @@ public sealed class AscomFocuser : AscomDevice<IAscomFocuserDriver>, IFocuserCon
 
         _capabilities.Set(current with { CanHalt = works }, this);
     }
+
+    // After a Halt the real EAF driver says "not moving" at once, yet its Position still catches up with the motor for about
+    // 200 ms (seen: 9706 right after Halt, 9755 a moment later). So the position after a stop is read until it has not changed
+    // for a few polls, within a bound.
+    private async Task<int?> ReadSettledPositionAsync()
+    {
+        int? last = null;
+        var unchanged = 0;
+        var clock = Stopwatch.StartNew();
+        var limit = Timings.StopWait < SettleLimit ? Timings.StopWait : SettleLimit;
+        while (true)
+        {
+            var read = await ReadPositionQuietlyAsync();
+            if (read is null)
+            {
+                return last;
+            }
+
+            unchanged = read == last ? unchanged + 1 : 0;
+            last = read;
+            if (unchanged >= SettleReads || clock.Elapsed >= limit)
+            {
+                return last;
+            }
+
+            await Task.Delay(Timings.FocuserPollInterval);
+        }
+    }
+
+    private static readonly TimeSpan SettleLimit = TimeSpan.FromSeconds(2);
+    private const int SettleReads = 3;
 
     private async Task<int?> ReadPositionQuietlyAsync()
     {
