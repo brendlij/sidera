@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Dashboard.RigStatusCard"
+             x:DataType="vm:RigViewModel">
+
+    <!-- A rig on the dashboard: only what its devices report -->
+    <Border Classes="panel">
+        <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="card-title" Text="{Binding Name}" />
+                    <TextBlock Classes="meta" Text="{Binding OpticsShortText}" />
+                </StackPanel>
+                <ctl:StatusIndicator Grid.Column="1" Kind="{Binding StatusKind}" Text="{Binding StatusText}" />
+            </Grid>
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="CAMERA" />
+                    <TextBlock Classes="value" Text="{Binding ActivityText}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="2" IsVisible="{Binding HasFocuser}">
+                    <TextBlock Classes="eyebrow" Text="FOCUS" />
+                    <TextBlock Classes="value" Text="{Binding FocusText}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="2" IsVisible="{Binding HasFilterWheel}">
+                    <TextBlock Classes="eyebrow" Text="FILTER" />
+                    <TextBlock Classes="value" Text="{Binding FilterText}" />
+                </StackPanel>
+            </Grid>
+            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding Camera.IsExposing}" />
+        </StackPanel>
+    </Border>
+</UserControl>

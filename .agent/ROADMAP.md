@@ -1,8 +1,8 @@
-# Astra Autonomous Roadmap
+# Sidera Autonomous Roadmap
 
 ## Product scope
 
-Astra is currently:
+Sidera is currently:
 - Windows standalone first
 - simulator first
 - .NET 10

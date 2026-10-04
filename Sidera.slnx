@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sidera.Ascom/Sidera.Ascom.csproj" />
+    <Project Path="src/Sidera.Core/Sidera.Core.csproj" />
+    <Project Path="src/Sidera.Desktop/Sidera.Desktop.csproj" />
+    <Project Path="src/Sidera.Runtime/Sidera.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sidera.Ascom.IntegrationTests/Sidera.Ascom.IntegrationTests.csproj" />
+    <Project Path="tests/Sidera.Ascom.Tests/Sidera.Ascom.Tests.csproj" />
+    <Project Path="tests/Sidera.Desktop.Tests/Sidera.Desktop.Tests.csproj" />
+    <Project Path="tests/Sidera.Runtime.Tests/Sidera.Runtime.Tests.csproj" />
+  </Folder>
+</Solution>

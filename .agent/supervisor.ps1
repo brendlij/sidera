@@ -28,8 +28,8 @@ $RoadmapFile = Join-Path $AgentDir "ROADMAP.md"
 $StopFile = Join-Path $AgentDir "STOP"
 $LogDir = Join-Path $AgentDir "logs"
 
-$PlanMarkdown = Join-Path $AgentDir "ASTRA_PROJECT_PLAN.md"
-$PlanPdf = Join-Path $AgentDir "ASTRA_PROJECT_PLAN.pdf"
+$PlanMarkdown = Join-Path $AgentDir "SIDERA_PROJECT_PLAN.md"
+$PlanPdf = Join-Path $AgentDir "SIDERA_PROJECT_PLAN.pdf"
 
 if (Test-Path $PlanMarkdown) {
     $PlanFile = $PlanMarkdown
@@ -39,12 +39,12 @@ elseif (Test-Path $PlanPdf) {
 }
 else {
     throw @"
-No Astra project plan found.
+No Sidera project plan found.
 
 Add one of:
 
-.agent\ASTRA_PROJECT_PLAN.md
-.agent\ASTRA_PROJECT_PLAN.pdf
+.agent\SIDERA_PROJECT_PLAN.md
+.agent\SIDERA_PROJECT_PLAN.pdf
 "@
 }
 
@@ -301,9 +301,9 @@ function Run-CodexCapture {
 
     $id = [Guid]::NewGuid().ToString("N")
 
-    $stdin  = Join-Path $env:TEMP "astra-codex-$id-in.txt"
-    $stdout = Join-Path $env:TEMP "astra-codex-$id-out.txt"
-    $stderr = Join-Path $env:TEMP "astra-codex-$id-err.txt"
+    $stdin  = Join-Path $env:TEMP "sidera-codex-$id-in.txt"
+    $stdout = Join-Path $env:TEMP "sidera-codex-$id-out.txt"
+    $stderr = Join-Path $env:TEMP "sidera-codex-$id-err.txt"
 
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $logPath = Join-Path $LogDir "$timestamp-codex.log"
@@ -518,9 +518,9 @@ or use the authentication command supported by your Claude CLI.
 
     $codexExe = Join-Path $env:APPDATA "npm\codex.cmd"
 
-    $stdout = Join-Path $env:TEMP "astra-codex-preflight-out.txt"
-    $stderr = Join-Path $env:TEMP "astra-codex-preflight-err.txt"
-    $stdin  = Join-Path $env:TEMP "astra-codex-preflight-in.txt"
+    $stdout = Join-Path $env:TEMP "sidera-codex-preflight-out.txt"
+    $stderr = Join-Path $env:TEMP "sidera-codex-preflight-err.txt"
+    $stdin  = Join-Path $env:TEMP "sidera-codex-preflight-in.txt"
 
     "Reply with exactly OK. Do not modify any files." |
         Set-Content -Path $stdin -Encoding UTF8
@@ -565,7 +565,7 @@ or use the authentication command supported by your Claude CLI.
 
 function Plan-NextSlice {
 
-    Write-Section "PLANNING NEXT ASTRA SLICE"
+    Write-Section "PLANNING NEXT SIDERA SLICE"
 
     Check-Stop
 
@@ -593,9 +593,9 @@ function Plan-NextSlice {
     $sourceFileText = $sourceFiles -join [Environment]::NewLine
 
     $prompt = @"
-You are the architecture planner for the Astra astrophotography sequencer.
+You are the architecture planner for the Sidera astrophotography sequencer.
 
-You are working with this Astra repository.
+You are working with this Sidera repository.
 
 LONG-TERM MASTER PLAN:
 $relativePlan
@@ -633,7 +633,7 @@ earlier than the original phase ordering.
 
 Never reimplement functionality that already exists.
 
-Astra product principles include:
+Sidera product principles include:
 
 - Auto-first, but never auto-only.
 - Automate what can be measured.
@@ -723,7 +723,7 @@ function Implement-CurrentTask {
     $relativePlan = $PlanFile.Replace($Repo + "\", "").Replace("\", "/")
 
     $prompt = @"
-You are the primary implementation engineer for the Astra astrophotography
+You are the primary implementation engineer for the Sidera astrophotography
 sequencer.
 
 Read before making changes:
@@ -773,7 +773,7 @@ Engineering rules:
 Do NOT modify:
 
 - .agent/ROADMAP.md
-- the Astra master project plan
+- the Sidera master project plan
 - .agent/REVIEW.md
 
 Do NOT choose the next task.
@@ -809,7 +809,7 @@ function Repair-ValidationFailure {
     Write-Section "CLAUDE VALIDATION REPAIR"
 
     $prompt = @"
-The current Astra task does not pass the required validation.
+The current Sidera task does not pass the required validation.
 
 Read:
 
@@ -864,7 +864,7 @@ function Review-CurrentTask {
     $gitLogText = $gitLog -join [Environment]::NewLine
 
     $prompt = @"
-You are the senior code/architecture reviewer for Astra.
+You are the senior code/architecture reviewer for Sidera.
 
 DO NOT modify files.
 
@@ -903,7 +903,7 @@ You may inspect repository files using your available read-only tools if needed.
 Do NOT depend on shell execution being available.
 The supervisor itself has already run build and tests.
 
-Review the implementation against TASK.md and Astra's existing architecture.
+Review the implementation against TASK.md and Sidera's existing architecture.
 
 Pay particular attention to:
 
@@ -976,7 +976,7 @@ function Repair-ReviewFindings {
     Write-Section "CLAUDE REVIEW REPAIR"
 
     $prompt = @"
-The Astra reviewer requested changes to the current task.
+The Sidera reviewer requested changes to the current task.
 
 Read:
 
@@ -1052,7 +1052,7 @@ function Get-CommitMessage {
         }
     }
 
-    return "feat: implement current astra slice"
+    return "feat: implement current sidera slice"
 }
 
 
@@ -1137,7 +1137,7 @@ function Clear-CycleFiles {
 # Startup
 # ============================================================
 
-Write-Section "ASTRA AUTONOMOUS SUPERVISOR"
+Write-Section "SIDERA AUTONOMOUS SUPERVISOR"
 
 Write-Host "Repository : $Repo"
 Write-Host "Agent dir  : $AgentDir"
@@ -1171,7 +1171,7 @@ while ($true) {
 
     $cycle++
 
-    Write-Section "ASTRA AGENT CYCLE $cycle"
+    Write-Section "SIDERA AGENT CYCLE $cycle"
 
     Check-Stop
 

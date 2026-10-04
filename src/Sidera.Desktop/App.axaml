@@ -1,0 +1,67 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Sidera.Desktop.App"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:dashboard="using:Sidera.Desktop.Views.Dashboard"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             xmlns:imaging="using:Sidera.Desktop.Views.Imaging"
+             xmlns:equipment="using:Sidera.Desktop.Views.Equipment"
+             xmlns:diagnostics="using:Sidera.Desktop.Views.Diagnostics"
+             xmlns:settings="using:Sidera.Desktop.Views.Settings"
+             RequestedThemeVariant="Dark">
+
+    <!--
+        Which view shows which view model. The pages are mapped here, once; the pickers are shared by every place that
+        selects a device, a filter or a rig. Everything else is mapped by the view that shows it.
+    -->
+    <Application.DataTemplates>
+        <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><dashboard:DashboardView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SessionPageViewModel}"><session:SessionView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ImagingViewModel}"><imaging:ImagingView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:EquipmentViewModel}"><equipment:EquipmentView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DiagnosticsViewModel}"><diagnostics:DiagnosticsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><settings:SettingsView /></DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:DevicePickerViewModel}" x:DataType="vm:DevicePickerViewModel">
+            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DeviceOption">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" />
+                            <TextBlock Classes="meta" Text="{Binding IdText}" IsVisible="{Binding HasIdText}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FilterChoiceViewModel}" x:DataType="vm:FilterChoiceViewModel">
+            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterOption">
+                        <StackPanel>
+                            <TextBlock Text="{Binding DisplayName}" />
+                            <TextBlock Classes="meta" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RigPickerViewModel}" x:DataType="vm:RigPickerViewModel">
+            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RigOption">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" />
+                            <TextBlock Classes="meta" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </DataTemplate>
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://Sidera.Desktop/Styles/SideraTheme.axaml" />
+    </Application.Styles>
+</Application>

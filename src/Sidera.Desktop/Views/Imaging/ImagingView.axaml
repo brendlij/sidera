@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:conv="using:Sidera.Desktop.Converters"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:imaging="using:Sidera.Desktop.Views.Imaging"
+             x:Class="Sidera.Desktop.Views.Imaging.ImagingView"
+             x:DataType="vm:ImagingViewModel">
+
+    <!-- The imaging workspace: the image takes the room, the analysis of the frame is beside it, the view controls below it -->
+    <Grid RowDefinitions="Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="24">
+        <ctl:PageHeader Title="Imaging" Subtitle="{Binding SourceText}" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,300" ColumnSpacing="24">
+            <Grid RowDefinitions="*,Auto" RowSpacing="12">
+                <Border Classes="preview" MinHeight="260">
+                    <Grid>
+                        <ScrollViewer HorizontalScrollBarVisibility="{Binding ScrollVisibility}"
+                                      VerticalScrollBarVisibility="{Binding ScrollVisibility}"
+                                      IsVisible="{Binding HasFrame}">
+                            <Panel Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{Binding LatestFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}"
+                                       Stretch="Uniform" />
+                                <ctl:StarOverlay Stars="{Binding Stars}" FrameWidth="{Binding FrameWidth}"
+                                                 FrameHeight="{Binding FrameHeight}" IsVisible="{Binding ShowStars}" />
+                            </Panel>
+                        </ScrollViewer>
+                        <ctl:EmptyState Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}"
+                                        Title="No frame yet"
+                                        Message="Capture an exposure to preview and analyze it." />
+                    </Grid>
+                </Border>
+
+                <!-- The view of the image -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4">
+                    <RadioButton Classes="segment" GroupName="ImagingZoom" Content="Fit" Command="{Binding FitCommand}"
+                                 IsChecked="{Binding IsFitToView, Mode=OneWay}" />
+                    <RadioButton Classes="segment" GroupName="ImagingZoom" Content="1:1" Command="{Binding ActualSizeCommand}"
+                                 IsChecked="{Binding IsActualSize, Mode=OneWay}" />
+                    <Border Classes="vdivider" Margin="12,6" />
+                    <CheckBox Content="Show stars" IsChecked="{Binding ShowStars}" IsEnabled="{Binding HasMetrics}"
+                              AutomationProperties.AutomationId="ImagingShowStars" VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <imaging:FrameMetricsView Grid.Column="1" />
+        </Grid>
+    </Grid>
+</UserControl>
