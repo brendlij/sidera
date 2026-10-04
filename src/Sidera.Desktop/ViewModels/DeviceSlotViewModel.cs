@@ -19,9 +19,13 @@ public sealed record DriverChoice(string Group, string Text, DeviceBackend? Back
 
     public bool IsAscom => Backend == DeviceBackend.Ascom;
 
+    public bool IsPhd2 => Backend == DeviceBackend.Phd2;
+
     public static DriverChoice None(string text) => new(string.Empty, text, null, null, null);
 
     public static DriverChoice Simulator => new("Sidera", "Simulator", DeviceBackend.Simulator, null, null);
+
+    public static DriverChoice Phd2 => new("PHD2", "PHD2", DeviceBackend.Phd2, null, null);
 
     public static DriverChoice Ascom(string progId, string name) => new("ASCOM", name, DeviceBackend.Ascom, progId, name);
 
@@ -29,9 +33,10 @@ public sealed record DriverChoice(string Group, string Text, DeviceBackend? Back
         Backend == configuration.Backend
         && (Backend != DeviceBackend.Ascom || string.Equals(ProgId, configuration.ProgId, StringComparison.OrdinalIgnoreCase));
 
-    public DeviceConfiguration ToConfiguration(string id, DeviceType type) => Backend switch
+    public DeviceConfiguration ToConfiguration(string id, DeviceType type, IReadOnlyDictionary<string, string>? settings = null) => Backend switch
     {
         DeviceBackend.Ascom => DeviceConfiguration.Ascom(id, Text, type, ProgId!, DriverName),
+        DeviceBackend.Phd2 => new DeviceConfiguration(id, Text, type, DeviceBackend.Phd2, settings ?? Sidera.Phd2.Phd2Endpoint.Default.ToSettings()),
         _ => DeviceConfiguration.Simulator(id, Text, type),
     };
 }
@@ -110,6 +115,8 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
 
     partial void OnSelectedChoiceChanged(DriverChoice? value)
     {
+        OnPropertyChanged(nameof(IsPhd2Selected));
+        SavePhd2Command.NotifyCanExecuteChanged();
         if (_syncing || value is null)
         {
             return;
@@ -133,9 +140,21 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         {
             Choices.Add(_none);
             Choices.Add(DriverChoice.Simulator);
+            if (Type == DeviceType.Guider)
+            {
+                Choices.Add(DriverChoice.Phd2);
+            }
         }
 
         var configuration = Device is null ? null : _management?.Service.ConfigurationOf(Device.DeviceIdText);
+        if (configuration is { Backend: DeviceBackend.Phd2 } && !_phd2Edited)
+        {
+            var endpoint = EndpointOf(configuration);
+            _phd2Filling = true;
+            Phd2Host = endpoint.Host;
+            Phd2PortText = endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _phd2Filling = false;
+        }
         DriverChoice? match = null;
         if (configuration is not null)
         {
@@ -258,6 +277,19 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
             return;
         }
 
+        IReadOnlyDictionary<string, string>? settings = null;
+        if (choice.IsPhd2)
+        {
+            // Checked before anything is removed: a wrong host or port does not cost the device that is there.
+            if (!TryEndpoint(out var endpoint, out var endpointProblem))
+            {
+                Fail(endpointProblem);
+                return;
+            }
+
+            settings = endpoint.ToSettings();
+        }
+
         if (current is not null)
         {
             if (_owner.Remove(current) is { } cannot)
@@ -273,7 +305,7 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         }
 
         var id = configuration?.Id ?? FreshId();
-        var added = service.Add(choice.ToConfiguration(id, Type));
+        var added = service.Add(choice.ToConfiguration(id, Type, settings));
         if (!added.Succeeded)
         {
             if (configuration is not null)
@@ -284,6 +316,90 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
             Fail(added.Problem ?? "The device could not be set up.");
         }
     }
+
+    /// <summary>The host of PHD2 as typed; for a PHD2 slot.</summary>
+    [ObservableProperty]
+    public partial string Phd2Host { get; set; } = Sidera.Phd2.Phd2Endpoint.DefaultHost;
+
+    /// <summary>The port of PHD2 as typed: 4400, or 4401 and so on for a second instance of PHD2.</summary>
+    [ObservableProperty]
+    public partial string Phd2PortText { get; set; } = Sidera.Phd2.Phd2Endpoint.DefaultPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public bool IsPhd2Selected => SelectedChoice is { IsPhd2: true };
+
+    private bool _phd2Edited;
+    private bool _phd2Filling;
+
+    partial void OnPhd2HostChanged(string value) => Phd2Changed();
+
+    partial void OnPhd2PortTextChanged(string value) => Phd2Changed();
+
+    private void Phd2Changed()
+    {
+        _phd2Edited |= !_phd2Filling;
+        SavePhd2Command.NotifyCanExecuteChanged();
+    }
+
+    private static Sidera.Phd2.Phd2Endpoint EndpointOf(DeviceConfiguration configuration)
+    {
+        try
+        {
+            return Sidera.Phd2.Phd2Endpoint.FromSettings(configuration.Settings);
+        }
+        catch (FormatException)
+        {
+            return Sidera.Phd2.Phd2Endpoint.Default;
+        }
+    }
+
+    private bool TryEndpoint(out Sidera.Phd2.Phd2Endpoint endpoint, out string problem)
+    {
+        endpoint = Sidera.Phd2.Phd2Endpoint.Default;
+        if (!int.TryParse(Phd2PortText?.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var port))
+        {
+            problem = "The port of PHD2 must be a number from 1 to 65535.";
+            return false;
+        }
+
+        var host = Phd2Host?.Trim() ?? string.Empty;
+        if (Sidera.Phd2.Phd2Endpoint.Problem(host, port) is { } invalid)
+        {
+            problem = invalid;
+            return false;
+        }
+
+        endpoint = new Sidera.Phd2.Phd2Endpoint(host, port);
+        problem = string.Empty;
+        return true;
+    }
+
+    /// <summary>Keeps the host and the port of the PHD2 guider; the guider has to be disconnected.</summary>
+    [RelayCommand(CanExecute = nameof(CanSavePhd2))]
+    private void SavePhd2()
+    {
+        ProblemText = string.Empty;
+        if (_management is null || Device is null || _management.Service.ConfigurationOf(Device.DeviceIdText) is not { Backend: DeviceBackend.Phd2 } configuration)
+        {
+            return;
+        }
+
+        if (!TryEndpoint(out var endpoint, out var problem))
+        {
+            ProblemText = problem;
+            return;
+        }
+
+        var result = _management.Service.Update(configuration with { Settings = endpoint.ToSettings() });
+        if (!result.Succeeded)
+        {
+            ProblemText = result.Problem ?? "The settings could not be saved.";
+            return;
+        }
+
+        _phd2Edited = false;
+    }
+
+    private bool CanSavePhd2() => _management is not null && Device is not null && SelectedChoice is { IsPhd2: true };
 
     private void Fail(string problem)
     {

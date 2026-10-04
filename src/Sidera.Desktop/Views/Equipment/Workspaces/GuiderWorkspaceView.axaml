@@ -6,21 +6,66 @@
              x:Class="Sidera.Desktop.Views.Equipment.Workspaces.GuiderWorkspaceView"
              x:DataType="vm:GuiderDetailViewModel">
 
-    <!-- A guider: whether it guides, start and stop, and what it can do for a session -->
+    <!--
+        A guider: what it is doing and the controls for it, what it measures (the RMS, the star), the guide error over the last minutes, how a
+        settle after a dither stands, and what it says about its setup. A guider without measurements has the first and the last section only.
+    -->
     <StackPanel Spacing="8">
         <WrapPanel>
             <ctl:WorkspaceSection Header="GUIDING">
                 <StackPanel Spacing="16">
                     <StackPanel Spacing="2">
-                        <ctl:InfoRow Label="Guiding" Value="{Binding Guider.ActivityText}" IsVisible="{Binding Guider.IsConnected}" />
-                        <ctl:InfoRow Label="Guiding" Value="Not connected" IsVisible="{Binding Guider.IsDisconnected}" />
+                        <ctl:InfoRow Label="State" Value="{Binding Guider.StateText}" IsVisible="{Binding Guider.IsConnected}" />
+                        <ctl:InfoRow Label="State" Value="Not connected" IsVisible="{Binding Guider.IsDisconnected}" />
+                        <ctl:InfoRow Label="RMS" Value="{Binding Guider.RmsText}" IsVisible="{Binding Guider.HasMeasurements}" />
+                        <ctl:InfoRow Label="RA" Value="{Binding Guider.RmsRaText}" IsVisible="{Binding Guider.HasMeasurements}" />
+                        <ctl:InfoRow Label="Dec" Value="{Binding Guider.RmsDecText}" IsVisible="{Binding Guider.HasMeasurements}" />
+                        <ctl:InfoRow Label="Star SNR" Value="{Binding Guider.SnrText}" IsVisible="{Binding Guider.HasMeasurements}" />
+                        <ctl:InfoRow Label="Guide exposure" Value="{Binding Guider.ExposureText}" IsVisible="{Binding Guider.HasMeasurements}" />
+                        <ctl:InfoRow Label="Pixel scale" Value="{Binding Guider.PixelScaleText}" IsVisible="{Binding Guider.HasMeasurements}" />
                         <ctl:InfoRow Label="Used by" Value="The whole session" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Classes="primary" Content="Start Guiding" Command="{Binding Guider.StartGuidingCommand}" />
-                        <Button Content="Stop Guiding" Command="{Binding Guider.StopGuidingCommand}" />
+                    <WrapPanel>
+                        <Button Classes="primary" Content="Start Guiding" Command="{Binding Guider.StartGuidingCommand}" Margin="0,0,8,8" />
+                        <Button Content="Stop Guiding" Command="{Binding Guider.StopGuidingCommand}" Margin="0,0,8,8" />
+                        <Button Content="Pause" Command="{Binding Guider.PauseCommand}" IsVisible="{Binding Guider.SupportsPause}" Margin="0,0,8,8" />
+                        <Button Content="Resume" Command="{Binding Guider.ResumeCommand}" IsVisible="{Binding Guider.SupportsPause}" Margin="0,0,8,8" />
+                    </WrapPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="GUIDE ERROR" Width="860" IsVisible="{Binding Guider.HasMeasurements}">
+                <StackPanel Spacing="12">
+                    <ctl:GuideGraph Height="220" History="{Binding Guider.GraphHistory}" Version="{Binding Guider.GraphVersion}"
+                                    WindowSeconds="{Binding Guider.GraphWindowSeconds}" InArcseconds="{Binding Guider.GraphInArcseconds}"
+                                    AutomationProperties.Name="Guide error graph" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ComboBox ItemsSource="{Binding Guider.GraphWindows}" SelectedItem="{Binding Guider.GraphWindowSeconds, Mode=TwoWay}"
+                                  AutomationProperties.Name="Graph window in seconds" />
+                        <TextBlock Classes="meta" Text="seconds" VerticalAlignment="Center" />
+                        <Button Content="Clear graph" Command="{Binding Guider.ClearGraphCommand}" />
                     </StackPanel>
                 </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="DITHER AND SETTLING" IsVisible="{Binding Guider.HasMeasurements}">
+                <StackPanel Spacing="2">
+                    <ctl:InfoRow Label="Settling" Value="{Binding Guider.SettleStateText}" />
+                    <ctl:InfoRow Label="Last settle" Value="{Binding Guider.LastSettleText}" />
+                    <ctl:InfoRow Label="Tolerance" Value="{Binding Guider.SettleToleranceText}" />
+                    <ctl:InfoRow Label="Stable for" Value="{Binding Guider.SettleStableText}" />
+                    <ctl:InfoRow Label="Timeout" Value="{Binding Guider.SettleTimeoutText}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SETUP" IsVisible="{Binding Guider.HasSetup}">
+                <ItemsControl ItemsSource="{Binding Guider.SetupLines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:InfoLine">
+                            <ctl:InfoRow Label="{Binding Label}" Value="{Binding Value}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </ctl:WorkspaceSection>
 
             <ctl:WorkspaceSection Header="CAPABILITIES">
