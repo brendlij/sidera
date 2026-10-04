@@ -120,7 +120,7 @@ public class AutofocusEditingTests
     public async Task ARigWithoutAFocuser_IsReportedOnTheStep_NotReplacedByAnotherRig()
     {
         await using var host = CreateHost();
-        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176)));
+        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
         var draft = CreateDraft(host);
         var step = Add<AutofocusStepDraftViewModel>(draft, SequenceStepKind.Autofocus);
 
@@ -208,7 +208,7 @@ public class AutofocusEditingTests
     public async Task ATrackOfARigWithoutAFocuser_ShowsTheProblemOnTheAutofocus_AndItIsGoneWhenTheTrackGetsAnotherRig()
     {
         await using var host = CreateHost();
-        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176)));
+        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
         var draft = CreateDraft(host);
         var (_, _, wide) = AddBlock(draft);
         draft.SelectedStep = wide;

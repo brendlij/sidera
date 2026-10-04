@@ -14,6 +14,33 @@
                 <TextBlock Classes="secondary" Text="{Binding NoteText}" TextWrapping="Wrap" />
             </Border>
 
+            <!-- The observing site: one place for the whole application, unknown until it is entered -->
+            <StackPanel Spacing="12" IsVisible="{Binding HasSite}">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="OBSERVING SITE" />
+                    <TextBlock Classes="secondary" TextWrapping="Wrap"
+                               Text="Where you observe. Latitude north and longitude east are positive (or write N, S, E, W). Used by calculations that need a location; a mount is compared with it when it connects." />
+                </StackPanel>
+                <Border Classes="panel">
+                    <StackPanel Spacing="12" DataContext="{Binding Site}" x:DataType="vm:SiteSettingsViewModel">
+                        <TextBlock Classes="value" Text="{Binding StatusText}" TextWrapping="Wrap" AutomationProperties.AutomationId="SiteStatus" />
+                        <ctl:LabeledField Label="Name (optional)"><TextBox Text="{Binding NameText}" AutomationProperties.Name="Site name" /></ctl:LabeledField>
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                            <ctl:LabeledField Label="Latitude"><TextBox Text="{Binding LatitudeText}" PlaceholderText="47.7192° N" AutomationProperties.Name="Site latitude" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="1" Label="Longitude"><TextBox Text="{Binding LongitudeText}" PlaceholderText="7.8231° E" AutomationProperties.Name="Site longitude" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="2" Label="Elevation"><TextBox Text="{Binding ElevationText}" PlaceholderText="410 m" AutomationProperties.Name="Site elevation" /></ctl:LabeledField>
+                        </Grid>
+                        <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+                            <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="primary" Content="Save site" Command="{Binding SaveCommand}" AutomationProperties.Name="Save site" />
+                            <Button Content="Clear" Command="{Binding ClearCommand}" AutomationProperties.Name="Clear site" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
             <ItemsControl ItemsSource="{Binding Groups}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>

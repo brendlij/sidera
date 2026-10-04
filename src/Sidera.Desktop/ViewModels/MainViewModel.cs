@@ -58,7 +58,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults);
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
-        Settings = new SettingsViewModel(logInfo);
+        Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(

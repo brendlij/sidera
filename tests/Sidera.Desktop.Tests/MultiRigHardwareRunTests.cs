@@ -290,7 +290,7 @@ public class MultiRigHardwareRunTests
         await fixture.ConnectEverything();
         // A second rig that names the focuser of the main rig: allowed, the resource manager keeps use apart.
         fixture.Host.AddRig(new Rig(
-            new RigId("rig.alias"), "Alias Rig", DemoSetup.WideCameraId, new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176),
+            new RigId("rig.alias"), "Alias Rig", DemoSetup.WideCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176),
             DemoSetup.MainFocuserId));
         var built = fixture.Build(Block(
             null,

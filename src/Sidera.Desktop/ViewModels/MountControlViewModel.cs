@@ -318,7 +318,7 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
         var lines = new List<InfoLine>();
         if (_mount.Site is { } site)
         {
-            lines.Add(new("Site", string.Create(CultureInfo.InvariantCulture, $"{site.LatitudeDegrees:0.####}° N, {site.LongitudeDegrees:0.####}° E, {site.ElevationMeters:0} m")));
+            lines.Add(new("Site", $"{Sidera.Core.Location.GeoCoordinateFormat.FormatLatitude(site.LatitudeDegrees)}, {Sidera.Core.Location.GeoCoordinateFormat.FormatLongitude(site.LongitudeDegrees)}, {Sidera.Core.Location.GeoCoordinateFormat.FormatElevation(site.ElevationMeters)}"));
         }
 
         if (c.Alignment is { } alignment)

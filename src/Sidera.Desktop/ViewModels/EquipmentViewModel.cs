@@ -21,7 +21,7 @@ namespace Sidera.Desktop.ViewModels;
 /// discovery of ASCOM drivers and the driver setup dialogs. Without it the page only shows what the host has (the tests of
 /// the pages, a host that is composed in code).
 /// </summary>
-public sealed record EquipmentManagement(EquipmentService Service, IAscomDiscovery Discovery, IAscomSetupService Setup);
+public sealed record EquipmentManagement(EquipmentService Service, IAscomDiscovery Discovery, IAscomSetupService Setup, Sidera.Desktop.Settings.SiteService? Site = null);
 
 /// <summary>
 /// The equipment page: a workspace with a browser on the left and the detail of what is selected on the right, in two
@@ -132,10 +132,10 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         var poll = DevicePanelViewModel.DefaultPollInterval;
         return device switch
         {
-            CameraViewModel camera => new CameraDetailViewModel(camera, _rigs.FirstOrDefault(r => r.Camera == camera), configuration, preferences, poll),
+            CameraViewModel camera => new CameraDetailViewModel(camera, _rigs.FirstOrDefault(r => r.Camera == camera), configuration, preferences, poll, _management?.Service),
             FocuserViewModel focuser => new FocuserDetailViewModel(focuser, _rigs.FirstOrDefault(r => r.Focuser == focuser), configuration, preferences, poll),
             FilterWheelViewModel wheel => new FilterWheelDetailViewModel(wheel, _rigs.FirstOrDefault(r => r.FilterWheel == wheel), configuration),
-            MountViewModel mount => new MountDetailViewModel(mount, configuration, preferences, poll),
+            MountViewModel mount => new MountDetailViewModel(mount, configuration, preferences, poll, _management?.Site),
             GuiderViewModel guider => new GuiderDetailViewModel(guider, configuration),
             _ => throw new NotSupportedException($"No detail for {device.GetType().Name}."),
         };
@@ -315,6 +315,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                 break;
 
             case EquipmentChangeKind.RigsAdded:
+            case EquipmentChangeKind.RigsChanged:
                 BuildRigs();
                 RefreshDetails();
                 RefreshNavigation();

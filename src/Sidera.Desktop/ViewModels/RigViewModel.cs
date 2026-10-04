@@ -98,19 +98,67 @@ public sealed partial class RigViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
+    /// <summary>The optics as configured; <c>null</c> for a rig that has none.</summary>
+    public OpticalTrain? Optics => _rig.Optics;
+
+    /// <summary>The geometry of the rig: configured values first, what the camera reports for the rest. Derived every time, never stored.</summary>
+    public OpticalTrainGeometry Geometry =>
+        OpticalTrainGeometry.Resolve(_rig.Optics, SensorGeometry.From((Camera?.DeviceModel as ICameraControl)?.Capabilities.Value));
+
+    private const string Unknown = "Not set";
+
     /// <summary>The optical train on one line, for example "750 mm · f/5 · 3.76 µm pixels".</summary>
-    public string OpticsText => Format(
-        $"{_rig.Optics.FocalLengthMm:0.##} mm · f/{_rig.Optics.FocalLengthMm / _rig.Optics.ApertureMm:0.#} · {_rig.Optics.PixelSizeMicrons:0.##} µm pixels");
+    public string OpticsText
+    {
+        get
+        {
+            if (_rig.Optics is not { } o)
+            {
+                return Unknown;
+            }
+
+            var text = Format($"{o.FocalLengthMm:0.##} mm") + FRatioText(o);
+            return Geometry.PixelSizeXMicrons is { } px ? text + Format($" · {px:0.##} µm pixels") : text;
+        }
+    }
 
     /// <summary>The short form for a card: "750 mm · f/5".</summary>
-    public string OpticsShortText => Format(
-        $"{_rig.Optics.FocalLengthMm:0.##} mm · f/{_rig.Optics.FocalLengthMm / _rig.Optics.ApertureMm:0.#}");
+    public string OpticsShortText => _rig.Optics is not { } o ? Unknown : Format($"{o.FocalLengthMm:0.##} mm") + FRatioText(o);
 
-    public string FocalLengthText => Format($"{_rig.Optics.FocalLengthMm:0.##} mm");
-    public string ApertureText => Format($"{_rig.Optics.ApertureMm:0.##} mm");
-    public string PixelSizeText => Format($"{_rig.Optics.PixelSizeMicrons:0.##} µm");
-    public string SensorText => Format($"{_rig.Optics.SensorWidthMm:0.##} × {_rig.Optics.SensorHeightMm:0.##} mm");
-    public string ResolutionText => Format($"{_rig.Optics.ResolutionWidth} × {_rig.Optics.ResolutionHeight} px");
+    private static string FRatioText(OpticalTrain optics) => optics.FocalRatio is { } ratio ? Format($" · f/{ratio:0.#}") : string.Empty;
+
+    public string FocalLengthText => _rig.Optics is { } o ? Format($"{o.FocalLengthMm:0.##} mm") : Unknown;
+    public string ApertureText => _rig.Optics?.ApertureMm is { } a ? Format($"{a:0.##} mm") : Unknown;
+    public string PixelSizeText => PixelSizeOf(Geometry);
+    public string SensorText => Geometry is { SensorWidthMm: { } w, SensorHeightMm: { } h } ? Format($"{w:0.##} × {h:0.##} mm") : Unknown;
+    public string ResolutionText => Geometry is { SensorWidthPixels: { } w, SensorHeightPixels: { } h } ? Format($"{w} × {h} px") : Unknown;
+
+    /// <summary>The pixel scale, "1.03 \"/px" (or "1.03 × 1.04 \"/px" when the pixels are not square); "Not set" while a source is missing.</summary>
+    public string PixelScaleText => PixelScaleOf(Geometry);
+
+    /// <summary>The field of view, "1.79° × 1.20°"; "Not set" while a source is missing.</summary>
+    public string FieldOfViewText => FieldOfViewOf(Geometry);
+
+    internal static string PixelSizeOf(OpticalTrainGeometry g) => (g.PixelSizeXMicrons, g.PixelSizeYMicrons) switch
+    {
+        ({ } x, { } y) when Math.Abs(x - y) < 1e-9 => Format($"{x:0.##} µm"),
+        ({ } x, { } y) => Format($"{x:0.##} × {y:0.##} µm"),
+        ({ } x, null) => Format($"{x:0.##} µm"),
+        (null, { } y) => Format($"{y:0.##} µm"),
+        _ => Unknown,
+    };
+
+    internal static string PixelScaleOf(OpticalTrainGeometry g) => (g.PixelScaleXArcsecPerPixel, g.PixelScaleYArcsecPerPixel) switch
+    {
+        ({ } x, { } y) when Math.Abs(x - y) < 0.005 => Format($"{x:0.00} \"/px"),
+        ({ } x, { } y) => Format($"{x:0.00} × {y:0.00} \"/px"),
+        ({ } x, null) => Format($"{x:0.00} \"/px"),
+        (null, { } y) => Format($"{y:0.00} \"/px"),
+        _ => Unknown,
+    };
+
+    internal static string FieldOfViewOf(OpticalTrainGeometry g) =>
+        g is { FieldOfViewXDegrees: { } x, FieldOfViewYDegrees: { } y } ? Format($"{x:0.00}° × {y:0.00}°") : Unknown;
 
     /// <summary>All the rig's devices connected, some of them, or none.</summary>
     [ObservableProperty]

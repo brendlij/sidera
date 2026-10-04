@@ -12,13 +12,12 @@ public sealed class Rig
         RigId id,
         string name,
         DeviceId cameraId,
-        OpticalTrain optics,
+        OpticalTrain? optics = null,
         DeviceId? focuserId = null,
         DeviceId? filterWheelId = null
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(optics);
 
         Id = id;
         Name = name.Trim();
@@ -33,5 +32,9 @@ public sealed class Rig
     public DeviceId CameraId { get; }
     public DeviceId? FocuserId { get; }
     public DeviceId? FilterWheelId { get; }
-    public OpticalTrain Optics { get; }
+    /// <summary>The configured optics; <c>null</c> for a rig that has none yet.</summary>
+    public OpticalTrain? Optics { get; }
+
+    /// <summary>The same rig with other optics (<c>null</c> removes them).</summary>
+    public Rig WithOptics(OpticalTrain? optics) => new(Id, Name, CameraId, optics, FocuserId, FilterWheelId);
 }

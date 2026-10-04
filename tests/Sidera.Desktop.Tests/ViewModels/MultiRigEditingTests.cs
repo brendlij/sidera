@@ -336,7 +336,7 @@ public class MultiRigEditingTests
         f.Main.Rig.Changed += (_, _) => changes++;
 
         host.AddSimulatedCamera(new DeviceId("camera.extra"), "Extra Camera");
-        host.AddRig(new Rig(new RigId("rig.extra"), "Extra Rig", new DeviceId("camera.extra"), new OpticalTrain(300, 70, 3.76, 23.5, 15.7, 6248, 4176)));
+        host.AddRig(new Rig(new RigId("rig.extra"), "Extra Rig", new DeviceId("camera.extra"), new OpticalTrain(300, 70, 3.76, 3.76, 6248, 4176)));
         f.Draft.RefreshDevices();
 
         Assert.Contains(f.Main.Rig.Options, o => o.IdText == "rig.extra");

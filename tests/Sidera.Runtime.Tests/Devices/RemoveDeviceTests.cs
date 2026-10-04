@@ -52,7 +52,7 @@ public class RemoveDeviceTests
         await using var host = new SideraRuntimeHost();
         host.AddSimulatedCamera(CameraId, "Camera");
         host.AddSimulatedFocuser(FocuserId, "Focuser");
-        host.AddRig(new Rig(new RigId("rig.main"), "Main Rig", CameraId, new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176), FocuserId));
+        host.AddRig(new Rig(new RigId("rig.main"), "Main Rig", CameraId, new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), FocuserId));
 
         var failure = Assert.Throws<InvalidOperationException>(() => host.RemoveDevice(FocuserId));
 

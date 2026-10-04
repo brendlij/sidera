@@ -9,6 +9,7 @@ using Sidera.Ascom.Discovery;
 using Sidera.Ascom.Drivers;
 using Sidera.Desktop.Diagnostics;
 using Sidera.Desktop.Hardware;
+using Sidera.Desktop.Settings;
 using Sidera.Desktop.ViewModels;
 using Sidera.Desktop.Views;
 using Sidera.Desktop.Views.Shell;
@@ -65,13 +66,22 @@ public partial class App : Application
             var store = string.IsNullOrWhiteSpace(equipmentFile)
                 ? EquipmentConfigurationStore.CreateDefault()
                 : new EquipmentConfigurationStore(equipmentFile);
+            var settingsFile = SideraEnvironment.Get("SIDERA_SETTINGS_FILE");
+            var site = new SiteService(string.IsNullOrWhiteSpace(settingsFile) ? SideraSettingsStore.CreateDefault() : new SideraSettingsStore(settingsFile));
+            site.Load();
+            if (site.Problem is { } siteProblem)
+            {
+                logger.LogWarning("The settings file could not be used: {Problem}", siteProblem);
+            }
+
             var equipment = new EquipmentService(host, store, factories, host.LoggerFactory.CreateLogger<EquipmentService>());
             equipment.Load();
             host.Start();
             var management = new EquipmentManagement(
                 equipment,
                 new AscomDiscovery(host.LoggerFactory.CreateLogger<AscomDiscovery>()),
-                new AscomSetupService(drivers, host.LoggerFactory.CreateLogger<AscomSetupService>()));
+                new AscomSetupService(drivers, host.LoggerFactory.CreateLogger<AscomSetupService>()),
+                site);
 
             var filePicker = new AvaloniaSequenceFilePicker();
             var clipboard = new AvaloniaClipboardService();

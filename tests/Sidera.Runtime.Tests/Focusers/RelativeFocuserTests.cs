@@ -61,7 +61,7 @@ public class RelativeFocuserTests
         var focuser = new RelativeFocuser();
         host.AddDevice(focuser);
         host.AddSimulatedCamera(CameraId, "Camera", seed: 1);
-        var rig = new Rig(new RigId("rig.main"), "Main", CameraId, new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176), FocuserId);
+        var rig = new Rig(new RigId("rig.main"), "Main", CameraId, new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), FocuserId);
         host.AddRig(rig);
         await host.DeviceRegistry.GetAll().First(d => d.Id == CameraId).ConnectAsync();
         var action = AutofocusAction.ForRig(

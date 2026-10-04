@@ -168,7 +168,7 @@ public class ActionLoggingTests
         var host = new SideraRuntimeHost(loggerFactory: log.Factory);
         var camera = host.AddSimulatedCamera(MainId, "Main Camera", seed: 1);
         var focuser = host.AddSimulatedFocuser(Focuser, "Main Focuser", start, stepsPerSecond: 1_000_000, minimumMoveDuration: TimeSpan.FromMilliseconds(1));
-        host.AddRig(new Rig(MainRig, "Main Rig", MainId, new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176), Focuser));
+        host.AddRig(new Rig(MainRig, "Main Rig", MainId, new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), Focuser));
         host.AddSimulatedFocusModel(MainRig, new SimulatedFocusModel(20000));
         if (sky is not null)
         {

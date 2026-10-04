@@ -224,9 +224,24 @@ public sealed class ComAscomDriverFactory : IAscomDriverFactory
         public double ApertureArea => inner.ApertureArea;
         public double ApertureDiameter => inner.ApertureDiameter;
         public double FocalLength => inner.FocalLength;
-        public double SiteLatitude => inner.SiteLatitude;
-        public double SiteLongitude => inner.SiteLongitude;
-        public double SiteElevation => inner.SiteElevation;
+        public double SiteLatitude
+        {
+            get => inner.SiteLatitude;
+            set => inner.SiteLatitude = value;
+        }
+
+        public double SiteLongitude
+        {
+            get => inner.SiteLongitude;
+            set => inner.SiteLongitude = value;
+        }
+
+        public double SiteElevation
+        {
+            get => inner.SiteElevation;
+            set => inner.SiteElevation = value;
+        }
+
 
         public void SlewToCoordinates(double rightAscensionHours, double declinationDegrees) =>
             inner.SlewToCoordinates(rightAscensionHours, declinationDegrees);

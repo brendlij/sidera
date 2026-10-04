@@ -18,7 +18,7 @@ public class RigRegistryTests
         public Task DisconnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 23.5, 15.7, 6248, 4176);
+    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 3.76, 6248, 4176);
 
     private static Rig MakeRig(
         string rigId,

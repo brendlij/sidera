@@ -222,7 +222,7 @@ public class HardwareTests(Xunit.Abstractions.ITestOutputHelper output)
         var focuser = new AscomFocuser(new DeviceId("focuser.real"), "Real Focuser", focuserProgId, Drivers, host.EventBus);
         host.AddDevice(camera);
         host.AddDevice(focuser);
-        var rig = new Rig(new RigId("rig.real"), "Real Rig", camera.Id, new OpticalTrain(500, 100, 3.76, 23.5, 15.7, 6248, 4176), focuser.Id);
+        var rig = new Rig(new RigId("rig.real"), "Real Rig", camera.Id, new OpticalTrain(500, 100, 3.76, 3.76, 6248, 4176), focuser.Id);
         host.AddRig(rig);
         await host.DeviceOperations.ConnectAsync(camera.Id);
         await host.DeviceOperations.ConnectAsync(focuser.Id);

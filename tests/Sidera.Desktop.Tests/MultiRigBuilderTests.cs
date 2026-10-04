@@ -243,7 +243,7 @@ public class MultiRigBuilderTests
     {
         await using var host = CreateHost();
         host.AddRig(new Rig(new RigId("rig.twin"), "Twin Rig", DemoSetup.MainCameraId,
-            new OpticalTrain(500, 100, 3.76, 23.5, 15.7, 6248, 4176)));
+            new OpticalTrain(500, 100, 3.76, 3.76, 6248, 4176)));
         var first = Track(Main, RigExposure());
         var second = Track(new RigId("rig.twin"), RigExposure());
 

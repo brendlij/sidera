@@ -12,6 +12,35 @@
         Tracking is on or off and is shown as that; what the axes are doing is a separate line.
     -->
     <StackPanel Spacing="8">
+        <!-- The site of the mount against the site of Sidera: only when they differ or one is missing, and then a choice, never done by itself -->
+        <Border Classes="panel" IsVisible="{Binding IsVisible}" DataContext="{Binding Site}" x:DataType="vm:MountSiteViewModel" MaxWidth="760" HorizontalAlignment="Left">
+            <StackPanel Spacing="12">
+                <TextBlock Classes="eyebrow" Text="{Binding Headline}" />
+                <TextBlock Classes="secondary" Text="{Binding Explanation}" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="24">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="meta" Text="Sidera" />
+                        <TextBlock Classes="value" Text="{Binding SideraText}" AutomationProperties.AutomationId="SiteSidera" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Classes="meta" Text="Mount" />
+                        <TextBlock Classes="value" Text="{Binding MountText}" AutomationProperties.AutomationId="SiteMount" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Classes="meta" Text="{Binding DifferenceText}" TextWrapping="Wrap" />
+                <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+                    <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+                </Border>
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                    <Button Content="Use Mount Location in Sidera" Command="{Binding UseMountLocationCommand}" IsVisible="{Binding CanUseMount}" AutomationProperties.Name="Use mount location" />
+                    <Button Content="Send Sidera Location to Mount" Command="{Binding SendSideraLocationCommand}" IsVisible="{Binding CanSend}" AutomationProperties.Name="Send Sidera location" />
+                    <Button Content="Keep Both Unchanged" Command="{Binding KeepBothCommand}" AutomationProperties.Name="Keep both unchanged" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+        <Border Classes="notice-info" IsVisible="{Binding Site.HasResult}" HorizontalAlignment="Left">
+            <TextBlock Classes="secondary" Text="{Binding Site.ResultText}" TextWrapping="Wrap" />
+        </Border>
         <WrapPanel>
             <ctl:WorkspaceSection Header="POSITION">
                 <StackPanel Spacing="2">

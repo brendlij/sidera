@@ -5,7 +5,7 @@ namespace Sidera.Runtime.Tests.Rigs;
 
 public class RigModelTests
 {
-    private static OpticalTrain ValidOptics() => new(750, 150, 3.76, 23.5, 15.7, 6248, 4176);
+    private static OpticalTrain ValidOptics() => new(750, 150, 3.76, 3.76, 6248, 4176);
 
     // RigId
 
@@ -50,11 +50,22 @@ public class RigModelTests
 
         Assert.Equal(750, optics.FocalLengthMm);
         Assert.Equal(150, optics.ApertureMm);
-        Assert.Equal(3.76, optics.PixelSizeMicrons);
-        Assert.Equal(23.5, optics.SensorWidthMm);
-        Assert.Equal(15.7, optics.SensorHeightMm);
-        Assert.Equal(6248, optics.ResolutionWidth);
-        Assert.Equal(4176, optics.ResolutionHeight);
+        Assert.Equal(5.0, optics.FocalRatio);
+        Assert.Equal(3.76, optics.PixelSizeXMicrons);
+        Assert.Equal(3.76, optics.PixelSizeYMicrons);
+        Assert.Equal(6248, optics.SensorWidthPixels);
+        Assert.Equal(4176, optics.SensorHeightPixels);
+    }
+
+    [Fact]
+    public void OpticalTrain_OnlyTheFocalLengthIsRequired_AndTheRestIsUnknownNotZero()
+    {
+        var optics = new OpticalTrain(500);
+
+        Assert.Null(optics.ApertureMm);
+        Assert.Null(optics.FocalRatio);
+        Assert.Null(optics.PixelSizeXMicrons);
+        Assert.Null(optics.SensorWidthPixels);
     }
 
     [Theory]
@@ -64,7 +75,7 @@ public class RigModelTests
     [InlineData(double.PositiveInfinity)]
     public void OpticalTrain_RejectsInvalidFocalLength(double value)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(value, 150, 3.76, 23.5, 15.7, 6248, 4176));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(value, 150, 3.76, 3.76, 6248, 4176));
     }
 
     [Theory]
@@ -72,25 +83,17 @@ public class RigModelTests
     [InlineData(-150)]
     public void OpticalTrain_RejectsInvalidAperture(double value)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, value, 3.76, 23.5, 15.7, 6248, 4176));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, value, 3.76, 3.76, 6248, 4176));
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(-3.76)]
-    public void OpticalTrain_RejectsInvalidPixelSize(double value)
+    [InlineData(0, 3.76)]
+    [InlineData(-3.76, 3.76)]
+    [InlineData(3.76, 0)]
+    [InlineData(3.76, -3.76)]
+    public void OpticalTrain_RejectsInvalidPixelSize(double x, double y)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, 150, value, 23.5, 15.7, 6248, 4176));
-    }
-
-    [Theory]
-    [InlineData(0, 15.7)]
-    [InlineData(23.5, 0)]
-    [InlineData(-1, 15.7)]
-    [InlineData(23.5, -1)]
-    public void OpticalTrain_RejectsInvalidSensorDimensions(double width, double height)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, 150, 3.76, width, height, 6248, 4176));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, 150, x, y, 6248, 4176));
     }
 
     [Theory]
@@ -98,9 +101,9 @@ public class RigModelTests
     [InlineData(6248, 0)]
     [InlineData(-6248, 4176)]
     [InlineData(6248, -4176)]
-    public void OpticalTrain_RejectsInvalidResolution(int width, int height)
+    public void OpticalTrain_RejectsInvalidSensorPixels(int width, int height)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, 150, 3.76, 23.5, 15.7, width, height));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OpticalTrain(750, 150, 3.76, 3.76, width, height));
     }
 
     // Rig
@@ -142,9 +145,15 @@ public class RigModelTests
     }
 
     [Fact]
-    public void Rig_RejectsNullOptics()
+    public void Rig_MayHaveNoOptics_AndGetsThemLater()
     {
-        Assert.Throws<ArgumentNullException>(() =>
-            new Rig(new RigId("rig.main"), "Main", new DeviceId("camera.main"), null!));
+        var bare = new Rig(new RigId("rig.main"), "Main", new DeviceId("camera.main"));
+
+        Assert.Null(bare.Optics);
+        var with = bare.WithOptics(new OpticalTrain(750));
+        Assert.Equal(750, with.Optics!.FocalLengthMm);
+        Assert.Equal(bare.Id, with.Id);
+        Assert.Equal(bare.CameraId, with.CameraId);
+        Assert.Null(with.WithOptics(null).Optics);
     }
 }

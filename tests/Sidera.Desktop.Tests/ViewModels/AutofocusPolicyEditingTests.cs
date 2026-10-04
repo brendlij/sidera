@@ -211,7 +211,7 @@ public class AutofocusPolicyEditingTests
     public async Task ARigWithoutAFocuser_CannotFocusAtTheStart_AndTheTrackSaysSo()
     {
         await using var host = CreateHost();
-        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176)));
+        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
         var draft = CreateDraft(host);
         var (_, main, _) = AddBlock(draft);
         main.AutofocusEnabled = true;

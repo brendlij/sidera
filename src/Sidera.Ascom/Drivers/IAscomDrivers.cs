@@ -123,9 +123,9 @@ public interface IAscomMountDriver : IAscomDriver
     double ApertureArea { get; }
     double ApertureDiameter { get; }
     double FocalLength { get; }
-    double SiteLatitude { get; }
-    double SiteLongitude { get; }
-    double SiteElevation { get; }
+    double SiteLatitude { get; set; }
+    double SiteLongitude { get; set; }
+    double SiteElevation { get; set; }
 
     // Operations
     /// <summary>Slews and returns when the slew is over (the driver blocks).</summary>

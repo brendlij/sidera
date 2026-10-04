@@ -211,14 +211,14 @@ public class ImagingDiagnosticsSettingsTests
     // Settings
 
     [Fact]
-    public async Task TheSettingsPage_ListsTheGroupsTheSettingsWillLiveIn_AndOffersNothingToChange()
+    public async Task TheSettingsPage_ListsTheGroupsTheSettingsWillLiveIn_AndOffersOnlyTheSiteToChange()
     {
         await using var app = await UxApp.Create(UxSetup.Simple, logInfo: Info());
         var settings = app.Vm.Settings;
 
         Assert.Equal(["General", "Appearance", "Logging", "Equipment defaults"], settings.Groups.Select(g => g.Title));
         Assert.DoesNotContain(settings.Groups, g => g.IsEditable); // no fake switches
-        Assert.Contains("Nothing can be changed here yet", settings.NoteText);
+        Assert.Contains("observing site can be set here", settings.NoteText);
     }
 
     [Fact]

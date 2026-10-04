@@ -47,6 +47,34 @@
                 </StackPanel>
             </ctl:WorkspaceSection>
 
+            <ctl:WorkspaceSection Header="OPTICAL TRAIN" DataContext="{Binding Optics}" x:DataType="vm:OpticalTrainViewModel">
+                <StackPanel Spacing="12" MaxWidth="420">
+                    <TextBlock Classes="meta" Text="Configured: what you know about the telescope. Leave a pixel size or sensor size empty to take it from the camera." TextWrapping="Wrap" />
+                    <ctl:FieldRow Label="Focal length" Unit="mm"><TextBox Text="{Binding FocalLengthText}" AutomationProperties.Name="Focal length" IsEnabled="{Binding CanEdit}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Aperture" Unit="mm"><TextBox Text="{Binding ApertureText}" AutomationProperties.Name="Aperture" IsEnabled="{Binding CanEdit}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Pixel width" Unit="µm"><TextBox Text="{Binding PixelSizeXText}" AutomationProperties.Name="Pixel width" IsEnabled="{Binding CanEdit}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Pixel height" Unit="µm"><TextBox Text="{Binding PixelSizeYText}" AutomationProperties.Name="Pixel height" IsEnabled="{Binding CanEdit}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Sensor width" Unit="px"><TextBox Text="{Binding SensorWidthText}" AutomationProperties.Name="Sensor width" IsEnabled="{Binding CanEdit}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Sensor height" Unit="px"><TextBox Text="{Binding SensorHeightText}" AutomationProperties.Name="Sensor height" IsEnabled="{Binding CanEdit}" /></ctl:FieldRow>
+                    <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+                        <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding CanEdit}">
+                        <Button Classes="primary" Content="Save optics" Command="{Binding SaveCommand}" AutomationProperties.Name="Save optics" />
+                        <Button Content="Remove" Command="{Binding RemoveCommand}" IsVisible="{Binding HasConfiguration}" AutomationProperties.Name="Remove optics" />
+                    </StackPanel>
+                    <Border Classes="divider" />
+                    <TextBlock Classes="eyebrow" Text="DERIVED" />
+                    <StackPanel Spacing="2">
+                        <ctl:InfoRow Label="Pixel scale" Value="{Binding PixelScaleText}" AutomationProperties.AutomationId="OpticsPixelScale" />
+                        <ctl:InfoRow Label="Field of view" Value="{Binding FieldOfViewText}" AutomationProperties.AutomationId="OpticsFieldOfView" />
+                        <ctl:InfoRow Label="Sensor size" Value="{Binding SensorSizeText}" />
+                    </StackPanel>
+                    <TextBlock Classes="meta" Text="{Binding SourceText}" TextWrapping="Wrap" />
+                    <TextBlock Classes="meta" Text="{Binding ReportedText}" TextWrapping="Wrap" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
             <ctl:WorkspaceSection Header="SENSOR AND FRAME" IsVisible="{Binding Settings.IsAvailable}">
                 <StackPanel Spacing="16">
                     <ItemsControl ItemsSource="{Binding Settings.SensorLines}">
