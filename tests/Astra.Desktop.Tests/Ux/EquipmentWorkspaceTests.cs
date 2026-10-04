@@ -291,6 +291,8 @@ public class EquipmentWorkspaceTests
         mount.Mount.RightAscensionInput = "5.5";
         mount.Mount.DeclinationInput = "-5";
         await mount.Mount.SlewCommand.ExecuteAsync(null);
+        Assert.True(mount.Mount.IsConfirmingLargeSlew); // 80 degrees away from where the simulator points
+        await mount.Mount.ConfirmSlewCommand.ExecuteAsync(null);
         Assert.Equal("RA 5.5 h · Dec -5°", mount.Mount.CoordinatesText);
 
         var guider = (GuiderDetailViewModel)equipment.DetailOf(equipment.Guiders[0]);

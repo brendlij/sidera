@@ -490,6 +490,9 @@ public sealed class FakeMountDriver(CallLog log) : FakeDriver(log), IAscomMountD
     /// <summary>A driver that says it is slewing although nothing was started (seen with a mount that is not powered).</summary>
     public bool AlwaysReportsSlewing { get; set; }
 
+    /// <summary>The driver accepts a change of tracking without reaching it (the state read back stays as it was).</summary>
+    public bool IgnoresTrackingChange { get; set; }
+
     public bool Tracking
     {
         get
@@ -500,7 +503,10 @@ public sealed class FakeMountDriver(CallLog log) : FakeDriver(log), IAscomMountD
         set
         {
             Log.Add($"Tracking = {value}");
-            TrackingValue = value;
+            if (!IgnoresTrackingChange)
+            {
+                TrackingValue = value;
+            }
         }
     }
 
@@ -913,5 +919,6 @@ public static class FastTimings
             CameraPollInterval = TimeSpan.FromMilliseconds(5),
             CameraDownloadMargin = downloadMargin ?? TimeSpan.FromSeconds(10),
             StopWait = TimeSpan.FromMilliseconds(300),
+            TrackingConfirmWait = TimeSpan.FromMilliseconds(100),
         };
 }

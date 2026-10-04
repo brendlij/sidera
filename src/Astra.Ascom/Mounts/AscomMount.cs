@@ -67,6 +67,25 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
 
     protected override string BusyDescription => "the mount is slewing";
 
+    // The axes Astra set moving at a rate and has not set back to 0. Whatever is left when the driver is released is stopped first.
+    private readonly HashSet<MountAxis> _movingAxes = [];
+
+    protected override void BeforeRelease(IAscomMountDriver driver)
+    {
+        MountAxis[] axes;
+        lock (_state)
+        {
+            axes = [.. _movingAxes];
+            _movingAxes.Clear();
+        }
+
+        foreach (var axis in axes)
+        {
+            Logger.LogWarning("{Device}: axis {Axis} was still moving at the release; stopping it", Name, axis);
+            driver.MoveAxis(axis, 0);
+        }
+    }
+
     protected override IAscomMountDriver CreateDriver() => _drivers.CreateMount(ProgId);
 
     public event EventHandler? StateChanged;
@@ -340,6 +359,10 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
         using var scope = BeginScope();
         Logger.LogWarning("Stop requested for {Device}", Name);
         Interlocked.Increment(ref _stops);
+        lock (_state)
+        {
+            _movingAxes.Clear();
+        }
 
         // AbortSlew first, then every axis that can be moved at a rate is set to 0. Tracking is not touched. Each part is tried on its
         // own: a mount that is parked or idle may refuse one of them, which is only a problem when it still moves afterwards.
@@ -407,10 +430,34 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
             await RequireNotParkedAsync("start tracking on", cancellationToken);
         }
 
-        await CallAsync(enabled ? "start tracking on" : "stop tracking on", d => d.Tracking = enabled, cancellationToken);
-        Logger.LogInformation("{Device}: tracking {State}", Name, enabled ? "on" : "off");
-        SetState(enabled ? MountMotionState.Tracking : MountMotionState.Idle);
+        var operation = enabled ? "start tracking on" : "stop tracking on";
+        await CallAsync(operation, d => d.Tracking = enabled, cancellationToken);
+
+        // The state is read back: a driver may accept the command and not reach it (or not yet).
+        var reached = false;
+        var clock = Stopwatch.StartNew();
+        while (true)
+        {
+            reached = await CallAsync("read the tracking state of", d => d.Tracking == enabled, cancellationToken);
+            if (reached || clock.Elapsed >= Timings.TrackingConfirmWait)
+            {
+                break;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100) < Timings.MountPollInterval ? TimeSpan.FromMilliseconds(100) : Timings.MountPollInterval, cancellationToken);
+        }
+
         await AfterOperationAsync(cancellationToken);
+        if (!reached)
+        {
+            Logger.LogWarning("{Device}: tracking did not become {State}", Name, enabled ? "on" : "off");
+            throw new AscomDeviceException(
+                Id, ProgId, operation,
+                $"{Name} ({ProgId}) accepted the command but still reports tracking {(enabled ? "off" : "on")}.");
+        }
+
+        Logger.LogInformation("{Device}: tracking {State} (confirmed by the driver)", Name, enabled ? "on" : "off");
+        SetState(enabled ? MountMotionState.Tracking : MountMotionState.Idle);
     }
 
     public async Task SetTrackingRateAsync(TrackingRate rate, CancellationToken cancellationToken = default)
@@ -705,8 +752,51 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
         }
 
         Logger.LogInformation("{Device}: axis {Axis} at {Rate} deg/s", Name, axis, degreesPerSecond);
-        await CallAsync("move an axis of", d => d.MoveAxis(axis, degreesPerSecond), cancellationToken);
+        if (degreesPerSecond != 0)
+        {
+            // Noted before the call: a call that is cancelled may still have started the axis.
+            lock (_state)
+            {
+                _movingAxes.Add(axis);
+            }
+        }
+
+        try
+        {
+            await CallAsync("move an axis of", d => d.MoveAxis(axis, degreesPerSecond), cancellationToken);
+        }
+        catch (Exception) when (degreesPerSecond != 0)
+        {
+            // Cancelled or failed: the axis may be moving, and nobody is holding a button any more. Stop it.
+            await StopAxisQuietlyAsync(axis);
+            throw;
+        }
+
+        if (degreesPerSecond == 0)
+        {
+            lock (_state)
+            {
+                _movingAxes.Remove(axis);
+            }
+        }
+
         await AfterOperationAsync(cancellationToken);
+    }
+
+    private async Task StopAxisQuietlyAsync(MountAxis axis)
+    {
+        try
+        {
+            await CallAsync("stop an axis of", d => d.MoveAxis(axis, 0), CancellationToken.None).WaitAsync(Timings.StopWait);
+            lock (_state)
+            {
+                _movingAxes.Remove(axis);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("{Device}: the {Axis} axis could not be confirmed stopped: {Reason}", Name, axis, ex.Message);
+        }
     }
 
     public async Task SetGuideRatesAsync(GuideRates rates, CancellationToken cancellationToken = default)

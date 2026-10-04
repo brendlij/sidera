@@ -260,6 +260,70 @@ public class CapabilityTests
     }
 
     [Fact]
+    public async Task Tracking_IsReadBack_AndADriverThatDoesNotReachTheStateIsReportedAsFailed()
+    {
+        var mount = NewMount(d => (d.TrackingValue, d.IgnoresTrackingChange) = (false, true), out var drivers);
+        await mount.ConnectAsync();
+
+        var failure = await Assert.ThrowsAsync<AscomDeviceException>(() => mount.SetTrackingAsync(true));
+
+        Assert.Contains("still reports tracking off", failure.Message);
+        Assert.Contains("Tracking = True", drivers.Mounts[0].Log.Calls.Select(c => c.Name));
+        Assert.False(mount.Telemetry!.Tracking);
+        Assert.NotEqual(MountMotionState.Tracking, mount.MotionState);
+    }
+
+    [Fact]
+    public async Task Tracking_ThatTheDriverReaches_IsConfirmedByReadingItBack()
+    {
+        var mount = NewMount(d => d.TrackingValue = false, out var drivers);
+        await mount.ConnectAsync();
+
+        await mount.SetTrackingAsync(true);
+
+        Assert.True(drivers.Mounts[0].TrackingValue);
+        Assert.True(mount.Telemetry!.Tracking);
+        Assert.Equal(MountMotionState.Tracking, mount.MotionState);
+    }
+
+    [Fact]
+    public async Task AnAxisThatIsStillMovingWhenTheMountIsDisconnected_IsStoppedFirst()
+    {
+        var mount = NewMount(d => d.MovableAxes.Add(MountAxis.Primary), out var drivers);
+        await mount.ConnectAsync();
+        await mount.MoveAxisAsync(MountAxis.Primary, 1);
+
+        await mount.DisconnectAsync();
+
+        Assert.Equal(["MoveAxis Primary 1", "MoveAxis Primary 0"], drivers.Mounts[0].Operations);
+    }
+
+    [Fact]
+    public async Task AnAxisIsNotStoppedAtTheDisconnect_WhenItWasAlreadyStopped()
+    {
+        var mount = NewMount(d => d.MovableAxes.Add(MountAxis.Primary), out var drivers);
+        await mount.ConnectAsync();
+        await mount.MoveAxisAsync(MountAxis.Primary, 1);
+        await mount.MoveAxisAsync(MountAxis.Primary, 0);
+
+        await mount.DisconnectAsync();
+
+        Assert.Equal(["MoveAxis Primary 1", "MoveAxis Primary 0"], drivers.Mounts[0].Operations);
+    }
+
+    [Fact]
+    public async Task AMoveAxisThatFails_StopsTheAxisAgain()
+    {
+        var mount = NewMount(d => d.MovableAxes.Add(MountAxis.Primary), out var drivers);
+        await mount.ConnectAsync();
+        drivers.Mounts[0].MoveAxisThrows = new InvalidOperationException("the driver failed");
+
+        await Assert.ThrowsAnyAsync<Exception>(() => mount.MoveAxisAsync(MountAxis.Primary, 1));
+
+        Assert.Equal(["MoveAxis Primary 1", "MoveAxis Primary 0"], drivers.Mounts[0].Operations);
+    }
+
+    [Fact]
     public async Task TrackingAndRates_AreOnlySetWhenOffered()
     {
         var mount = NewMount(null, out var drivers);
