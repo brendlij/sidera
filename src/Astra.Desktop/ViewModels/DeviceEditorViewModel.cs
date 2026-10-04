@@ -219,11 +219,27 @@ public sealed partial class DeviceEditorViewModel : ViewModelBase
         }
     }
 
+    // The list is alphabetical, which puts the simulators of the ASCOM platform (OmniSim, "Simulator") among or before the real drivers.
+    // A driver is not preselected for being first: a real one is, when there is one.
+    private AscomDriverInfo? DefaultDriver() =>
+        Drivers.FirstOrDefault(d => !IsSimulatorDriver(d)) ?? Drivers.FirstOrDefault();
+
+    private static bool IsSimulatorDriver(AscomDriverInfo driver) =>
+        driver.ProgId.Contains("OmniSim", StringComparison.OrdinalIgnoreCase)
+        || driver.ProgId.Contains("Simulator", StringComparison.OrdinalIgnoreCase)
+        || driver.Name.Contains("simulator", StringComparison.OrdinalIgnoreCase);
+
     partial void OnSelectedDriverChanged(AscomDriverInfo? value)
     {
         if (_updating)
         {
             return;
+        }
+
+        // A driver picked from the list is the choice: a ProgId typed earlier would win over it without anyone seeing it.
+        if (value is not null && CustomProgIdInput.Length > 0)
+        {
+            CustomProgIdInput = string.Empty;
         }
 
         // A driver picked from the list names the device, unless the user has already named it.
@@ -328,7 +344,7 @@ public sealed partial class DeviceEditorViewModel : ViewModelBase
                 }
 
                 var match = keep is null ? null : Drivers.FirstOrDefault(d => string.Equals(d.ProgId, keep, StringComparison.OrdinalIgnoreCase));
-                SelectedDriver = match ?? (keep is null ? Drivers.FirstOrDefault() : null);
+                SelectedDriver = match ?? (keep is null ? DefaultDriver() : null);
                 CustomProgIdInput = keep is not null && match is null ? keep : string.Empty;
             }
             finally

@@ -51,6 +51,5 @@
             </ctl:WorkspaceSection>
         </WrapPanel>
 
-        <workspaces:DriverSectionView />
     </StackPanel>
 </UserControl>

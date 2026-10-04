@@ -441,12 +441,27 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
 
         Assert.True(editor.IsBusy);
         Assert.False(editor.SaveCommand.CanExecute(null)); // the form waits for the dialog
-        Assert.Equal([(AscomDeviceKind.Camera, "ASCOM.Simulator.Camera")], _setup.Shown);
+        Assert.Equal([(AscomDeviceKind.Camera, "ASCOM.ZWO.Camera")], _setup.Shown); // the real driver, not the simulator that comes first
 
         _setup.Hold.SetResult();
         await setup;
         Assert.False(editor.IsBusy);
         Assert.False(editor.HasFailure);
+    }
+
+    [Fact]
+    public async Task TheDriverThatIsPreselected_IsARealOneWhenThereIsOne_AndAPickFromTheListBeatsATypedProgId()
+    {
+        var (vm, _, _) = CreateApp();
+        var editor = await OpenAscom(vm.Equipment, DeviceType.Camera);
+        Assert.DoesNotContain("Simulator", editor.ProgId);
+
+        editor.CustomProgIdInput = "ASCOM.Typed.Camera";
+        Assert.Equal("ASCOM.Typed.Camera", editor.ProgId);
+        editor.SelectedDriver = editor.Drivers.First(d => d.ProgId == "ASCOM.Simulator.Camera");
+
+        Assert.Equal("ASCOM.Simulator.Camera", editor.ProgId);
+        Assert.Equal(string.Empty, editor.CustomProgIdInput);
     }
 
     [Fact]
@@ -735,5 +750,124 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         var configuration = vm.Equipment.SelectedDetail!.Configuration!;
 
         Assert.Equal(("ASCOM", "ASCOM.Simulator.Camera", true), (configuration.BackendText, configuration.DriverText, configuration.IsAscom));
+    }
+
+    // ---- The slots: one choice of driver for each kind of device
+
+    private static DeviceSlotViewModel Slot(EquipmentViewModel equipment, DeviceType type) => equipment.Slots.Single(sl => sl.Type == type);
+
+    private static DriverChoice Choice(DeviceSlotViewModel slot, string text) => slot.Choices.Single(c => c.Text == text);
+
+    [Fact]
+    public async Task TheEquipmentPage_HasATabForEachKind_NothingSelected_AndEveryKindStartsWithNoDeviceAndNoChoice()
+    {
+        var (vm, _, _) = CreateApp();
+        var equipment = vm.Equipment;
+
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.Slots.Select(sl => sl.Title));
+        Assert.Null(equipment.SelectedSlot);
+        Assert.All(equipment.Slots, sl =>
+        {
+            Assert.False(sl.IsSelected);
+            Assert.True(sl.IsEmpty);
+            Assert.Null(sl.SelectedChoice);
+            Assert.True(sl.Choices[0].IsNone);
+            Assert.Contains(sl.Choices, c => c.Text == "Simulator");
+        });
+        await UxWait(() => Slot(equipment, DeviceType.Camera).Choices.Any(c => c.IsAscom));
+        Assert.DoesNotContain(Slot(equipment, DeviceType.FilterWheel).Choices, c => c.IsAscom); // no ASCOM adapter for it
+    }
+
+    [Fact]
+    public async Task ChoosingADriver_MakesTheDevice_WithAStableId_AndItIsKept()
+    {
+        var (vm, service, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+
+        slot.SelectedChoice = Choice(slot, "Simulator");
+
+        Assert.Equal("camera.main", Assert.Single(vm.Equipment.Cameras).DeviceIdText);
+        Assert.False(slot.IsEmpty);
+        Assert.NotNull(slot.Detail);
+        Assert.Equal("Simulator", slot.SelectedChoice!.Text);
+        Assert.Equal(DeviceBackend.Simulator, service.Configuration.Find("camera.main")!.Backend);
+    }
+
+    [Fact]
+    public async Task ChoosingAnotherDriver_ReplacesTheDevice_AndKeepsItsId()
+    {
+        var (vm, service, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+        await UxWait(() => slot.Choices.Any(c => c.IsAscom));
+        slot.SelectedChoice = Choice(slot, "Simulator");
+
+        slot.SelectedChoice = Choice(slot, "ZWO Camera");
+
+        var configuration = service.Configuration.Find("camera.main")!;
+        Assert.Equal((DeviceBackend.Ascom, "ASCOM.ZWO.Camera"), (configuration.Backend, configuration.ProgId));
+        Assert.Equal("camera.main", Assert.Single(vm.Equipment.Cameras).DeviceIdText);
+        Assert.Equal("ZWO Camera", slot.SelectedChoice!.Text);
+        Assert.False(slot.HasProblem);
+    }
+
+    [Fact]
+    public async Task ChoosingNone_RemovesTheDevice()
+    {
+        var (vm, service, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Focuser);
+        slot.SelectedChoice = Choice(slot, "Simulator");
+
+        slot.SelectedChoice = slot.Choices[0];
+
+        Assert.True(slot.IsEmpty);
+        Assert.Empty(vm.Equipment.Focusers);
+        Assert.Null(service.Configuration.Find("focuser.main"));
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task ADeviceThatIsConnected_IsNotSwapped_TheSlotSaysSo_AndKeepsItsChoice()
+    {
+        var (vm, service, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Mount);
+        slot.SelectedChoice = Choice(slot, "Simulator");
+        await slot.Device!.ConnectCommand.ExecuteAsync(null);
+
+        slot.SelectedChoice = slot.Choices[0];
+
+        Assert.True(slot.HasProblem);
+        Assert.Contains("Disconnect", slot.ProblemText);
+        Assert.False(slot.IsEmpty);
+        Assert.Equal("Simulator", slot.SelectedChoice!.Text);
+        Assert.NotNull(service.Configuration.Find("mount.main"));
+    }
+
+    [Fact]
+    public async Task Setup_OpensTheDialogOfTheChosenAscomDriver_AndIsNotOfferedForTheSimulator()
+    {
+        var (vm, _, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+        await UxWait(() => slot.Choices.Any(c => c.IsAscom));
+        slot.SelectedChoice = Choice(slot, "Simulator");
+        Assert.False(slot.SetupCommand.CanExecute(null));
+
+        slot.SelectedChoice = Choice(slot, "ZWO Camera");
+        Assert.True(slot.SetupCommand.CanExecute(null));
+        await slot.SetupCommand.ExecuteAsync(null);
+
+        Assert.Equal([(AscomDeviceKind.Camera, "ASCOM.ZWO.Camera")], _setup.Shown);
+    }
+
+    [Fact]
+    public async Task AStoredDevice_ShowsItsDriverAsTheChoice_EvenWhenTheDriverIsNoLongerInstalled()
+    {
+        var stored = new EquipmentConfiguration([DeviceConfiguration.Ascom("camera.asi", "Gone Camera", DeviceType.Camera, "ASCOM.Gone.Camera", "Gone Camera")], []);
+        var (vm, _, _) = CreateApp(stored);
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+
+        await UxWait(() => slot.Choices.Any(c => c.IsAscom));
+
+        Assert.Equal("ASCOM.Gone.Camera", slot.SelectedChoice!.ProgId);
+        Assert.Equal("camera.asi", slot.Device!.DeviceIdText);
     }
 }

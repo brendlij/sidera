@@ -58,9 +58,8 @@ public class ThemeDisciplineTests
         foreach (var page in new[]
                  {
                      "Dashboard/DashboardView", "Session/SessionView", "Session/WorkflowView", "Session/StepInspectorView",
-                     "Session/MultiRigEditorView", "Session/ExecutionTracksView", "Equipment/EquipmentView", "Equipment/EquipmentBreadcrumbView",
-                     "Equipment/EquipmentLandingView", "Equipment/RigOverviewView", "Equipment/DeviceWorkspaceView", "Equipment/DeviceEditorView",
-                     "Equipment/Workspaces/DeviceHeaderView", "Equipment/Workspaces/DriverSectionView", "Equipment/Workspaces/CameraWorkspaceView",
+                     "Session/MultiRigEditorView", "Session/ExecutionTracksView", "Equipment/EquipmentView", "Equipment/DeviceSlotView",
+                     "Equipment/Workspaces/DeviceHeaderView", "Equipment/Workspaces/CameraWorkspaceView",
                      "Equipment/Workspaces/MountWorkspaceView", "Equipment/Workspaces/FocuserWorkspaceView",
                      "Equipment/Workspaces/FilterWheelWorkspaceView", "Equipment/Workspaces/GuiderWorkspaceView",
                      "Imaging/ImagingView", "Imaging/FrameMetricsView",

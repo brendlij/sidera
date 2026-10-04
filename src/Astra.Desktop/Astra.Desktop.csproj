@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Hardware-enforced stack protection (CET) is on by default for .NET 9 and later; native ASCOM drivers (the ZWO ones) are not built
+         for it, and Windows ends the process with 0xC0000409 as soon as their code runs on a protected stack (their setup dialog). -->
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
 
   <ItemGroup>

@@ -89,6 +89,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         }
 
         BuildNavigation();
+        BuildSlots();
 
         if (management is not null)
         {
