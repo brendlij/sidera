@@ -82,6 +82,20 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
     [ObservableProperty]
     public partial bool ShowHeatSink { get; private set; }
 
+    /// <summary>The sections of the camera workspace that the camera has anything for.</summary>
+    [ObservableProperty]
+    public partial bool ShowCoolingSection { get; private set; }
+
+    [ObservableProperty]
+    public partial bool ShowFrameSection { get; private set; }
+
+    [ObservableProperty]
+    public partial bool ShowGainSection { get; private set; }
+
+    /// <summary>What the camera says about its sensor: size, type, pixel size, maximum ADU.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<InfoLine> SensorLines { get; private set; } = [];
+
     /// <summary>The camera offers at least one setting that can be changed here.</summary>
     [ObservableProperty]
     public partial bool HasSettings { get; private set; }
@@ -213,6 +227,8 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
             ShowBinning = ShowAsymmetricBinning = ShowSubframe = ShowReadout = ShowFastReadout = false;
             ShowCooling = ShowTargetTemperature = ShowCooler = ShowCcdTemperature = ShowCoolerPower = ShowHeatSink = false;
             HasSettings = false;
+            ShowCoolingSection = ShowFrameSection = ShowGainSection = false;
+            SensorLines = [];
             Gain.Load(null, null);
             Offset.Load(null, null);
             InfoLines = [];
@@ -234,6 +250,9 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
         ShowHeatSink = c.HasHeatSinkTemperature;
         HasSettings = c.Gain is not null || c.Offset is not null || ShowBinning || ShowSubframe || ShowReadout || ShowFastReadout || ShowCooling;
         OnPropertyChanged(nameof(HasNoSettings));
+        ShowCoolingSection = ShowCooling || ShowCcdTemperature;
+        ShowFrameSection = ShowBinning || ShowSubframe;
+        ShowGainSection = c.Gain is not null || c.Offset is not null || ShowReadout || ShowFastReadout;
 
         // The inputs are only reloaded while nothing is being edited: a refresh must not overwrite what the user is typing.
         if (!_editing)
@@ -266,6 +285,7 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
         CoolerPowerText = telemetry?.CoolerPower is { } power ? $"{Format(power)} %" : "Not reported";
         HeatSinkText = telemetry?.HeatSinkTemperature is { } sink ? $"{Format(sink)} °C" : "Not reported";
         InfoLines = BuildInfo(c);
+        SensorLines = [.. InfoLines.Where(l => l.Label is "Sensor" or "Sensor type" or "Pixel size" or "Maximum ADU")];
     }
 
     private bool _editing;
@@ -348,7 +368,15 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
         }
 
         await _camera.ApplyAsync(change);
-        SavePreferences(existing => DevicePreferences.From(change, existing));
+        if (_capabilities is { } capabilities)
+        {
+            var defaults = DefaultsOf(change, capabilities);
+            SavePreferences(existing =>
+            {
+                var result = DevicePreferences.WithAcquisition(existing, defaults);
+                return change.TargetTemperature is { } target ? DevicePreferences.WithTargetTemperature(result, target) : result;
+            });
+        }
     });
 
     [RelayCommand(CanExecute = nameof(CanOperate))]
@@ -425,8 +453,9 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
         return TryWhole(text, out var v) ? v : throw new FormatException($"{label} must be a whole number.");
     }
 
-    // The stored preferences, applied to what this camera supports; what it does not support is left alone, and the
-    // cooler is never switched on by a preference.
+    // The acquisition defaults, applied through the same resolution an exposure uses: checked against what the camera supports now,
+    // and applied only when they all fit. A default that does not fit is kept, never changed or deleted, and said. The cooler is never
+    // switched on by a preference.
     protected override async Task ApplyPreferencesAsync()
     {
         if (Preferences is null || _camera.Capabilities.Value is not { } capabilities)
@@ -434,48 +463,26 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
             return;
         }
 
-        var stored = DevicePreferences.ToCameraChange(Preferences.GetPreferences(Device.DeviceIdText));
-        if (stored.IsEmpty)
-        {
-            return;
-        }
-
+        var stored = Preferences.GetPreferences(Device.DeviceIdText);
+        var defaults = DevicePreferences.AcquisitionDefaults(stored);
         var current = _camera.Settings ?? new CameraSettings();
-        var skipped = new List<string>();
-
-        int? Keep(int? value, int? now, bool offered, string what)
+        var change = new CameraSettings();
+        if (!defaults.IsDefault)
         {
-            if (value is null || value == now)
+            var plan = AcquisitionResolver.Resolve(AcquisitionIntent.Default, defaults, null, _camera.Capabilities, current);
+            if (plan.Status == AcquisitionStatus.Invalid)
             {
-                return null;
+                NoticeText = "The camera defaults do not fit this camera now and were not applied; they are kept as they are. "
+                    + string.Join(" ", plan.Problems);
+                return;
             }
 
-            if (!offered)
-            {
-                skipped.Add(what);
-                return null;
-            }
-
-            return value;
+            change = plan.Change;
         }
 
-        var change = new CameraSettings
+        if (DevicePreferences.TargetTemperatureOf(stored) is { } target && capabilities.CanSetCcdTemperature && current.TargetTemperature != target)
         {
-            Gain = Keep(stored.Gain, current.Gain, capabilities.Gain?.Accepts(stored.Gain ?? -1) == true, "gain"),
-            Offset = Keep(stored.Offset, current.Offset, capabilities.Offset?.Accepts(stored.Offset ?? -1) == true, "offset"),
-            BinX = Keep(stored.BinX, current.BinX, stored.BinX is { } bx && bx >= 1 && bx <= capabilities.MaxBinX, "binning"),
-            BinY = Keep(stored.BinY, current.BinY, stored.BinY is { } by && by >= 1 && by <= capabilities.MaxBinY, "binning"),
-            ReadoutMode = Keep(stored.ReadoutMode, current.ReadoutMode, stored.ReadoutMode is { } m && m >= 0 && m < capabilities.ReadoutModes.Count, "readout mode"),
-            FastReadout = stored.FastReadout is { } f && capabilities.CanFastReadout && f != current.FastReadout ? f : null,
-            TargetTemperature = stored.TargetTemperature is { } t && capabilities.CanSetCcdTemperature ? t : null,
-        };
-
-        // Binning must be valid as a pair; when the pair is not, it is left alone and said.
-        if ((change.BinX is not null || change.BinY is not null)
-            && CameraSettingsRules.Problems(capabilities, current, change) is { Count: > 0 } problems)
-        {
-            skipped.Add("binning (" + string.Join(" ", problems) + ")");
-            change = change with { BinX = null, BinY = null };
+            change = change with { TargetTemperature = target };
         }
 
         if (!change.IsEmpty)
@@ -487,14 +494,42 @@ public sealed partial class CameraSettingsViewModel : DevicePanelViewModel
             catch (ArgumentException ex)
             {
                 NoticeText = $"The saved preferences do not fit this camera and were not applied: {ex.Message}";
-                return;
             }
         }
+    }
 
-        if (skipped.Count > 0)
+    // What the user changed, as acquisition defaults: gain and offset as a number or, for a list, the name; the region as the whole
+    // sensor or a rectangle; the readout mode by name. The settings the camera reports after the change say what the region came to.
+    private AcquisitionIntent DefaultsOf(CameraSettings change, CameraCapabilities capabilities)
+    {
+        var applied = _camera.Settings ?? new CameraSettings();
+
+        AcquisitionLevel? Level(IntegerControl? control, int? value) => value is not { } v
+            ? null
+            : control is { IsList: true } && v >= 0 && v < control.Choices.Count ? AcquisitionLevel.OfName(control.Choices[v]) : AcquisitionLevel.OfNumber(v);
+
+        AcquisitionRegion? region = null;
+        if (change.ChangesSubframe || change.BinX is not null || change.BinY is not null)
         {
-            NoticeText = $"Saved preferences kept but not applied, the camera does not offer them now: {string.Join(", ", skipped.Distinct())}.";
+            var width = capabilities.SensorWidth / Math.Max(1, applied.BinX ?? 1);
+            var height = capabilities.SensorHeight / Math.Max(1, applied.BinY ?? 1);
+            region = applied is { StartX: 0, StartY: 0 } && applied.NumX == width && applied.NumY == height
+                ? AcquisitionRegion.Full
+                : applied.NumX is { } nx && applied.NumY is { } ny && nx > 0 && ny > 0
+                    ? AcquisitionRegion.Of(applied.StartX ?? 0, applied.StartY ?? 0, nx, ny)
+                    : null;
         }
+
+        return new AcquisitionIntent
+        {
+            Gain = Level(capabilities.Gain, change.Gain),
+            Offset = Level(capabilities.Offset, change.Offset),
+            BinX = change.BinX is not null || change.BinY is not null ? applied.BinX : null,
+            BinY = change.BinX is not null || change.BinY is not null ? applied.BinY : null,
+            Region = region,
+            ReadoutMode = change.ReadoutMode is { } mode && mode >= 0 && mode < capabilities.ReadoutModes.Count ? capabilities.ReadoutModes[mode] : null,
+            FastReadout = change.FastReadout,
+        };
     }
 }
 

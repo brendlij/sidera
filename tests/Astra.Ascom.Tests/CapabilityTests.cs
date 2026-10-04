@@ -324,6 +324,44 @@ public class CapabilityTests
         Assert.Null(mount.Telemetry!.SiderealTimeHours);
     }
 
+    [Fact]
+    public async Task Stop_AbortsTheSlew_SetsEveryMovableAxisToZero_AndLeavesTrackingAlone()
+    {
+        var mount = NewMount(d => { d.MovableAxes.Add(MountAxis.Primary); d.MovableAxes.Add(MountAxis.Secondary); d.HoldSlew = true; }, out var drivers);
+        await mount.ConnectAsync();
+        var slew = mount.SlewToAsync(new CelestialCoordinates(8, 20));
+        await Task.Delay(50);
+
+        await mount.StopAsync();
+
+        var operations = drivers.Mounts[0].Operations;
+        Assert.Contains("AbortSlew", operations);
+        Assert.Contains("MoveAxis Primary 0", operations);
+        Assert.Contains("MoveAxis Secondary 0", operations);
+        Assert.True(drivers.Mounts[0].TrackingValue);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => slew);
+        Assert.NotEqual(MountMotionState.Slewing, mount.MotionState);
+    }
+
+    [Fact]
+    public async Task Stop_IsAlwaysAllowed_EvenWhenParkedOrIdle_AndSaysWhenTheMountStillMoves()
+    {
+        var mount = NewMount(d => { d.AtParkValue = true; d.AbortThrows = new InvalidOperationException("parked"); }, out _);
+        await mount.ConnectAsync();
+        await mount.StopAsync(); // refused by the driver, but nothing moves: fine
+
+        var moving = NewMount(d => { d.HoldSlew = true; d.AbortStops = false; }, out var drivers);
+        await moving.ConnectAsync();
+        var slew = moving.SlewToAsync(new CelestialCoordinates(8, 20));
+        await Task.Delay(50);
+
+        var failure = await Assert.ThrowsAsync<AscomDeviceException>(() => moving.StopAsync());
+
+        Assert.Contains("could not be confirmed stopped", failure.Message);
+        drivers.Mounts[0].Arrive();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => slew);
+    }
+
     // ---- Camera
 
     [Fact]

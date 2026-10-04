@@ -21,6 +21,9 @@ public sealed class RigMemberViewModel(string role, DeviceViewModelBase? device)
 
     public bool IsConfigured => Device is not null;
 
+    /// <summary>Opens the page of this device in the workspace of the rig. Set by the page that shows the rigs.</summary>
+    public System.Windows.Input.ICommand? OpenCommand { get; set; }
+
     public string NameText => Device?.Name ?? "Not configured";
 }
 

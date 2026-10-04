@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace Astra.Desktop.Views.Equipment;
 
-public partial class RigDetailsView : UserControl
+public partial class EquipmentBreadcrumbView : UserControl
 {
-    public RigDetailsView()
+    public EquipmentBreadcrumbView()
     {
         InitializeComponent();
     }

@@ -17,25 +17,6 @@ using CommunityToolkit.Mvvm.Input;
 namespace Astra.Desktop.ViewModels;
 
 /// <summary>
-/// What the equipment page shows. The two are different things and are never on one page: the devices are the hardware,
-/// the rigs are optional groupings of those devices into optical trains.
-/// </summary>
-public enum EquipmentMode
-{
-    /// <summary>The registered devices, grouped by kind. The default.</summary>
-    Devices,
-
-    /// <summary>The configured rigs. Offered only when there are any.</summary>
-    Rigs,
-}
-
-/// <summary>A titled group of devices in the browser of the equipment page: all the cameras, all the focusers.</summary>
-public sealed record EquipmentSection(string Title, IReadOnlyList<DeviceViewModelBase> Items)
-{
-    public bool HasItems => Items.Count > 0;
-}
-
-/// <summary>
 /// What lets the equipment page change the equipment: the service that keeps the runtime and the file in step, the
 /// discovery of ASCOM drivers and the driver setup dialogs. Without it the page only shows what the host has (the tests of
 /// the pages, a host that is composed in code).
@@ -75,6 +56,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     private readonly List<MountViewModel> _mounts;
     private readonly List<GuiderViewModel> _guiders;
     private readonly List<RigViewModel> _rigs;
+    private bool _addingMany;
 
     public EquipmentViewModel(
         AstraRuntimeHost host,
@@ -106,9 +88,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             Attach(device);
         }
 
-        Sections = BuildSections();
-        Show(Devices.FirstOrDefault());
-        Show(_rigs.FirstOrDefault());
+        BuildNavigation();
 
         if (management is not null)
         {
@@ -142,123 +122,6 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
 
     /// <summary>A device view model left the page; it is disposed after the event.</summary>
     public event EventHandler<DeviceViewModelBase>? DeviceViewModelRemoved;
-
-    // The mode
-
-    /// <summary>What the page shows now. Rigs is only offered with rigs; without any the page stays on the devices.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDevicesMode))]
-    [NotifyPropertyChangedFor(nameof(IsRigsMode))]
-    public partial EquipmentMode Mode { get; set; }
-
-    public bool IsDevicesMode
-    {
-        get => Mode == EquipmentMode.Devices;
-        set => Select(EquipmentMode.Devices, value);
-    }
-
-    public bool IsRigsMode
-    {
-        get => Mode == EquipmentMode.Rigs;
-        set => Select(EquipmentMode.Rigs, value);
-    }
-
-    private void Select(EquipmentMode mode, bool selected)
-    {
-        if (selected)
-        {
-            Mode = mode == EquipmentMode.Rigs && !HasRigs ? EquipmentMode.Devices : mode;
-        }
-    }
-
-    // The browser
-
-    /// <summary>
-    /// The groups of devices, by kind and in this order: cameras, focusers, filter wheels, mounts, guiders. A kind the
-    /// installation has no device of is left out. Rigs are not in here.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSections))]
-    public partial IReadOnlyList<EquipmentSection> Sections { get; private set; } = [];
-
-    public bool HasSections => Sections.Count > 0;
-
-    private IReadOnlyList<EquipmentSection> BuildSections() => new[]
-    {
-        new EquipmentSection("Cameras", _cameras.Cast<DeviceViewModelBase>().ToList()),
-        new EquipmentSection("Focusers", _focusers.Cast<DeviceViewModelBase>().ToList()),
-        new EquipmentSection("Filter Wheels", _filterWheels.Cast<DeviceViewModelBase>().ToList()),
-        new EquipmentSection("Mounts", _mounts.Cast<DeviceViewModelBase>().ToList()),
-        new EquipmentSection("Guiders", _guiders.Cast<DeviceViewModelBase>().ToList()),
-    }.Where(section => section.HasItems).ToList();
-
-    // The detail
-
-    /// <summary>The device whose detail the Devices mode shows; <c>null</c> only while there is no device.</summary>
-    [ObservableProperty]
-    public partial DeviceViewModelBase? SelectedDevice { get; private set; }
-
-    /// <summary>The detail view model of <see cref="SelectedDevice"/>: the common shell and what is of its kind.</summary>
-    [ObservableProperty]
-    public partial DeviceDetailViewModel? SelectedDetail { get; private set; }
-
-    /// <summary>The rig whose detail the Rigs mode shows; <c>null</c> only while there is no rig.</summary>
-    [ObservableProperty]
-    public partial RigViewModel? SelectedRig { get; private set; }
-
-    /// <summary>The detail of a device, by the device.</summary>
-    public DeviceDetailViewModel DetailOf(DeviceViewModelBase device) => _details[device];
-
-    /// <summary>Opens a device in the Devices mode, wherever the request came from (its row, or a rig that names it).</summary>
-    private void OpenDevice(DeviceViewModelBase device)
-    {
-        Mode = EquipmentMode.Devices;
-        Show(device);
-    }
-
-    private void OpenRig(RigViewModel rig)
-    {
-        Mode = EquipmentMode.Rigs;
-        Show(rig);
-    }
-
-    private void Show(DeviceViewModelBase? device)
-    {
-        if (SelectedDevice is { } before)
-        {
-            before.IsSelected = false;
-            if (_details.TryGetValue(before, out var hidden))
-            {
-                hidden.IsShown = false;
-            }
-        }
-
-        SelectedDevice = device;
-        SelectedDetail = device is null ? null : _details[device];
-        if (SelectedDetail is { } shown)
-        {
-            shown.IsShown = true;
-        }
-
-        if (device is not null)
-        {
-            device.IsSelected = true;
-        }
-    }
-
-    private void Show(RigViewModel? rig)
-    {
-        if (SelectedRig is { } before)
-        {
-            before.IsSelected = false;
-        }
-
-        SelectedRig = rig;
-        if (rig is not null)
-        {
-            rig.IsSelected = true;
-        }
-    }
 
     // The rig a device is part of, if any: only for what the detail tells about it, never for what the device can do.
     private DeviceDetailViewModel CreateDetail(DeviceViewModelBase device)
@@ -304,6 +167,16 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             var vm = new RigViewModel(rig, _host, _cameras, _focusers, _filterWheels);
             var captured = vm;
             vm.OpenCommand = new RelayCommand(() => OpenRig(captured));
+            foreach (var member in vm.Members)
+            {
+                var page = member.Role switch
+                {
+                    "Camera" => EquipmentPage.Camera,
+                    "Focuser" => EquipmentPage.Focuser,
+                    _ => EquipmentPage.FilterWheel,
+                };
+                member.OpenCommand = new RelayCommand(() => OpenRigPage(captured, page));
+            }
             _rigs.Add(vm);
         }
     }
@@ -341,15 +214,23 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     private void AddDevice()
     {
         NoticeText = string.Empty;
-        Mode = EquipmentMode.Devices;
         Editor = NewEditor(null);
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
     private void AddDemoEquipment()
     {
-        var result = _management!.Service.AddDemoEquipment();
-        NoticeText = result.Problem ?? string.Empty;
+        // Many devices at once: the page stays where it is (the overview shows what came), instead of opening the last of them.
+        _addingMany = true;
+        try
+        {
+            var result = _management!.Service.AddDemoEquipment();
+            NoticeText = result.Problem ?? string.Empty;
+        }
+        finally
+        {
+            _addingMany = false;
+        }
     }
 
     private DeviceEditorViewModel NewEditor(DeviceConfiguration? existing) => new(
@@ -414,9 +295,12 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                 {
                     InsertSorted(vm);
                     Attach(vm);
-                    RefreshSections();
+                    RefreshNavigation();
                     DeviceViewModelAdded?.Invoke(this, vm);
-                    OpenDevice(vm);
+                    if (!_addingMany)
+                    {
+                        OpenDevice(vm);
+                    }
                 }
 
                 break;
@@ -430,8 +314,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                 break;
 
             case EquipmentChangeKind.RigsAdded:
-                RebuildRigsKeepingSelection();
+                BuildRigs();
                 RefreshDetails();
+                RefreshNavigation();
                 break;
         }
 
@@ -443,8 +328,6 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     private void ReplaceViewModel(IDevice replaced)
     {
         var old = Devices.FirstOrDefault(d => d.DeviceIdText == replaced.Id.Value);
-        var wasSelected = old is not null && ReferenceEquals(SelectedDevice, old);
-        var section = old is not null && _details.TryGetValue(old, out var oldDetail) ? oldDetail.Section : DeviceDetailSection.Overview;
         if (old is not null)
         {
             Detach(old);
@@ -452,19 +335,16 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
 
         if (CreateViewModel(replaced) is not { } vm)
         {
+            RefreshNavigation();
             return;
         }
 
         InsertSorted(vm);
         Attach(vm);
-        _details[vm].Section = section; // the tab the user was on stays open
-        RebuildRigsKeepingSelection();
-        RefreshSections();
+        BuildRigs();
+        RefreshDetails();
         DeviceViewModelAdded?.Invoke(this, vm);
-        if (wasSelected)
-        {
-            Show(vm);
-        }
+        RefreshNavigation(); // the selections are by device id: the new device takes the place of the old one
     }
 
     private void RemoveViewModel(string id)
@@ -475,15 +355,10 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             return;
         }
 
-        var wasSelected = ReferenceEquals(SelectedDevice, old);
-        var index = Devices.ToList().IndexOf(old);
         Detach(old);
-        RefreshSections();
-        if (wasSelected)
-        {
-            var remaining = Devices.ToList();
-            Show(remaining.Count == 0 ? null : remaining[Math.Min(index, remaining.Count - 1)]);
-        }
+        BuildRigs();
+        RefreshDetails();
+        RefreshNavigation();
     }
 
     // A device view model leaves the page: its row, its detail, and what it listens to.
@@ -546,41 +421,17 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         }
     }
 
-    private void RefreshSections()
-    {
-        Sections = BuildSections();
-        OnPropertyChanged(nameof(HasDevices));
-    }
-
-    // The rigs read their devices when they are made: they are made again when a device was replaced or rigs were added,
-    // and the rig that was selected stays selected.
-    private void RebuildRigsKeepingSelection()
-    {
-        var selected = SelectedRig?.RigIdText;
-        BuildRigs();
-        Show(_rigs.FirstOrDefault(r => r.RigIdText == selected) ?? _rigs.FirstOrDefault());
-    }
-
     // The details name the rig of their device; they are made again once the rigs are.
     private void RefreshDetails()
     {
         foreach (var device in Devices.ToList())
         {
-            var section = DeviceDetailSection.Overview;
             if (_details.TryGetValue(device, out var previous))
             {
-                section = previous.Section;
                 previous.Dispose();
             }
 
             _details[device] = CreateDetail(device);
-            _details[device].Section = section;
-        }
-
-        SelectedDetail = SelectedDevice is null ? null : _details[SelectedDevice];
-        if (SelectedDetail is { } shown)
-        {
-            shown.IsShown = true;
         }
     }
 

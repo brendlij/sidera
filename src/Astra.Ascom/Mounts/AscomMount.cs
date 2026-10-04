@@ -29,6 +29,7 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
     private MountTelemetry? _telemetry;
     private MountSite? _site;
     private bool _astraSlewing;
+    private int _stops;
     private readonly IAscomDriverFactory _drivers;
     private readonly object _state = new();
     private MountMotionState _motionState = MountMotionState.Idle;
@@ -333,6 +334,70 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
         }
     }
 
+    public async Task StopAsync(CancellationToken cancellationToken = default)
+    {
+        var capabilities = Capabilities.Value ?? throw new InvalidOperationException($"{Name} is not connected.");
+        using var scope = BeginScope();
+        Logger.LogWarning("Stop requested for {Device}", Name);
+        Interlocked.Increment(ref _stops);
+
+        // AbortSlew first, then every axis that can be moved at a rate is set to 0. Tracking is not touched. Each part is tried on its
+        // own: a mount that is parked or idle may refuse one of them, which is only a problem when it still moves afterwards.
+        var failures = new List<string>();
+        var stillMoving = await CallAsync(
+            "stop",
+            d =>
+            {
+                try
+                {
+                    d.AbortSlew();
+                }
+                catch (Exception ex)
+                {
+                    failures.Add("AbortSlew: " + AscomErrors.Describe(ex));
+                }
+
+                foreach (var axis in Enum.GetValues<MountAxis>())
+                {
+                    if (!capabilities.CanMove(axis))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        d.MoveAxis(axis, 0);
+                    }
+                    catch (Exception ex)
+                    {
+                        failures.Add($"MoveAxis {axis}: " + AscomErrors.Describe(ex));
+                    }
+                }
+
+                try
+                {
+                    return d.Slewing;
+                }
+                catch
+                {
+                    return false;
+                }
+            },
+            cancellationToken);
+
+        foreach (var failure in failures)
+        {
+            Logger.LogWarning("{Device}: stop: {Failure}", Name, failure);
+        }
+
+        await AfterOperationAsync(cancellationToken);
+        if (stillMoving)
+        {
+            throw new AscomDeviceException(
+                Id, ProgId, "stop", $"{Name} ({ProgId}) could not be confirmed stopped: it still reports slewing. {string.Join(" ", failures)}".TrimEnd());
+        }
+    }
+
     public async Task SetTrackingAsync(bool enabled, CancellationToken cancellationToken = default)
     {
         Require("set tracking on", c => c.CanSetTracking, "cannot switch tracking");
@@ -529,10 +594,16 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
 
     private async Task WaitUntilNotSlewingAsync(Stopwatch clock, CancellationToken cancellationToken)
     {
+        var stops = Volatile.Read(ref _stops);
         while (true)
         {
             await Task.Delay(Timings.MountPollInterval, cancellationToken);
             var slewing = await CallAsync("poll", d => d.Slewing, cancellationToken);
+            if (Volatile.Read(ref _stops) != stops)
+            {
+                throw new OperationCanceledException("The movement was stopped.");
+            }
+
             if (!slewing)
             {
                 return;
@@ -725,6 +796,7 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
             }
 
             var clock = Stopwatch.StartNew();
+            var stopMark = Volatile.Read(ref _stops);
             if (snapshot.CanSlewAsync)
             {
                 await CallAsync(
@@ -762,6 +834,11 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
                 {
                     throw await TimeoutAsync(clock.Elapsed);
                 }
+            }
+
+            if (Volatile.Read(ref _stops) != stopMark)
+            {
+                throw new OperationCanceledException("The slew was stopped.");
             }
 
             var (final, tracking) = await CallAsync("read the position of", d => (TryReadCoordinates(d), d.Tracking), cancellationToken);

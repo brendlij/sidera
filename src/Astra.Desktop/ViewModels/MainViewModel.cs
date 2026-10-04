@@ -54,7 +54,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 ? [] : defaults.InitialSteps(),
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
-            loggers: host.LoggerFactory);
+            loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults);
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
         Settings = new SettingsViewModel(logInfo);
         Sequencer = new SequencerViewModel(

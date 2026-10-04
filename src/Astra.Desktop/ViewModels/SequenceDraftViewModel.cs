@@ -41,6 +41,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private readonly IFocusMetricProvider? _focusMetrics;
     private readonly IEventPublisher? _events;
     private readonly ILoggerFactory? _loggers;
+    private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
     private HashSet<Guid> _unreadable = [];
     private bool _rebuilding;
 
@@ -53,10 +54,12 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         SharedEquipmentDraft? shared = null,
         IFocusMetricProvider? focusMetrics = null,
         IEventPublisher? events = null,
-        ILoggerFactory? loggers = null)
+        ILoggerFactory? loggers = null,
+        IAcquisitionDefaultsSource? acquisitionDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(defaults);
+        _acquisitionDefaults = acquisitionDefaults;
         _registry = registry;
         _rigs = rigs;
         _focusMetrics = focusMetrics;
@@ -193,7 +196,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
-    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers);
+    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults);
 
     // New steps use the shared equipment of the session wherever they have a mount or a guider.
     private SequenceDraftDefaults EffectiveDefaults => _defaults with
@@ -1014,7 +1017,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private StepDraftViewModel CreateLeafViewModel(LeafStepDraft draft) => draft switch
     {
         ExposureStepDraft e => new ExposureStepDraftViewModel(_registry, e),
-        RigExposureStepDraft e => new RigExposureStepDraftViewModel(e),
+        RigExposureStepDraft e => RigExposureViewModel(e),
         DelayStepDraft d => new DelayStepDraftViewModel(d),
         SlewStepDraft s => new SlewStepDraftViewModel(_registry, s),
         StartGuidingStepDraft g => new StartGuidingStepDraftViewModel(_registry, g),
@@ -1028,6 +1031,22 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         RigAutofocusStepDraft a => new RigAutofocusStepDraftViewModel(a),
         _ => throw new ArgumentException($"Unsupported step '{draft.GetType().Name}'.", nameof(draft)),
     };
+
+    // The camera is the camera of the rig of the track the step is in, looked up whenever it is needed (the track can get another rig).
+    private RigExposureStepDraftViewModel RigExposureViewModel(RigExposureStepDraft draft)
+    {
+        RigExposureStepDraftViewModel? step = null;
+        step = new RigExposureStepDraftViewModel(draft, () => CameraOfRigTrack(step));
+        return step;
+    }
+
+    private AcquisitionCameraContext CameraOfRigTrack(StepDraftViewModel? step)
+    {
+        var track = Ancestors(step).OfType<RigTrackDraftViewModel>().FirstOrDefault();
+        return track?.Rig.SelectedId is { } rigId && _rigs is not null && _rigs.TryGet(rigId, out var rig) && rig is not null
+            ? ExposureStepDraftViewModel.CameraContext(_registry, rig.CameraId)
+            : AcquisitionCameraContext.None;
+    }
 
     // The slots come from the filter wheel of the rig of the track the step is in, looked up whenever they are needed:
     // the step is created before it is put into its track, and the track can get another rig.

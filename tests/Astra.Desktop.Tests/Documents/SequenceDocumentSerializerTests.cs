@@ -156,7 +156,7 @@ public class SequenceDocumentSerializerTests
         var root = json.RootElement;
 
         Assert.Equal("astra-sequence", root.GetProperty("format").GetString());
-        Assert.Equal(5, root.GetProperty("version").GetInt32());
+        Assert.Equal(6, root.GetProperty("version").GetInt32());
         Assert.Equal("M42 Session", root.GetProperty("name").GetString());
         Assert.Equal(JsonValueKind.Array, root.GetProperty("steps").ValueKind);
         Assert.Equal(["format", "version", "name", "steps"], root.EnumerateObject().Select(p => p.Name));
@@ -356,8 +356,8 @@ public class SequenceDocumentSerializerTests
     }
 
     [Theory]
-    [InlineData("6")]
     [InlineData("7")]
+    [InlineData("8")]
     [InlineData("999")]
     public async Task ANewerVersion_IsRejectedWithItsOwnMessage_WhateverElseIsInIt(string version)
     {
@@ -643,7 +643,7 @@ public class SequenceDocumentSerializerTests
             """
             {
               "format": "astra-sequence",
-              "version": 5,
+              "version": 6,
               "name": "Demo Session",
               "sharedEquipment": {
                 "mountId": "mount.eq6",

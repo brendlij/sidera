@@ -40,7 +40,8 @@ public sealed record SequenceDraftContext(
     SharedEquipmentDraft? Shared = null,
     IFocusMetricProvider? FocusMetrics = null,
     IEventPublisher? Events = null,
-    ILoggerFactory? Loggers = null
+    ILoggerFactory? Loggers = null,
+    IAcquisitionDefaultsSource? AcquisitionDefaults = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -124,8 +125,8 @@ public static class SequenceDraftBuilder
 
         return step switch
         {
-            ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}"),
-            RigExposureStepDraft e => new("Exposure", Seconds(e.Seconds)),
+            ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, e.CameraId)}"),
+            RigExposureStepDraft e => new("Exposure", $"{Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, rig?.CameraId)}"),
             DelayStepDraft d => new("Delay", Seconds(d.Seconds)),
             SlewStepDraft s => new("Slew", string.Create(
                 CultureInfo.InvariantCulture,
@@ -399,7 +400,7 @@ public static class SequenceDraftBuilder
         DeviceRegistry registry, AutofocusPlan plan, SequenceDraftContext? context, Orchestration? orchestration, AutofocusOrigin origin)
     {
         var action = AutofocusAction.ForRig(
-            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>());
+            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults);
         var description = new StepDescription(
             "Autofocus", origin == AutofocusOrigin.TrackStart ? "automatic · track start" : "automatic · after filter change");
         var built = new List<BuiltStep> { new(Guid.Empty, description, action, null, IsGenerated: true, AutofocusOrigin: origin) };
@@ -564,13 +565,17 @@ public static class SequenceDraftBuilder
         AutofocusStepDraft a => AutofocusAction.ForRig(
             registry, TryGetRig(context, a.RigId!.Value, out var autofocusRig) ? autofocusRig : null!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
-            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>()),
+            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults),
         RigAutofocusStepDraft a => AutofocusAction.ForRig(
             registry, rig!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
-            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>()),
-        ExposureStepDraft e => new CameraExposureAction(registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds)),
-        RigExposureStepDraft e => new CameraExposureAction(registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds)),
+            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults),
+        ExposureStepDraft e => new CameraExposureAction(
+            registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
+            context?.Loggers?.CreateLogger<CameraExposureAction>()),
+        RigExposureStepDraft e => new CameraExposureAction(
+            registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
+            context?.Loggers?.CreateLogger<CameraExposureAction>()),
         MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterAction(registry, c.FilterWheelId!.Value, c.SlotIndex),
         // Resolved here, at build time: the track names a rig, and the rig names its focuser and its filter wheel.
@@ -902,6 +907,7 @@ public static class SequenceDraftBuilder
                     break;
                 case RigExposureStepDraft e:
                     CheckDuration(e.Seconds, "Exposure", problems);
+                    CheckAcquisition(e.Acquisition, _trackRig?.CameraId, e.Seconds, problems);
                     break;
                 case DelayStepDraft d:
                     CheckDuration(d.Seconds, "Delay", problems);
@@ -939,6 +945,7 @@ public static class SequenceDraftBuilder
                 case ExposureStepDraft e:
                     CheckDevice<ICamera>(e.CameraId, "camera", problems);
                     CheckDuration(e.Seconds, "Exposure", problems);
+                    CheckAcquisition(e.Acquisition, e.CameraId, e.Seconds, problems);
                     break;
                 case RigExposureStepDraft:
                     problems.Add("An exposure with the camera of a rig can only be used inside a Rig Track.");
@@ -1279,6 +1286,21 @@ public static class SequenceDraftBuilder
             }
         }
 
+        // The acquisition settings of an exposure against the capabilities of its camera. A camera that is not connected has none
+        // that are known: then nothing is said, the step is not invalid because of that, and the run checks again before it exposes.
+        private void CheckAcquisition(AcquisitionIntent intent, DeviceId? cameraId, double seconds, List<string> problems)
+        {
+            if (cameraId is not { } id || !registry.TryGet(id, out var device) || device is not ICameraControl control
+                || !IsPositive(seconds) || seconds > TimeSpan.MaxValue.TotalSeconds)
+            {
+                return;
+            }
+
+            var plan = AcquisitionResolver.Resolve(
+                intent, context?.AcquisitionDefaults?.DefaultsFor(id), TimeSpan.FromSeconds(seconds), control.Capabilities, control.Settings);
+            problems.AddRange(plan.Problems);
+        }
+
         private static bool IsPositive(double value) => double.IsFinite(value) && value > 0;
 
         private static void CheckPositive(double value, string label, string unit, List<string> problems)
@@ -1310,6 +1332,53 @@ public static class SequenceDraftBuilder
 
     private static string Seconds(double seconds) =>
         string.Create(CultureInfo.InvariantCulture, $"{seconds:0.##} s");
+
+    /// <summary>
+    /// The explicit acquisition settings of an exposure for the row: " · Gain 100 · Bin 2x2", or " · Camera defaults" when it
+    /// overrides nothing. Only what the step sets is shown, never what the camera would inherit.
+    /// </summary>
+    public static string AcquisitionSummary(AcquisitionIntent intent, DeviceRegistry? registry = null, DeviceId? cameraId = null)
+    {
+        var parts = new List<string>();
+        if (intent.FrameType != FrameType.Light)
+        {
+            parts.Add(intent.FrameType.ToString());
+        }
+
+        if (intent.Gain is { } gain)
+        {
+            parts.Add($"Gain {gain}");
+        }
+
+        if (intent.Offset is { } offset)
+        {
+            parts.Add($"Offset {offset}");
+        }
+
+        if (intent.BinX is { } bx || intent.BinY is not null)
+        {
+            var x = intent.BinX ?? intent.BinY!.Value;
+            var y = intent.BinY ?? x;
+            parts.Add(string.Create(CultureInfo.InvariantCulture, $"Bin {x}×{y}"));
+        }
+
+        if (intent.Region is { } region)
+        {
+            parts.Add(region.IsFullFrame ? "Full frame" : $"Region {region}");
+        }
+
+        if (intent.ReadoutMode is { } readout)
+        {
+            parts.Add($"Readout {readout}");
+        }
+
+        if (intent.FastReadout is { } fast)
+        {
+            parts.Add(fast ? "Fast readout" : "Normal readout speed");
+        }
+
+        return parts.Count == 0 ? " · Camera defaults" : " · " + string.Join(" · ", parts);
+    }
 
     /// <summary>The title of a kind of step.</summary>
     public static string TitleOf(SequenceStepKind kind) => kind switch

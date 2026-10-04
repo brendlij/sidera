@@ -194,12 +194,12 @@ public class SessionPageTests
         Assert.Equal("Autofocus: track start + filter change", main.Autofocus);
         Assert.True(main.HasAutofocus);
         Assert.Equal(
-            [("Change Filter · Main Filter Wheel · Ha", false), ("Repeat × 40", false), ("Exposure · 300 s", true)],
+            [("Change Filter · Main Filter Wheel · Ha", false), ("Repeat × 40", false), ("Exposure · 300 s · Camera defaults", true)],
             main.Lines.Select(l => (l.Text, l.IsNested)));
 
         var wide = block.Lanes[1];
         Assert.Null(wide.Autofocus);
-        Assert.Equal([("Repeat × 120", false), ("Exposure · 60 s", true)], wide.Lines.Select(l => (l.Text, l.IsNested)));
+        Assert.Equal([("Repeat × 120", false), ("Exposure · 60 s · Camera defaults", true)], wide.Lines.Select(l => (l.Text, l.IsNested)));
     }
 
     [Fact]

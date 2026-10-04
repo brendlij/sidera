@@ -23,10 +23,18 @@ public interface IDevicePreferenceStore
 public static class DevicePreferences
 {
     public const string Gain = "camera.gain";
+    public const string GainName = "camera.gainName";
     public const string Offset = "camera.offset";
+    public const string OffsetName = "camera.offsetName";
     public const string BinX = "camera.binX";
     public const string BinY = "camera.binY";
+
+    /// <summary>"full" for the whole sensor, or "x,y,width,height" in binned pixels.</summary>
+    public const string Region = "camera.region";
+
+    /// <summary>The readout mode by its name: the list of modes can change, the name is what stays meaningful.</summary>
     public const string ReadoutMode = "camera.readoutMode";
+
     public const string FastReadout = "camera.fastReadout";
     public const string TargetTemperature = "camera.targetTemperature";
     public const string TrackingRate = "mount.trackingRate";
@@ -35,39 +43,111 @@ public static class DevicePreferences
     public const string Refraction = "mount.refraction";
     public const string TempComp = "focuser.tempComp";
 
-    /// <summary>The camera preferences of a set of settings: what was set on the camera, without the subframe and the cooler.</summary>
-    public static IReadOnlyDictionary<string, string> From(CameraSettings settings, IReadOnlyDictionary<string, string> existing)
+    /// <summary>
+    /// The acquisition defaults of a camera: the settings it normally takes frames with, which an exposure inherits for everything it does not
+    /// set itself. A gain or offset is a number, or the name of a choice for a camera whose gain is a list; the region and the readout mode
+    /// are kept in terms that stay valid when the camera changes (the whole sensor, a mode by its name).
+    /// </summary>
+    public static AcquisitionIntent AcquisitionDefaults(IReadOnlyDictionary<string, string> preferences)
     {
-        var result = new Dictionary<string, string>(existing);
-        Put(result, Gain, settings.Gain);
-        Put(result, Offset, settings.Offset);
-        Put(result, BinX, settings.BinX);
-        Put(result, BinY, settings.BinY);
-        Put(result, ReadoutMode, settings.ReadoutMode);
-        if (settings.FastReadout is { } fast)
+        AcquisitionRegion? region = null;
+        if (preferences.TryGetValue(Region, out var text))
         {
-            result[FastReadout] = fast ? "true" : "false";
+            if (text == "full")
+            {
+                region = AcquisitionRegion.Full;
+            }
+            else
+            {
+                var parts = text.Split(',');
+                if (parts.Length == 4
+                    && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var x)
+                    && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var y)
+                    && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var w)
+                    && int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var h)
+                    && x >= 0 && y >= 0 && w > 0 && h > 0)
+                {
+                    region = AcquisitionRegion.Of(x, y, w, h);
+                }
+            }
         }
 
-        if (settings.TargetTemperature is { } target)
+        return new AcquisitionIntent
         {
-            result[TargetTemperature] = target.ToString("R", CultureInfo.InvariantCulture);
+            Gain = Level(preferences, Gain, GainName),
+            Offset = Level(preferences, Offset, OffsetName),
+            BinX = Int(preferences, BinX),
+            BinY = Int(preferences, BinY),
+            Region = region,
+            ReadoutMode = preferences.TryGetValue(ReadoutMode, out var mode) && !string.IsNullOrWhiteSpace(mode) ? mode : null,
+            FastReadout = Bool(preferences, FastReadout),
+        };
+    }
+
+    /// <summary>The preferences with the settings that <paramref name="intent"/> sets replaced; what it does not set stays as it was.</summary>
+    public static IReadOnlyDictionary<string, string> WithAcquisition(IReadOnlyDictionary<string, string> existing, AcquisitionIntent intent)
+    {
+        var result = new Dictionary<string, string>(existing);
+        if (intent.Gain is { } gain)
+        {
+            PutLevel(result, Gain, GainName, gain);
+        }
+
+        if (intent.Offset is { } offset)
+        {
+            PutLevel(result, Offset, OffsetName, offset);
+        }
+
+        Put(result, BinX, intent.BinX);
+        Put(result, BinY, intent.BinY);
+        if (intent.Region is { } region)
+        {
+            result[Region] = region.IsFullFrame
+                ? "full"
+                : string.Create(CultureInfo.InvariantCulture, $"{region.X},{region.Y},{region.Width},{region.Height}");
+        }
+
+        if (intent.ReadoutMode is { } readout)
+        {
+            result[ReadoutMode] = readout;
+        }
+
+        if (intent.FastReadout is { } fast)
+        {
+            result[FastReadout] = fast ? "true" : "false";
         }
 
         return result;
     }
 
-    /// <summary>The change that applies the camera preferences; empty when there are none.</summary>
-    public static CameraSettings ToCameraChange(IReadOnlyDictionary<string, string> preferences) => new()
+    public static double? TargetTemperatureOf(IReadOnlyDictionary<string, string> preferences) => Double(preferences, TargetTemperature);
+
+    public static IReadOnlyDictionary<string, string> WithTargetTemperature(IReadOnlyDictionary<string, string> existing, double celsius) =>
+        new Dictionary<string, string>(existing) { [TargetTemperature] = celsius.ToString("R", CultureInfo.InvariantCulture) };
+
+    private static AcquisitionLevel? Level(IReadOnlyDictionary<string, string> preferences, string numberKey, string nameKey)
     {
-        Gain = Int(preferences, Gain),
-        Offset = Int(preferences, Offset),
-        BinX = Int(preferences, BinX),
-        BinY = Int(preferences, BinY),
-        ReadoutMode = Int(preferences, ReadoutMode),
-        FastReadout = Bool(preferences, FastReadout),
-        TargetTemperature = Double(preferences, TargetTemperature),
-    };
+        if (Int(preferences, numberKey) is { } number)
+        {
+            return AcquisitionLevel.OfNumber(number);
+        }
+
+        return preferences.TryGetValue(nameKey, out var name) && !string.IsNullOrWhiteSpace(name) ? AcquisitionLevel.OfName(name) : null;
+    }
+
+    private static void PutLevel(Dictionary<string, string> target, string numberKey, string nameKey, AcquisitionLevel level)
+    {
+        target.Remove(numberKey);
+        target.Remove(nameKey);
+        if (level.Name is { } name)
+        {
+            target[nameKey] = name;
+        }
+        else if (level.Number is { } number)
+        {
+            target[numberKey] = number.ToString(CultureInfo.InvariantCulture);
+        }
+    }
 
     public static IReadOnlyDictionary<string, string> From(TrackingRate? rate, GuideRates? guideRates, bool? refraction, IReadOnlyDictionary<string, string> existing)
     {

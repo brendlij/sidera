@@ -146,9 +146,38 @@ public sealed partial class SimulatedCamera : ICameraControl
         }
     }
 
-    public async Task<CameraFrame> ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default)
+    public Task<CameraFrame> ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default) =>
+        ExposeCoreAsync(duration, FrameType.Light, null, cancellationToken);
+
+    /// <summary>Applies the settings of the request and exposes; when a setting is refused no exposure is started.</summary>
+    public Task<CameraFrame> ExposeAsync(CameraExposureRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ExposeCoreAsync(request.Duration, request.FrameType, request.Change, cancellationToken);
+    }
+
+    private async Task<CameraFrame> ExposeCoreAsync(
+        TimeSpan duration, FrameType frameType, CameraSettings? change, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
+
+        lock (_gate)
+        {
+            if (_connectionState != DeviceConnectionState.Connected)
+            {
+                throw new InvalidOperationException("Camera is not connected.");
+            }
+        }
+
+        if (frameType is FrameType.Dark or FrameType.Bias && Capabilities.Value is { HasShutter: false })
+        {
+            throw new InvalidOperationException($"{Name} has no shutter, so it cannot take a {frameType.ToString().ToLowerInvariant()} frame.");
+        }
+
+        if (change is { IsEmpty: false })
+        {
+            await ApplyAsync(change, cancellationToken);
+        }
 
         lock (_gate)
         {
@@ -192,10 +221,15 @@ public sealed partial class SimulatedCamera : ICameraControl
             }
 
             SetElapsed(duration);
-            var frame = Sky is { } sky && PsfSigmaSource?.Invoke() is { } sigma
-                ? sky.Render(sigma, duration, Interlocked.Increment(ref _exposureCount))
-                : _frameGenerator.Generate(duration);
-            frame = ApplyGeometry(frame);
+            var frame = frameType switch
+            {
+                FrameType.Dark or FrameType.Bias => _frameGenerator.GenerateDark(duration),
+                FrameType.Flat => _frameGenerator.GenerateFlat(duration),
+                _ => Sky is { } sky && PsfSigmaSource?.Invoke() is { } sigma
+                    ? sky.Render(sigma, duration, Interlocked.Increment(ref _exposureCount))
+                    : _frameGenerator.Generate(duration),
+            };
+            frame = FinishFrame(frame, frameType);
             completed = true;
             return frame;
         }

@@ -457,7 +457,7 @@ public class SequenceDocumentViewModelTests
         var exposure = Assert.IsType<ExposureStepDraftViewModel>(repeat.Children[0]);
         Assert.Equal(exposureId, exposure.Id);
         Assert.Equal("45", exposure.ExposureText);
-        Assert.Equal("Main Camera · 45 s", exposure.Summary);
+        Assert.Equal("Main Camera · 45 s · Camera defaults", exposure.Summary);
         Assert.Equal(["1", "2", "2.1", "2.2", "3"], app.Draft.Rows.Select(r => r.NumberLabel));
         Assert.Same(app.Draft.Steps[0], app.Draft.SelectedStep); // a sensible first row
         Assert.True(app.Draft.IsValid, string.Join(" ", app.Draft.ValidationErrors));

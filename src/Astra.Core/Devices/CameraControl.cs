@@ -142,6 +142,15 @@ public interface ICameraControl : ICamera, ICapable<CameraCapabilities>, IObserv
     /// <exception cref="ArgumentException">A value is not supported or out of range; the message says which.</exception>
     /// <exception cref="InvalidOperationException">The camera is not connected, or it is exposing and the setting cannot change now.</exception>
     Task ApplyAsync(CameraSettings change, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies <see cref="CameraExposureRequest.Change"/> and takes the exposure as one operation. When the change cannot be
+    /// applied the exposure is not started, and what was already applied before the failing part is not undone: the camera keeps
+    /// the settings it has, which <see cref="Settings"/> reports. The camera is left as configured afterwards; nothing is
+    /// restored.
+    /// </summary>
+    /// <exception cref="ArgumentException">A setting is not supported or out of range.</exception>
+    Task<CameraFrame> ExposeAsync(CameraExposureRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The rules for a change of camera settings, the same for every backend and for the form that asks for one.</summary>

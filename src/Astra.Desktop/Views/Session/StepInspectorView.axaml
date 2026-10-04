@@ -27,6 +27,7 @@
                 </StackPanel>
                 <ctl:LabeledField Label="Camera"><ContentControl Content="{Binding Camera}" /></ctl:LabeledField>
                 <ctl:FieldRow Label="Exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                <session:AcquisitionSectionView DataContext="{Binding Acquisition}" />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
             </StackPanel>
         </DataTemplate>
@@ -39,6 +40,7 @@
                     <TextBlock Classes="secondary" Text="Uses the camera of the rig of this track." />
                 </StackPanel>
                 <ctl:FieldRow Label="Exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                <session:AcquisitionSectionView DataContext="{Binding Acquisition}" />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
             </StackPanel>
         </DataTemplate>

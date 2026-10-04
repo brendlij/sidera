@@ -57,8 +57,9 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
         _lifecycleLogger = new DeviceLifecycleLogger(EventBus, DeviceRegistry, LoggerFactory.CreateLogger<DeviceLifecycleLogger>());
         RigRegistry = new RigRegistry(DeviceRegistry);
         ResourceManager = new ResourceManager(LoggerFactory.CreateLogger<ResourceManager>());
+        AcquisitionDefaults = new AcquisitionDefaultsRegistry();
         DeviceOperations = new DeviceOperationService(
-            DeviceRegistry, ResourceManager, LoggerFactory.CreateLogger<DeviceOperationService>());
+            DeviceRegistry, ResourceManager, LoggerFactory.CreateLogger<DeviceOperationService>(), AcquisitionDefaults);
         SafePointCoordinator = new SafePointCoordinator(LoggerFactory.CreateLogger<SafePointCoordinator>());
         FocusMetrics = new SimulatedFocusMetricProvider();
         FrameAnalyzer = new FrameAnalyzer(analysisOptions, logger: LoggerFactory.CreateLogger<FrameAnalyzer>());
@@ -81,6 +82,12 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
 
     /// <summary>The one manager that all sequence runners of this runtime share.</summary>
     public ResourceManager ResourceManager { get; }
+
+    /// <summary>
+    /// What each camera normally takes frames with (gain, binning, region ...), as the application keeps it; exposures without
+    /// settings of their own resolve to these.
+    /// </summary>
+    public AcquisitionDefaultsRegistry AcquisitionDefaults { get; }
 
     /// <summary>Direct device operations, coordinated through <see cref="ResourceManager"/>.</summary>
     public DeviceOperationService DeviceOperations { get; }

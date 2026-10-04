@@ -54,6 +54,7 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PositionText))]
+    [NotifyPropertyChangedFor(nameof(PositionFraction))]
     public partial int Position { get; private set; }
 
     /// <summary>The absolute position to move to, as typed by the user.</summary>
@@ -68,6 +69,11 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
 
     /// <summary>"Idle" or "Moving".</summary>
     public string MotionText => IsMoving ? "Moving" : "Idle";
+
+    /// <summary>Where the focuser is within its range, from 0 to 1, for the bar of the page; 0 for a relative focuser.</summary>
+    public double PositionFraction => _focuser.IsAbsolute && _focuser.MaxPosition > _focuser.MinPosition
+        ? Math.Clamp((double)(Position - _focuser.MinPosition) / (_focuser.MaxPosition - _focuser.MinPosition), 0, 1)
+        : 0;
 
     /// <summary>The focuser can only move by steps: it has no position, no range and no target to move to.</summary>
     public bool IsRelative => !_focuser.IsAbsolute;

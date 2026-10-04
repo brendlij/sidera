@@ -90,6 +90,18 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
     [ObservableProperty]
     public partial bool IsParked { get; private set; }
 
+    /// <summary>Tracking is on or it is not; it is not a kind of movement.</summary>
+    [ObservableProperty]
+    public partial string TrackingText { get; private set; } = "Not tracking";
+
+    public StatusKind TrackingKind => IsTracking ? StatusKind.Ok : StatusKind.Neutral;
+
+    public bool ShowParkAndHome => ShowPark || ShowUnpark || ShowSetPark || ShowHome;
+
+    /// <summary>What the axes are doing: moving, stopped or parked. Independent of tracking.</summary>
+    [ObservableProperty]
+    public partial string MotionText { get; private set; } = string.Empty;
+
     public string TrackingButtonText => IsTracking ? "Stop tracking" : "Start tracking";
 
     [ObservableProperty]
@@ -122,11 +134,16 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
     [ObservableProperty]
     public partial bool Refraction { get; set; }
 
+    /// <summary>The rate of the jog pad in degrees per second.</summary>
     [ObservableProperty]
-    public partial string AxisRateText { get; set; } = "0.5";
+    public partial string JogRateText { get; set; } = "0.5";
 
     [ObservableProperty]
     public partial string AxisRateHint { get; private set; } = string.Empty;
+
+    /// <summary>A button of the jog pad is held down.</summary>
+    [ObservableProperty]
+    public partial bool IsJogging { get; private set; }
 
     /// <summary>What the mount reports now, line by line (only what it reports).</summary>
     [ObservableProperty]
@@ -173,6 +190,10 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
 
         var t = _mount.Telemetry;
         IsTracking = t?.Tracking ?? false;
+        OnPropertyChanged(nameof(TrackingKind));
+        OnPropertyChanged(nameof(ShowParkAndHome));
+        TrackingText = !IsTracking ? "Not tracking" : t?.Rate is { } trackingRate ? $"Tracking · {trackingRate}" : "Tracking";
+        MotionText = t is null ? "Not connected" : t.Slewing ? "Moving" : t.AtPark ? "Parked" : "Stopped";
         IsParked = t?.AtPark ?? false;
         OnPropertyChanged(nameof(TrackingButtonText));
         if (!_editingRates)
@@ -221,7 +242,6 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
             lines.Add(new("Altitude / azimuth", string.Create(CultureInfo.InvariantCulture, $"{h.AltitudeDegrees:0.##}° / {h.AzimuthDegrees:0.##}°")));
         }
 
-        lines.Add(new("Tracking", t.Tracking ? t.Rate is { } r ? $"On ({r})" : "On" : "Off"));
         lines.Add(new("Parked", t.AtPark ? "Yes" : "No"));
         if (t.AtHome is { } home)
         {
@@ -314,7 +334,7 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
         foreach (var command in new IRelayCommand[]
         {
             ToggleTrackingCommand, ApplyTrackingRateCommand, ParkCommand, UnparkCommand, SetParkCommand, FindHomeCommand, SyncCommand,
-            SlewAltAzCommand, PulseCommand, ApplyGuideRatesCommand, ApplyRefractionCommand, MoveAxisCommand, StopAxesCommand,
+            SlewAltAzCommand, PulseCommand, ApplyGuideRatesCommand, ApplyRefractionCommand,
         })
         {
             command.NotifyCanExecuteChanged();
@@ -404,36 +424,143 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
         SavePreferences(existing => DevicePreferences.From(null, null, Refraction, existing));
     });
 
-    // axis: "Primary+", "Primary-", "Secondary+", "Secondary-"
-    [RelayCommand(CanExecute = nameof(CanOperate))]
-    private Task MoveAxisAsync(string? which) => OperateAsync(() =>
+    /// <summary>Stops every movement, whatever is running and whatever else is busy. Tracking is not a movement and stays as it is.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task StopAsync()
     {
-        if (which is null || which.Length < 2 || !TryNumber(AxisRateText, out var rate))
+        ClearError();
+        try
         {
-            throw new FormatException("The rate must be a number of degrees per second.");
+            await _mount.StopAsync();
         }
+        catch (Exception ex)
+        {
+            ReportError(ex);
+        }
+        finally
+        {
+            Update();
+        }
+    }
 
-        var axis = which.StartsWith("Secondary", StringComparison.Ordinal) ? MountAxis.Secondary : MountAxis.Primary;
-        return _mount.MoveAxisAsync(axis, which.EndsWith('-') ? -Math.Abs(rate) : Math.Abs(rate));
-    });
-
-    [RelayCommand(CanExecute = nameof(CanOperate))]
-    private Task StopAxesAsync() => OperateAsync(async () =>
+    // The jog pad moves an axis only while a button is held: pressing starts the movement at the rate typed, releasing sets the axis
+    // back to 0. N and S are the secondary axis (declination), E and W the primary one (right ascension); the corners are both.
+    // These are not guarded by CanOperate: releasing must always be possible, and so must pressing while something else is shown busy.
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task JogStartAsync(string? direction)
     {
-        var c = _capabilities;
-        if (c is null)
+        if (_capabilities is null || direction is null)
         {
             return;
         }
 
-        foreach (var axis in new[] { MountAxis.Primary, MountAxis.Secondary })
+        ClearError();
+        try
         {
-            if (c.CanMove(axis))
+            if (!TryNumber(JogRateText, out var rate) || rate <= 0)
+            {
+                throw new FormatException("The rate must be a positive number of degrees per second.");
+            }
+
+            var moves = JogMoves(direction, rate);
+            if (moves.Count == 0)
+            {
+                return;
+            }
+
+            IsJogging = true;
+            foreach (var (axis, signedRate) in moves)
+            {
+                await _mount.MoveAxisAsync(axis, signedRate);
+            }
+        }
+        catch (Exception ex)
+        {
+            IsJogging = false;
+            ReportError(ex);
+            await StopQuietlyAsync();
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task JogEndAsync(string? direction)
+    {
+        if (direction is null || !IsJogging)
+        {
+            return;
+        }
+
+        IsJogging = false;
+        try
+        {
+            foreach (var (axis, _) in JogMoves(direction, 1))
             {
                 await _mount.MoveAxisAsync(axis, 0);
             }
         }
-    });
+        catch (Exception ex)
+        {
+            ReportError(ex);
+            await StopQuietlyAsync();
+        }
+        finally
+        {
+            Update();
+        }
+    }
+
+    // When a jog cannot be released cleanly, everything is stopped.
+    private async Task StopQuietlyAsync()
+    {
+        try
+        {
+            await _mount.StopAsync();
+        }
+        catch
+        {
+            // The error that led here is shown; a failed stop is shown by the next refresh of the state.
+        }
+    }
+
+    private List<(MountAxis Axis, double Rate)> JogMoves(string direction, double rate)
+    {
+        var moves = new List<(MountAxis, double)>();
+        var c = _capabilities;
+        if (c is null)
+        {
+            return moves;
+        }
+
+        void Add(MountAxis axis, double signed)
+        {
+            if (c.CanMove(axis))
+            {
+                moves.Add((axis, signed));
+            }
+        }
+
+        if (direction.Contains('E'))
+        {
+            Add(MountAxis.Primary, rate);
+        }
+
+        if (direction.Contains('W'))
+        {
+            Add(MountAxis.Primary, -rate);
+        }
+
+        if (direction.Contains('N'))
+        {
+            Add(MountAxis.Secondary, rate);
+        }
+
+        if (direction.Contains('S'))
+        {
+            Add(MountAxis.Secondary, -rate);
+        }
+
+        return moves;
+    }
 
     protected override async Task ApplyPreferencesAsync()
     {

@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace Astra.Desktop.Views.Equipment;
 
-public partial class DeviceConfigurationView : UserControl
+public partial class EquipmentLandingView : UserControl
 {
-    public DeviceConfigurationView()
+    public EquipmentLandingView()
     {
         InitializeComponent();
     }

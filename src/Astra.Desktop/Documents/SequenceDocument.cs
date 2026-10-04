@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Astra.Core.Devices;
 
 namespace Astra.Desktop.Documents;
 
@@ -21,9 +22,9 @@ public sealed record SequenceDocument(
     /// <summary>
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
     /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps
-    /// before 3, autofocus before 4, the autofocus policy of a track before 5) is simply absent from a document read from it.
+    /// before 3, autofocus before 4, the autofocus policy of a track before 5, the acquisition settings of an exposure before 6) is simply absent from a document read from it.
     /// </summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     public string Format => FormatId;
     public int Version => CurrentVersion;
@@ -42,7 +43,8 @@ public abstract record DocumentLeafStep(Guid Id) : DocumentStep(Id);
 /// Device ids are kept as written, <c>null</c> for "no device selected". Whether a device exists is not the
 /// document's concern: a document that names equipment this installation does not have is still a valid document.
 /// </remarks>
-public sealed record ExposureDocumentStep(Guid Id, string? CameraId, double ExposureSeconds) : DocumentLeafStep(Id);
+public sealed record ExposureDocumentStep(Guid Id, string? CameraId, double ExposureSeconds, AcquisitionIntent? Acquisition = null)
+    : DocumentLeafStep(Id);
 
 public sealed record DelayDocumentStep(Guid Id, double DurationSeconds) : DocumentLeafStep(Id);
 
@@ -87,7 +89,7 @@ public sealed record RigAutofocusDocumentStep(Guid Id, double ExposureSeconds, i
 public sealed record RepeatDocumentStep(Guid Id, int Count, IReadOnlyList<DocumentLeafStep> Children) : DocumentStep(Id);
 
 /// <summary>An exposure inside a rig track, with the camera of that track's rig.</summary>
-public sealed record RigExposureDocumentStep(Guid Id, double ExposureSeconds) : DocumentLeafStep(Id);
+public sealed record RigExposureDocumentStep(Guid Id, double ExposureSeconds, AcquisitionIntent? Acquisition = null) : DocumentLeafStep(Id);
 
 /// <summary>
 /// When the rig of a track focuses by itself: see <c>RigAutofocusPolicyDraft</c>. A track without one does not. Added

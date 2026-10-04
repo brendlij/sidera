@@ -32,6 +32,7 @@
             <!-- The run: its state, and its controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                 <ctl:StatusIndicator Kind="{Binding Sequencer.StateKind}" Text="{Binding Sequencer.StateText}" />
+                <Border Width="1" Height="24" Background="{DynamicResource AstraLine}" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Content="Run" AutomationProperties.Name="Run Sequence" Command="{Binding Sequencer.RunCommand}" />
                     <Button Content="Pause" Command="{Binding Sequencer.PauseCommand}" IsVisible="{Binding !Sequencer.IsPauseState}" />
@@ -62,8 +63,8 @@
 
         <Grid Grid.Row="2" ColumnSpacing="24">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*" />
-                <ColumnDefinition Width="2*" MinWidth="300" MaxWidth="380" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
@@ -96,8 +97,8 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- The inspector of the selected step -->
-            <Border Grid.Column="1" Classes="panel">
+            <!-- The inspector of the selected step: there only while a step is selected, so that the workflow has the width otherwise -->
+            <Border Grid.Column="1" Classes="panel" Width="380" IsVisible="{Binding Draft.SelectedStep, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <session:StepInspectorView DataContext="{Binding Draft}" />
             </Border>
         </Grid>

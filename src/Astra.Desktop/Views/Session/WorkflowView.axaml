@@ -129,9 +129,15 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-            <ctl:EmptyState Icon="{StaticResource IconSession}" IsVisible="{Binding Draft.IsEmpty}" Margin="0,48"
-                            Title="No steps yet"
-                            Message="Add a step to start a session: slew, start guiding, expose, dither.">
+            <!-- An empty session: a clear place to begin, in the middle of the space -->
+            <ctl:EmptyState Icon="{StaticResource IconSession}" IsVisible="{Binding Draft.IsEmpty}" Margin="0,120"
+                            Title="Create your imaging session"
+                            Message="Build a workflow from exposures, guiding, mount movement, autofocus and Multi-Rig blocks.">
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <Button Classes="primary" Content="+ Add first step" Command="{Binding Draft.AddStepCommand}"
+                            CommandParameter="{x:Static app:SequenceStepKind.Exposure}" HorizontalAlignment="Center" AutomationProperties.Name="Add first step" />
+                    <Button Classes="ghost" Content="Open existing sequence" Command="{Binding Document.OpenCommand}" HorizontalAlignment="Center" />
+                </StackPanel>
             </ctl:EmptyState>
         </StackPanel>
 

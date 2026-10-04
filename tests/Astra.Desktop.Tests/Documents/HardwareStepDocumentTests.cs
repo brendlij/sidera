@@ -129,7 +129,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
         using var json = JsonDocument.Parse(await Write(Everything()));
         var steps = json.RootElement.GetProperty("steps").EnumerateArray().ToList();
 
-        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
         Assert.Equal(["type", "id", "focuserId", "position"], steps[0].EnumerateObject().Select(p => p.Name));
         Assert.Equal(["type", "id", "filterWheelId", "slotIndex"], steps[1].EnumerateObject().Select(p => p.Name));
         var track = steps[3].GetProperty("tracks")[0].GetProperty("steps").EnumerateArray().ToList();
@@ -178,7 +178,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 5,
+              "version": 6,
               "steps": [
                 {
                   "type": "changeFilter",
@@ -230,7 +230,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
 
         Assert.IsType<MultiRigDocumentStep>(Assert.Single(loaded.Steps));
         using var json = JsonDocument.Parse(rewritten);
-        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
         Assert.Equal(loaded.Steps, (await Read(rewritten)).Steps.ToList(), new StructuralComparer());
     }
 
@@ -241,8 +241,8 @@ public sealed class HardwareStepDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData(6)]
     [InlineData(7)]
+    [InlineData(8)]
     public async Task ANewerVersionThanFive_IsRejectedClearly(int version)
     {
         var ex = await Rejects(Doc(version, MoveFocuser(A)));
@@ -465,7 +465,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Hardware.astraseq"));
-        Assert.Contains("\"version\": 5", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 6", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"rigMoveFocuser\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
@@ -505,7 +505,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Old2");
         app.Draft.Rows.OfType<RigExposureStepDraftViewModel>().First().ExposureText = "5";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 5", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 6", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
     }
 
     [Fact]

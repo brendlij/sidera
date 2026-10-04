@@ -210,7 +210,7 @@ public class MultiRigEditingTests
         var f = Build(host);
 
         Assert.IsType<RigExposureStepDraftViewModel>(f.WideExposure);
-        Assert.Equal(("Exposure", "60 s"), (f.WideExposure.Title, f.WideExposure.Summary));
+        Assert.Equal(("Exposure", "60 s · Camera defaults"), (f.WideExposure.Title, f.WideExposure.Summary));
         Assert.Equal(("Wide Rig", "Wide Camera"), (f.Wide.Title, f.Wide.Summary));
         Assert.IsNotType<ExposureStepDraftViewModel>(f.WideExposure); // the exposure with a camera has a picker, this has none
         Assert.Equal("2.1.1.1", f.MainExposure.NumberLabel);

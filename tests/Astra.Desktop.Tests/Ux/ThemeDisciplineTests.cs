@@ -58,11 +58,11 @@ public class ThemeDisciplineTests
         foreach (var page in new[]
                  {
                      "Dashboard/DashboardView", "Session/SessionView", "Session/WorkflowView", "Session/StepInspectorView",
-                     "Session/MultiRigEditorView", "Session/ExecutionTracksView", "Equipment/EquipmentView", "Equipment/EquipmentModeSelector",
-                     "Equipment/DeviceBrowserView", "Equipment/SelectedDeviceDetailsView", "Equipment/DeviceDetailShell",
-                     "Equipment/RigBrowserView", "Equipment/RigDetailsView", "Equipment/DeviceEditorView", "Equipment/DeviceConfigurationView", "Equipment/DeviceDetails/CameraDetailsView",
-                     "Equipment/DeviceDetails/FocuserDetailsView", "Equipment/DeviceDetails/FilterWheelDetailsView",
-                     "Equipment/DeviceDetails/MountDetailsView", "Equipment/DeviceDetails/GuiderDetailsView",
+                     "Session/MultiRigEditorView", "Session/ExecutionTracksView", "Equipment/EquipmentView", "Equipment/EquipmentBreadcrumbView",
+                     "Equipment/EquipmentLandingView", "Equipment/RigOverviewView", "Equipment/DeviceWorkspaceView", "Equipment/DeviceEditorView",
+                     "Equipment/Workspaces/DeviceHeaderView", "Equipment/Workspaces/DriverSectionView", "Equipment/Workspaces/CameraWorkspaceView",
+                     "Equipment/Workspaces/MountWorkspaceView", "Equipment/Workspaces/FocuserWorkspaceView",
+                     "Equipment/Workspaces/FilterWheelWorkspaceView", "Equipment/Workspaces/GuiderWorkspaceView",
                      "Imaging/ImagingView", "Imaging/FrameMetricsView",
                      "Diagnostics/DiagnosticsView", "Settings/SettingsView", "Shell/SidebarView",
                  })
