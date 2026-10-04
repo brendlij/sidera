@@ -40,8 +40,8 @@
         <StackPanel Grid.Row="1" Spacing="8">
             <!-- PHD2 is reached over the network: where it listens is all that is set up here; its equipment is set up in PHD2 -->
             <Grid ColumnDefinitions="*,140,Auto" ColumnSpacing="8" IsVisible="{Binding IsPhd2Selected}">
-                <ctl:LabeledField Label="PHD2 host"><TextBox Text="{Binding Phd2Host}" AutomationProperties.Name="PHD2 host" /></ctl:LabeledField>
-                <ctl:LabeledField Grid.Column="1" Label="Port"><TextBox Text="{Binding Phd2PortText}" AutomationProperties.Name="PHD2 port" /></ctl:LabeledField>
+                <ctl:LabeledField Label="PHD2 host"><TextBox Text="{Binding Phd2Host}" IsEnabled="{Binding CanChoose}" AutomationProperties.Name="PHD2 host" /></ctl:LabeledField>
+                <ctl:LabeledField Grid.Column="1" Label="Port"><TextBox Text="{Binding Phd2PortText}" IsEnabled="{Binding CanChoose}" AutomationProperties.Name="PHD2 port" /></ctl:LabeledField>
                 <Button Grid.Column="2" Content="Save" Command="{Binding SavePhd2Command}" VerticalAlignment="Bottom" AutomationProperties.Name="Save PHD2 settings"
                         ToolTip.Tip="Keeps the host and the port; the guider must be disconnected" />
             </Grid>

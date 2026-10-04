@@ -31,6 +31,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 {
     /// <param name="store">Where sequence documents are read and written; the file store of the current format by default.</param>
     /// <param name="filePicker">How the user chooses sequence files; by default nothing can be chosen.</param>
+    /// <param name="withDemoSequence">Whether a start with equipment gets the demo sequence; the application starts with an empty session.</param>
     /// <param name="equipmentManagement">What lets the user add, edit and remove devices; without it the equipment page only shows the devices of the host.</param>
     public MainViewModel(
         SideraRuntimeHost host,
@@ -41,7 +42,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         LogInfo? logInfo = null,
         IFolderOpener? folderOpener = null,
         IClipboardService? clipboard = null,
-        EquipmentManagement? equipmentManagement = null)
+        EquipmentManagement? equipmentManagement = null,
+        bool withDemoSequence = true)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -51,7 +53,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
         SequenceDraft = new SequenceDraftViewModel(
-            host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 ? [] : defaults.InitialSteps(),
+            host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 || !withDemoSequence ? [] : defaults.InitialSteps(),
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults);
@@ -99,7 +101,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         // The demo is a quick start: when it is added to an installation whose session is still empty and untouched, the
         // session gets the demo sequence that a first start with equipment always had.
-        if (equipmentManagement is not null)
+        if (equipmentManagement is not null && withDemoSequence)
         {
             equipmentManagement.Service.Changed += (_, change) =>
             {

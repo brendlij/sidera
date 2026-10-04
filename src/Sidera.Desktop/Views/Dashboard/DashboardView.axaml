@@ -95,8 +95,26 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Right: the latest image -->
-                <Border Grid.Column="1" Classes="panel" VerticalAlignment="Top" MinWidth="280">
+                <!-- Right: the latest image, and the guide graph when the guider measures -->
+                <StackPanel Grid.Column="1" Spacing="24" VerticalAlignment="Top" MinWidth="280">
+                <Border Classes="panel" IsVisible="{Binding HasGuider}">
+                    <StackPanel Spacing="12" DataContext="{Binding Guider}" x:DataType="vm:GuiderViewModel">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="eyebrow" Text="GUIDING" />
+                            <TextBlock Grid.Column="1" Classes="meta" Text="{Binding GuidingState}" />
+                        </Grid>
+                        <ctl:GuideGraph Height="160" History="{Binding GraphHistory}" Version="{Binding GraphVersion}"
+                                        WindowSeconds="{Binding GraphWindowSeconds}" InArcseconds="{Binding GraphInArcseconds}"
+                                        AutomationProperties.Name="Guide error graph" />
+                        <StackPanel Orientation="Horizontal" Spacing="24">
+                            <StackPanel><TextBlock Classes="meta" Text="RMS" /><TextBlock Classes="value" Text="{Binding RmsText}" /></StackPanel>
+                            <StackPanel><TextBlock Classes="meta" Text="RA" /><TextBlock Classes="value" Text="{Binding RmsRaText}" /></StackPanel>
+                            <StackPanel><TextBlock Classes="meta" Text="Dec" /><TextBlock Classes="value" Text="{Binding RmsDecText}" /></StackPanel>
+                            <StackPanel><TextBlock Classes="meta" Text="SNR" /><TextBlock Classes="value" Text="{Binding SnrText}" /></StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                <Border Classes="panel">
                     <StackPanel Spacing="12" DataContext="{Binding Imaging}" x:DataType="vm:ImagingViewModel">
                         <TextBlock Classes="eyebrow" Text="LATEST IMAGE" />
                         <Border Classes="preview" MinHeight="200">
@@ -116,6 +134,7 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+                </StackPanel>
             </Grid>
 
             <!-- What the session shares -->

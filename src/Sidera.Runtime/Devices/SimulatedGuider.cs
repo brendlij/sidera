@@ -23,7 +23,7 @@ namespace Sidera.Runtime.Devices;
 /// published. Calls that find the device already in their target state do nothing.
 /// </para>
 /// </summary>
-public sealed class SimulatedGuider : IDitherGuider, IGuidingSettler
+public sealed class SimulatedGuider : IDitherGuider, IGuidingSettler, IGuiderControl
 {
     private static readonly TimeSpan DefaultTransitionDuration = TimeSpan.FromMilliseconds(100);
 
@@ -48,6 +48,11 @@ public sealed class SimulatedGuider : IDitherGuider, IGuidingSettler
     private TaskCompletionSource _guidingInterrupted = NewSignal();
     private TimeSpan? _disturbanceStart;
     private double _disturbancePixels;
+    private CancellationTokenSource? _sampling;
+    private readonly Random _random = new();
+    private double _raPixels;
+    private double _decPixels;
+    private GuidingTelemetry? _telemetry;
 
     public SimulatedGuider(
         DeviceId id,
@@ -451,6 +456,165 @@ public sealed class SimulatedGuider : IDitherGuider, IGuidingSettler
         _guidingInterrupted = NewSignal();
     }
 
+
+    // ---- Measurements: simulated guide samples for the graph, while connected and guiding (with the real clock only).
+
+    /// <summary>Arcseconds per pixel of the simulated guide camera.</summary>
+    public const double PixelScaleArcsecPerPixel = 3.8;
+
+    private static readonly TimeSpan MeasurementInterval = TimeSpan.FromMilliseconds(500);
+
+    public GuidingHistory History { get; } = new();
+
+    public GuidingTelemetry? Telemetry
+    {
+        get { lock (_gate) { return _telemetry; } }
+    }
+
+    public GuiderInfo? Info =>
+        ConnectionState == DeviceConnectionState.Connected
+            ? new GuiderInfo("Simulator", "Simulated guide camera", "Simulated mount", true, true)
+            : null;
+
+    public DeviceCapabilities<GuiderCapabilities> Capabilities
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _connectionState == DeviceConnectionState.Connected
+                    ? DeviceCapabilities<GuiderCapabilities>.Of(new GuiderCapabilities
+                    {
+                        Driver = new DriverMetadata("Simulator", "Simulated guider", "Simulator", "1.0", null),
+                        CanGuide = true,
+                        CanDither = true,
+                        CanSettle = true,
+                        CanPause = false,
+                        ProvidesGuideTelemetry = true,
+                    })
+                    : DeviceCapabilities<GuiderCapabilities>.Unknown;
+            }
+        }
+    }
+
+    public event EventHandler? StateChanged;
+
+    public event EventHandler? CapabilitiesChanged;
+
+    public Task RefreshAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task PauseGuidingAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("The simulated guider cannot pause.");
+
+    public Task ResumeGuidingAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("The simulated guider cannot pause.");
+
+    private void OnConnectionChanged(DeviceConnectionState state)
+    {
+        CancellationTokenSource? old;
+        CancellationTokenSource? started = null;
+        lock (_gate)
+        {
+            old = _sampling;
+            _sampling = null;
+            if (state == DeviceConnectionState.Connected && _clock is SystemSimulatedClock)
+            {
+                started = _sampling = new CancellationTokenSource();
+            }
+
+            if (state != DeviceConnectionState.Connected)
+            {
+                _telemetry = null;
+            }
+        }
+
+        old?.Cancel();
+        old?.Dispose();
+        if (state == DeviceConnectionState.Connected)
+        {
+            History.Clear();
+            _raPixels = _decPixels = 0;
+        }
+
+        if (started is not null)
+        {
+            _ = Task.Run(() => SampleLoopAsync(started.Token));
+        }
+
+        CapabilitiesChanged?.Invoke(this, EventArgs.Empty);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task SampleLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(MeasurementInterval);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                TakeSample();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disconnected.
+        }
+    }
+
+    private void TakeSample()
+    {
+        double? disturbance = null;
+        lock (_gate)
+        {
+            if (_connectionState != DeviceConnectionState.Connected || _guidingState is not (GuidingState.Guiding or GuidingState.Dithering))
+            {
+                return;
+            }
+
+            if (_disturbanceStart is { } start && _clock.Now >= start)
+            {
+                disturbance = _disturbancePixels * Math.Pow(0.5, (_clock.Now - start) / TimeSpan.FromSeconds(2));
+            }
+        }
+
+        // A damped random walk with a slow periodic error, plus the disturbance of a dither in right ascension.
+        _raPixels = 0.8 * _raPixels + Gauss(0.09) + 0.08 * Math.Sin(Environment.TickCount64 / 6000.0);
+        _decPixels = 0.85 * _decPixels + Gauss(0.05);
+        var ra = _raPixels + (disturbance ?? 0);
+        var dec = _decPixels;
+        var snr = 28 + Gauss(1.5);
+        var now = DateTimeOffset.UtcNow;
+        History.Add(new GuidingSample(
+            now, ra, dec, ra * PixelScaleArcsecPerPixel, dec * PixelScaleArcsecPerPixel,
+            ra * -300, dec * 200, snr));
+
+        var rms = History.Rms(TimeSpan.FromSeconds(60));
+        var distance = Math.Sqrt(ra * ra + dec * dec);
+        lock (_gate)
+        {
+            _telemetry = new GuidingTelemetry
+            {
+                Rms = rms,
+                StarSnr = snr,
+                StarMass = 42000,
+                ExposureSeconds = 0.5,
+                PixelScaleArcsecPerPixel = PixelScaleArcsecPerPixel,
+                Settle = GuidingSettleStatus.None with { DistancePixels = distance },
+                Time = now,
+            };
+        }
+    }
+
+    private double Gauss(double sigma)
+    {
+        lock (_random)
+        {
+            var u1 = 1.0 - _random.NextDouble();
+            var u2 = _random.NextDouble();
+            return sigma * Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+        }
+    }
+
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Called while holding _gate.
@@ -481,6 +645,7 @@ public sealed class SimulatedGuider : IDitherGuider, IGuidingSettler
         }
 
         await PublishConnectionAsync(previous, state, cancellationToken);
+        OnConnectionChanged(state);
     }
 
     private async Task SetGuidingStateAsync(GuidingState state, CancellationToken cancellationToken)
@@ -493,6 +658,7 @@ public sealed class SimulatedGuider : IDitherGuider, IGuidingSettler
         }
 
         await PublishGuidingAsync(previous, state, cancellationToken);
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private Task PublishConnectionAsync(

@@ -146,7 +146,7 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanDisconnect))]
     private Task DisconnectAsync() => RunAsync(() => Host.DeviceOperations.DisconnectAsync(Id));
 
-    protected virtual bool CanConnect() => !IsSequenceRunning && ConnectionState == DeviceConnectionState.Disconnected;
+    protected virtual bool CanConnect() => !IsSequenceRunning && ConnectionState is DeviceConnectionState.Disconnected or DeviceConnectionState.Faulted;
 
     protected virtual bool CanDisconnect() => !IsSequenceRunning && IsConnected;
 

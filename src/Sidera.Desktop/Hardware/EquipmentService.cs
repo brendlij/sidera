@@ -129,7 +129,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
             return "The device is not loaded.";
         }
 
-        return device.ConnectionState == DeviceConnectionState.Disconnected ? null : "Disconnect the device to change it.";
+        return device.ConnectionState is DeviceConnectionState.Disconnected or DeviceConnectionState.Faulted ? null : "Disconnect the device to change it.";
     }
 
     /// <summary>A sentence about why the device cannot be removed now, or <c>null</c> when it can.</summary>

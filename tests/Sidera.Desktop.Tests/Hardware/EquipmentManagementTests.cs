@@ -926,6 +926,37 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheDriverOfASlot_CannotBeChangedWhileItsDeviceIsConnected_AndCanAgainAfterTheDisconnect()
+    {
+        var (vm, service, host) = CreateApp();
+        service.Add(DeviceConfiguration.Simulator("camera.main", "Camera", DeviceType.Camera));
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+        Assert.True(slot.CanChoose);
+
+        await host.DeviceOperations.ConnectAsync(new DeviceId("camera.main"));
+        Assert.False(slot.CanChoose);
+        Assert.False(slot.RescanCommand.CanExecute(null));
+
+        await host.DeviceOperations.DisconnectAsync(new DeviceId("camera.main"));
+        Assert.True(slot.CanChoose);
+    }
+
+    [Fact]
+    public void AFaultedDevice_CanBeConnectedAgain_AndItsDriverChanged()
+    {
+        var (vm, service, _) = CreateApp();
+        service.Add(DeviceConfiguration.Simulator("guider.main", "Guider", DeviceType.Guider));
+        var slot = Slot(vm.Equipment, DeviceType.Guider);
+        var guider = slot.Device!;
+
+        typeof(DeviceViewModelBase).GetProperty(nameof(DeviceViewModelBase.ConnectionState))!.SetValue(guider, DeviceConnectionState.Faulted);
+
+        Assert.True(guider.ConnectCommand.CanExecute(null));
+        Assert.True(slot.CanChoose);
+        Assert.Null(service.WhyCannotEdit("guider.main"));
+    }
+
+    [Fact]
     public void TheHostAndThePortOfAPhd2Guider_CanBeChangedWhileItIsDisconnected_AndAreShownWhenItIsLoaded()
     {
         var stored = new EquipmentConfiguration(
