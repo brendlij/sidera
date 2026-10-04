@@ -21,28 +21,37 @@
     </UserControl.DataTemplates>
 
     <!-- The devices by kind, one quiet row each: the name and a dot for the connection. Selecting a row shows it in the detail. -->
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <ItemsControl ItemsSource="{Binding Sections}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel Spacing="16" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:EquipmentSection">
-                    <StackPanel Spacing="4">
-                        <TextBlock Classes="eyebrow" Margin="12,0,0,4"
-                                   Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}" />
-                        <ItemsControl ItemsSource="{Binding Items}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Spacing="2" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                        </ItemsControl>
-                    </StackPanel>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-    </ScrollViewer>
+    <Grid RowDefinitions="Auto,*" RowSpacing="16">
+        <Button Classes="secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Command="{Binding AddDeviceCommand}"
+                IsVisible="{Binding CanManage}" AutomationProperties.Name="Add device">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource IconAdd}" />
+                <TextBlock Text="Add device" VerticalAlignment="Center" />
+            </StackPanel>
+        </Button>
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Sections}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="16" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:EquipmentSection">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="eyebrow" Margin="12,0,0,4"
+                                       Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}" />
+                            <ItemsControl ItemsSource="{Binding Items}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
 </UserControl>

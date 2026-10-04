@@ -38,7 +38,7 @@ public sealed class MoveFocuserAction : IResourceAwareSequenceStep
     /// <exception cref="ArgumentOutOfRangeException">The target is outside the range of the focuser.</exception>
     public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
     {
-        var focuser = DeviceLookup.Resolve<IFocuser>(_registry, FocuserId, "focuser");
+        var focuser = DeviceLookup.ResolveAbsoluteFocuser(_registry, FocuserId);
 
         if (focuser.ConnectionState != DeviceConnectionState.Connected)
         {

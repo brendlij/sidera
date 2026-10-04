@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:disc="using:Astra.Ascom.Discovery"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             x:Class="Astra.Desktop.Views.Equipment.DeviceEditorView"
+             x:DataType="vm:DeviceEditorViewModel">
+
+    <!--
+        The form for adding a device or changing one that is not connected: the kind, the backend, for ASCOM the driver
+        (found on this computer, or a ProgId typed in), the name and the id. Nothing is connected while it is open.
+    -->
+    <Border Classes="panel" Background="{DynamicResource AstraBg3}" Width="520" MaxHeight="760">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="16">
+                <TextBlock Classes="page-title" Text="{Binding Title}" />
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Kind">
+                        <ComboBox ItemsSource="{Binding TypeChoices}" SelectedItem="{Binding SelectedType}" IsEnabled="{Binding CanChangeKind}"
+                                  HorizontalAlignment="Stretch" AutomationProperties.Name="Kind of device">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DeviceTypeChoice">
+                                    <TextBlock Text="{Binding Title}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Backend">
+                        <ComboBox ItemsSource="{Binding BackendChoices}" SelectedItem="{Binding SelectedBackend}" IsEnabled="{Binding CanChangeKind}"
+                                  HorizontalAlignment="Stretch" AutomationProperties.Name="Backend">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BackendChoice">
+                                    <TextBlock Text="{Binding Title}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                </Grid>
+
+                <!-- ASCOM: the driver -->
+                <StackPanel Spacing="12" IsVisible="{Binding IsAscom}">
+                    <ctl:LabeledField Label="ASCOM driver">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <ComboBox ItemsSource="{Binding Drivers}" SelectedItem="{Binding SelectedDriver}" HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="ASCOM driver">
+                                <ComboBox.Styles>
+                                    <Style Selector="ComboBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{ReflectionBinding Name}" />
+                                    </Style>
+                                </ComboBox.Styles>
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="disc:AscomDriverInfo">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" />
+                                            <TextBlock Classes="meta" Text="{Binding ProgId}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Grid.Column="1" Classes="ghost" Content="Refresh" Command="{Binding RefreshDriversCommand}"
+                                    IsEnabled="{Binding !IsDiscovering}" AutomationProperties.Name="Refresh drivers" />
+                        </Grid>
+                    </ctl:LabeledField>
+                    <TextBlock Classes="secondary" Text="{Binding DiscoveryText}" TextWrapping="Wrap" IsVisible="{Binding HasDiscoveryMessage}" />
+                    <ctl:LabeledField Label="Or type a ProgId">
+                        <TextBox Text="{Binding CustomProgIdInput}" PlaceholderText="ASCOM.Vendor.Device" AutomationProperties.Name="ProgId" />
+                    </ctl:LabeledField>
+                    <Button Content="Setup driver…" Command="{Binding SetupDriverCommand}" HorizontalAlignment="Left"
+                            AutomationProperties.Name="Setup driver" />
+                </StackPanel>
+
+                <ctl:LabeledField Label="Name">
+                    <TextBox Text="{Binding NameInput}" AutomationProperties.Name="Device name" />
+                </ctl:LabeledField>
+                <ctl:LabeledField Label="Device ID">
+                    <TextBox Text="{Binding IdInput}" IsEnabled="{Binding CanChangeId}" AutomationProperties.Name="Device ID" />
+                </ctl:LabeledField>
+
+                <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" />
+                <Border Classes="notice-danger" IsVisible="{Binding HasFailure}">
+                    <TextBlock Classes="danger" Text="{Binding FailureText}" TextWrapping="Wrap" />
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Content="Cancel" Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel device" />
+                    <Button Classes="primary" Content="{Binding SaveText}" Command="{Binding SaveCommand}" AutomationProperties.Name="Save device" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>

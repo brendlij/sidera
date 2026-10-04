@@ -16,7 +16,7 @@ namespace Astra.Runtime.Devices;
 /// completes at once and publishes nothing.
 /// </para>
 /// </summary>
-public sealed class SimulatedFocuser : IFocuser
+public sealed partial class SimulatedFocuser : IFocuserControl
 {
     public const int DefaultStartPosition = 10000;
     public const int DefaultMinPosition = 0;
@@ -207,6 +207,8 @@ public sealed class SimulatedFocuser : IFocuser
 
                 await PublishMotionAsync(FocuserMotionState.Moving, FocuserMotionState.Idle, startedAt, CancellationToken.None);
             }
+
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -233,6 +235,7 @@ public sealed class SimulatedFocuser : IFocuser
             _connectionState = state;
         }
 
+        OnConnectionStateSet(state);
         await PublishConnectionAsync(previous, state, cancellationToken);
     }
 

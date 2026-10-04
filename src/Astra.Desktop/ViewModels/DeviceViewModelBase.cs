@@ -48,6 +48,18 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
         activity.Changed += OnActivityChanged;
     }
 
+    /// <summary>The device itself, for panels that work with its capability interfaces.</summary>
+    public IDevice DeviceModel => _device;
+
+    /// <summary>Posts an action to the UI thread; for panels that belong to this device.</summary>
+    public void PostToUiThread(Action action) => PostToUi(action);
+
+    /// <summary>A sequence is running; manual operations are not offered meanwhile.</summary>
+    public bool IsSessionBusy => IsSequenceRunning;
+
+    /// <summary>Raised when what manual commands may do changed (a sequence started or ended, the connection changed).</summary>
+    public event EventHandler? CommandsRefreshed;
+
     protected AstraRuntimeHost Host { get; }
     protected Action<Action> PostToUi { get; }
     protected StateStore StateStore => Host.StateStore;
@@ -68,10 +80,15 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
     };
 
     /// <summary>
-    /// What drives the device: the simulator, or (later) a real backend. Today only the simulator exists, and it is
-    /// recognised by the device class, because the device interfaces do not say.
+    /// What drives the device: "ASCOM" for a device that says so (<see cref="IBackendDescribed"/>), the simulator, which is
+    /// recognised by the device class because the device interfaces do not say, or "Driver".
     /// </summary>
-    public string BackendText => _device.GetType().Name.StartsWith("Simulated", StringComparison.Ordinal) ? "Simulator" : "Driver";
+    public string BackendText => _device is IBackendDescribed described
+        ? described.BackendName
+        : _device.GetType().Name.StartsWith("Simulated", StringComparison.Ordinal) ? "Simulator" : "Driver";
+
+    /// <summary>The identifier of the driver within its backend (the ProgId of an ASCOM driver); <c>null</c> when there is none.</summary>
+    public string? DriverIdText => (_device as IBackendDescribed)?.DriverId;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsConnected))]
@@ -168,6 +185,7 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
     {
         ConnectCommand.NotifyCanExecuteChanged();
         DisconnectCommand.NotifyCanExecuteChanged();
+        CommandsRefreshed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Runs a manual operation: clears the previous error, and shows a failure as a sentence instead of letting it escape.</summary>

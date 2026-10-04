@@ -50,6 +50,15 @@ public sealed class StateStore : IDisposable
         }
     }
 
+    /// <summary>Forgets what is known about a device that left the runtime, so that a device added later under the same id starts clean.</summary>
+    public bool Remove(DeviceId id)
+    {
+        lock (_gate)
+        {
+            return _states.Remove(id);
+        }
+    }
+
     public IReadOnlyCollection<DeviceState> GetAll()
     {
         lock (_gate)

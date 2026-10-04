@@ -3,6 +3,7 @@
              xmlns:vm="using:Astra.Desktop.ViewModels"
              xmlns:conv="using:Astra.Desktop.Converters"
              xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:equipment="using:Astra.Desktop.Views.Equipment"
              x:Name="Root"
              x:Class="Astra.Desktop.Views.Equipment.DeviceDetailShell"
              x:DataType="vm:DeviceDetailViewModel">
@@ -31,9 +32,17 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Classes="notice-danger" IsVisible="{Binding Device.HasError}">
-            <TextBlock Classes="danger" Text="{Binding Device.ErrorMessage}" TextWrapping="Wrap" />
-        </Border>
+        <StackPanel Grid.Row="1" Spacing="8">
+            <Border Classes="notice-danger" IsVisible="{Binding Device.HasError}">
+                <TextBlock Classes="danger" Text="{Binding Device.ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="notice-danger" IsVisible="{Binding Panel.HasError}">
+                <TextBlock Classes="danger" Text="{Binding Panel.ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="panel" IsVisible="{Binding Panel.HasNotice}">
+                <TextBlock Classes="secondary" Text="{Binding Panel.NoticeText}" TextWrapping="Wrap" />
+            </Border>
+        </StackPanel>
 
         <Grid Grid.Row="2" RowDefinitions="Auto,Auto">
             <StackPanel Orientation="Horizontal" Spacing="16">
@@ -50,10 +59,19 @@
                 <ContentPresenter Content="{Binding #Root.OverviewContent}" IsVisible="{Binding IsOverviewSection}" />
                 <ContentPresenter Content="{Binding #Root.ControlsContent}" IsVisible="{Binding IsControlsSection}" />
 
-                <!-- The settings of the kind of device; until it has any, the place says what will be here -->
-                <StackPanel IsVisible="{Binding IsSettingsSection}">
+                <!-- The configuration of the device, and the settings of its kind; until it has any, the place says which will come -->
+                <StackPanel Spacing="16" IsVisible="{Binding IsSettingsSection}">
+                    <Border Classes="panel" IsVisible="{Binding Configuration, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <ContentControl Content="{Binding Configuration}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="vm:DeviceConfigurationViewModel">
+                                    <equipment:DeviceConfigurationView />
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
+                    </Border>
                     <ContentPresenter Content="{Binding #Root.SettingsContent}" />
-                    <ctl:EmptyState Icon="{StaticResource IconSettings}" Margin="0,48" Title="No settings yet"
+                    <ctl:EmptyState Icon="{StaticResource IconSettings}" Margin="0,24" Title="No device settings yet"
                                     Message="{Binding NoSettingsText}"
                                     IsVisible="{Binding #Root.SettingsContent, Converter={x:Static ObjectConverters.IsNull}}" />
                 </StackPanel>
@@ -63,6 +81,17 @@
                         <ctl:InfoRow Label="Device ID" Value="{Binding Device.DeviceIdText}" />
                         <ctl:InfoRow Label="Type" Value="{Binding Device.KindTitle}" />
                         <ctl:InfoRow Label="Backend" Value="{Binding Device.BackendText}" />
+                        <ctl:InfoRow Label="Driver" Value="{Binding Device.DriverIdText}" IsVisible="{Binding Device.DriverIdText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <ItemsControl ItemsSource="{Binding Panel.DriverInfo}" IsVisible="{Binding Panel, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:InfoLine">
+                                    <ctl:InfoRow Label="{Binding Label}" Value="{Binding Value}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="secondary" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Text="Capabilities are read from the device after it connects; connect it to see what it supports."
+                                   IsVisible="{Binding Panel.IsUnavailable}" />
                     </StackPanel>
                 </Border>
             </Grid>

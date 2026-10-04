@@ -9,34 +9,64 @@
     <!--
         The equipment workspace: a browser on the left and the detail of what is selected on the right. Two modes that are
         never mixed: Devices (the default), the hardware by kind, one device in detail; Rigs (only when there are any), the
-        optional groupings of those devices into optical trains, one rig in detail.
+        optional groupings of those devices into optical trains, one rig in detail. Adding and editing a device is a form
+        that opens over the page.
     -->
-    <Grid RowDefinitions="Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="24">
+    <Panel>
+        <Grid RowDefinitions="Auto,Auto,*" Margin="{StaticResource InsetPage}">
 
-        <ctl:PageHeader Title="Equipment">
-            <equipment:EquipmentModeSelector IsVisible="{Binding HasRigs}" />
-        </ctl:PageHeader>
+            <ctl:PageHeader Title="Equipment">
+                <equipment:EquipmentModeSelector IsVisible="{Binding HasRigs}" />
+            </ctl:PageHeader>
 
-        <!-- Devices -->
-        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsDevicesMode}">
-            <equipment:DeviceBrowserView IsVisible="{Binding HasDevices}" />
-            <equipment:SelectedDeviceDetailsView Grid.Column="1" IsVisible="{Binding HasDevices}" />
-            <ctl:EmptyState Grid.ColumnSpan="2" Icon="{StaticResource IconEquipment}" Margin="0,96"
-                            Title="No devices"
-                            Message="Devices appear here when they are added to Astra. Rigs are optional: add one later when you want grouped or Multi-Rig imaging."
-                            IsVisible="{Binding !HasDevices}" />
+            <!-- What went wrong while the equipment was loaded, and what the last request could not do -->
+            <StackPanel Grid.Row="1">
+                <Border Classes="notice-danger" Margin="0,24,0,0" IsVisible="{Binding HasProblems}">
+                    <TextBlock Classes="danger" Text="{Binding ProblemsText}" TextWrapping="Wrap" />
+                </Border>
+                <Border Classes="notice-danger" Margin="0,24,0,0" IsVisible="{Binding HasNotice}">
+                    <TextBlock Classes="danger" Text="{Binding NoticeText}" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+
+            <!-- Devices -->
+            <Grid Grid.Row="2" Margin="0,24,0,0" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsDevicesMode}">
+                <equipment:DeviceBrowserView IsVisible="{Binding HasDevices}" />
+                <equipment:SelectedDeviceDetailsView Grid.Column="1" IsVisible="{Binding HasDevices}" />
+                <ctl:EmptyState Grid.ColumnSpan="2" Icon="{StaticResource IconEquipment}" Margin="0,96"
+                                Title="No devices"
+                                Message="Devices appear here when they are added to Astra: a camera, a focuser or a mount through an ASCOM driver, or one of Astra's simulators. Rigs are optional."
+                                IsVisible="{Binding !HasDevices}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding CanManage}">
+                        <Button Classes="primary" Content="Add device" Command="{Binding AddDeviceCommand}" AutomationProperties.Name="Add first device" />
+                        <Button Content="Add simulated demo" Command="{Binding AddDemoEquipmentCommand}" AutomationProperties.Name="Add simulated demo" />
+                    </StackPanel>
+                </ctl:EmptyState>
+            </Grid>
+
+            <!-- Rigs -->
+            <Grid Grid.Row="2" Margin="0,24,0,0" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsRigsMode}">
+                <equipment:RigBrowserView />
+                <ContentControl Grid.Column="1" Content="{Binding SelectedRig}">
+                    <ContentControl.ContentTemplate>
+                        <DataTemplate x:DataType="vm:RigViewModel">
+                            <equipment:RigDetailsView />
+                        </DataTemplate>
+                    </ContentControl.ContentTemplate>
+                </ContentControl>
+            </Grid>
         </Grid>
 
-        <!-- Rigs -->
-        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsRigsMode}">
-            <equipment:RigBrowserView />
-            <ContentControl Grid.Column="1" Content="{Binding SelectedRig}">
+        <!-- The form for adding or editing a device, over the page: the page behind it waits -->
+        <Grid IsVisible="{Binding IsEditorOpen}">
+            <Border Background="{DynamicResource AstraScrim}" />
+            <ContentControl Content="{Binding Editor}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{StaticResource InsetPage}">
                 <ContentControl.ContentTemplate>
-                    <DataTemplate x:DataType="vm:RigViewModel">
-                        <equipment:RigDetailsView />
+                    <DataTemplate x:DataType="vm:DeviceEditorViewModel">
+                        <equipment:DeviceEditorView />
                     </DataTemplate>
                 </ContentControl.ContentTemplate>
             </ContentControl>
         </Grid>
-    </Grid>
+    </Panel>
 </UserControl>

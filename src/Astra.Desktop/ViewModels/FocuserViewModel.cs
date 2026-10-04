@@ -69,10 +69,19 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
     /// <summary>"Idle" or "Moving".</summary>
     public string MotionText => IsMoving ? "Moving" : "Idle";
 
-    public string PositionText => string.Create(CultureInfo.InvariantCulture, $"{Position} steps");
+    /// <summary>The focuser can only move by steps: it has no position, no range and no target to move to.</summary>
+    public bool IsRelative => !_focuser.IsAbsolute;
+
+    public bool IsAbsolute => _focuser.IsAbsolute;
+
+    public string PositionText => IsRelative
+        ? "No position (relative focuser)"
+        : string.Create(CultureInfo.InvariantCulture, $"{Position} steps");
 
     /// <summary>What the focuser can move to, for example "0 to 50000 steps".</summary>
-    public string RangeText => string.Create(CultureInfo.InvariantCulture, $"{_focuser.MinPosition} to {_focuser.MaxPosition} steps");
+    public string RangeText => IsRelative
+        ? "None (relative focuser)"
+        : string.Create(CultureInfo.InvariantCulture, $"{_focuser.MinPosition} to {_focuser.MaxPosition} steps");
 
     [RelayCommand(CanExecute = nameof(CanMove))]
     private async Task MoveAsync()
@@ -104,10 +113,14 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
         base.CanDisconnect() && MotionState == FocuserMotionState.Idle && !IsManualMoveRunning;
 
     private bool CanMove() =>
-        !IsSequenceRunning && IsConnected && MotionState == FocuserMotionState.Idle && !IsManualMoveRunning;
+        !IsSequenceRunning && IsConnected && _focuser.IsAbsolute && MotionState == FocuserMotionState.Idle && !IsManualMoveRunning;
 
     protected override void RefreshDeviceState()
     {
+        OnPropertyChanged(nameof(IsRelative));
+        OnPropertyChanged(nameof(IsAbsolute));
+        OnPropertyChanged(nameof(PositionText));
+        OnPropertyChanged(nameof(RangeText));
         if (StateStore.TryGet(Id, out var state) && state?.FocuserMotionState is { } motion)
         {
             MotionState = motion;

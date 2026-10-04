@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -22,10 +22,13 @@
   <ItemGroup>
     <!-- The capturing logger of the runtime tests, for the tests of what the desktop composes. -->
     <Compile Include="..\Astra.Runtime.Tests\Logging\LogCapture.cs" Link="Logging\LogCapture.cs" />
+    <!-- The fake ASCOM drivers of the adapter tests, for the tests of what the desktop makes of ASCOM devices. -->
+    <Compile Include="..\Astra.Ascom.Tests\Fakes.cs" Link="Ascom\Fakes.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Astra.Desktop\Astra.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\Astra.Ascom\Astra.Ascom.csproj" />
     <ProjectReference Include="..\..\src\Astra.Runtime\Astra.Runtime.csproj" />
     <ProjectReference Include="..\..\src\Astra.Core\Astra.Core.csproj" />
   </ItemGroup>
