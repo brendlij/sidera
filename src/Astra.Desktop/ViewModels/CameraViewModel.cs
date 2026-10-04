@@ -32,6 +32,11 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         ExposureInput = Format(manualExposure);
 
         _camera.ExposureProgressChanged += OnExposureProgressChanged;
+        if (camera is ICameraControl control)
+        {
+            control.CapabilitiesChanged += OnCapabilitiesChanged;
+        }
+
         _exposureSubscription = host.EventBus.Subscribe<CameraExposureStateChanged>((e, _) =>
         {
             if (e.DeviceId == camera.Id)
@@ -70,6 +75,24 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
     public partial bool IsManualExposureRunning { get; private set; }
 
     public bool IsExposing => ExposureState == CameraExposureState.Exposing;
+
+    private CameraCapabilities? Capabilities => (_camera as ICameraControl)?.Capabilities.Value;
+
+    /// <summary>The camera can end an exposure early and keep the image (it said so; nothing is guessed).</summary>
+    public bool SupportsStop => Capabilities?.CanStopExposure == true;
+
+    /// <summary>The camera can throw an exposure away. Without it, cancelling only ends the waiting of Astra.</summary>
+    public bool SupportsAbort => Capabilities?.CanAbortExposure == true;
+
+    public string CancelButtonText => SupportsAbort ? "Abort Exposure" : "Cancel Exposure";
+
+    private void OnCapabilitiesChanged(object? sender, EventArgs e) => PostToUi(() =>
+    {
+        OnPropertyChanged(nameof(SupportsStop));
+        OnPropertyChanged(nameof(SupportsAbort));
+        OnPropertyChanged(nameof(CancelButtonText));
+        RefreshCommands();
+    });
 
     public string ExposureProgressText => ExposureProgress.ToString("P0", CultureInfo.CurrentCulture);
 
@@ -116,8 +139,11 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         {
             var frame = await Host.DeviceOperations.ExposeAsync(Id, TimeSpan.FromSeconds(seconds), cts.Token);
             _imaging.Publish(frame, SourceDescription());
-            LastFrameText = string.Create(
-                CultureInfo.InvariantCulture, $"{frame.ExposureDuration.TotalSeconds:0.###} s exposure, shown on the Imaging page");
+            LastFrameText = frame.Acquisition is { Stopped: true } stopped
+                ? string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Stopped after about {stopped.StoppedAfter?.TotalSeconds ?? 0:0.#} s of {frame.ExposureDuration.TotalSeconds:0.###} s, shown on the Imaging page")
+                : string.Create(CultureInfo.InvariantCulture, $"{frame.ExposureDuration.TotalSeconds:0.###} s exposure, shown on the Imaging page");
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -135,6 +161,27 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
             Refresh();
         }
     }
+
+    // Ends the exposure early and keeps the image: the manual exposure that is waiting for the camera gets it. Not the same as aborting.
+    [RelayCommand(CanExecute = nameof(CanStopExposure))]
+    private async Task StopExposureAsync()
+    {
+        if (_camera is not ICameraControl control)
+        {
+            return;
+        }
+
+        try
+        {
+            await control.StopExposureAsync();
+        }
+        catch (Exception ex)
+        {
+            ReportError(ex);
+        }
+    }
+
+    private bool CanStopExposure() => SupportsStop && IsManualExposureRunning && IsExposing;
 
     [RelayCommand(CanExecute = nameof(IsManualExposureRunning))]
     private void CancelExposure()
@@ -170,6 +217,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         base.RefreshCommands();
         StartExposureCommand.NotifyCanExecuteChanged();
         CancelExposureCommand.NotifyCanExecuteChanged();
+        StopExposureCommand.NotifyCanExecuteChanged();
     }
 
     protected override DeviceActivity DescribeActivity() => IsExposing
@@ -199,6 +247,11 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
     public override void Dispose()
     {
         CancelExposure();
+        if (_camera is ICameraControl control)
+        {
+            control.CapabilitiesChanged -= OnCapabilitiesChanged;
+        }
+
         _camera.ExposureProgressChanged -= OnExposureProgressChanged;
         _exposureSubscription.Dispose();
         base.Dispose();

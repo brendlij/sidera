@@ -49,7 +49,7 @@ public sealed partial class SimulatedCamera
     {
         Driver = new DriverMetadata("Astra simulated camera", "A camera that only pretends", "Astra.Runtime", "1.0", null),
         CanAbortExposure = true,
-        CanStopExposure = false,
+        CanStopExposure = true,
         MinExposureSeconds = 0.001,
         MaxExposureSeconds = 3600,
         ExposureResolutionSeconds = 0.001,

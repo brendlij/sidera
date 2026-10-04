@@ -453,3 +453,89 @@ public sealed class HardwareFocuserHaltDiagnostics(ITestOutputHelper output)
         }
     }
 }
+
+public sealed class HardwareCameraStopDiagnostics(ITestOutputHelper output)
+{
+    // What the driver itself does after StopExposure: observed, not assumed. Needs ASTRA_ASCOM_CAMERA_STOP_OK=1 besides the camera.
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_RawStopExposure_WhatTheDriverDoes()
+    {
+        if (Environment.GetEnvironmentVariable("ASTRA_ASCOM_CAMERA_STOP_OK") != "1")
+        {
+            return;
+        }
+
+        var drivers = new ComAscomDriverFactory();
+        using var dispatcher = new AscomDispatcher("diagnostics stop");
+        IAscomCameraDriver? c = null;
+        try
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                c = drivers.CreateCamera(Environment.GetEnvironmentVariable("ASTRA_ASCOM_CAMERA")!);
+                c.Connected = true;
+            });
+            output.WriteLine($"CanStopExposure {await dispatcher.InvokeAsync(() => c!.CanStopExposure)}, CanAbortExposure {await dispatcher.InvokeAsync(() => c!.CanAbortExposure)}");
+            foreach (var seconds in new[] { 6.0, 6.0 })
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                await dispatcher.InvokeAsync(() => c!.StartExposure(seconds, true));
+                await Task.Delay(2000);
+                var stopAt = clock.ElapsedMilliseconds;
+                var failure = await Record.ExceptionAsync(() => dispatcher.InvokeAsync(() => c!.StopExposure()));
+                output.WriteLine($"StartExposure {seconds} s; StopExposure at {stopAt} ms: {(failure is null ? "accepted" : failure.GetType().Name + ": " + failure.Message)}");
+                for (var i = 0; i < 40; i++)
+                {
+                    var (state, ready) = await dispatcher.InvokeAsync(() => (c!.CameraState, c.ImageReady));
+                    output.WriteLine($"  {clock.ElapsedMilliseconds,5} ms: state {state} imageReady {ready}");
+                    if (ready || (state == AscomCameraState.Idle && i > 5))
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(250);
+                }
+
+                var info = await dispatcher.InvokeAsync(() =>
+                {
+                    var ready = c!.ImageReady;
+                    var last = c.LastExposureDuration;
+                    string image = "no ImageArray read";
+                    if (ready)
+                    {
+                        var a = (int[,])c.ImageArray!;
+                        long sum = 0;
+                        foreach (var v in a)
+                        {
+                            sum += v;
+                        }
+
+                        image = $"ImageArray {a.GetLength(0)}x{a.GetLength(1)} mean {(double)sum / a.Length:0.0}";
+                    }
+
+                    return $"imageReady {ready}, LastExposureDuration {last}, {image}";
+                });
+                output.WriteLine("  after: " + info);
+            }
+
+            await dispatcher.InvokeAsync(() => c!.StartExposure(0.1, true));
+            while (!await dispatcher.InvokeAsync(() => c!.ImageReady))
+            {
+                await Task.Delay(50);
+            }
+
+            output.WriteLine("next 0.1 s exposure: image ready, " + await dispatcher.InvokeAsync(() => ((int[,])c!.ImageArray!).GetLength(0)) + " wide");
+        }
+        finally
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (c is not null)
+                {
+                    c.Connected = false;
+                    c.Dispose();
+                }
+            });
+        }
+    }
+}

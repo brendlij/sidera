@@ -18,8 +18,10 @@
                     <ctl:FieldRow Label="Exposure time" Unit="s"><TextBox Text="{Binding Camera.ExposureInput}" /></ctl:FieldRow>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Classes="primary" Content="Start Exposure" Command="{Binding Camera.StartExposureCommand}" />
-                        <Button Classes="danger" Content="Cancel Exposure" Command="{Binding Camera.CancelExposureCommand}"
-                                IsVisible="{Binding Camera.IsManualExposureRunning}" />
+                        <Button Content="Stop Exposure" Command="{Binding Camera.StopExposureCommand}" IsVisible="{Binding Camera.SupportsStop}"
+                                AutomationProperties.Name="Stop Exposure" ToolTip.Tip="Ends the exposure now and keeps the image of what was collected" />
+                        <Button Classes="danger" Content="{Binding Camera.CancelButtonText}" Command="{Binding Camera.CancelExposureCommand}"
+                                AutomationProperties.Name="Abort Exposure" ToolTip.Tip="Throws the exposure away; no image" />
                     </StackPanel>
                     <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding Camera.IsExposing}" />
                     <StackPanel Spacing="2">

@@ -49,6 +49,12 @@ public class AcquisitionExposureTests
         public event EventHandler? CapabilitiesChanged { add { } remove { } }
         public event EventHandler? StateChanged { add { } remove { } }
 
+        public CameraExposureOutcome LastOutcome => CameraExposureOutcome.None;
+
+        public Task StopExposureAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task AbortExposureAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task DisconnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

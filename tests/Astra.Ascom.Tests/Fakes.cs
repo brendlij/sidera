@@ -639,6 +639,9 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
     public List<string> Changes { get; } = [];
     public Exception? GainSetThrows { get; set; }
 
+    /// <summary>Settings (by name: Gain, Offset, CoolerOn, Bin) that the driver accepts and does not take: the value read back stays as it was.</summary>
+    public HashSet<string> IgnoredSettings { get; } = [];
+
     public int Gain
     {
         get => GainValue ?? throw new NotImplementedException("Gain");
@@ -651,7 +654,10 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
                 throw GainSetThrows;
             }
 
-            GainValue = value;
+            if (!IgnoredSettings.Contains("Gain"))
+            {
+                GainValue = value;
+            }
         }
     }
 
@@ -666,7 +672,10 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
         {
             Log.Add($"Offset = {value}");
             Changes.Add($"Offset = {value}");
-            OffsetValue = value;
+            if (!IgnoredSettings.Contains("Offset"))
+            {
+                OffsetValue = value;
+            }
         }
     }
 
@@ -719,7 +728,10 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
         {
             Log.Add($"CoolerOn = {value}");
             Changes.Add($"CoolerOn = {value}");
-            CoolerOnValue = value;
+            if (!IgnoredSettings.Contains("CoolerOn"))
+            {
+                CoolerOnValue = value;
+            }
         }
     }
     public int MaxAduValue { get; set; } = 65535;
@@ -829,6 +841,29 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
         {
             Starts.Add((durationSeconds, light));
             (_polls, _exposing, _ready) = (0, true, false);
+        }
+    }
+
+    /// <summary>StopExposure ends the exposure and an image follows (what ASCOM describes); false: the driver ends it and delivers none.</summary>
+    public bool StopProducesImage { get; set; } = true;
+
+    public Exception? StopThrows { get; set; }
+
+    public void StopExposure()
+    {
+        Log.Add("StopExposure");
+        if (StopThrows is not null)
+        {
+            throw StopThrows;
+        }
+
+        lock (_gate)
+        {
+            if (_exposing)
+            {
+                _exposing = false;
+                _ready = StopProducesImage;
+            }
         }
     }
 

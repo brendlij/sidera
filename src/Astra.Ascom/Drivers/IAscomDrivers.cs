@@ -210,6 +210,9 @@ public interface IAscomCameraDriver : IAscomDriver
 
     void AbortExposure();
 
+    /// <summary>Ends the exposure now, but keeps what has been collected: the driver delivers an image, if it supports it (CanStopExposure).</summary>
+    void StopExposure();
+
     /// <summary>The ASCOM ImageArray exactly as the driver returned it; the runtime type depends on the driver.</summary>
     object? ImageArray { get; }
 

@@ -126,8 +126,55 @@ public sealed record CameraTelemetry
 /// operations are only as capable as <see cref="ICapable{T}.Capabilities"/> say, and refuse what is not. Nothing is
 /// changed merely to find out what is supported.
 /// </summary>
+/// <summary>How the last exposure of a camera ended.</summary>
+public enum CameraExposureOutcome
+{
+    /// <summary>No exposure has ended yet.</summary>
+    None,
+
+    /// <summary>The exposure ran its time and delivered its frame.</summary>
+    Completed,
+
+    /// <summary>The exposure was ended early on request and the camera delivered the image of what it had collected.</summary>
+    Stopped,
+
+    /// <summary>The exposure was thrown away: aborted on request or cancelled. No image was used.</summary>
+    Aborted,
+
+    /// <summary>The exposure failed: the camera or the driver reported a problem, or no image came.</summary>
+    Failed,
+}
+
+/// <summary>
+/// The exposure was stopped (<see cref="ICameraControl.StopExposureAsync"/>) and the camera delivered no image. The exposure is over
+/// and the camera is idle; there is nothing to use.
+/// </summary>
+public sealed class CameraExposureStoppedException(string message) : Exception(message);
+
 public interface ICameraControl : ICamera, ICapable<CameraCapabilities>, IObservableDevice
 {
+    /// <summary>How the last exposure ended; <see cref="CameraExposureOutcome.None"/> before the first one.</summary>
+    CameraExposureOutcome LastOutcome { get; }
+
+    /// <summary>
+    /// Ends the running exposure early and keeps what the camera has collected: the pending <c>ExposeAsync</c> returns the frame of
+    /// the shortened exposure (<see cref="FrameAcquisition.Stopped"/> says so). Not an abort: when the camera delivers no image the
+    /// pending <c>ExposeAsync</c> fails with <see cref="CameraExposureStoppedException"/>. Only when the camera can
+    /// (<see cref="CameraCapabilities.CanStopExposure"/>).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">No exposure is running.</exception>
+    /// <exception cref="Exception">The camera cannot stop an exposure and keep the image (an unsupported-operation error of its backend).</exception>
+    Task StopExposureAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Throws the running exposure away: the pending <c>ExposeAsync</c> ends with an <see cref="OperationCanceledException"/> and no image
+    /// is used, whatever the camera does with it. Cancelling the token of <c>ExposeAsync</c> does the same. Only when the camera can
+    /// (<see cref="CameraCapabilities.CanAbortExposure"/>).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">No exposure is running.</exception>
+    /// <exception cref="Exception">The camera cannot abort an exposure (an unsupported-operation error of its backend).</exception>
+    Task AbortExposureAsync(CancellationToken cancellationToken = default);
+
     /// <summary>The settings the camera has now, as it reported them; <c>null</c> while not connected.</summary>
     CameraSettings? Settings { get; }
 
