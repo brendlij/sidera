@@ -42,6 +42,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private readonly IEventPublisher? _events;
     private readonly ILoggerFactory? _loggers;
     private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
+    private readonly Sidera.Runtime.Astrometry.PlateSolveService? _plateSolving;
+    private readonly Func<Sidera.Core.Astrometry.PlateSolveDefaults>? _solveDefaults;
     private HashSet<Guid> _unreadable = [];
     private bool _rebuilding;
 
@@ -55,11 +57,14 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         IFocusMetricProvider? focusMetrics = null,
         IEventPublisher? events = null,
         ILoggerFactory? loggers = null,
-        IAcquisitionDefaultsSource? acquisitionDefaults = null)
+        IAcquisitionDefaultsSource? acquisitionDefaults = null,
+        Sidera.Runtime.Astrometry.PlateSolveService? plateSolving = null,
+        Func<Sidera.Core.Astrometry.PlateSolveDefaults>? solveDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(defaults);
         _acquisitionDefaults = acquisitionDefaults;
+        _plateSolving = plateSolving; _solveDefaults = solveDefaults;
         _registry = registry;
         _rigs = rigs;
         _focusMetrics = focusMetrics;
@@ -196,7 +201,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
-    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults);
+    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults);
 
     // New steps use the shared equipment of the session wherever they have a mount or a guider.
     private SequenceDraftDefaults EffectiveDefaults => _defaults with
@@ -1027,6 +1032,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         ChangeFilterStepDraft c => new ChangeFilterStepDraftViewModel(_registry, c),
         RigMoveFocuserStepDraft f => new RigMoveFocuserStepDraftViewModel(f),
         RigChangeFilterStepDraft c => RigFilterViewModel(c),
+        PlateSolveStepDraft p => new PlateSolveStepDraftViewModel(p, new RigPickerViewModel(_rigs, _registry, p.RigId)),
         AutofocusStepDraft a => new AutofocusStepDraftViewModel(a, new RigPickerViewModel(_rigs, _registry, a.RigId)),
         RigAutofocusStepDraft a => new RigAutofocusStepDraftViewModel(a),
         _ => throw new ArgumentException($"Unsupported step '{draft.GetType().Name}'.", nameof(draft)),

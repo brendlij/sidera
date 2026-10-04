@@ -21,6 +21,7 @@
         <DataTemplate DataType="{x:Type vm:EquipmentViewModel}"><equipment:EquipmentView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:DiagnosticsViewModel}"><diagnostics:DiagnosticsView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><settings:SettingsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PlateSolveViewModel}"><imaging:PlateSolveView /></DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:DevicePickerViewModel}" x:DataType="vm:DevicePickerViewModel">
             <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">

@@ -35,4 +35,7 @@
     <ProjectReference Include="..\Sidera.Core\Sidera.Core.csproj" />
     <ProjectReference Include="..\Sidera.Runtime\Sidera.Runtime.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sidera.Astap\Sidera.Astap.csproj" />
+  </ItemGroup>
 </Project>

@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace Sidera.Desktop.Documents;
 
 /// <summary>
-/// Versions 1 to 6 of the Sidera sequence document format, which happen to be encoded as JSON text. This class is the only
+/// Versions 1 to 7 of the Sidera sequence document format, which happen to be encoded as JSON text. This class is the only
 /// place that knows that: the property names, the step discriminators and the JSON parsing rules below are the
 /// version 1 file format, and nothing else in Sidera should depend on them.
 /// <para>
@@ -192,6 +192,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 Header(w, RigMoveFocuserType, f.Id);
                 w.WriteNumber("position", f.Position);
                 break;
+            case PlateSolveDocumentStep p:
+                Header(w, "plateSolve", p.Id);
+                Device(w, "rigId", p.RigId);
+                w.WriteNumber("exposureSeconds", p.ExposureSeconds);
+                break;
             case AutofocusDocumentStep a:
                 Header(w, AutofocusType, a.Id);
                 Device(w, "rigId", a.RigId);
@@ -338,7 +343,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 or 2 or 3 or 4 or 5 or 6 => ReadBody(root, version),
+            1 or 2 or 3 or 4 or 5 or 6 or 7 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Sidera version."),
         };
@@ -417,7 +422,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         var known = type is ExposureType or DelayType or SlewType or StartGuidingType or StopGuidingType or DitherType or RepeatType
             || (version >= 2 && type is MultiRigType or RigExposureType)
             || (version >= 3 && type is MoveFocuserType or ChangeFilterType or RigMoveFocuserType or RigChangeFilterType)
-            || (version >= 4 && type is AutofocusType or RigAutofocusType);
+            || (version >= 4 && type is AutofocusType or RigAutofocusType)
+            || (version >= 7 && type == "plateSolve");
         if (!known)
         {
             throw Structure($"Unknown sequence step type '{type}'.");
@@ -442,7 +448,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType
-                or MoveFocuserType or ChangeFilterType or AutofocusType)
+                or MoveFocuserType or ChangeFilterType or AutofocusType or "plateSolve")
         {
             throw Structure($"A '{type}' step cannot be used inside a rig track.");
         }
@@ -456,6 +462,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return type switch
         {
+            "plateSolve" => new PlateSolveDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds")),
             ExposureType => new ExposureDocumentStep(
                 id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
             DelayType => new DelayDocumentStep(id, ReadNumber(element, type, "durationSeconds")),

@@ -8,6 +8,7 @@ namespace Sidera.Desktop;
 
 public enum SequenceStepKind
 {
+    PlateSolve,
     Exposure,
     Delay,
     Slew,
@@ -62,6 +63,12 @@ public abstract record SequenceStepDraft(Guid Id)
 
 /// <summary>A step that does one thing and has no children: everything a <see cref="RepeatStepDraft"/> may contain.</summary>
 public abstract record LeafStepDraft(Guid Id) : SequenceStepDraft(Id);
+
+public sealed record PlateSolveStepDraft(Guid Id, RigId? RigId, double ExposureSeconds) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.PlateSolve;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
 
 public sealed record ExposureStepDraft(Guid Id, DeviceId? CameraId, double Seconds) : LeafStepDraft(Id)
 {

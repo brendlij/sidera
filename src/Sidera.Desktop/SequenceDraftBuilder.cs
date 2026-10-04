@@ -41,7 +41,9 @@ public sealed record SequenceDraftContext(
     IFocusMetricProvider? FocusMetrics = null,
     IEventPublisher? Events = null,
     ILoggerFactory? Loggers = null,
-    IAcquisitionDefaultsSource? AcquisitionDefaults = null
+    IAcquisitionDefaultsSource? AcquisitionDefaults = null,
+    Sidera.Runtime.Astrometry.PlateSolveService? PlateSolving = null,
+    Func<Sidera.Core.Astrometry.PlateSolveDefaults>? PlateSolveDefaults = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -125,6 +127,7 @@ public static class SequenceDraftBuilder
 
         return step switch
         {
+            PlateSolveStepDraft p => new("Plate Solve", $"{p.RigId?.Value ?? "no rig"} · {Seconds(p.ExposureSeconds)}"),
             ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, e.CameraId)}"),
             RigExposureStepDraft e => new("Exposure", $"{Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, rig?.CameraId)}"),
             DelayStepDraft d => new("Delay", Seconds(d.Seconds)),
@@ -290,6 +293,7 @@ public static class SequenceDraftBuilder
                 // An autofocus of a rig needs the camera and the focuser of that rig.
                 foreach (var autofocus in step is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [step])
                 {
+                    if (autofocus is PlateSolveStepDraft { RigId: { } solveRigId } && TryGetRig(context, solveRigId, out var solveRig)) ids.Add(solveRig.CameraId);
                     if (autofocus is AutofocusStepDraft { RigId: { } rigId } && TryGetRig(context, rigId, out var rig))
                     {
                         ids.Add(rig.CameraId);
@@ -562,6 +566,9 @@ public static class SequenceDraftBuilder
     private static ISequenceStep CreateLeaf(DeviceRegistry registry, SequenceStepDraft step, Rig? rig, SequenceDraftContext? context) => step switch
     {
         // Validated before: the rig is there and has a focuser, and the context has something to measure focus with.
+        PlateSolveStepDraft p => new PlateSolveAction(context!.PlateSolving!,
+            TryGetRig(context, p.RigId!.Value, out var solveRig) ? solveRig : null!, context.Shared?.MountId,
+            TimeSpan.FromSeconds(p.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
         AutofocusStepDraft a => AutofocusAction.ForRig(
             registry, TryGetRig(context, a.RigId!.Value, out var autofocusRig) ? autofocusRig : null!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
@@ -899,6 +906,9 @@ public static class SequenceDraftBuilder
                 case AutofocusStepDraft:
                     problems.Add("Use Autofocus of the track here: its rig is the rig of the track.");
                     break;
+                case PlateSolveStepDraft:
+                    problems.Add("Plate Solve must be outside a Rig Track.");
+                    break;
                 case MoveFocuserStepDraft:
                     problems.Add("Use Move Focuser of the track here: its focuser is the focuser of the rig.");
                     break;
@@ -942,6 +952,12 @@ public static class SequenceDraftBuilder
         {
             switch (step)
             {
+                case PlateSolveStepDraft p:
+                    CheckDuration(p.ExposureSeconds, "Solve exposure", problems);
+                    if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
+                    if (p.RigId is not { } solveId || !TryGetRig(context, solveId, out var solveRig)) problems.Add("Select an available rig.");
+                    else CheckDevice<ICamera>(solveRig.CameraId, "camera", problems);
+                    break;
                 case ExposureStepDraft e:
                     CheckDevice<ICamera>(e.CameraId, "camera", problems);
                     CheckDuration(e.Seconds, "Exposure", problems);
@@ -1392,6 +1408,7 @@ public static class SequenceDraftBuilder
         SequenceStepKind.Dither => "Dither",
         SequenceStepKind.MoveFocuser or SequenceStepKind.RigMoveFocuser => "Move Focuser",
         SequenceStepKind.ChangeFilter or SequenceStepKind.RigChangeFilter => "Change Filter",
+        SequenceStepKind.PlateSolve => "Plate Solve",
         SequenceStepKind.Autofocus or SequenceStepKind.RigAutofocus => "Autofocus",
         SequenceStepKind.Repeat => "Repeat",
         SequenceStepKind.MultiRig => MultiRigName,

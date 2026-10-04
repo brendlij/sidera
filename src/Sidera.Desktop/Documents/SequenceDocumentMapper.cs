@@ -72,6 +72,7 @@ public static class SequenceDocumentMapper
 
     private static DocumentLeafStep ToDocumentLeaf(LeafStepDraft step) => step switch
     {
+        PlateSolveStepDraft p => new PlateSolveDocumentStep(p.Id, p.RigId?.Value, p.ExposureSeconds),
         ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds, e.Acquisition.IsDefault ? null : e.Acquisition),
         RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds, r.Acquisition.IsDefault ? null : r.Acquisition),
         MoveFocuserStepDraft f => new MoveFocuserDocumentStep(f.Id, f.FocuserId?.Value, f.Position),
@@ -105,6 +106,7 @@ public static class SequenceDocumentMapper
 
     private static LeafStepDraft ToDraftLeaf(DocumentLeafStep step) => step switch
     {
+        PlateSolveDocumentStep p => new PlateSolveStepDraft(p.Id, p.RigId is null ? null : new RigId(p.RigId), p.ExposureSeconds),
         ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds) { Acquisition = e.Acquisition ?? AcquisitionIntent.Default },
         RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds) { Acquisition = r.Acquisition ?? AcquisitionIntent.Default },
         MoveFocuserDocumentStep f => new MoveFocuserStepDraft(f.Id, Device(f.FocuserId), f.Position),

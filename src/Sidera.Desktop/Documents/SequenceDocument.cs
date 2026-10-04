@@ -22,9 +22,10 @@ public sealed record SequenceDocument(
     /// <summary>
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
     /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps
-    /// before 3, autofocus before 4, the autofocus policy of a track before 5, the acquisition settings of an exposure before 6) is simply absent from a document read from it.
+    /// before 3, autofocus before 4, the autofocus policy of a track before 5, the acquisition settings of an exposure before 6,
+    /// plate solving before 7) is simply absent from a document read from it.
     /// </summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     public string Format => FormatId;
     public int Version => CurrentVersion;

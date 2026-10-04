@@ -25,6 +25,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public SettingsViewModel(LogInfo? log = null, Sidera.Desktop.Settings.SiteService? site = null)
     {
         Site = site is null ? null : new SiteSettingsViewModel(site);
+        PlateSolving = site is null ? null : new PlateSolvingSettingsViewModel(site);
         Groups =
         [
             new SettingsGroup(
@@ -57,9 +58,10 @@ public sealed class SettingsViewModel : ViewModelBase
     public SiteSettingsViewModel? Site { get; }
 
     public bool HasSite => Site is not null;
+    public PlateSolvingSettingsViewModel? PlateSolving { get; }
 
     public IReadOnlyList<SettingsGroup> Groups { get; }
 
     /// <summary>The sentence that says why nothing can be changed here yet.</summary>
-    public string NoteText => "The observing site can be set here. The other values are decided by the build; they are listed so that you know where each kind of setting will be.";
+    public string NoteText => "The observing site can be set here, along with plate solving. Application information and build defaults are listed below.";
 }
