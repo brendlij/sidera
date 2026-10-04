@@ -84,6 +84,31 @@ public sealed class GuidingHistory
     }
 
     /// <summary>
+    /// Copies the samples of the last <paramref name="window"/>, oldest first, into <paramref name="into"/> (which is not cleared): for a
+    /// drawing that keeps one list and so allocates nothing per frame.
+    /// </summary>
+    public void CopyRecent(List<GuidingSample> into, TimeSpan window)
+    {
+        ArgumentNullException.ThrowIfNull(into);
+        lock (_gate)
+        {
+            if (_samples.Count == 0)
+            {
+                return;
+            }
+
+            var from = _samples.Last().Time - window;
+            foreach (var sample in _samples)
+            {
+                if (sample.Time >= from)
+                {
+                    into.Add(sample);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// The rolling RMS over the last <paramref name="window"/>, in arcseconds: right ascension and declination by themselves, and the
     /// total as the square root of the sum of their squares. A sample without a value for an axis does not count for that axis; with no
     /// sample at all for an axis, its RMS is <c>null</c>, not zero.

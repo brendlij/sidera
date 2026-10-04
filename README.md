@@ -7,7 +7,8 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 
 > **Status:** under active development. Camera and focuser have been validated against real hardware (ZWO ASI2600MC Pro, ZWO EAF).
 > The mount's real movement commands (slew, abort, axis moves, tracking) are implemented and tested against simulators, but not yet
-> verified on a real mount. Plate solving, PHD2 integration and an ASCOM filter wheel are not implemented yet.
+> verified on a real mount. Guiding through PHD2 is implemented and tested against an in-memory PHD2 (and its connection and state against a real
+> PHD2 without equipment); a real guided session and a real dither are not yet verified. Plate solving and an ASCOM filter wheel are not implemented yet.
 
 ## What it does today
 
@@ -17,6 +18,8 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   cooling controls; frames shown on the Imaging page.
 - **Mount:** slew, tracking, sync, park, hold-to-move pad, and a Stop that is always there. A large slew asks for confirmation.
 - **Focuser:** absolute and relative moves, halt, temperature.
+- **Guider:** PHD2 as the guiding backend (host and port are the settings of the device; its equipment, calibration and star stay in PHD2).
+  Start, stop, pause; live guide graph in arcseconds, rolling RMS, star SNR, the settle after a dither, and what PHD2 reports about its setup.
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
@@ -44,6 +47,7 @@ The tests need no hardware: devices are simulators or fakes of the ASCOM drivers
 | `src/Sidera.Core` | Device abstractions, capability model, acquisition model |
 | `src/Sidera.Runtime` | Runtime host, simulators, sequencing, autofocus |
 | `src/Sidera.Ascom` | ASCOM adapters: discovery, one STA thread per device, camera, mount, focuser |
+| `src/Sidera.Phd2` | PHD2 as a guider: the TCP event server protocol, `Phd2Guider`; nothing of the protocol leaves this project |
 | `src/Sidera.Desktop` | The Avalonia application |
 | `tests/` | Unit tests for each project, and opt-in integration tests against ASCOM |
 
@@ -59,6 +63,9 @@ Tests that touch real devices are skipped unless you opt in with environment var
 | `SIDERA_ASCOM_CAMERA_COOLING_OK=1` | Short cooling check |
 | `SIDERA_ASCOM_MOUNT_TRACKING_OK=1`, `_SLEW_OK=1`, `_AXIS_OK=1` | Tracking toggle, a small slew and stop, a slow axis move |
 | `SIDERA_ASCOM_AUTOFOCUS_OK=1` | A real autofocus run (needs a star field) |
+| `SIDERA_PHD2_TESTS=1` | Connects to a running PHD2 (`SIDERA_PHD2_HOST`, `SIDERA_PHD2_PORT`, default 127.0.0.1:4400) and reads its state; moves nothing |
+| `SIDERA_PHD2_GUIDING_OK=1` | Starts and stops real guiding in PHD2 (its equipment must be connected, a guide star needed) |
+| `SIDERA_PHD2_DITHER_OK=1` | One real dither with its settle |
 
 Every physical action has its own gate: no gate, no movement. Only run mount tests when the area around the mount is clear.
 

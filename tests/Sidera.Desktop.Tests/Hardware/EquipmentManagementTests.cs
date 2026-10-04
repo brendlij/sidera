@@ -95,7 +95,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         var host = new SideraRuntimeHost();
         var options = new DemoOptions { FocuserStepsPerSecond = 1_000_000, FocuserMinimumMoveDuration = TimeSpan.FromMilliseconds(1), ManualExposure = TimeSpan.FromMilliseconds(30) };
         var factories = new DeviceFactoryRegistry(
-            [new SimulatorDeviceFactory(options), new AscomBackendFactory(new AscomDeviceFactory(_drivers, null, FastTimings.Create()))]);
+            [new SimulatorDeviceFactory(options), new AscomBackendFactory(new AscomDeviceFactory(_drivers, null, FastTimings.Create())), new Phd2BackendFactory()]);
         var service = new EquipmentService(host, new EquipmentConfigurationStore(File_), factories);
         service.Load();
         var vm = new MainViewModel(host, a => a(), options, equipmentManagement: new EquipmentManagement(service, _discovery, _setup));
@@ -869,5 +869,87 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
 
         Assert.Equal("ASCOM.Gone.Camera", slot.SelectedChoice!.ProgId);
         Assert.Equal("camera.asi", slot.Device!.DeviceIdText);
+    }
+
+    // ---- PHD2 as the guider of the equipment
+
+    [Fact]
+    public void TheGuiderSlot_OffersNone_TheSimulator_AndPhd2_AndNoOtherSlotDoes()
+    {
+        var (vm, _, _) = CreateApp();
+
+        Assert.Equal(["No guider", "Simulator", "PHD2"], Slot(vm.Equipment, DeviceType.Guider).Choices.Select(c => c.Text));
+        Assert.DoesNotContain(Slot(vm.Equipment, DeviceType.Camera).Choices, c => c.IsPhd2);
+        Assert.DoesNotContain(Slot(vm.Equipment, DeviceType.Mount).Choices, c => c.IsPhd2);
+    }
+
+    [Fact]
+    public void ChoosingPhd2_MakesAGuider_WithTheHostAndThePort_ThatIsNotConnected_AndOnlyTheConfigurationIsStored()
+    {
+        var (vm, service, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Guider);
+        slot.Phd2Host = "192.168.1.20";
+        slot.Phd2PortText = "4401";
+
+        slot.SelectedChoice = slot.Choices.Single(c => c.IsPhd2);
+
+        var guider = Assert.Single(vm.Equipment.Guiders);
+        Assert.Equal(DeviceConnectionState.Disconnected, guider.ConnectionState);
+        Assert.Equal("PHD2", guider.BackendText);
+        var stored = service.Configuration.Find("guider.main")!;
+        Assert.Equal((DeviceBackend.Phd2, "192.168.1.20", "4401"), (stored.Backend, stored.Setting("host"), stored.Setting("port")));
+        Assert.Equal(["host", "port"], stored.Settings.Keys.Order()); // nothing of a state: not connected, not guiding, no samples
+        var json = File.ReadAllText(File_);
+        Assert.Contains("\"backend\": \"PHD2\"", json);
+        Assert.Contains("\"astra-equipment\"", json);
+        Assert.DoesNotContain("guiding", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("", "4400")]
+    [InlineData("127.0.0.1", "0")]
+    [InlineData("127.0.0.1", "70000")]
+    [InlineData("127.0.0.1", "abc")]
+    public void APhd2EndpointThatIsNotValid_IsRefused_AndTheGuiderThatWasThereStays(string host, string port)
+    {
+        var (vm, service, _) = CreateApp();
+        var slot = Slot(vm.Equipment, DeviceType.Guider);
+        slot.SelectedChoice = Choice(slot, "Simulator");
+
+        slot.Phd2Host = host;
+        slot.Phd2PortText = port;
+        slot.SelectedChoice = slot.Choices.Single(c => c.IsPhd2);
+
+        Assert.True(slot.HasProblem);
+        Assert.Equal("Simulator", slot.SelectedChoice!.Text);
+        Assert.Equal(DeviceBackend.Simulator, service.Configuration.Find("guider.main")!.Backend);
+    }
+
+    [Fact]
+    public void TheHostAndThePortOfAPhd2Guider_CanBeChangedWhileItIsDisconnected_AndAreShownWhenItIsLoaded()
+    {
+        var stored = new EquipmentConfiguration(
+            [new DeviceConfiguration("guider.main", "PHD2", DeviceType.Guider, DeviceBackend.Phd2, new Dictionary<string, string> { ["host"] = "10.0.0.5", ["port"] = "4402" })], []);
+        var (vm, service, _) = CreateApp(stored);
+        var slot = Slot(vm.Equipment, DeviceType.Guider);
+        Assert.Equal(("10.0.0.5", "4402"), (slot.Phd2Host, slot.Phd2PortText));
+        Assert.True(slot.SelectedChoice!.IsPhd2);
+
+        slot.Phd2Host = "10.0.0.6";
+        slot.SavePhd2Command.Execute(null);
+
+        Assert.False(slot.HasProblem);
+        Assert.Equal("10.0.0.6", service.Configuration.Find("guider.main")!.Setting("host"));
+        Assert.Equal("4402", service.Configuration.Find("guider.main")!.Setting("port"));
+    }
+
+    [Fact]
+    public void AnEquipmentFileOfTheTimeBeforePhd2_StillLoads_WithTheSameFormat()
+    {
+        var stored = new EquipmentConfiguration([DeviceConfiguration.Simulator("camera.main", "Camera", DeviceType.Camera)], []);
+        var (vm, _, _) = CreateApp(stored);
+
+        Assert.Equal("camera.main", Assert.Single(vm.Equipment.Cameras).DeviceIdText);
+        Assert.Contains("\"version\": 1", File.ReadAllText(File_));
     }
 }

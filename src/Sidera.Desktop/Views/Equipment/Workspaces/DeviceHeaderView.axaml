@@ -18,13 +18,13 @@
                     AutomationProperties.Name="Stop all movement" />
         </StackPanel>
 
-        <Border Classes="notice-danger" IsVisible="{Binding Device.HasError}">
+        <Border Classes="notice-danger" IsVisible="{Binding Device.HasError, FallbackValue=False}">
             <TextBlock Classes="danger" Text="{Binding Device.ErrorMessage}" TextWrapping="Wrap" />
         </Border>
-        <Border Classes="notice-danger" IsVisible="{Binding Panel.HasError}">
+        <Border Classes="notice-danger" IsVisible="{Binding Panel.HasError, FallbackValue=False}">
             <TextBlock Classes="danger" Text="{Binding Panel.ErrorMessage}" TextWrapping="Wrap" />
         </Border>
-        <Border Classes="panel" IsVisible="{Binding Panel.HasNotice}">
+        <Border Classes="panel" IsVisible="{Binding Panel.HasNotice, FallbackValue=False}">
             <TextBlock Classes="secondary" Text="{Binding Panel.NoticeText}" TextWrapping="Wrap" />
         </Border>
     </StackPanel>

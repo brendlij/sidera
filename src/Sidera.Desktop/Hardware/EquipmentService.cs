@@ -414,6 +414,23 @@ public sealed class EquipmentService : IDevicePreferenceStore
             }
         }
 
+        if (configuration.Backend == DeviceBackend.Phd2)
+        {
+            if (configuration.Type != DeviceType.Guider)
+            {
+                return "PHD2 is a guider; there is no PHD2 " + configuration.Type + ".";
+            }
+
+            try
+            {
+                Sidera.Phd2.Phd2Endpoint.FromSettings(configuration.Settings);
+            }
+            catch (FormatException ex)
+            {
+                return ex.Message;
+            }
+        }
+
         return null;
     }
 

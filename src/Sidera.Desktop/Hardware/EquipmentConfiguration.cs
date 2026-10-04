@@ -14,11 +14,19 @@ public enum DeviceBackend
 
     /// <summary>A driver of the ASCOM Platform, addressed by its ProgId.</summary>
     Ascom,
+
+    /// <summary>PHD2, guiding through the TCP server of a running PHD2; the settings are its host and port.</summary>
+    Phd2,
 }
 
 public static class DeviceBackends
 {
-    public static string Name(DeviceBackend backend) => backend == DeviceBackend.Ascom ? "ASCOM" : "Simulator";
+    public static string Name(DeviceBackend backend) => backend switch
+    {
+        DeviceBackend.Ascom => "ASCOM",
+        DeviceBackend.Phd2 => "PHD2",
+        _ => "Simulator",
+    };
 
     public static bool TryParse(string? name, out DeviceBackend backend)
     {
@@ -29,6 +37,9 @@ public static class DeviceBackends
                 return true;
             case "ASCOM":
                 backend = DeviceBackend.Ascom;
+                return true;
+            case "PHD2":
+                backend = DeviceBackend.Phd2;
                 return true;
             default:
                 backend = default;

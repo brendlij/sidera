@@ -88,6 +88,26 @@ public sealed class AscomBackendFactory(AscomDeviceFactory factory) : IDeviceFac
     }
 }
 
+/// <summary>PHD2: a guider that talks to a running PHD2 through the host and port of its settings. Creating it never connects to PHD2.</summary>
+public sealed class Phd2BackendFactory(Microsoft.Extensions.Logging.ILoggerFactory? loggers = null) : IDeviceFactory
+{
+    public DeviceBackend Backend => DeviceBackend.Phd2;
+
+    public IDevice CreateAndAdd(SideraRuntimeHost host, DeviceConfiguration configuration)
+    {
+        if (configuration.Type != DeviceType.Guider)
+        {
+            throw new NotSupportedException($"PHD2 is a guider; there is no PHD2 {configuration.Type}.");
+        }
+
+        var endpoint = Sidera.Phd2.Phd2Endpoint.FromSettings(configuration.Settings);
+        var guider = new Sidera.Phd2.Phd2Guider(
+            configuration.DeviceId, configuration.Name, endpoint, host.EventBus, loggers?.CreateLogger($"Sidera.Phd2.{configuration.Id}"));
+        host.AddDevice(guider);
+        return guider;
+    }
+}
+
 /// <summary>The backends Sidera can create devices of, by name. Simulator and ASCOM devices live side by side in one host.</summary>
 public sealed class DeviceFactoryRegistry(IEnumerable<IDeviceFactory> factories)
 {

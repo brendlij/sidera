@@ -44,7 +44,7 @@ public partial class App : Application
             // start has none; the equipment page offers to add devices (ASCOM or simulated) or the simulated demo.
             var drivers = new ComAscomDriverFactory();
             var factories = new DeviceFactoryRegistry(
-                [new SimulatorDeviceFactory(), new AscomBackendFactory(new AscomDeviceFactory(drivers, host.LoggerFactory))]);
+                [new SimulatorDeviceFactory(), new AscomBackendFactory(new AscomDeviceFactory(drivers, host.LoggerFactory)), new Phd2BackendFactory(host.LoggerFactory)]);
             var equipmentFile = SideraEnvironment.Get("SIDERA_EQUIPMENT_FILE");
             if (string.IsNullOrWhiteSpace(equipmentFile))
             {

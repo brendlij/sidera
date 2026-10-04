@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sidera.Ascom\Sidera.Ascom.csproj" />
+    <ProjectReference Include="..\Sidera.Phd2\Sidera.Phd2.csproj" />
     <ProjectReference Include="..\Sidera.Core\Sidera.Core.csproj" />
     <ProjectReference Include="..\Sidera.Runtime\Sidera.Runtime.csproj" />
   </ItemGroup>
