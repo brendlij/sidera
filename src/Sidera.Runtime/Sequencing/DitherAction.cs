@@ -180,7 +180,7 @@ public sealed class DitherAction : ISequenceStep
 
             try
             {
-                await guider.DitherAsync(definition.AmplitudePixels, cancellationToken);
+                await guider.DitherAsync(new DitherRequest(definition.AmplitudePixels, RaOnly: false, definition.SettleOptions), cancellationToken);
                 logger.LogInformation(
                     "Dither completed in {DurationMs:0} ms (guider {GuiderId})",
                     Stopwatch.GetElapsedTime(started).TotalMilliseconds, definition.GuiderId);
