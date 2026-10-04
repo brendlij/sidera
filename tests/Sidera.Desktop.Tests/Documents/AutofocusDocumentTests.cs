@@ -124,7 +124,7 @@ public sealed class AutofocusDocumentTests : IDisposable
         using var json = JsonDocument.Parse(await Write(Everything()));
         var steps = json.RootElement.GetProperty("steps").EnumerateArray().ToList();
 
-        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(SequenceDocument.CurrentVersion, json.RootElement.GetProperty("version").GetInt32());
         Assert.Equal(["type", "id", "rigId", "exposureSeconds", "stepSize", "samples"], steps[0].EnumerateObject().Select(p => p.Name));
         var track = steps[2].GetProperty("tracks")[0].GetProperty("steps").EnumerateArray().ToList();
         Assert.Equal("rigAutofocus", track[0].GetProperty("type").GetString());
@@ -154,7 +154,7 @@ public sealed class AutofocusDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 6,
+              "version": 7,
               "steps": [
                 {
                   "type": "autofocus",
@@ -196,13 +196,13 @@ public sealed class AutofocusDocumentTests : IDisposable
         Assert.Equal(new MoveFocuserDocumentStep(A, "focuser.main", 18350), loaded.Steps[0]);
         Assert.Equal(new ChangeFilterDocumentStep(B, "filterwheel.main", 4), loaded.Steps[1]);
         using var json = JsonDocument.Parse(rewritten);
-        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(SequenceDocument.CurrentVersion, json.RootElement.GetProperty("version").GetInt32());
         Assert.Equal(loaded.Steps, (await Read(rewritten)).Steps);
     }
 
     [Theory]
-    [InlineData(7)]
     [InlineData(8)]
+    [InlineData(9)]
     public async Task ANewerVersionThanFive_IsRejectedClearly(int version)
     {
         var ex = await Rejects(Doc(version, Autofocus(A)));
@@ -405,7 +405,7 @@ public sealed class AutofocusDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Focus.astraseq"));
-        Assert.Contains("\"version\": 6", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 7", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"rigAutofocus\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
@@ -434,7 +434,7 @@ public sealed class AutofocusDocumentTests : IDisposable
         Assert.False(app.Document.IsDirty);
         app.Draft.Rows.OfType<MoveFocuserStepDraftViewModel>().Single().PositionText = "19000";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 6", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 7", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
     }
 
     [Fact]

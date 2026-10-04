@@ -1,4 +1,6 @@
 using Sidera.Core.Devices;
+using Sidera.Core.Astrometry;
+using Sidera.Runtime.Astrometry;
 using Sidera.Core.FilterWheels;
 using Sidera.Core.Focusers;
 using Sidera.Core.Focusing;
@@ -112,6 +114,16 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
     /// where focus is. <see cref="FocusMetrics"/> is the direct simulated alternative, kept for tests of the algorithm.
     /// </summary>
     public IFocusMetricProvider FocusMetricProvider { get; }
+
+    public PlateSolveService? PlateSolving { get; private set; }
+
+    public void ConfigurePlateSolver(IPlateSolver solver)
+    {
+        ThrowIfDisposed();
+        if (PlateSolving?.IsSolving == true) throw new InvalidOperationException("The plate solver is busy.");
+        PlateSolving = new PlateSolveService(solver, DeviceRegistry, ResourceManager, AcquisitionDefaults,
+            LoggerFactory.CreateLogger<PlateSolveService>());
+    }
 
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>
     public void AddDevice(IDevice device)

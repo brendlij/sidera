@@ -130,6 +130,6 @@ public sealed class LegacyAstraDataTests : IDisposable
 
         Assert.Single(document.Steps);
         Assert.Equal(".astraseq", SequenceDocumentFiles.Extension);
-        Assert.Equal(("astra-sequence", 6), (SequenceDocument.FormatId, SequenceDocument.CurrentVersion));
+        Assert.Equal(("astra-sequence", SequenceDocument.CurrentVersion), (SequenceDocument.FormatId, SequenceDocument.CurrentVersion));
     }
 }

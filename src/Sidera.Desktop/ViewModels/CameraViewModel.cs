@@ -138,7 +138,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         try
         {
             var frame = await Host.DeviceOperations.ExposeAsync(Id, TimeSpan.FromSeconds(seconds), cts.Token);
-            _imaging.Publish(frame, SourceDescription());
+            _imaging.Publish(frame, SourceDescription(), Id);
             LastFrameText = frame.Acquisition is { Stopped: true } stopped
                 ? string.Create(
                     CultureInfo.InvariantCulture,

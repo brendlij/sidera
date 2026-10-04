@@ -69,6 +69,11 @@ public partial class App : Application
             var settingsFile = SideraEnvironment.Get("SIDERA_SETTINGS_FILE");
             var site = new SiteService(string.IsNullOrWhiteSpace(settingsFile) ? SideraSettingsStore.CreateDefault() : new SideraSettingsStore(settingsFile));
             site.Load();
+            host.ConfigurePlateSolver(new Sidera.Astap.AstapPlateSolver(() => new Sidera.Astap.AstapConfiguration
+            {
+                ExecutablePath = site.PlateSolving.ExecutablePath,
+                DatabasePath = site.PlateSolving.DatabasePath,
+            }, logger: host.LoggerFactory.CreateLogger<Sidera.Astap.AstapPlateSolver>()));
             if (site.Problem is { } siteProblem)
             {
                 logger.LogWarning("The settings file could not be used: {Problem}", siteProblem);
@@ -90,6 +95,13 @@ public partial class App : Application
                 equipmentManagement: management, withDemoSequence: false);
 
             var window = new MainWindow { DataContext = viewModel };
+            if (viewModel.Settings.PlateSolving is { } solverSettings)
+                solverSettings.BrowseExecutable = async () =>
+                {
+                    var files = await window.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+                    { Title = "Select ASTAP executable", AllowMultiple = false });
+                    return files.Count > 0 ? files[0].Path.LocalPath : null;
+                };
             filePicker.Attach(window);
             clipboard.Attach(window);
             desktop.MainWindow = window;

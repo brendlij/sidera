@@ -26,7 +26,7 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 - **Optical train:** the focal length (and optionally aperture, pixel size, sensor pixels) of a camera's rig, on the camera page. Pixel scale,
   sensor size and field of view are derived from it and from what the camera reports, never stored.
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
-  with policies, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
+  with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
 
 ## Requirements
@@ -84,6 +84,38 @@ Every physical action has its own gate: no gate, no movement. Only run mount tes
 - Environment variables with the old `ASTRA_` prefix still work when the `SIDERA_` one of the same name is not set.
 - The extension `.astraseq` and the format names `astra-sequence` and `astra-equipment` belong to the formats from before the rename.
   They are kept, so existing files keep loading.
+
+### Plate solving and centering
+
+Configure ASTAP in Settings → Plate Solving. Sidera discovers `astap_cli.exe`
+and installed database tiles; D50 is supported along with other ASTAP catalogs.
+Executable and optional database folders, solve timeout, search radius,
+downsample, blind fallback, exposure, centering tolerance and attempt limit
+are persisted in the existing `settings.json` alongside the observing site.
+
+The Plate Solve workspace captures a dedicated exposure or solves the last
+frame. Hints use the selected rig's optical geometry, camera pixel size,
+frame binning and dimensions, and connected mount coordinates. Unknown
+coordinates stay unknown. Results include WCS-derived scale/FOV, rotation,
+parity, pointing error and diagnostic focal-length estimates; rig optics
+are never changed automatically.
+
+Slew & Center holds the camera and mount resources until it finishes, uses
+spherical pointing errors and tangent-plane corrections, stops at tolerance
+or the attempt limit, and never syncs the mount. Real solve exposures require
+`SIDERA_ASTAP_CAMERA_OK=1`; real mount centering additionally requires
+`SIDERA_ASTROMETRY_CENTERING_OK=1`. Simulated devices need neither gate.
+Do not enable these gates unless physical operation is intended.
+
+The backend-neutral Plate Solve sequence step is persisted as `plateSolve`
+in `.astraseq` version 7. Versions 1–6 continue to load; older Sidera versions
+reject version 7 rather than silently skipping the new action.
+
+Safe installed-ASTAP tests use `SIDERA_ASTAP_TESTS=1`. A known FITS can be
+supplied in `SIDERA_ASTAP_TEST_IMAGE`, with optional expected center in
+`SIDERA_ASTAP_TEST_RA` (hours) and `SIDERA_ASTAP_TEST_DEC` (degrees). The
+pixel round-trip validation supports unsigned 16-bit primary FITS images.
+The production backend accepts camera frames and writes its own FITS.
 
 ## License
 

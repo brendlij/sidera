@@ -107,6 +107,7 @@ public sealed record SequenceDraftDefaults
             SequenceStepKind.ChangeFilter => new ChangeFilterStepDraft(id, FilterWheelId, FilterSlotIndex),
             SequenceStepKind.RigMoveFocuser => new RigMoveFocuserStepDraft(id, FocuserPosition),
             SequenceStepKind.RigChangeFilter => new RigChangeFilterStepDraft(id, FilterSlotIndex),
+            SequenceStepKind.PlateSolve => new PlateSolveStepDraft(id, AutofocusRigId, 5),
             SequenceStepKind.Autofocus => new AutofocusStepDraft(
                 id, AutofocusRigId, AutofocusExposureSeconds, AutofocusStepSize, AutofocusSampleCount),
             SequenceStepKind.RigAutofocus => new RigAutofocusStepDraft(

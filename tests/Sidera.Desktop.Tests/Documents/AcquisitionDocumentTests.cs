@@ -44,7 +44,7 @@ public sealed class AcquisitionDocumentTests
         var text = await Write(new SequenceDocument("x", [new ExposureDocumentStep(A, "camera.main", 300)]));
 
         Assert.DoesNotContain("acquisition", text, StringComparison.Ordinal);
-        Assert.Equal(6, JsonDocument.Parse(text).RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(SequenceDocument.CurrentVersion, JsonDocument.Parse(text).RootElement.GetProperty("version").GetInt32());
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class AcquisitionDocumentTests
     [Fact]
     public async Task ANewerVersion_IsStillRejectedAsNewer()
     {
-        var ex = await Rejects(Doc(7, Exposure(string.Empty)));
+        var ex = await Rejects(Doc(8, Exposure(string.Empty)));
 
         Assert.Equal(SequenceDocumentErrorKind.NewerVersion, ex.Kind);
     }

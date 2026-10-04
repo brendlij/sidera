@@ -172,11 +172,14 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
         : string.Empty;
 
     /// <summary>Makes <paramref name="frame"/> the latest one. Call on the UI thread.</summary>
-    public void Publish(CameraFrame frame, string source)
+    public DeviceId? LatestCameraId { get; private set; }
+
+    public void Publish(CameraFrame frame, string source, DeviceId? cameraId = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
         LatestFrame = frame;
+        LatestCameraId = cameraId;
         SourceText = source;
         CapturedText = DateTime.Now.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
         FrameCount++;

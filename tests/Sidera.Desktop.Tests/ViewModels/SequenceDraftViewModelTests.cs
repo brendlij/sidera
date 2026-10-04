@@ -77,17 +77,18 @@ public class SequenceDraftViewModelTests
     public async Task EveryKindCanBeAdded_AndANewDraftOfAllOfThemIsValidOnTheDemoEquipment()
     {
         await using var host = CreateHost();
+        host.ConfigurePlateSolver(new Sidera.Astap.AstapPlateSolver(() => new()));
         // An autofocus needs a rig and something to measure focus with.
         var draft = new SequenceDraftViewModel(
             host.DeviceRegistry, SequenceDraftDefaults.From(new DemoOptions(), host.DeviceRegistry), null,
-            rigs: host.RigRegistry, focusMetrics: host.FocusMetrics);
+            rigs: host.RigRegistry, focusMetrics: host.FocusMetrics, plateSolving: host.PlateSolving);
 
         // Start, Dither, Stop is an order that is valid: every kind once, guiding stopped last.
         foreach (var kind in new[]
                  {
                      SequenceStepKind.StartGuiding, SequenceStepKind.Slew, SequenceStepKind.Exposure,
                      SequenceStepKind.Dither, SequenceStepKind.Delay, SequenceStepKind.MoveFocuser,
-                     SequenceStepKind.ChangeFilter, SequenceStepKind.Autofocus, SequenceStepKind.StopGuiding,
+                     SequenceStepKind.ChangeFilter, SequenceStepKind.Autofocus, SequenceStepKind.StopGuiding, SequenceStepKind.PlateSolve,
                  })
         {
             draft.AddStepCommand.Execute(kind);
@@ -98,7 +99,7 @@ public class SequenceDraftViewModelTests
                 or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus)).OrderBy(k => k),
             draft.Steps.Select(s => s.Kind).OrderBy(k => k));
         Assert.True(draft.IsValid, string.Join(" ", draft.ValidationErrors));
-        Assert.Equal(9, draft.Build().Sequence.Steps.Count);
+        Assert.Equal(10, draft.Build().Sequence.Steps.Count);
     }
 
     [Fact]

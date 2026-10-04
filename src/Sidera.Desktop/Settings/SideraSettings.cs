@@ -13,6 +13,7 @@ namespace Sidera.Desktop.Settings;
 /// </summary>
 public sealed record SideraSettings(ObservingSite? Site)
 {
+    public PlateSolvingSettings PlateSolving { get; init; } = new();
     public const string FormatId = "sidera-settings";
     public const int CurrentVersion = 1;
 
@@ -32,6 +33,8 @@ public static class SideraSettingsSerializer
             w.WriteStartObject();
             w.WriteString("format", SideraSettings.FormatId);
             w.WriteNumber("version", SideraSettings.CurrentVersion);
+            w.WritePropertyName("plateSolving");
+            JsonSerializer.Serialize(w, settings.PlateSolving);
             if (settings.Site is { } site)
             {
                 w.WriteStartObject("site");
@@ -74,9 +77,16 @@ public static class SideraSettingsSerializer
                 throw new SideraSettingsException("The file is not a Sidera settings file.");
             }
 
+            var solving = new PlateSolvingSettings();
+            if (root.TryGetProperty("plateSolving", out var solveElement))
+            {
+                try { solving = solveElement.Deserialize<PlateSolvingSettings>() ?? new(); }
+                catch (JsonException ex) { throw new SideraSettingsException("The plate solving settings are invalid.", ex); }
+                if (solving.Problem is { } solveProblem) throw new SideraSettingsException(solveProblem);
+            }
             if (!root.TryGetProperty("site", out var site) || site.ValueKind == JsonValueKind.Null)
             {
-                return SideraSettings.Empty;
+                return SideraSettings.Empty with { PlateSolving = solving };
             }
 
             if (site.ValueKind != JsonValueKind.Object)
@@ -98,7 +108,7 @@ public static class SideraSettingsSerializer
             }
 
             var name = site.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String ? nameElement.GetString() : null;
-            return new SideraSettings(new ObservingSite(latitude, longitude, elevation, name));
+            return new SideraSettings(new ObservingSite(latitude, longitude, elevation, name)) { PlateSolving = solving };
         }
     }
 }
@@ -199,6 +209,10 @@ public sealed class SiteService
 
     /// <summary>The configured site; <c>null</c> when none was entered.</summary>
     public ObservingSite? Site => _settings.Site;
+    public PlateSolvingSettings PlateSolving => _settings.PlateSolving;
+
+    public SiteResult SetPlateSolving(PlateSolvingSettings settings) => settings.Problem is { } problem
+        ? SiteResult.Fail(problem) : Save(_settings with { PlateSolving = settings });
 
     /// <summary>What went wrong while loading (an unreadable file); <c>null</c> when all is well.</summary>
     public string? Problem { get; private set; }

@@ -34,6 +34,7 @@
                         <MenuItem Header="Move Focuser" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
                         <MenuItem Header="Change Filter" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
                         <MenuItem Header="Autofocus" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
+                        <MenuItem Header="Plate Solve" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.PlateSolve}" />
                         <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
                         <MenuItem Header="Multi-Rig Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />
                         <Separator />

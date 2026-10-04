@@ -41,6 +41,26 @@
                 </Border>
             </StackPanel>
 
+            <StackPanel DataContext="{Binding PlateSolving}" x:DataType="vm:PlateSolvingSettingsViewModel" IsVisible="{Binding $parent[UserControl].DataContext.HasSite}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="PLATE SOLVING" />
+                <ctl:LabeledField Label="Backend"><ComboBox ItemsSource="{Binding Backends}" SelectedItem="{Binding Backend}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="ASTAP executable (empty for discovery)"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding ExecutablePath}" /><Button Grid.Column="1" Content="Browse" Command="{Binding BrowseCommand}" /></Grid></ctl:LabeledField>
+                <ctl:LabeledField Label="Database folder (optional)"><TextBox Text="{Binding DatabasePath}" /></ctl:LabeledField>
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Timeout (s)"><NumericUpDown Value="{Binding TimeoutSeconds}" Minimum="1" Maximum="3600" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Search radius (°)"><NumericUpDown Value="{Binding SearchRadiusDegrees}" Minimum="0.01" Maximum="180" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Downsample"><ComboBox ItemsSource="{Binding Downsamples}" SelectedItem="{Binding Downsample}" /></ctl:LabeledField>
+                </Grid>
+                <CheckBox Content="Allow blind fallback" IsChecked="{Binding BlindFallback}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Solve exposure (s)"><NumericUpDown Value="{Binding ExposureSeconds}" Minimum="0.001" Maximum="3600" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Centering tolerance (arcsec)"><NumericUpDown Value="{Binding ToleranceArcseconds}" Minimum="0.01" Maximum="3600" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Max attempts"><NumericUpDown Value="{Binding MaxAttempts}" Minimum="1" Maximum="100" /></ctl:LabeledField>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Save plate solving" Command="{Binding SaveCommand}" /><Button Content="Refresh detection" Command="{Binding RefreshCommand}" /></StackPanel>
+                <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
+            </StackPanel>
             <ItemsControl ItemsSource="{Binding Groups}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
