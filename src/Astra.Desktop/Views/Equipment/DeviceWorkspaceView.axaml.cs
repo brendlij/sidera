@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace Astra.Desktop.Views.Equipment;
 
-public partial class RigBrowserView : UserControl
+public partial class DeviceWorkspaceView : UserControl
 {
-    public RigBrowserView()
+    public DeviceWorkspaceView()
     {
         InitializeComponent();
     }

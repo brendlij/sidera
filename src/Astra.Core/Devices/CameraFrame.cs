@@ -33,4 +33,10 @@ public sealed class CameraFrame
     public int Height { get; }
     public TimeSpan ExposureDuration { get; }
     public ReadOnlyMemory<ushort> Pixels => _pixels;
+
+    /// <summary>
+    /// The acquisition settings the frame was taken with, as far as the camera reported them; <c>null</c> for a camera that does
+    /// not say. Metadata for what comes later (diagnostics, image history, calibration matching): nothing here is derived from pixels.
+    /// </summary>
+    public FrameAcquisition? Acquisition { get; init; }
 }

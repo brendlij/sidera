@@ -101,7 +101,7 @@ public class SequenceDraftBuilderTests
         Assert.Equal(steps.Select(s => s.Id), built.Steps.Select(s => s.DraftId));
         Assert.Equal(built.Sequence.Steps, built.Steps.Select(s => s.Step));
         Assert.Equal(
-            new[] { ("Exposure", "Main Camera · 4 s"), ("Delay", "7 s"), ("Dither", "1.5 px · settle ≤ 0.5 px for 1 s") },
+            new[] { ("Exposure", "Main Camera · 4 s · Camera defaults"), ("Delay", "7 s"), ("Dither", "1.5 px · settle ≤ 0.5 px for 1 s") },
             built.Steps.Select(s => (s.Description.Title, s.Description.Summary)));
     }
 

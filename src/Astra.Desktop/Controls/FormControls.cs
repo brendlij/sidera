@@ -116,3 +116,19 @@ public sealed class PageHeader : ContentControl
         set => SetValue(SubtitleProperty, value);
     }
 }
+
+/// <summary>
+/// One section of a device workspace: a quiet title and its content, without a box around it. Sections are laid out in a wrapping
+/// panel, so that they fill the width of the window in as many columns as fit; a section that needs more room sets its own width.
+/// </summary>
+public sealed class WorkspaceSection : ContentControl
+{
+    public static readonly StyledProperty<string?> HeaderProperty =
+        AvaloniaProperty.Register<WorkspaceSection, string?>(nameof(Header));
+
+    public string? Header
+    {
+        get => GetValue(HeaderProperty);
+        set => SetValue(HeaderProperty, value);
+    }
+}

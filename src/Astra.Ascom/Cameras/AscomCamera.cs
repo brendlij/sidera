@@ -462,10 +462,44 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
 
     /// <exception cref="ArgumentOutOfRangeException">The duration is not positive.</exception>
     /// <exception cref="InvalidOperationException">The camera is not connected or is already exposing.</exception>
-    public async Task<CameraFrame> ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default)
+    public Task<CameraFrame> ExposeAsync(TimeSpan duration, CancellationToken cancellationToken = default) =>
+        ExposeCoreAsync(duration, FrameType.Light, null, cancellationToken);
+
+    /// <summary>
+    /// Applies the settings of the request and exposes, in this order and nothing in between: a setting that cannot be applied
+    /// stops the operation before the exposure starts. What was applied before it failed stays applied, and
+    /// <see cref="Settings"/> says what the camera has.
+    /// </summary>
+    public Task<CameraFrame> ExposeAsync(CameraExposureRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ExposeCoreAsync(request.Duration, request.FrameType, request.Change, cancellationToken);
+    }
+
+    private async Task<CameraFrame> ExposeCoreAsync(
+        TimeSpan duration, FrameType frameType, CameraSettings? change, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
         Session();
+
+        if (frameType is FrameType.Dark or FrameType.Bias && Capabilities.Value is { HasShutter: false })
+        {
+            throw new AscomUnsupportedException(
+                Id, ProgId, "expose", $"{Name} ({ProgId}) has no shutter, so it cannot take a {frameType.ToString().ToLowerInvariant()} frame.");
+        }
+
+        if (change is { IsEmpty: false })
+        {
+            try
+            {
+                await ApplyAsync(change, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Logger.LogError(ex, "Applying the acquisition settings to {Device} failed; no exposure is started", Name);
+                throw;
+            }
+        }
 
         lock (_state)
         {
@@ -493,7 +527,7 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             RaiseProgress();
 
             clock.Restart();
-            await CallAsync("start the exposure of", d => d.StartExposure(duration.TotalSeconds, true), cancellationToken);
+            await CallAsync("start the exposure of", d => d.StartExposure(duration.TotalSeconds, frameType is FrameType.Light or FrameType.Flat), cancellationToken);
 
             var limit = duration + Timings.CameraDownloadMargin;
             while (true)
@@ -536,7 +570,7 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             }
 
             Logger.LogInformation("{Device} delivered a frame of {Width} x {Height}", Name, converted.Width, converted.Height);
-            return new CameraFrame(converted.Width, converted.Height, converted.Pixels, duration);
+            return new CameraFrame(converted.Width, converted.Height, converted.Pixels, duration) { Acquisition = Describe(frameType) };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -579,6 +613,32 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
 
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    // What the frame was taken with: the settings the camera reported, with the names of list gains, offsets and readout modes.
+    private FrameAcquisition Describe(FrameType frameType)
+    {
+        var s = Settings;
+        var c = Capabilities.Value;
+        string? Name(IntegerControl? control, int? value) =>
+            control is { IsList: true } && value is { } v && v >= 0 && v < control.Choices.Count ? control.Choices[v] : null;
+
+        return new FrameAcquisition
+        {
+            FrameType = frameType,
+            Gain = s?.Gain,
+            GainName = Name(c?.Gain, s?.Gain),
+            Offset = s?.Offset,
+            OffsetName = Name(c?.Offset, s?.Offset),
+            BinX = s?.BinX,
+            BinY = s?.BinY,
+            StartX = s?.StartX,
+            StartY = s?.StartY,
+            Width = s?.NumX,
+            Height = s?.NumY,
+            ReadoutMode = c is not null && s?.ReadoutMode is { } r && r >= 0 && r < c.ReadoutModes.Count ? c.ReadoutModes[r] : null,
+            FastReadout = s?.FastReadout,
+        };
     }
 
     private ConvertedImage Convert(object? array, int numX, int numY)

@@ -25,9 +25,15 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
     private readonly DeviceId _cameraId;
     private readonly DeviceId _focuserId;
     private readonly IFocusMetricProvider _metrics;
+    private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
 
     public FocusMeasurementOperation(
-        DeviceRegistry registry, RigId rigId, DeviceId cameraId, DeviceId focuserId, IFocusMetricProvider metrics)
+        DeviceRegistry registry,
+        RigId rigId,
+        DeviceId cameraId,
+        DeviceId focuserId,
+        IFocusMetricProvider metrics,
+        IAcquisitionDefaultsSource? acquisitionDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(metrics);
@@ -37,6 +43,7 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
         _cameraId = cameraId;
         _focuserId = focuserId;
         _metrics = metrics;
+        _acquisitionDefaults = acquisitionDefaults;
     }
 
     /// <exception cref="InvalidOperationException">
@@ -61,7 +68,9 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
         }
 
         var position = focuser.Position;
-        var frame = await camera.ExposeAsync(exposureDuration, cancellationToken);
+        // Autofocus has acquisition requirements of its own (the whole sensor, unbinned): what an imaging exposure left on the camera
+        // is not used to focus.
+        var frame = await AcquisitionExposer.ExposeForFocusAsync(camera, exposureDuration, _acquisitionDefaults, null, cancellationToken);
 
         if (focuser.Position != position || focuser.MotionState != FocuserMotionState.Idle)
         {

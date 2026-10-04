@@ -100,15 +100,26 @@ public sealed class DevicePanelTests : IAsyncLifetime
     }
 
     [Fact]
-    public void CameraPreferences_NeverIncludeTheCooler()
+    public void CameraDefaults_AreKeptAsIntent_AndNeverIncludeTheCooler()
     {
-        var preferences = DevicePreferences.From(
-            new CameraSettings { Gain = 5, CoolerOn = true, TargetTemperature = -10 }, DeviceConfiguration.NoSettings);
+        var intent = new AcquisitionIntent
+        {
+            Gain = AcquisitionLevel.OfNumber(5), Offset = AcquisitionLevel.OfName("High"), BinX = 2, BinY = 2,
+            Region = AcquisitionRegion.Of(1, 2, 30, 40), ReadoutMode = "Slow", FastReadout = true,
+        };
+
+        var preferences = DevicePreferences.WithTargetTemperature(
+            DevicePreferences.WithAcquisition(DeviceConfiguration.NoSettings, intent), -10);
 
         Assert.Equal("5", preferences[DevicePreferences.Gain]);
+        Assert.Equal("High", preferences[DevicePreferences.OffsetName]);
+        Assert.Equal("1,2,30,40", preferences[DevicePreferences.Region]);
+        Assert.Equal("Slow", preferences[DevicePreferences.ReadoutMode]);
         Assert.Equal("-10", preferences[DevicePreferences.TargetTemperature]);
         Assert.DoesNotContain(preferences.Keys, k => k.Contains("cooler", StringComparison.OrdinalIgnoreCase));
-        Assert.Null(DevicePreferences.ToCameraChange(preferences).CoolerOn);
+        Assert.Equal(intent, DevicePreferences.AcquisitionDefaults(preferences));
+        Assert.Equal(AcquisitionRegion.Full, DevicePreferences.AcquisitionDefaults(
+            new Dictionary<string, string> { [DevicePreferences.Region] = "full" }).Region);
     }
 
     // ---- Camera panel
@@ -194,6 +205,7 @@ public sealed class DevicePanelTests : IAsyncLifetime
         var stored = preferences.GetPreferences("camera.sim");
         Assert.Equal("50", stored[DevicePreferences.Gain]);
         Assert.Equal("2", stored[DevicePreferences.BinX]);
+        Assert.Equal("full", stored[DevicePreferences.Region]);
 
         panel.Gain.Text = "5000";
         await panel.ApplyCommand.ExecuteAsync(null);
@@ -203,15 +215,15 @@ public sealed class DevicePanelTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task APreferenceTheCameraStillOffers_IsAppliedAfterTheNextConnect_AndOneItDoesNotOffer_IsKeptAndSaid()
+    public async Task CameraDefaultsThatFit_AreAppliedAfterTheNextConnect()
     {
         var preferences = new MemoryPreferences();
         preferences.SavePreferences("camera.sim", new Dictionary<string, string>
         {
             [DevicePreferences.Gain] = "40",
             [DevicePreferences.Offset] = "7",
-            [DevicePreferences.BinX] = "9",
-            [DevicePreferences.BinY] = "9",
+            [DevicePreferences.BinX] = "2",
+            [DevicePreferences.ReadoutMode] = "Slow",
         });
         var simulated = new SimulatedCamera(new DeviceId("camera.sim"), seed: 1);
         var (panel, camera) = CameraPanel(simulated, preferences);
@@ -220,10 +232,30 @@ public sealed class DevicePanelTests : IAsyncLifetime
         await Settle(() => camera.Settings?.Gain == 40);
 
         Assert.Equal(7, camera.Settings!.Offset);
-        Assert.Equal(1, camera.Settings.BinX);
+        Assert.Equal((2, 2), (camera.Settings.BinX, camera.Settings.BinY));
+        Assert.Equal(1, camera.Settings.ReadoutMode);
+        Assert.False(panel.HasNotice);
+    }
+
+    [Fact]
+    public async Task CameraDefaultsThatDoNotFit_AreKeptAsTheyAre_NotApplied_AndSaid()
+    {
+        var preferences = new MemoryPreferences();
+        preferences.SavePreferences("camera.sim", new Dictionary<string, string>
+        {
+            [DevicePreferences.Gain] = "40",
+            [DevicePreferences.BinX] = "9",
+        });
+        var simulated = new SimulatedCamera(new DeviceId("camera.sim"), seed: 1);
+        var (panel, camera) = CameraPanel(simulated, preferences);
+
+        await camera.ConnectAsync();
         await Settle(() => panel.HasNotice);
-        Assert.Contains("binning", panel.NoticeText);
+
+        Assert.Contains("do not fit", panel.NoticeText);
+        Assert.Equal(0, camera.Settings!.Gain);
         Assert.Equal("9", preferences.GetPreferences("camera.sim")[DevicePreferences.BinX]);
+        Assert.Equal("40", preferences.GetPreferences("camera.sim")[DevicePreferences.Gain]);
     }
 
     [Fact]
@@ -336,6 +368,54 @@ public sealed class DevicePanelTests : IAsyncLifetime
 
         await mount.ConnectAsync();
         await Settle(() => mount.Telemetry?.Rate == TrackingRate.Lunar && mount.Telemetry.DoesRefraction == true);
+    }
+
+    [Fact]
+    public async Task TheJogPad_MovesOnlyWhileHeld_AndStopIsAlwaysThere()
+    {
+        var drivers = new FakeDriverFactory(new CallLog())
+        {
+            ConfigureMount = d => { d.MovableAxes.Add(MountAxis.Primary); d.MovableAxes.Add(MountAxis.Secondary); },
+        };
+        var ascom = new AscomMount(new DeviceId("mount.jog"), "Jog Mount", "ASCOM.Test.Telescope", drivers, null, null, FastTimings.Create());
+        var (panel, mount) = MountPanel(ascom);
+        await mount.ConnectAsync();
+        await Settle(() => panel.IsAvailable);
+        panel.JogRateText = "0.5";
+
+        await panel.JogStartCommand.ExecuteAsync("NE");
+        Assert.True(panel.IsJogging);
+        Assert.Contains(drivers.Mounts[0].Operations, o => o.StartsWith("MoveAxis Primary 0", StringComparison.Ordinal) && o != "MoveAxis Primary 0");
+        Assert.Contains(drivers.Mounts[0].Operations, o => o.StartsWith("MoveAxis Secondary 0", StringComparison.Ordinal) && o != "MoveAxis Secondary 0");
+
+        await panel.JogEndCommand.ExecuteAsync("NE");
+        Assert.False(panel.IsJogging);
+        Assert.Contains("MoveAxis Primary 0", drivers.Mounts[0].Operations);
+        Assert.Contains("MoveAxis Secondary 0", drivers.Mounts[0].Operations);
+
+        await panel.StopCommand.ExecuteAsync(null);
+        Assert.Contains("AbortSlew", drivers.Mounts[0].Operations);
+        Assert.False(panel.HasError);
+        Assert.True(panel.StopCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task TheJogPad_OnlyUsesTheAxesTheMountCanMove_AndRefusesARateItDoesNotHave()
+    {
+        var drivers = new FakeDriverFactory(new CallLog()) { ConfigureMount = d => d.MovableAxes.Add(MountAxis.Primary) };
+        var ascom = new AscomMount(new DeviceId("mount.jog"), "Jog Mount", "ASCOM.Test.Telescope", drivers, null, null, FastTimings.Create());
+        var (panel, mount) = MountPanel(ascom);
+        await mount.ConnectAsync();
+        await Settle(() => panel.IsAvailable);
+
+        await panel.JogStartCommand.ExecuteAsync("NE");
+        Assert.DoesNotContain(drivers.Mounts[0].Operations, o => o.Contains("Secondary", StringComparison.Ordinal));
+        await panel.JogEndCommand.ExecuteAsync("NE");
+
+        panel.JogRateText = "50";
+        await panel.JogStartCommand.ExecuteAsync("E");
+        Assert.True(panel.HasError);
+        Assert.False(panel.IsJogging);
     }
 
     // ---- Focuser panel

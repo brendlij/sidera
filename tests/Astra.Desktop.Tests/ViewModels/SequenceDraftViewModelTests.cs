@@ -275,7 +275,7 @@ public class SequenceDraftViewModelTests
 
         Assert.Equal(new DeviceId("camera.main"), exposure.Camera.SelectedId);
         Assert.Equal("2", exposure.ExposureText);
-        Assert.Equal("Main Camera · 2 s", exposure.Summary);
+        Assert.Equal("Main Camera · 2 s · Camera defaults", exposure.Summary);
         Assert.False(exposure.HasProblems);
     }
 
@@ -385,7 +385,7 @@ public class SequenceDraftViewModelTests
 
         exposure.ExposureText = "300";
 
-        Assert.Equal("Main Camera · 300 s", exposure.Summary);
+        Assert.Equal("Main Camera · 300 s · Camera defaults", exposure.Summary);
         Assert.Equal(300, Assert.IsType<ExposureStepDraft>(Assert.Single(draft.Snapshot())).Seconds);
         Assert.True(changes > 0);
     }
@@ -400,7 +400,7 @@ public class SequenceDraftViewModelTests
 
         exposure.Camera.Selected = exposure.Camera.Options.Single(o => o.IdText == "camera.second");
 
-        Assert.Equal("Second Camera · 2 s", exposure.Summary);
+        Assert.Equal("Second Camera · 2 s · Camera defaults", exposure.Summary);
         Assert.Equal(new DeviceId("camera.second"), Assert.IsType<ExposureStepDraft>(draft.Snapshot()[0]).CameraId);
     }
 

@@ -1,4 +1,5 @@
 using System;
+using Astra.Core.Devices;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -10,7 +11,7 @@ using System.Threading.Tasks;
 namespace Astra.Desktop.Documents;
 
 /// <summary>
-/// Versions 1 to 5 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
+/// Versions 1 to 6 of the Astra sequence document format, which happen to be encoded as JSON text. This class is the only
 /// place that knows that: the property names, the step discriminators and the JSON parsing rules below are the
 /// version 1 file format, and nothing else in Astra should depend on them.
 /// <para>
@@ -33,7 +34,9 @@ namespace Astra.Desktop.Documents;
 /// (<c>autofocus</c> with a <c>rigId</c>, <c>rigAutofocus</c> inside a rig track on the track's rig). An older document
 /// is read by the same code with the later additions switched off, so it means exactly what it did. Version 5 adds the
 /// <c>autofocusPolicy</c> of a rig track; it is read only from a version 5 document, so that a document of an older
-/// version means what it meant.
+/// version means what it meant. Version 6 adds the <c>acquisition</c> of an exposure and of a rig exposure: only the settings the exposure
+/// sets itself (frame type, gain, offset, binning, region, readout mode, fast readout); everything it does not set is inherited from the
+/// defaults of the camera, which are equipment and not part of a document.
 /// </para>
 /// </summary>
 public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
@@ -140,6 +143,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 Header(w, ExposureType, e.Id);
                 Device(w, "cameraId", e.CameraId);
                 w.WriteNumber("exposureSeconds", e.ExposureSeconds);
+                WriteAcquisition(w, e.Acquisition);
                 break;
             case DelayDocumentStep d:
                 Header(w, DelayType, d.Id);
@@ -172,6 +176,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             case RigExposureDocumentStep r:
                 Header(w, RigExposureType, r.Id);
                 w.WriteNumber("exposureSeconds", r.ExposureSeconds);
+                WriteAcquisition(w, r.Acquisition);
                 break;
             case MoveFocuserDocumentStep f:
                 Header(w, MoveFocuserType, f.Id);
@@ -333,7 +338,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 or 2 or 3 or 4 or 5 => ReadBody(root, version),
+            1 or 2 or 3 or 4 or 5 or 6 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Astra version."),
         };
@@ -452,14 +457,15 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         return type switch
         {
             ExposureType => new ExposureDocumentStep(
-                id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds")),
+                id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
             DelayType => new DelayDocumentStep(id, ReadNumber(element, type, "durationSeconds")),
             SlewType => new SlewDocumentStep(
                 id, ReadDevice(element, type, "mountId"),
                 ReadNumber(element, type, "raHours"), ReadNumber(element, type, "decDegrees")),
             StartGuidingType => new StartGuidingDocumentStep(id, ReadDevice(element, type, "guiderId")),
             StopGuidingType => new StopGuidingDocumentStep(id, ReadDevice(element, type, "guiderId")),
-            RigExposureType => new RigExposureDocumentStep(id, ReadNumber(element, type, "exposureSeconds")),
+            RigExposureType => new RigExposureDocumentStep(
+                id, ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
             MoveFocuserType => new MoveFocuserDocumentStep(
                 id, ReadDevice(element, type, "focuserId"), ReadWhole(element, type, "position")),
             ChangeFilterType => new ChangeFilterDocumentStep(
@@ -678,6 +684,196 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             default:
                 throw Structure($"'{name}' of a '{type}' step must be a device ID or null.");
         }
+    }
+
+    // Version 6: the acquisition settings an exposure sets itself, and only those; an exposure that sets none has no
+    // "acquisition". Gain and offset are a number or the name of a choice; the region is "fullFrame" or a rectangle in binned pixels.
+    private static void WriteAcquisition(Utf8JsonWriter w, AcquisitionIntent? intent)
+    {
+        if (intent is null || intent.IsDefault)
+        {
+            return;
+        }
+
+        w.WriteStartObject("acquisition");
+        if (intent.FrameType != FrameType.Light)
+        {
+            w.WriteString("frameType", intent.FrameType.ToString());
+        }
+
+        Level(w, "gain", intent.Gain);
+        Level(w, "offset", intent.Offset);
+        if (intent.BinX is not null || intent.BinY is not null)
+        {
+            w.WriteStartObject("binning");
+            if (intent.BinX is { } x)
+            {
+                w.WriteNumber("x", x);
+            }
+
+            if (intent.BinY is { } y)
+            {
+                w.WriteNumber("y", y);
+            }
+
+            w.WriteEndObject();
+        }
+
+        if (intent.Region is { } region)
+        {
+            if (region.IsFullFrame)
+            {
+                w.WriteString("region", "fullFrame");
+            }
+            else
+            {
+                w.WriteStartObject("region");
+                w.WriteNumber("x", region.X);
+                w.WriteNumber("y", region.Y);
+                w.WriteNumber("width", region.Width);
+                w.WriteNumber("height", region.Height);
+                w.WriteEndObject();
+            }
+        }
+
+        if (intent.ReadoutMode is { } readout)
+        {
+            w.WriteString("readoutMode", readout);
+        }
+
+        if (intent.FastReadout is { } fast)
+        {
+            w.WriteBoolean("fastReadout", fast);
+        }
+
+        w.WriteEndObject();
+
+        static void Level(Utf8JsonWriter writer, string name, AcquisitionLevel? level)
+        {
+            if (level?.Name is { } text)
+            {
+                writer.WriteString(name, text);
+            }
+            else if (level?.Number is { } number)
+            {
+                writer.WriteNumber(name, number);
+            }
+        }
+    }
+
+    // Read only from a version 6 document, so that a document of an older version means what it meant. Anything that is not
+    // understood is an error of the file, never a guess.
+    private static AcquisitionIntent? ReadAcquisition(JsonElement step, string type, int version)
+    {
+        if (version < 6 || !step.TryGetProperty("acquisition", out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw Structure($"'acquisition' of a '{type}' step must be an object.");
+        }
+
+        var frameType = FrameType.Light;
+        if (element.TryGetProperty("frameType", out var frameElement))
+        {
+            if (frameElement.ValueKind != JsonValueKind.String
+                || !Enum.TryParse(frameElement.GetString(), ignoreCase: false, out frameType)
+                || !Enum.IsDefined(frameType))
+            {
+                throw Structure($"'frameType' of a '{type}' step is not a known frame type.");
+            }
+        }
+
+        AcquisitionLevel? Level(string name)
+        {
+            if (!element.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
+            {
+                return null;
+            }
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.Number when value.TryGetInt32(out var number) => AcquisitionLevel.OfNumber(number),
+                JsonValueKind.String when !string.IsNullOrWhiteSpace(value.GetString()) => AcquisitionLevel.OfName(value.GetString()!),
+                _ => throw Structure($"'{name}' of a '{type}' step must be a whole number or the name of a choice."),
+            };
+        }
+
+        int? Bin(JsonElement binning, string name)
+        {
+            if (!binning.TryGetProperty(name, out var value))
+            {
+                return null;
+            }
+
+            return value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number) && number >= 1
+                ? number
+                : throw Structure($"The binning '{name}' of a '{type}' step must be a whole number of at least 1.");
+        }
+
+        int? binX = null, binY = null;
+        if (element.TryGetProperty("binning", out var binningElement))
+        {
+            if (binningElement.ValueKind != JsonValueKind.Object)
+            {
+                throw Structure($"'binning' of a '{type}' step must be an object.");
+            }
+
+            (binX, binY) = (Bin(binningElement, "x"), Bin(binningElement, "y"));
+        }
+
+        AcquisitionRegion? region = null;
+        if (element.TryGetProperty("region", out var regionElement) && regionElement.ValueKind != JsonValueKind.Null)
+        {
+            if (regionElement.ValueKind == JsonValueKind.String && regionElement.GetString() == "fullFrame")
+            {
+                region = AcquisitionRegion.Full;
+            }
+            else if (regionElement.ValueKind == JsonValueKind.Object)
+            {
+                int Part(string name) =>
+                    regionElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)
+                        ? number
+                        : throw Structure($"The region of a '{type}' step needs a whole number '{name}'.");
+
+                try
+                {
+                    region = AcquisitionRegion.Of(Part("x"), Part("y"), Part("width"), Part("height"));
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    throw Structure($"The region of a '{type}' step must start at 0 or more and have a width and height of at least 1.");
+                }
+            }
+            else
+            {
+                throw Structure($"'region' of a '{type}' step must be \"fullFrame\" or a rectangle.");
+            }
+        }
+
+        string? readout = null;
+        if (element.TryGetProperty("readoutMode", out var readoutElement) && readoutElement.ValueKind != JsonValueKind.Null)
+        {
+            readout = readoutElement.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(readoutElement.GetString())
+                ? readoutElement.GetString()
+                : throw Structure($"'readoutMode' of a '{type}' step must be the name of a readout mode.");
+        }
+
+        bool? fast = null;
+        if (element.TryGetProperty("fastReadout", out var fastElement) && fastElement.ValueKind != JsonValueKind.Null)
+        {
+            fast = fastElement.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? fastElement.GetBoolean()
+                : throw Structure($"'fastReadout' of a '{type}' step must be true or false.");
+        }
+
+        return new AcquisitionIntent
+        {
+            FrameType = frameType, Gain = Level("gain"), Offset = Level("offset"), BinX = binX, BinY = binY, Region = region,
+            ReadoutMode = readout, FastReadout = fast,
+        };
     }
 
     private static SequenceDocumentException Container(string message) => new(SequenceDocumentErrorKind.Container, message);

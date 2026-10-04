@@ -212,7 +212,7 @@ public class SequenceRepeatEditingTests
         f.Delay.DurationText = "10";
         f.Dither.AmplitudeText = "2";
 
-        Assert.Equal("Main Camera · 300 s", f.Exposure.Summary);
+        Assert.Equal("Main Camera · 300 s · Camera defaults", f.Exposure.Summary);
         Assert.Equal("10 s", f.Delay.Summary);
         Assert.Equal("2 px · settle ≤ 0.5 px for 1 s", f.Dither.Summary);
         var repeat = Assert.IsType<RepeatStepDraft>(f.Draft.Snapshot()[1]);
@@ -513,14 +513,14 @@ public class SequenceRepeatEditingTests
         Assert.Equal("3 steps", rows[1].Detail);
         Assert.Equal(0, rows[1].IndentWidth);
         Assert.All(rows.Skip(2), row => Assert.True(row.IndentWidth > rows[1].IndentWidth));
-        Assert.Equal("Main Camera · 300 s", rows[2].Detail);
+        Assert.Equal("Main Camera · 300 s · Camera defaults", rows[2].Detail);
         Assert.Equal(new[] { repeat.Id, exposure.Id }, new[] { rows[1].DraftId!.Value, rows[2].DraftId!.Value });
 
         repeat.CountText = "20";
         exposure.ExposureText = "60";
 
         Assert.Equal("Repeat × 20", vm.Sequencer.Definition[1].Title);
-        Assert.Equal("Main Camera · 60 s", vm.Sequencer.Definition[2].Detail);
+        Assert.Equal("Main Camera · 60 s · Camera defaults", vm.Sequencer.Definition[2].Detail);
         vm.Dispose();
     }
 

@@ -235,7 +235,7 @@ public class SequenceEditorRunTests
 
         var exposure = app.Draft.Steps.OfType<ExposureStepDraftViewModel>().First();
         exposure.ExposureText = "300";
-        Assert.Equal("Main Camera · 300 s", app.Sequencer.Definition[2].Detail);
+        Assert.Equal("Main Camera · 300 s · Camera defaults", app.Sequencer.Definition[2].Detail);
 
         app.Draft.SelectedStep = app.Draft.Steps[1];
         app.Draft.MoveStepDownCommand.Execute(null);
@@ -356,7 +356,7 @@ public class SequenceEditorRunTests
         Assert.Same(running, app.Sequencer.Definition);
         var row = Assert.Single(app.Sequencer.Definition);
         Assert.Equal("Exposure", row.Title);
-        Assert.Equal("Main Camera · 0.4 s", row.Detail);
+        Assert.Equal("Main Camera · 0.4 s · Camera defaults", row.Detail);
         Assert.Equal(exposure.Id, row.DraftId);
         await run.WaitAsync(Bound);
 

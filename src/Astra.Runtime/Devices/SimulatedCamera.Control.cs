@@ -60,14 +60,14 @@ public sealed partial class SimulatedCamera
         MaxAdu = ushort.MaxValue,
         SensorType = SensorKind.Monochrome,
         SensorName = "Simulated monochrome sensor",
-        HasShutter = false,
+        HasShutter = true,
         MaxBinX = 4,
         MaxBinY = 4,
         CanAsymmetricBin = false,
         SupportsSubframe = true,
         Gain = IntegerControl.Range(0, 100),
         Offset = IntegerControl.Range(0, 255),
-        ReadoutModes = ["Normal", "Slow"],
+        ReadoutModes = ReadoutNames,
         CanFastReadout = false,
         CanSetCcdTemperature = true,
         HasCooler = true,
@@ -249,8 +249,60 @@ public sealed partial class SimulatedCamera
         };
     }
 
-    // The frame the camera delivers is the synthetic sky, binned and cropped to the settings; with the default settings it
-    // is returned untouched.
+    // The frame the camera delivers is the synthetic sky, binned and cropped to the settings, with the gain and the offset applied
+    // (a deterministic scaling and shift; with gain 0 and offset 0 the pixels are untouched), and described by what it was taken with.
+    private CameraFrame FinishFrame(CameraFrame frame, FrameType frameType)
+    {
+        CameraSettings? settings;
+        lock (_control)
+        {
+            settings = _settings;
+        }
+
+        var shaped = ApplyGeometry(frame);
+        shaped = ApplyLevels(shaped, settings);
+        return new CameraFrame(shaped.Width, shaped.Height, shaped.Pixels.ToArray(), shaped.ExposureDuration)
+        {
+            Acquisition = new FrameAcquisition
+            {
+                FrameType = frameType,
+                Gain = settings?.Gain,
+                Offset = settings?.Offset,
+                BinX = settings?.BinX,
+                BinY = settings?.BinY,
+                StartX = settings?.StartX,
+                StartY = settings?.StartY,
+                Width = shaped.Width,
+                Height = shaped.Height,
+                ReadoutMode = settings?.ReadoutMode is { } mode && mode >= 0 && mode < ReadoutNames.Count ? ReadoutNames[mode] : null,
+            },
+        };
+    }
+
+    private static readonly IReadOnlyList<string> ReadoutNames = ["Normal", "Slow"];
+
+    // Gain g scales the signal above the background by 1 + g/100; the offset adds 10 counts per step.
+    private static CameraFrame ApplyLevels(CameraFrame frame, CameraSettings? settings)
+    {
+        var gain = settings?.Gain ?? 0;
+        var offset = settings?.Offset ?? 0;
+        if (gain == 0 && offset == 0)
+        {
+            return frame;
+        }
+
+        var scale = 1 + gain / 100.0;
+        var source = frame.Pixels.Span;
+        var pixels = new ushort[source.Length];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (ushort)Math.Clamp(source[i] * scale + offset * 10, 0, ushort.MaxValue);
+        }
+
+        return new CameraFrame(frame.Width, frame.Height, pixels, frame.ExposureDuration);
+    }
+
+    // Binning and the subframe: the synthetic sky is binned (averaged) and cropped; with the default settings it is untouched.
     private CameraFrame ApplyGeometry(CameraFrame frame)
     {
         CameraSettings? settings;

@@ -38,24 +38,25 @@ public class EquipmentPageTests
     }
 
     [Fact]
-    public async Task OpeningADeviceFromARig_SwitchesToTheDevicesMode_AndTheRigStaysSelectedForTheWayBack()
+    public async Task OpeningADeviceFromARig_StaysInTheRig_AndBackLeadsToTheRig()
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
         var rig = equipment.Rigs.Single(r => r.RigIdText == "rig.main");
         rig.OpenCommand!.Execute(null);
-        Assert.Equal(EquipmentMode.Rigs, equipment.Mode);
+        Assert.True(equipment.IsRigOverview);
 
-        rig.Members.Single(m => m.Role == "Camera").Device!.OpenCommand!.Execute(null);
+        rig.Members.Single(m => m.Role == "Camera").OpenCommand!.Execute(null);
 
-        Assert.Equal(EquipmentMode.Devices, equipment.Mode);
+        Assert.True(equipment.IsDeviceWorkspace);
         Assert.Equal("camera.main", equipment.SelectedDevice!.DeviceIdText);
         Assert.Same(rig, equipment.SelectedRig);
+        Assert.False(equipment.HasDeviceChooser); // the rig decides the camera: nothing to choose
 
-        equipment.IsRigsMode = true;
+        equipment.BackCommand.Execute(null);
 
+        Assert.True(equipment.IsRigOverview);
         Assert.Same(rig, equipment.SelectedRig);
-        Assert.Equal("camera.main", equipment.SelectedDevice!.DeviceIdText); // the devices keep theirs, too
     }
 
     [Fact]
@@ -228,8 +229,8 @@ public class EquipmentPageTests
         using var vm = new MainViewModel(host, action => action());
 
         Assert.False(vm.Equipment.HasDevices);
-        Assert.Empty(vm.Equipment.Sections);
-        Assert.False(vm.Equipment.HasSections);
+        Assert.False(vm.Equipment.HasLandingGroups);
+        Assert.True(vm.Equipment.IsLanding);
         Assert.False(vm.Equipment.HasRigs);
         Assert.Empty(vm.Dashboard.Units);
         Assert.False(vm.Dashboard.HasUnits);

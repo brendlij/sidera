@@ -72,8 +72,8 @@ public static class SequenceDocumentMapper
 
     private static DocumentLeafStep ToDocumentLeaf(LeafStepDraft step) => step switch
     {
-        ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds),
-        RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds),
+        ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds, e.Acquisition.IsDefault ? null : e.Acquisition),
+        RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds, r.Acquisition.IsDefault ? null : r.Acquisition),
         MoveFocuserStepDraft f => new MoveFocuserDocumentStep(f.Id, f.FocuserId?.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterDocumentStep(c.Id, c.FilterWheelId?.Value, c.SlotIndex),
         RigMoveFocuserStepDraft f => new RigMoveFocuserDocumentStep(f.Id, f.Position),
@@ -105,8 +105,8 @@ public static class SequenceDocumentMapper
 
     private static LeafStepDraft ToDraftLeaf(DocumentLeafStep step) => step switch
     {
-        ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds),
-        RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds),
+        ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds) { Acquisition = e.Acquisition ?? AcquisitionIntent.Default },
+        RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds) { Acquisition = r.Acquisition ?? AcquisitionIntent.Default },
         MoveFocuserDocumentStep f => new MoveFocuserStepDraft(f.Id, Device(f.FocuserId), f.Position),
         ChangeFilterDocumentStep c => new ChangeFilterStepDraft(c.Id, Device(c.FilterWheelId), c.SlotIndex),
         RigMoveFocuserDocumentStep f => new RigMoveFocuserStepDraft(f.Id, f.Position),

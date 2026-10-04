@@ -33,8 +33,13 @@ public sealed class DeviceOperationService
     private readonly ResourceManager _resources;
     private readonly ILogger _logger;
 
+    private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
+
     public DeviceOperationService(
-        DeviceRegistry registry, ResourceManager resources, ILogger<DeviceOperationService>? logger = null)
+        DeviceRegistry registry,
+        ResourceManager resources,
+        ILogger<DeviceOperationService>? logger = null,
+        IAcquisitionDefaultsSource? acquisitionDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(resources);
@@ -42,6 +47,7 @@ public sealed class DeviceOperationService
         _registry = registry;
         _resources = resources;
         _logger = logger ?? NullLogger<DeviceOperationService>.Instance;
+        _acquisitionDefaults = acquisitionDefaults;
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered.</exception>
@@ -134,9 +140,22 @@ public sealed class DeviceOperationService
     }
 
     /// <exception cref="InvalidOperationException">The device is not registered or is not a camera.</exception>
+    public Task<CameraFrame> ExposeAsync(
+        DeviceId cameraId,
+        TimeSpan duration,
+        CancellationToken cancellationToken = default
+    ) => ExposeAsync(cameraId, duration, null, cancellationToken);
+
+    /// <summary>
+    /// A manual exposure through the same pipeline as a sequence exposure: the acquisition settings are resolved against the
+    /// camera (the intent, else the camera defaults), checked, applied and the exposure started as one operation, all under the
+    /// camera's resource.
+    /// </summary>
+    /// <exception cref="AcquisitionException">The camera does not support what the exposure asks for.</exception>
     public async Task<CameraFrame> ExposeAsync(
         DeviceId cameraId,
         TimeSpan duration,
+        AcquisitionIntent? intent,
         CancellationToken cancellationToken = default
     )
     {
@@ -148,7 +167,7 @@ public sealed class DeviceOperationService
         {
             using (await _resources.AcquireAsync([ResourceId.ForDevice(cameraId)], cancellationToken))
             {
-                return await camera.ExposeAsync(duration, cancellationToken);
+                return await AcquisitionExposer.ExposeAsync(camera, duration, intent, _acquisitionDefaults, _logger, cancellationToken);
             }
         });
     }

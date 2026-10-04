@@ -121,6 +121,8 @@ public sealed partial class SimulatedMount : IMountControl
         ArgumentNullException.ThrowIfNull(target);
 
         CelestialCoordinates startedAt;
+        bool wasTracking;
+        using var motion = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         lock (_gate)
         {
             if (_connectionState != DeviceConnectionState.Connected)
@@ -138,8 +140,10 @@ public sealed partial class SimulatedMount : IMountControl
                 throw new InvalidOperationException($"{Name} is parked. Unpark it first.");
             }
 
+            wasTracking = _motionState == MountMotionState.Tracking;
             _motionState = MountMotionState.Slewing;
             startedAt = _coordinates;
+            _motionStop = motion;
         }
 
         var previous = MountMotionState.Idle;
@@ -148,7 +152,7 @@ public sealed partial class SimulatedMount : IMountControl
         try
         {
             await PublishMotionAsync(previous, MountMotionState.Slewing, startedAt, cancellationToken);
-            await Task.Delay(_slewDuration, cancellationToken);
+            await Task.Delay(_slewDuration, motion.Token);
 
             lock (_gate)
             {
@@ -157,6 +161,11 @@ public sealed partial class SimulatedMount : IMountControl
             }
 
             arrived = true;
+            lock (_gate)
+            {
+                _motionStop = null;
+            }
+
             // Arrived: report it even if cancellation was requested in the meantime.
             await PublishMotionAsync(MountMotionState.Slewing, MountMotionState.Tracking, target, CancellationToken.None);
         }
@@ -164,13 +173,18 @@ public sealed partial class SimulatedMount : IMountControl
         {
             if (!arrived)
             {
-                // Cancelled or failed on the way: stopped where it was, not tracking.
+                // Cancelled or failed on the way: stopped where it was. Stop only stops the movement: whether the mount tracks is
+                // what it was before; a slew that was cancelled otherwise leaves it not tracking.
+                MountMotionState next;
                 lock (_gate)
                 {
-                    _motionState = MountMotionState.Idle;
+                    next = _stopRequested && wasTracking ? MountMotionState.Tracking : MountMotionState.Idle;
+                    _motionState = next;
+                    _stopRequested = false;
+                    _motionStop = null;
                 }
 
-                await PublishMotionAsync(MountMotionState.Slewing, MountMotionState.Idle, startedAt, CancellationToken.None);
+                await PublishMotionAsync(MountMotionState.Slewing, next, startedAt, CancellationToken.None);
             }
         }
     }

@@ -170,7 +170,7 @@ public class SimulatedCapabilityTests
 
         Assert.True(c.CanPark);
         Assert.True(c.CanSlewAltAz);
-        Assert.False(c.CanMovePrimaryAxis);
+        Assert.True(c.CanMovePrimaryAxis);
         Assert.Equal(4, c.TrackingRates.Count);
         Assert.NotNull(mount.Telemetry!.Horizontal);
         Assert.NotNull(mount.Site);
@@ -229,7 +229,61 @@ public class SimulatedCapabilityTests
         Assert.True(mount.Coordinates.DeclinationDegrees > 10);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => mount.SetGuideRatesAsync(new GuideRates(0, 1)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => mount.PulseGuideAsync(GuideDirection.North, TimeSpan.Zero));
-        await Assert.ThrowsAsync<NotSupportedException>(() => mount.MoveAxisAsync(MountAxis.Primary, 0.5));
+    }
+
+    [Fact]
+    public async Task Stop_EndsASlew_AndTrackingStaysAsItWas()
+    {
+        var mount = new SimulatedMount(new DeviceId("mount.sim"), slewDuration: TimeSpan.FromSeconds(30));
+        await mount.ConnectAsync();
+        await mount.SetTrackingAsync(true);
+        var slew = mount.SlewToAsync(new CelestialCoordinates(5, 20));
+        await Task.Delay(50);
+        Assert.Equal(MountMotionState.Slewing, mount.MotionState);
+
+        await mount.StopAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => slew);
+        Assert.Equal(MountMotionState.Tracking, mount.MotionState);
+        Assert.NotEqual(5, mount.Coordinates.RightAscensionHours);
+    }
+
+    [Fact]
+    public async Task Stop_WhileNotTracking_LeavesTheMountNotTracking_AndNothingRunningIsNoProblem()
+    {
+        var mount = new SimulatedMount(new DeviceId("mount.sim"), slewDuration: TimeSpan.FromSeconds(30));
+        await mount.ConnectAsync();
+        await mount.StopAsync();
+        var slew = mount.SlewToAsync(new CelestialCoordinates(5, 20));
+        await Task.Delay(50);
+
+        await mount.StopAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => slew);
+        Assert.Equal(MountMotionState.Idle, mount.MotionState);
+    }
+
+    [Fact]
+    public async Task AnAxisMovedAtARate_DriftsUntilItIsSetToZero_AndStopEndsIt()
+    {
+        var mount = await ConnectedMount();
+        await mount.SyncAsync(new CelestialCoordinates(5, 10));
+
+        await mount.MoveAxisAsync(MountAxis.Secondary, 2);
+        await Task.Delay(200);
+        await mount.MoveAxisAsync(MountAxis.Secondary, 0);
+        var after = mount.Coordinates.DeclinationDegrees;
+        await Task.Delay(100);
+
+        Assert.True(after > 10.1);
+        Assert.Equal(after, mount.Telemetry!.Coordinates!.DeclinationDegrees, 6);
+
+        await mount.MoveAxisAsync(MountAxis.Primary, 1);
+        await mount.StopAsync();
+        var stopped = mount.Coordinates.RightAscensionHours;
+        await Task.Delay(100);
+        Assert.Equal(stopped, mount.Telemetry!.Coordinates!.RightAscensionHours, 6);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => mount.MoveAxisAsync(MountAxis.Primary, 9));
     }
 
     [Fact]

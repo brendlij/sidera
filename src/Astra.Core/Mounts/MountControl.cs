@@ -186,6 +186,13 @@ public interface IMountControl : IMount, ICapable<MountCapabilities>, IObservabl
     /// <summary>Where the mount is, once, as the driver knows it; <c>null</c> while not connected or when the driver does not say.</summary>
     MountSite? Site { get; }
 
+    /// <summary>
+    /// Stops every movement of the mount: a slew, a park, finding home, an axis moved at a rate. Always allowed: it does not wait for
+    /// the operation that is running, and it needs no capability beyond the stop that every telescope has. Tracking is not a movement
+    /// and stays as it is. Says honestly when the mount could not be confirmed stopped.
+    /// </summary>
+    Task StopAsync(CancellationToken cancellationToken = default);
+
     Task SetTrackingAsync(bool enabled, CancellationToken cancellationToken = default);
 
     Task SetTrackingRateAsync(TrackingRate rate, CancellationToken cancellationToken = default);

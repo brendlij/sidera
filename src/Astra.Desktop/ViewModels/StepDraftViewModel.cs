@@ -542,10 +542,17 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
 /// <summary>An exposure inside a Rig Track; its camera is that of the rig of the track.</summary>
 public sealed partial class RigExposureStepDraftViewModel : StepDraftViewModel
 {
-    public RigExposureStepDraftViewModel(RigExposureStepDraft draft) : base(draft.Id)
+    public RigExposureStepDraftViewModel(RigExposureStepDraft draft, Func<AcquisitionCameraContext>? camera = null) : base(draft.Id)
     {
         ExposureText = Format(draft.Seconds);
+        Acquisition = new AcquisitionEditorViewModel(draft.Acquisition, camera ?? (() => AcquisitionCameraContext.None));
+        Acquisition.Edited += (_, _) => NotifyEdited();
     }
+
+    /// <summary>What the exposure sets besides its duration, for the camera of the rig of the track.</summary>
+    public AcquisitionEditorViewModel Acquisition { get; }
+
+    protected override void OnShown() => Acquisition.Refresh();
 
     public override SequenceStepKind Kind => SequenceStepKind.RigExposure;
 
@@ -554,7 +561,10 @@ public sealed partial class RigExposureStepDraftViewModel : StepDraftViewModel
     public partial string ExposureText { get; set; } = string.Empty;
 
     internal override SequenceStepDraft Read(List<string> parseErrors) =>
-        new RigExposureStepDraft(Id, ParseNumber(ExposureText, "Exposure", "a number of seconds", parseErrors, 1));
+        new RigExposureStepDraft(Id, ParseNumber(ExposureText, "Exposure", "a number of seconds", parseErrors, 1))
+        {
+            Acquisition = Acquisition.Read(parseErrors),
+        };
 }
 
 public sealed partial class ExposureStepDraftViewModel : StepDraftViewModel
@@ -563,7 +573,21 @@ public sealed partial class ExposureStepDraftViewModel : StepDraftViewModel
     {
         Camera = Picker(registry, IsCamera, draft.CameraId);
         ExposureText = Format(draft.Seconds);
+        Acquisition = new AcquisitionEditorViewModel(draft.Acquisition, () => CameraContext(registry, Camera.SelectedId));
+        Acquisition.Edited += (_, _) => NotifyEdited();
+        Camera.Changed += (_, _) => Acquisition.Refresh();
     }
+
+    /// <summary>What the exposure sets besides its duration: only what the selected camera supports is offered.</summary>
+    public AcquisitionEditorViewModel Acquisition { get; }
+
+    /// <summary>The camera as the acquisition editor sees it: its id and, when it is connected, what it supports.</summary>
+    internal static AcquisitionCameraContext CameraContext(DeviceRegistry registry, DeviceId? cameraId) =>
+        cameraId is { } id && registry.TryGet(id, out var device) && device is ICapable<CameraCapabilities> capable
+            ? new AcquisitionCameraContext(id, capable.Capabilities)
+            : new AcquisitionCameraContext(cameraId, DeviceCapabilities<CameraCapabilities>.Unknown);
+
+    protected override void OnShown() => Acquisition.Refresh();
 
     public override SequenceStepKind Kind => SequenceStepKind.Exposure;
     public DevicePickerViewModel Camera { get; }
@@ -575,7 +599,10 @@ public sealed partial class ExposureStepDraftViewModel : StepDraftViewModel
     internal override IEnumerable<DevicePickerViewModel> Pickers => [Camera];
 
     internal override SequenceStepDraft Read(List<string> parseErrors) =>
-        new ExposureStepDraft(Id, Camera.SelectedId, ParseNumber(ExposureText, "Exposure", "a number of seconds", parseErrors, 1));
+        new ExposureStepDraft(Id, Camera.SelectedId, ParseNumber(ExposureText, "Exposure", "a number of seconds", parseErrors, 1))
+        {
+            Acquisition = Acquisition.Read(parseErrors),
+        };
 }
 
 public sealed partial class DelayStepDraftViewModel : StepDraftViewModel

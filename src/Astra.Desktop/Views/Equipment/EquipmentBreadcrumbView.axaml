@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             x:Class="Astra.Desktop.Views.Equipment.EquipmentBreadcrumbView"
+             x:DataType="vm:EquipmentViewModel">
+
+    <!-- The way back: a Back button naming the place above, and the way to where the workspace is, each step above it a link -->
+    <StackPanel Orientation="Horizontal" Spacing="16">
+        <Button Classes="ghost" Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" AutomationProperties.Name="Back">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="←" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding BackText}" VerticalAlignment="Center" />
+            </StackPanel>
+        </Button>
+        <ItemsControl ItemsSource="{Binding Breadcrumb}" VerticalAlignment="Center">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BreadcrumbItem">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="ghost" Content="{Binding Title}" Command="{Binding Command}" IsVisible="{Binding IsLink}" Padding="4,2"
+                                AutomationProperties.Name="{Binding Title, StringFormat=Go to {0}}" />
+                        <TextBlock Classes="value" Text="{Binding Title}" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" />
+                        <TextBlock Classes="meta" Text="›" VerticalAlignment="Center" IsVisible="{Binding IsLink}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

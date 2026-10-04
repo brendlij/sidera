@@ -40,7 +40,9 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
     private readonly IFocusMetricProvider _metrics;
     private readonly IEventPublisher? _events;
     private readonly ILogger _logger;
+    private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
 
+    /// <param name="acquisitionDefaults">Where the defaults of the camera (gain, offset, readout) are read from; the binning and the region are always the whole sensor, unbinned.</param>
     /// <param name="events">Where the progress of a run is published; none when nobody listens.</param>
     /// <param name="logger">Where the run is reported.</param>
     public AutofocusAction(
@@ -51,7 +53,8 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
         AutofocusOptions options,
         IFocusMetricProvider metrics,
         IEventPublisher? events = null,
-        ILogger<AutofocusAction>? logger = null)
+        ILogger<AutofocusAction>? logger = null,
+        IAcquisitionDefaultsSource? acquisitionDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(options);
@@ -62,6 +65,7 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
         _metrics = metrics;
         _events = events;
         _logger = logger ?? NullLogger<AutofocusAction>.Instance;
+        _acquisitionDefaults = acquisitionDefaults;
         RigId = rigId;
         CameraId = cameraId;
         FocuserId = focuserId;
@@ -72,12 +76,12 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
     /// <exception cref="InvalidOperationException">The rig has no focuser.</exception>
     public static AutofocusAction ForRig(
         DeviceRegistry registry, Rig rig, AutofocusOptions options, IFocusMetricProvider metrics, IEventPublisher? events = null,
-        ILogger<AutofocusAction>? logger = null)
+        ILogger<AutofocusAction>? logger = null, IAcquisitionDefaultsSource? acquisitionDefaults = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
 
         return rig.FocuserId is { } focuserId
-            ? new AutofocusAction(registry, rig.Id, rig.CameraId, focuserId, options, metrics, events, logger)
+            ? new AutofocusAction(registry, rig.Id, rig.CameraId, focuserId, options, metrics, events, logger, acquisitionDefaults)
             : throw new InvalidOperationException($"The rig '{rig.Id}' has no focuser, so it cannot be focused.");
     }
 
@@ -120,7 +124,7 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
                 RigId, CameraId, FocuserId, focuser.Position, Options.SampleCount, Options.StepSize,
                 Options.ExposureDuration.TotalSeconds);
 
-            var measurer = new FocusMeasurementOperation(_registry, RigId, CameraId, FocuserId, _metrics);
+            var measurer = new FocusMeasurementOperation(_registry, RigId, CameraId, FocuserId, _metrics, _acquisitionDefaults);
             var result = await AutofocusEngine.RunAsync(focuser, measurer, Options, Report, cancellationToken);
 
             _logger.LogInformation(

@@ -105,6 +105,35 @@ public class CapabilityTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     [AscomFact]
+    public async Task TheCameraSimulator_ExposesWithItsSettingsAppliedFirst_AndTheFrameSaysWhatItWasTakenWith()
+    {
+        var camera = new AscomCamera(new DeviceId("camera.sim"), "Camera Simulator", CameraProgId, Drivers);
+        await camera.ConnectAsync();
+        try
+        {
+            var c = camera.Capabilities.Value!;
+            var plan = AcquisitionResolver.Resolve(
+                new AcquisitionIntent { BinX = 2, BinY = 2, Region = AcquisitionRegion.Full }, null, TimeSpan.FromSeconds(0.3), camera.Capabilities, camera.Settings);
+            Assert.True(plan.IsValid, string.Join(" ", plan.Problems));
+
+            var frame = await camera.ExposeAsync(new CameraExposureRequest(TimeSpan.FromSeconds(0.3), plan.FrameType, plan.Change));
+
+            Assert.Equal((c.SensorWidth / 2, c.SensorHeight / 2), (frame.Width, frame.Height));
+            Assert.Equal((2, 2), (frame.Acquisition!.BinX, frame.Acquisition.BinY));
+            Assert.Equal(FrameType.Light, frame.Acquisition.FrameType);
+
+            var back = AcquisitionResolver.Resolve(
+                new AcquisitionIntent { BinX = 1, BinY = 1, Region = AcquisitionRegion.Full }, null, TimeSpan.FromSeconds(0.3), camera.Capabilities, camera.Settings);
+            await camera.ExposeAsync(new CameraExposureRequest(TimeSpan.FromSeconds(0.3), back.FrameType, back.Change));
+            Assert.Equal((c.SensorWidth, c.SensorHeight), (camera.Settings!.NumX, camera.Settings.NumY));
+        }
+        finally
+        {
+            await camera.DisconnectAsync();
+        }
+    }
+
+    [AscomFact]
     public async Task TheTelescopeSimulator_ReportsItsCapabilities_AndItsTelemetry()
     {
         var mount = new AscomMount(new DeviceId("mount.sim"), "Telescope Simulator", MountProgId, Drivers);
@@ -234,6 +263,37 @@ public class CapabilityTests(Xunit.Abstractions.ITestOutputHelper output)
         finally
         {
             await mount.DisconnectAsync();
+        }
+    }
+
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_ExposesWithResolvedSettings_AndAnInvalidOneStartsNothing()
+    {
+        var camera = new AscomCamera(new DeviceId("camera.real"), "Real Camera", Env("ASTRA_ASCOM_CAMERA"), Drivers);
+        await camera.ConnectAsync();
+        try
+        {
+            var original = camera.Settings!;
+            var invalid = AcquisitionResolver.Resolve(
+                new AcquisitionIntent { Gain = AcquisitionLevel.OfNumber(100000) }, null, TimeSpan.FromSeconds(0.1), camera.Capabilities, camera.Settings);
+            Assert.Equal(AcquisitionStatus.Invalid, invalid.Status);
+            output.WriteLine(string.Join(" ", invalid.Problems));
+
+            var plan = AcquisitionResolver.Resolve(
+                new AcquisitionIntent { BinX = 2, BinY = 2 }, null, TimeSpan.FromSeconds(0.1), camera.Capabilities, camera.Settings);
+            var frame = await camera.ExposeAsync(new CameraExposureRequest(TimeSpan.FromSeconds(0.1), plan.FrameType, plan.Change));
+            output.WriteLine($"Frame {frame.Width}x{frame.Height}, acquisition {frame.Acquisition}");
+            Assert.Equal((2, 2), (frame.Acquisition!.BinX, frame.Acquisition.BinY));
+
+            var back = AcquisitionResolver.Resolve(
+                new AcquisitionIntent { BinX = 1, BinY = 1, Region = AcquisitionRegion.Full }, null, TimeSpan.FromSeconds(0.1), camera.Capabilities, camera.Settings);
+            await camera.ApplyAsync(back.Change);
+            Assert.Equal(original.BinX, camera.Settings!.BinX);
+            Assert.Equal(original.NumX, camera.Settings.NumX);
+        }
+        finally
+        {
+            await camera.DisconnectAsync();
         }
     }
 

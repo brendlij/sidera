@@ -538,6 +538,7 @@ public sealed class FakeMountDriver(CallLog log) : FakeDriver(log), IAscomMountD
     public void AbortSlew()
     {
         Log.Add("AbortSlew");
+        Operations.Add("AbortSlew");
         if (AbortThrows is not null)
         {
             throw AbortThrows;
@@ -617,6 +618,7 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
     public double? HeatSinkTemperatureValue { get; set; }
     public bool? CoolerOnValue { get; set; }
     public List<string> Changes { get; } = [];
+    public Exception? GainSetThrows { get; set; }
 
     public int Gain
     {
@@ -625,6 +627,11 @@ public sealed class FakeCameraDriver(CallLog log) : FakeDriver(log), IAscomCamer
         {
             Log.Add($"Gain = {value}");
             Changes.Add($"Gain = {value}");
+            if (GainSetThrows is not null)
+            {
+                throw GainSetThrows;
+            }
+
             GainValue = value;
         }
     }

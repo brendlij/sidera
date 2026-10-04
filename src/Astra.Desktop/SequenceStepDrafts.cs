@@ -65,6 +65,12 @@ public abstract record LeafStepDraft(Guid Id) : SequenceStepDraft(Id);
 
 public sealed record ExposureStepDraft(Guid Id, DeviceId? CameraId, double Seconds) : LeafStepDraft(Id)
 {
+    /// <summary>
+    /// What the exposure asks of the camera besides its duration: only what is set is an override, the rest is inherited from
+    /// the defaults of the camera. Plain values, no hardware knowledge: it is checked against the camera when the sequence runs.
+    /// </summary>
+    public AcquisitionIntent Acquisition { get; init; } = AcquisitionIntent.Default;
+
     public override SequenceStepKind Kind => SequenceStepKind.Exposure;
     public override IEnumerable<DeviceId> DeviceIds => Of(CameraId);
 }
@@ -129,6 +135,9 @@ public sealed record RepeatStepDraft(Guid Id, int Count, IReadOnlyList<LeafStepD
 /// </summary>
 public sealed record RigExposureStepDraft(Guid Id, double Seconds) : LeafStepDraft(Id)
 {
+    /// <summary>The same acquisition intent as an exposure outside a track has; the camera is the camera of the rig.</summary>
+    public AcquisitionIntent Acquisition { get; init; } = AcquisitionIntent.Default;
+
     public override SequenceStepKind Kind => SequenceStepKind.RigExposure;
     public override IEnumerable<DeviceId> DeviceIds => [];
 }

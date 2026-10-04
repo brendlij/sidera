@@ -483,7 +483,7 @@ public class SequenceRepeatRunTests
 
         Assert.Same(rows, app.Sequencer.Definition);
         Assert.Equal("Repeat × 2", rows[0].Title);
-        Assert.Equal("Main Camera · 0.3 s", rows[1].Detail);
+        Assert.Equal("Main Camera · 0.3 s · Camera defaults", rows[1].Detail);
         Assert.Equal(2, rows.Count);
         await run.WaitAsync(Bound);
 

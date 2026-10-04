@@ -21,6 +21,11 @@ public sealed partial class SimulatedMount
     private GuideRates _guideRates = new(0.00209, 0.00209);
     private bool _refraction;
     private bool _pulseGuiding;
+    private CancellationTokenSource? _motionStop;
+    private double _primaryRate;
+    private double _secondaryRate;
+    private DateTime _axesSince = DateTime.UtcNow;
+    private bool _stopRequested;
 
     public event EventHandler? CapabilitiesChanged;
 
@@ -60,6 +65,13 @@ public sealed partial class SimulatedMount
         CanPredictPierSide = true,
         CanPulseGuide = true,
         CanSetGuideRates = true,
+        CanMovePrimaryAxis = true,
+        CanMoveSecondaryAxis = true,
+        AxisRates = new Dictionary<MountAxis, IReadOnlyList<AxisRate>>
+        {
+            [MountAxis.Primary] = [new AxisRate(0.001, 4)],
+            [MountAxis.Secondary] = [new AxisRate(0.001, 4)],
+        },
         EquatorialSystem = EquatorialSystemKind.Topocentric,
         Alignment = AlignmentKind.GermanPolar,
         HasRefractionSetting = true,
@@ -67,7 +79,7 @@ public sealed partial class SimulatedMount
         HasSiderealTime = true,
         HasUtcDate = true,
         HasAltAz = true,
-        Notes = ["Moving an axis at a rate is not simulated."],
+        Notes = [],
     };
 
     private void OnConnectionStateSet(DeviceConnectionState state)
@@ -123,6 +135,11 @@ public sealed partial class SimulatedMount
 
     private MountTelemetry ReadTelemetry()
     {
+        lock (_gate)
+        {
+            IntegrateAxes();
+        }
+
         var coordinates = Coordinates;
         var now = UtcNow();
         var lst = SiderealTimeHours(now);
@@ -157,6 +174,32 @@ public sealed partial class SimulatedMount
 
     private static bool SameSpot(CelestialCoordinates a, CelestialCoordinates b) =>
         Math.Abs(a.RightAscensionHours - b.RightAscensionHours) < 1e-6 && Math.Abs(a.DeclinationDegrees - b.DeclinationDegrees) < 1e-6;
+
+    /// <summary>Stops whatever the mount is moving (a slew, a park, finding home, a pulse); tracking stays as it was. Always allowed.</summary>
+    public Task StopAsync(CancellationToken cancellationToken = default)
+    {
+        RequireConnected();
+        CancellationTokenSource? motion;
+        lock (_gate)
+        {
+            IntegrateAxes();
+            (_primaryRate, _secondaryRate) = (0, 0);
+            motion = _motionStop;
+            _stopRequested = motion is not null;
+        }
+
+        try
+        {
+            motion?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The movement ended by itself at the same moment.
+        }
+
+        RaiseStateChanged();
+        return Task.CompletedTask;
+    }
 
     public Task SetTrackingAsync(bool enabled, CancellationToken cancellationToken = default)
     {
@@ -307,9 +350,15 @@ public sealed partial class SimulatedMount
 
         RaiseStateChanged();
         var started = DateTime.UtcNow;
+        using var pulse = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_gate)
+        {
+            _motionStop ??= pulse;
+        }
+
         try
         {
-            await Task.Delay(duration, cancellationToken);
+            await Task.Delay(duration, pulse.Token);
         }
         finally
         {
@@ -317,6 +366,11 @@ public sealed partial class SimulatedMount
             lock (_gate)
             {
                 _pulseGuiding = false;
+                if (ReferenceEquals(_motionStop, pulse))
+                {
+                    _motionStop = null;
+                }
+
                 var ra = _coordinates.RightAscensionHours;
                 var dec = _coordinates.DeclinationDegrees;
                 switch (direction)
@@ -342,8 +396,61 @@ public sealed partial class SimulatedMount
         }
     }
 
-    public Task MoveAxisAsync(MountAxis axis, double degreesPerSecond, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException($"{Name} does not simulate moving an axis at a rate.");
+    // An axis moved at a rate: the position drifts at that rate until the axis is set back to 0 (or the mount is stopped).
+    public Task MoveAxisAsync(MountAxis axis, double degreesPerSecond, CancellationToken cancellationToken = default)
+    {
+        RequireConnected();
+        if (axis == MountAxis.Tertiary)
+        {
+            throw new NotSupportedException($"{Name} has no third axis.");
+        }
+
+        if (!double.IsFinite(degreesPerSecond) || Math.Abs(degreesPerSecond) > 4 || (degreesPerSecond != 0 && Math.Abs(degreesPerSecond) < 0.001))
+        {
+            throw new ArgumentOutOfRangeException(nameof(degreesPerSecond), degreesPerSecond, "The mount moves an axis at 0.001 to 4 degrees per second, or 0 to stop it.");
+        }
+
+        lock (_gate)
+        {
+            if (degreesPerSecond != 0)
+            {
+                RequireNotParked("move an axis");
+                if (_motionState == MountMotionState.Slewing)
+                {
+                    throw new InvalidOperationException("The mount is slewing.");
+                }
+            }
+
+            IntegrateAxes();
+            if (axis == MountAxis.Primary)
+            {
+                _primaryRate = degreesPerSecond;
+            }
+            else
+            {
+                _secondaryRate = degreesPerSecond;
+            }
+        }
+
+        RaiseStateChanged();
+        return Task.CompletedTask;
+    }
+
+    // Called with the gate held: the movement since the last change is added to the position.
+    private void IntegrateAxes()
+    {
+        var now = DateTime.UtcNow;
+        var seconds = (now - _axesSince).TotalSeconds;
+        _axesSince = now;
+        if (seconds <= 0 || (_primaryRate == 0 && _secondaryRate == 0))
+        {
+            return;
+        }
+
+        var ra = _coordinates.RightAscensionHours + _primaryRate * seconds / 15;
+        var dec = Math.Clamp(_coordinates.DeclinationDegrees + _secondaryRate * seconds, -90, 90);
+        _coordinates = new CelestialCoordinates(((ra % 24) + 24) % 24, dec);
+    }
 
     public Task SetGuideRatesAsync(GuideRates rates, CancellationToken cancellationToken = default)
     {

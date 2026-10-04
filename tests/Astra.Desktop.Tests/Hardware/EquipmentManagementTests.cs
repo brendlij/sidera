@@ -137,7 +137,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
 
         Assert.False(vm.Equipment.HasDevices);
         Assert.True(vm.Equipment.CanManage);
-        Assert.Empty(vm.Equipment.Sections);
+        Assert.False(vm.Equipment.HasLandingGroups);
         Assert.False(vm.Equipment.HasProblems);
         Assert.True(vm.Equipment.AddDeviceCommand.CanExecute(null));
         Assert.True(vm.Equipment.AddDemoEquipmentCommand.CanExecute(null));
@@ -172,14 +172,14 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         Assert.True(vm.Equipment.HasDevices);
         Assert.Same(cameras, vm.Equipment.Cameras);
         Assert.Equal(3, cameras.Count);
-        Assert.Equal(["Cameras", "Focusers", "Filter Wheels", "Mounts", "Guiders"], vm.Equipment.Sections.Select(s => s.Title));
+        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig", "Standalone devices"], vm.Equipment.LandingGroups.Select(g => g.Title));
         Assert.True(vm.Equipment.HasRigs);
         Assert.Equal(3, vm.Equipment.Rigs.Count);
         Assert.Equal(8, vm.SequenceDraft.Steps.Count);
         Assert.True(vm.Dashboard.UnitsAreRigs);
         Assert.Equal(3, vm.Dashboard.Units.Count);
-        Assert.NotNull(vm.Equipment.SelectedDevice);
-        Assert.NotNull(vm.Equipment.SelectedRig);
+        Assert.True(vm.Equipment.IsLanding); // the overview, with everything that was added
+        Assert.Equal(["Standalone", "Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.Contexts.Select(c => c.Title));
     }
 
     [Fact]
@@ -227,6 +227,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
 
         Assert.False(vm.Equipment.CanManage);
         Assert.False(vm.Equipment.AddDeviceCommand.CanExecute(null));
+        vm.Equipment.Contexts[0].SelectCommand.Execute(null);
         Assert.Null(vm.Equipment.SelectedDetail!.Configuration);
     }
 
@@ -503,16 +504,16 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
     }
 
     [Fact]
-    public void EditingADevice_LeavesTheTabOfItsDetailOpen()
+    public void EditingADevice_LeavesItsPageOpen()
     {
         var (vm, service, _) = CreateApp();
         service.Add(DeviceConfiguration.Simulator("camera.a", "A", DeviceType.Camera));
-        vm.Equipment.SelectedDetail!.Section = DeviceDetailSection.Settings;
+        Assert.Equal(EquipmentPage.Camera, vm.Equipment.SelectedPage);
 
         service.Update(DeviceConfiguration.Simulator("camera.a", "Renamed", DeviceType.Camera));
 
-        Assert.Equal(DeviceDetailSection.Settings, vm.Equipment.SelectedDetail!.Section);
-        Assert.Equal("Renamed", vm.Equipment.SelectedDetail.Device.Name);
+        Assert.Equal(EquipmentPage.Camera, vm.Equipment.SelectedPage);
+        Assert.Equal("Renamed", vm.Equipment.SelectedDetail!.Device.Name);
     }
 
     [Fact]
@@ -622,7 +623,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         Assert.False(vm.Equipment.HasDevices);
         Assert.Null(vm.Equipment.SelectedDevice);
         Assert.Null(vm.Equipment.SelectedDetail);
-        Assert.Empty(vm.Equipment.Sections);
+        Assert.False(vm.Equipment.HasLandingGroups);
     }
 
     [Fact]

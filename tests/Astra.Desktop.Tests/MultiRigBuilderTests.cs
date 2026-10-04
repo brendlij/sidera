@@ -147,7 +147,7 @@ public class MultiRigBuilderTests
         Assert.Equal(exposure.Id, Assert.Single(builtRepeat.Children!).DraftId);
         Assert.Equal(("Multi-Rig Imaging", "2 rig tracks"), (top.Description.Title, top.Description.Summary));
         Assert.Equal(("Main Rig", "Main Camera"), (top.Children![0].Description.Title, top.Children![0].Description.Summary));
-        Assert.Equal(("Exposure", "3 s"), (builtRepeat.Children![0].Description.Title, builtRepeat.Children![0].Description.Summary));
+        Assert.Equal(("Exposure", "3 s · Camera defaults"), (builtRepeat.Children![0].Description.Title, builtRepeat.Children![0].Description.Summary));
     }
 
     [Fact]

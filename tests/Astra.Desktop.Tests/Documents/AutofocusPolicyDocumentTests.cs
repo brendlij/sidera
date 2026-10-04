@@ -115,7 +115,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         using var json = JsonDocument.Parse(await Write(WithPolicy(new AutofocusPolicyDocument(true, true, true, 0.5, 400, 7))));
         var track = json.RootElement.GetProperty("steps")[0].GetProperty("tracks")[0];
 
-        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
         Assert.Equal(["id", "rigId", "steps", "autofocusPolicy"], track.EnumerateObject().Select(p => p.Name));
         var policy = track.GetProperty("autofocusPolicy");
         Assert.Equal(["enabled", "atTrackStart", "afterFilterChange", "exposureSeconds", "stepSize", "samples"], policy.EnumerateObject().Select(p => p.Name));
@@ -169,7 +169,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 5,
+              "version": 6,
               "steps": [
                 {
                   "type": "multiRig",
@@ -232,7 +232,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         var rewritten = await Write(loaded);
 
         using var json = JsonDocument.Parse(rewritten);
-        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
         Assert.DoesNotContain("autofocusPolicy", rewritten, StringComparison.Ordinal);
         Assert.Equal(rewritten, await Write(await Read(rewritten))); // and it reads and writes the same again
     }
@@ -249,8 +249,8 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData(6)]
     [InlineData(7)]
+    [InlineData(8)]
     public async Task ANewerVersionThanFive_IsRejectedClearly(int version)
     {
         var ex = await Rejects(Doc(version, Block("{" + Members + "}")));
@@ -459,7 +459,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Policy.astraseq"));
-        Assert.Contains("\"version\": 5", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 6", text, StringComparison.Ordinal);
         Assert.Contains("\"autofocusPolicy\"", text, StringComparison.Ordinal);
         Assert.DoesNotContain("\"type\": \"rigAutofocus\"", text, StringComparison.Ordinal);
 
@@ -493,7 +493,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         Assert.False(track.AutofocusAfterFilterChange);
         app.Draft.Rows.OfType<RigExposureStepDraftViewModel>().First().ExposureText = "5";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 5", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 6", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
     }
 
     [Fact]

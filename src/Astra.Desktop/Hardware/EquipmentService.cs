@@ -93,6 +93,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         _configuration = loaded;
         foreach (var device in loaded.Devices)
         {
+            SyncAcquisitionDefaults(device);
             try
             {
                 _factories.CreateAndAdd(_host, device);
@@ -110,7 +111,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         {
             try
             {
-                AddRig(rig);
+                CreateRig(rig);
             }
             catch (Exception ex)
             {
@@ -230,10 +231,20 @@ public sealed class EquipmentService : IDevicePreferenceStore
         }
 
         _configuration = next;
+        SyncAcquisitionDefaults(configuration);
         _ = EndAsync(old);
         _logger.LogInformation("Device {DeviceId} changed", configuration.Id);
         Changed?.Invoke(this, new EquipmentChange(EquipmentChangeKind.DeviceReplaced, configuration.Id, device));
         return EquipmentResult.Ok(device);
+    }
+
+    // The runtime reads what each camera normally takes frames with from here: what the equipment file keeps as preferences.
+    private void SyncAcquisitionDefaults(DeviceConfiguration device)
+    {
+        if (device.Type == DeviceType.Camera)
+        {
+            _host.AcquisitionDefaults.Set(device.DeviceId, DevicePreferences.AcquisitionDefaults(device.Preferences));
+        }
     }
 
     public IReadOnlyDictionary<string, string> GetPreferences(string deviceId) =>
@@ -255,6 +266,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         }
 
         _configuration = next;
+        SyncAcquisitionDefaults(existing with { Preferences = preferences });
         return null;
     }
 
@@ -278,6 +290,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
 
         _host.DeviceRegistry.TryGet(new DeviceId(id), out var device);
         _host.RemoveDevice(new DeviceId(id));
+        _host.AcquisitionDefaults.Set(new DeviceId(id), null);
         _configuration = next;
         _ = EndAsync(device);
         _logger.LogInformation("Device {DeviceId} removed", id);
@@ -335,7 +348,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         _configuration = next;
         foreach (var rig in demo.Rigs)
         {
-            rigs.Add(AddRig(rig));
+            rigs.Add(CreateRig(rig));
         }
 
         _logger.LogInformation("Demo equipment added: {Devices} devices, {Rigs} rigs", demo.Devices.Count, demo.Rigs.Count);
@@ -348,7 +361,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         return EquipmentResult.Ok();
     }
 
-    private Rig AddRig(RigConfiguration configuration)
+    private Rig CreateRig(RigConfiguration configuration)
     {
         var rig = new Rig(
             new RigId(configuration.Id),

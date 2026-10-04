@@ -170,7 +170,7 @@ public sealed partial class DeviceEditorViewModel : ViewModelBase
         ? CustomProgIdInput.Trim()
         : SelectedDriver?.ProgId;
 
-    private AscomDeviceKind? AscomKind => AscomDeviceKinds.From(SelectedType.Type);
+    private AscomDeviceKind? AscomKind => SelectedType is null ? null : AscomDeviceKinds.From(SelectedType.Type);
 
     partial void OnSelectedBackendChanged(BackendChoice value)
     {
@@ -192,7 +192,7 @@ public sealed partial class DeviceEditorViewModel : ViewModelBase
 
     partial void OnSelectedTypeChanged(DeviceTypeChoice value)
     {
-        if (!_updating)
+        if (!_updating && value is not null)
         {
             AfterKindChanged();
         }
@@ -275,6 +275,12 @@ public sealed partial class DeviceEditorViewModel : ViewModelBase
     private void SuggestId()
     {
         if (IsEdit || _idEdited)
+        {
+            return;
+        }
+
+        // A drop-down forgets its selection while its list is replaced; there is nothing to suggest from until it has one again.
+        if (SelectedType is null)
         {
             return;
         }

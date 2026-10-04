@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             x:Class="Astra.Desktop.Views.Session.AcquisitionSectionView"
+             x:DataType="vm:AcquisitionEditorViewModel">
+
+    <!--
+        What an exposure sets besides its duration. "Camera default" is the first entry of every choice: whatever is not set
+        is inherited from the camera. Only what the selected camera supports is shown, so nothing is disabled; while the
+        camera is not connected nothing can be offered, and what the exposure sets is shown as text and kept.
+    -->
+    <StackPanel Spacing="16">
+        <TextBlock Classes="eyebrow" Text="ACQUISITION" />
+
+        <ctl:LabeledField Label="Frame type">
+            <ComboBox ItemsSource="{Binding FrameTypeChoices}" SelectedIndex="{Binding FrameTypeIndex}" HorizontalAlignment="Stretch" />
+        </ctl:LabeledField>
+
+        <Border Classes="panel" IsVisible="{Binding IsNotVerifiable}">
+            <StackPanel Spacing="4">
+                <TextBlock Classes="secondary" Text="{Binding ExplicitSummary}" TextWrapping="Wrap" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap"
+                           Text="Connect the camera to edit and check these settings against what it supports." />
+            </StackPanel>
+        </Border>
+        <TextBlock Classes="secondary" TextWrapping="Wrap" IsVisible="{Binding HasChoices, Converter={x:Static BoolConverters.Not}}"
+                   Text="This exposure uses the camera defaults." />
+
+        <!-- Gain and offset: a value for a range, a name for a list -->
+        <ctl:LabeledField Label="Gain" IsVisible="{Binding Gain.IsRange}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <ComboBox ItemsSource="{Binding Gain.ModeChoices}" SelectedIndex="{Binding Gain.ModeIndex}" />
+                <TextBox Grid.Column="1" Text="{Binding Gain.ValueText}" PlaceholderText="{Binding Gain.Hint}" IsVisible="{Binding Gain.ShowValue}" />
+            </Grid>
+        </ctl:LabeledField>
+        <ctl:LabeledField Label="Gain" IsVisible="{Binding Gain.IsList}">
+            <ComboBox ItemsSource="{Binding Gain.Choices}" SelectedIndex="{Binding Gain.ChoiceIndex}" HorizontalAlignment="Stretch" />
+        </ctl:LabeledField>
+        <ctl:LabeledField Label="Offset" IsVisible="{Binding Offset.IsRange}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <ComboBox ItemsSource="{Binding Offset.ModeChoices}" SelectedIndex="{Binding Offset.ModeIndex}" />
+                <TextBox Grid.Column="1" Text="{Binding Offset.ValueText}" PlaceholderText="{Binding Offset.Hint}" IsVisible="{Binding Offset.ShowValue}" />
+            </Grid>
+        </ctl:LabeledField>
+        <ctl:LabeledField Label="Offset" IsVisible="{Binding Offset.IsList}">
+            <ComboBox ItemsSource="{Binding Offset.Choices}" SelectedIndex="{Binding Offset.ChoiceIndex}" HorizontalAlignment="Stretch" />
+        </ctl:LabeledField>
+
+        <!-- Binning: one selector when the camera bins the same on both axes, two when it does not have to -->
+        <ctl:FieldRow Label="Binning" IsVisible="{Binding ShowBinning}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ComboBox ItemsSource="{Binding BinChoices}" SelectedIndex="{Binding BinXIndex}" />
+                <TextBlock Classes="secondary" Text="x" VerticalAlignment="Center" IsVisible="{Binding ShowAsymmetricBinning}" />
+                <ComboBox ItemsSource="{Binding BinChoices}" SelectedIndex="{Binding BinYIndex}" IsVisible="{Binding ShowAsymmetricBinning}" />
+            </StackPanel>
+        </ctl:FieldRow>
+
+        <ctl:LabeledField Label="Readout" IsVisible="{Binding ShowReadout}">
+            <ComboBox ItemsSource="{Binding ReadoutChoices}" SelectedIndex="{Binding ReadoutIndex}" HorizontalAlignment="Stretch" />
+        </ctl:LabeledField>
+
+        <ctl:LabeledField Label="Fast readout" IsVisible="{Binding ShowFastReadout}">
+            <ComboBox ItemsSource="{Binding FastChoices}" SelectedIndex="{Binding FastIndex}" HorizontalAlignment="Stretch" />
+        </ctl:LabeledField>
+
+        <!-- Region: the whole sensor, or a rectangle; the rectangle is the advanced part -->
+        <StackPanel Spacing="12" IsVisible="{Binding ShowRegion}">
+            <ctl:LabeledField Label="Region">
+                <ComboBox ItemsSource="{Binding RegionChoices}" SelectedIndex="{Binding RegionIndex}" HorizontalAlignment="Stretch" />
+            </ctl:LabeledField>
+            <StackPanel Spacing="8" IsVisible="{Binding ShowRegionFields}">
+                <ctl:FieldRow Label="Start X" Unit="px"><TextBox Text="{Binding RegionXText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Start Y" Unit="px"><TextBox Text="{Binding RegionYText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Width" Unit="px"><TextBox Text="{Binding RegionWidthText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Height" Unit="px"><TextBox Text="{Binding RegionHeightText}" /></ctl:FieldRow>
+                <TextBlock Classes="secondary" Text="{Binding RegionHint}" TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

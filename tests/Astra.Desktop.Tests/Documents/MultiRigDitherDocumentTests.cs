@@ -106,7 +106,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
         var text = await Write(Document(Policy));
         using var json = JsonDocument.Parse(text);
 
-        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
         var block = json.RootElement.GetProperty("steps")[1];
         Assert.Equal(["type", "id", "tracks", "ditherPolicy"], block.EnumerateObject().Select(p => p.Name));
         var policy = block.GetProperty("ditherPolicy");
@@ -187,7 +187,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 5,
+              "version": 6,
               "steps": [
                 {
                   "type": "multiRig",
@@ -468,7 +468,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
         var text = await File.ReadAllTextAsync(PathOf("Policy.astraseq"));
         Assert.Contains("\"ditherPolicy\"", text, StringComparison.Ordinal);
         Assert.Contains("\"triggerRigId\": \"rig.wide\"", text, StringComparison.Ordinal);
-        Assert.Contains("\"version\": 5", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 6", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
         await app.Open(PathOf("Policy.astraseq"));

@@ -7,54 +7,83 @@
              x:DataType="vm:EquipmentViewModel">
 
     <!--
-        The equipment workspace: a browser on the left and the detail of what is selected on the right. Two modes that are
-        never mixed: Devices (the default), the hardware by kind, one device in detail; Rigs (only when there are any), the
-        optional groupings of those devices into optical trains, one rig in detail. Adding and editing a device is a form
+        The equipment workspace. It has a context bar (the devices operated directly, and each rig when there are any), under it
+        the pages of the selected context, and under that the page: the overview of everything, the overview of a rig, or the page
+        of one kind of device, which uses the whole width. A way back is always shown. Adding and editing a device is a form
         that opens over the page.
     -->
     <Panel>
-        <Grid RowDefinitions="Auto,Auto,*" Margin="{StaticResource InsetPage}">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16">
 
             <ctl:PageHeader Title="Equipment">
-                <equipment:EquipmentModeSelector IsVisible="{Binding HasRigs}" />
+                <Button Classes="secondary" Command="{Binding AddDeviceCommand}" IsVisible="{Binding CanManage}" AutomationProperties.Name="Add device">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource IconAdd}" />
+                        <TextBlock Text="Add device" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
             </ctl:PageHeader>
 
-            <!-- What went wrong while the equipment was loaded, and what the last request could not do -->
-            <StackPanel Grid.Row="1">
-                <Border Classes="notice-danger" Margin="0,24,0,0" IsVisible="{Binding HasProblems}">
+            <equipment:EquipmentBreadcrumbView Grid.Row="1" IsVisible="{Binding IsContextShown}" />
+
+            <StackPanel Grid.Row="2" Spacing="8">
+                <Border Classes="notice-danger" IsVisible="{Binding HasProblems}">
                     <TextBlock Classes="danger" Text="{Binding ProblemsText}" TextWrapping="Wrap" />
                 </Border>
-                <Border Classes="notice-danger" Margin="0,24,0,0" IsVisible="{Binding HasNotice}">
+                <Border Classes="notice-danger" IsVisible="{Binding HasNotice}">
                     <TextBlock Classes="danger" Text="{Binding NoticeText}" TextWrapping="Wrap" />
                 </Border>
             </StackPanel>
 
-            <!-- Devices -->
-            <Grid Grid.Row="2" Margin="0,24,0,0" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsDevicesMode}">
-                <equipment:DeviceBrowserView IsVisible="{Binding HasDevices}" />
-                <equipment:SelectedDeviceDetailsView Grid.Column="1" IsVisible="{Binding HasDevices}" />
-                <ctl:EmptyState Grid.ColumnSpan="2" Icon="{StaticResource IconEquipment}" Margin="0,96"
-                                Title="No devices"
-                                Message="Devices appear here when they are added to Astra: a camera, a focuser or a mount through an ASCOM driver, or one of Astra's simulators. Rigs are optional."
-                                IsVisible="{Binding !HasDevices}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding CanManage}">
-                        <Button Classes="primary" Content="Add device" Command="{Binding AddDeviceCommand}" AutomationProperties.Name="Add first device" />
-                        <Button Content="Add simulated demo" Command="{Binding AddDemoEquipmentCommand}" AutomationProperties.Name="Add simulated demo" />
-                    </StackPanel>
-                </ctl:EmptyState>
-            </Grid>
+            <!-- The contexts: Standalone, and one tab for each rig -->
+            <ItemsControl Grid.Row="3" ItemsSource="{Binding Contexts}" IsVisible="{Binding HasDevices}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:EquipmentContextViewModel">
+                        <RadioButton Classes="segment" GroupName="EquipmentContext" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                     AutomationProperties.Name="{Binding Title}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-            <!-- Rigs -->
-            <Grid Grid.Row="2" Margin="0,24,0,0" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsRigsMode}">
-                <equipment:RigBrowserView />
-                <ContentControl Grid.Column="1" Content="{Binding SelectedRig}">
+            <!-- The pages of the selected context -->
+            <StackPanel Grid.Row="4" Spacing="0" IsVisible="{Binding IsContextShown}">
+                <ItemsControl ItemsSource="{Binding Pages}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="20" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:EquipmentPageViewModel">
+                            <RadioButton Classes="tab" GroupName="EquipmentPage" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                         AutomationProperties.Name="{Binding Title}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="divider" />
+            </StackPanel>
+
+            <Panel Grid.Row="5">
+                <equipment:EquipmentLandingView IsVisible="{Binding IsLanding}" />
+
+                <ContentControl Content="{Binding SelectedRig}" IsVisible="{Binding IsRigOverview}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate x:DataType="vm:RigViewModel">
-                            <equipment:RigDetailsView />
+                            <equipment:RigOverviewView />
                         </DataTemplate>
                     </ContentControl.ContentTemplate>
                 </ContentControl>
-            </Grid>
+
+                <equipment:DeviceWorkspaceView IsVisible="{Binding IsDeviceWorkspace}" />
+
+                <ctl:EmptyState Icon="{StaticResource IconEquipment}" Title="Nothing here yet" IsVisible="{Binding IsContextEmpty}"
+                                Message="This context has no device. Devices appear here when they are added to Astra." />
+            </Panel>
         </Grid>
 
         <!-- The form for adding or editing a device, over the page: the page behind it waits -->

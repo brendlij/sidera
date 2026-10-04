@@ -94,4 +94,18 @@
             </ControlTemplate>
         </Setter>
     </Style>
+
+    <Style Selector="ctl|WorkspaceSection">
+        <Setter Property="Width" Value="420" />
+        <Setter Property="Margin" Value="0,0,56,36" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{TemplateBinding Header}" Classes="eyebrow" />
+                    <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
 </Styles>

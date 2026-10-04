@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:workspaces="using:Astra.Desktop.Views.Equipment.Workspaces"
+             x:Class="Astra.Desktop.Views.Equipment.Workspaces.MountWorkspaceView"
+             x:DataType="vm:MountDetailViewModel">
+
+    <!--
+        The mount: where it points, then what can be done with it, each as a section; the sections wrap into as many columns as the
+        window has room for, and a section the mount does not support is not there. Stop is in the header and in the pad, always.
+        Tracking is on or off and is shown as that; what the axes are doing is a separate line.
+    -->
+    <StackPanel Spacing="8">
+        <WrapPanel>
+            <ctl:WorkspaceSection Header="POSITION">
+                <StackPanel Spacing="2">
+                    <ctl:InfoRow Label="Coordinates" Value="{Binding Mount.CoordinatesText}" />
+                    <ctl:InfoRow Label="Movement" Value="{Binding Control.MotionText}" IsVisible="{Binding Control.IsAvailable}" />
+                    <ctl:InfoRow Label="Movement" Value="{Binding Mount.ActivityText}" IsVisible="{Binding Control.IsUnavailable}" />
+                    <ItemsControl ItemsSource="{Binding Control.TelemetryLines}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:InfoLine">
+                                <ctl:InfoRow Label="{Binding Label}" Value="{Binding Value}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ctl:InfoRow Label="Used by" Value="The whole session" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SLEW">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding Mount.RightAscensionInput}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding Mount.DeclinationInput}" /></ctl:FieldRow>
+                    <Button Classes="primary" Content="Slew" Command="{Binding Mount.SlewCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="TRACKING" IsVisible="{Binding Control.ShowTracking}">
+                <StackPanel Spacing="16">
+                    <ctl:StatusIndicator Kind="{Binding Control.TrackingKind}" Text="{Binding Control.TrackingText}" HorizontalAlignment="Left" />
+                    <Button Content="{Binding Control.TrackingButtonText}" Command="{Binding Control.ToggleTrackingCommand}" HorizontalAlignment="Left" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Control.ShowTrackingRates}">
+                        <ComboBox ItemsSource="{Binding Control.TrackingRateChoices}" SelectedItem="{Binding Control.SelectedTrackingRate}" />
+                        <Button Content="Set rate" Command="{Binding Control.ApplyTrackingRateCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="PARK AND HOME"
+                                  IsVisible="{Binding Control.ShowParkAndHome}">
+                <StackPanel Spacing="8">
+                    <Button Content="Park" Command="{Binding Control.ParkCommand}" IsVisible="{Binding Control.ShowPark}" />
+                    <Button Content="Unpark" Command="{Binding Control.UnparkCommand}" IsVisible="{Binding Control.ShowUnpark}" />
+                    <Button Content="Set park position" Command="{Binding Control.SetParkCommand}" IsVisible="{Binding Control.ShowSetPark}" />
+                    <Button Content="Find home" Command="{Binding Control.FindHomeCommand}" IsVisible="{Binding Control.ShowHome}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SLEW TO ALTITUDE / AZIMUTH" IsVisible="{Binding Control.ShowAltAz}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Altitude" Unit="°"><TextBox Text="{Binding Control.AltitudeText}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Azimuth" Unit="°"><TextBox Text="{Binding Control.AzimuthText}" /></ctl:FieldRow>
+                    <Button Classes="primary" Content="Slew" Command="{Binding Control.SlewAltAzCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SYNC" IsVisible="{Binding Control.ShowSync}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding Control.SyncRaText}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding Control.SyncDecText}" /></ctl:FieldRow>
+                    <TextBlock Classes="secondary" TextWrapping="Wrap"
+                               Text="Tells the mount where it points now. It changes what the mount believes, not where it points." />
+                    <Button Content="Sync" Command="{Binding Control.SyncCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <!-- A button of the pad moves the mount only while it is held; the middle button stops everything -->
+            <ctl:WorkspaceSection Header="MANUAL MOVE" IsVisible="{Binding Control.ShowMoveAxis}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Rate" Unit="°/s"><TextBox Text="{Binding Control.JogRateText}" /></ctl:FieldRow>
+                    <TextBlock Classes="secondary" Text="{Binding Control.AxisRateHint}" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8" HorizontalAlignment="Left">
+                        <ctl:HoldButton Grid.Column="0" Grid.Row="0" Content="↖" CommandParameter="NW" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="1" Grid.Row="0" Content="↑" CommandParameter="N" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="2" Grid.Row="0" Content="↗" CommandParameter="NE" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="0" Grid.Row="1" Content="←" CommandParameter="W" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <Button Grid.Column="1" Grid.Row="1" Classes="danger" Content="Stop" Command="{Binding Control.StopCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="2" Grid.Row="1" Content="→" CommandParameter="E" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="0" Grid.Row="2" Content="↙" CommandParameter="SW" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="1" Grid.Row="2" Content="↓" CommandParameter="S" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                        <ctl:HoldButton Grid.Column="2" Grid.Row="2" Content="↘" CommandParameter="SE" PressCommand="{Binding Control.JogStartCommand}" ReleaseCommand="{Binding Control.JogEndCommand}" Width="52" Height="44" HorizontalContentAlignment="Center" />
+                    </Grid>
+                    <TextBlock Classes="meta" Text="Hold a button to move; the mount stops when you let go." />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="PULSE GUIDE" IsVisible="{Binding Control.ShowPulseGuide}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Length" Unit="ms"><TextBox Text="{Binding Control.PulseMillisecondsText}" /></ctl:FieldRow>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="North" Command="{Binding Control.PulseCommand}" CommandParameter="North" />
+                        <Button Content="South" Command="{Binding Control.PulseCommand}" CommandParameter="South" />
+                        <Button Content="East" Command="{Binding Control.PulseCommand}" CommandParameter="East" />
+                        <Button Content="West" Command="{Binding Control.PulseCommand}" CommandParameter="West" />
+                    </StackPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="GUIDE RATES" IsVisible="{Binding Control.ShowGuideRates}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Right ascension" Unit="°/s"><TextBox Text="{Binding Control.GuideRateRaText}" /></ctl:FieldRow>
+                    <ctl:FieldRow Label="Declination" Unit="°/s"><TextBox Text="{Binding Control.GuideRateDecText}" /></ctl:FieldRow>
+                    <Button Content="Apply" Command="{Binding Control.ApplyGuideRatesCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="REFRACTION" IsVisible="{Binding Control.ShowRefraction}">
+                <StackPanel Spacing="16">
+                    <CheckBox Content="The mount corrects for refraction" IsChecked="{Binding Control.Refraction}" />
+                    <Button Content="Apply" Command="{Binding Control.ApplyRefractionCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+        </WrapPanel>
+
+        <workspaces:DriverSectionView />
+    </StackPanel>
+</UserControl>

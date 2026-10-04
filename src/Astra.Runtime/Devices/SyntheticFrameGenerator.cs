@@ -42,6 +42,30 @@ internal sealed class SyntheticFrameGenerator
         return new CameraFrame(Width, Height, pixels, exposureDuration);
     }
 
+    /// <summary>A frame with the shutter closed: the background and its noise, no stars.</summary>
+    public CameraFrame GenerateDark(TimeSpan exposureDuration)
+    {
+        var pixels = new ushort[Width * Height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (ushort)(Background + _random.Next(-Noise, Noise + 1));
+        }
+
+        return new CameraFrame(Width, Height, pixels, exposureDuration);
+    }
+
+    /// <summary>An evenly lit frame, about half way up the scale.</summary>
+    public CameraFrame GenerateFlat(TimeSpan exposureDuration)
+    {
+        var pixels = new ushort[Width * Height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = (ushort)(30000 + _random.Next(-Noise, Noise + 1));
+        }
+
+        return new CameraFrame(Width, Height, pixels, exposureDuration);
+    }
+
     private static void AddStar(ushort[] pixels, double x, double y, double peak, double sigma)
     {
         var radius = (int)Math.Ceiling(sigma * 4);

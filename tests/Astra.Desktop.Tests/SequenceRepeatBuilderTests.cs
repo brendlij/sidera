@@ -107,7 +107,7 @@ public class SequenceRepeatBuilderTests
         Assert.Equal([exposure.Id, delay.Id], top.Children!.Select(c => c.DraftId));
         var group = Assert.IsType<SequenceGroup>(Assert.IsType<RepeatStep>(top.Step).Child);
         Assert.Equal(group.Children, top.Children!.Select(c => c.Step));
-        Assert.Equal("Main Camera · 4 s", top.Children![0].Description.Summary);
+        Assert.Equal("Main Camera · 4 s · Camera defaults", top.Children![0].Description.Summary);
     }
 
     [Fact]
