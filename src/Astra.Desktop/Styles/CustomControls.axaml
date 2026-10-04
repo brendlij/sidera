@@ -1,0 +1,97 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:Astra.Desktop.Controls">
+
+    <!-- The templates of Astra's own controls (see Controls/) -->
+
+    <Style Selector="ctl|StatusIndicator">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Ellipse Name="PART_Dot" Width="8" Height="8" VerticalAlignment="Center" Fill="{DynamicResource AstraMuted}" />
+                    <TextBlock Text="{TemplateBinding Text}" FontSize="{StaticResource FontBody}" VerticalAlignment="Center"
+                               Foreground="{DynamicResource AstraText}" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ctl|StatusIndicator:ok /template/ Ellipse#PART_Dot">
+        <Setter Property="Fill" Value="{DynamicResource AstraOk}" />
+    </Style>
+    <Style Selector="ctl|StatusIndicator:active /template/ Ellipse#PART_Dot">
+        <Setter Property="Fill" Value="{DynamicResource AstraAccent}" />
+    </Style>
+    <Style Selector="ctl|StatusIndicator:warning /template/ Ellipse#PART_Dot">
+        <Setter Property="Fill" Value="{DynamicResource AstraWarn}" />
+    </Style>
+    <Style Selector="ctl|StatusIndicator:error /template/ Ellipse#PART_Dot">
+        <Setter Property="Fill" Value="{DynamicResource AstraDanger}" />
+    </Style>
+
+    <Style Selector="ctl|FieldRow">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="*,Auto,Auto" MinHeight="32">
+                    <TextBlock Text="{TemplateBinding Label}" Classes="secondary" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <ContentPresenter Grid.Column="1" Width="112" Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{TemplateBinding Unit}" Classes="meta" Margin="8,0,0,0" MinWidth="36" VerticalAlignment="Center" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ctl|InfoRow">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="140,*" MinHeight="28">
+                    <TextBlock Text="{TemplateBinding Label}" Classes="secondary" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{TemplateBinding Value}" Classes="value" VerticalAlignment="Center"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ctl|LabeledField">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{TemplateBinding Label}" Classes="meta" />
+                    <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ctl|EmptyState">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360">
+                    <PathIcon Data="{TemplateBinding Icon}" Width="28" Height="28" Foreground="{DynamicResource AstraLineStrong}"
+                              HorizontalAlignment="Center" Margin="0,0,0,4" />
+                    <TextBlock Text="{TemplateBinding Title}" Classes="card-title" HorizontalAlignment="Center" TextAlignment="Center" />
+                    <TextBlock Text="{TemplateBinding Message}" Classes="secondary" HorizontalAlignment="Center"
+                               TextAlignment="Center" TextWrapping="Wrap" />
+                    <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ctl|PageHeader">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{TemplateBinding Title}" Classes="page-title" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{TemplateBinding Subtitle}" Classes="secondary" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding Subtitle, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                    <ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      VerticalAlignment="Center" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

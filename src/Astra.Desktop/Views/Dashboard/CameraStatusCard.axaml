@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             x:Class="Astra.Desktop.Views.Dashboard.CameraStatusCard"
+             x:DataType="vm:CameraViewModel">
+
+    <!-- A camera on the dashboard, when there are no rigs to group it -->
+    <Border Classes="panel">
+        <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="card-title" Text="{Binding Name}" />
+                    <TextBlock Classes="meta" Text="Camera" />
+                </StackPanel>
+                <ctl:StatusIndicator Grid.Column="1" Kind="{Binding StatusKind}" Text="{Binding StatusText}" />
+            </Grid>
+            <TextBlock Classes="value" Text="{Binding ActivityText}" IsVisible="{Binding IsConnected}" />
+            <ProgressBar Minimum="0" Maximum="1" Value="{Binding ExposureProgress}" IsVisible="{Binding IsExposing}" />
+        </StackPanel>
+    </Border>
+</UserControl>

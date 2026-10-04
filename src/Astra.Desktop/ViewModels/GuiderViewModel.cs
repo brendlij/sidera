@@ -47,6 +47,10 @@ public sealed partial class GuiderViewModel : DeviceViewModelBase
     /// <summary>The guider can report when guiding has settled after a dither.</summary>
     public bool SupportsSettle => _guider is IGuidingSettler;
 
+    public string DitherSupportText => SupportsDither ? "Supported" : "Not supported";
+
+    public string SettleSupportText => SupportsSettle ? "Supported" : "Not supported";
+
     [RelayCommand(CanExecute = nameof(CanStartGuiding))]
     private Task StartGuidingAsync() => RunAsync(() => Host.DeviceOperations.StartGuidingAsync(Id));
 
@@ -73,6 +77,15 @@ public sealed partial class GuiderViewModel : DeviceViewModelBase
         StartGuidingCommand.NotifyCanExecuteChanged();
         StopGuidingCommand.NotifyCanExecuteChanged();
     }
+
+    protected override DeviceActivity DescribeActivity() => GuidingState switch
+    {
+        GuidingState.Guiding => new DeviceActivity("Guiding"),
+        GuidingState.Dithering => new DeviceActivity("Dithering", null, true),
+        GuidingState.Starting => new DeviceActivity("Starting guiding", null, true),
+        GuidingState.Stopping => new DeviceActivity("Stopping guiding", null, true),
+        _ => new DeviceActivity("Idle"),
+    };
 
     public override void Dispose()
     {

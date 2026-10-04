@@ -180,8 +180,8 @@ public sealed class DiagnosticsTests : IDisposable
         vm.NavigateCommand.Execute(AppPage.Diagnostics);
 
         Assert.Same(vm.Diagnostics, vm.CurrentPage);
-        Assert.True(vm.IsDiagnosticsSelected);
-        Assert.False(vm.IsDashboardSelected);
+        Assert.True(vm.SecondaryNavigation.Single(item => item.Page == AppPage.Diagnostics).IsSelected);
+        Assert.DoesNotContain(vm.PrimaryNavigation, item => item.IsSelected);
         Assert.Equal(host.SessionId, vm.Diagnostics.SessionText);
     }
 }

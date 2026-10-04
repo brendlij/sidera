@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Astra.Desktop.Views;
+namespace Astra.Desktop.Views.Shell;
 
 public partial class MainWindow : Window
 {

@@ -63,8 +63,39 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     /// <summary>The step holds other steps (a Repeat, a Rig Track, a Multi-Rig block).</summary>
     public virtual bool IsContainer => false;
 
+    /// <summary>The step is a Multi-Rig block: the workflow shows it as the head of its lanes.</summary>
+    public bool IsMultiRig => Kind == SequenceStepKind.MultiRig;
+
+    /// <summary>The step is a Rig Track: a lane of a Multi-Rig block.</summary>
+    public bool IsTrack => Kind == SequenceStepKind.RigTrack;
+
+    /// <summary>The step is inside a Rig Track, however deep: it belongs to a lane.</summary>
+    public bool InTrack => Parent is { } parent && (parent.IsTrack || parent.InTrack);
+
     /// <summary>How far the row is indented in the list.</summary>
     public double IndentWidth => Depth * 28;
+
+    // What the list shows while a step is dragged. The draft sets these; they are not part of the step.
+
+    /// <summary>This is the step being dragged.</summary>
+    [ObservableProperty]
+    public partial bool IsDragSource { get; internal set; }
+
+    /// <summary>The dragged step would be put before this row: the insertion line is at its top edge.</summary>
+    [ObservableProperty]
+    public partial bool ShowsDropBefore { get; internal set; }
+
+    /// <summary>The dragged step would be put after this row (and what it holds): the insertion line is at its bottom edge.</summary>
+    [ObservableProperty]
+    public partial bool ShowsDropAfter { get; internal set; }
+
+    /// <summary>The pointer is over this row with a step that may not go next to it.</summary>
+    [ObservableProperty]
+    public partial bool IsDropRejected { get; internal set; }
+
+    /// <summary>How far the insertion line is indented: as far as the row it is next to.</summary>
+    [ObservableProperty]
+    public partial double DropIndentWidth { get; internal set; }
 
     [ObservableProperty]
     public partial string Title { get; private set; }
@@ -110,6 +141,17 @@ public abstract partial class StepDraftViewModel : ViewModelBase
         {
             Problems = problems;
         }
+
+        OnShown();
+    }
+
+    /// <summary>
+    /// Called each time the step was described again (after every edit): what a step derives from its children is read
+    /// again here. A property raised from here must not end in "Text": those are input fields, and changing one counts as
+    /// an edit, which describes the step again.
+    /// </summary>
+    protected virtual void OnShown()
+    {
     }
 
     protected void NotifyEdited() => Edited?.Invoke(this, EventArgs.Empty);
@@ -254,6 +296,34 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     }
 
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
+
+    /// <summary>The Rig Tracks as lanes: what each rig does, one summary for each, for the overview of the block.</summary>
+    public IReadOnlyList<LaneSummary> Lanes => Children.OfType<RigTrackDraftViewModel>().Select(track => track.Lane).ToList();
+
+    public bool HasLanes => Children.OfType<RigTrackDraftViewModel>().Any();
+
+    /// <summary>The dither policy in one line ("Every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s"), or "Off".</summary>
+    public string DitherSummary
+    {
+        get
+        {
+            if (!DitherEnabled)
+            {
+                return "Off";
+            }
+
+            var rig = TriggerRig.Selected?.Name ?? "trigger rig";
+            var every = DitherEveryText?.Trim() == "1" ? $"After every {rig} frame" : $"Every {DitherEveryText?.Trim()} {rig} frames";
+            return $"{every} · {DitherAmplitudeText?.Trim()} px · settle ≤ {DitherSettleThresholdText?.Trim()} px for {DitherSettleStableText?.Trim()} s";
+        }
+    }
+
+    protected override void OnShown()
+    {
+        OnPropertyChanged(nameof(Lanes));
+        OnPropertyChanged(nameof(HasLanes));
+        OnPropertyChanged(nameof(DitherSummary));
+    }
 
     /// <summary>The rig whose frames are counted for the dither policy: one of the rigs of the tracks.</summary>
     public RigPickerViewModel TriggerRig { get; }
@@ -426,6 +496,41 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
     public override SequenceStepKind Kind => SequenceStepKind.RigTrack;
 
     public RigPickerViewModel Rig { get; }
+
+    /// <summary>What this track does, for the overview of its Multi-Rig block.</summary>
+    public LaneSummary Lane
+    {
+        get
+        {
+            var lines = new List<LaneLine>();
+            foreach (var child in Children)
+            {
+                lines.Add(new LaneLine(child is RepeatStepDraftViewModel ? child.Title : Describe(child), false));
+                if (child is RepeatStepDraftViewModel repeat)
+                {
+                    lines.AddRange(repeat.Children.Select(inner => new LaneLine(Describe(inner), true)));
+                }
+            }
+
+            return new LaneSummary(Rig.Selected?.Name ?? "No rig selected", lines, AutofocusPolicySummary, HasProblems);
+        }
+    }
+
+    /// <summary>"Autofocus: track start + filter change", or <c>null</c> when the rig of the track does not focus by itself.</summary>
+    public string? AutofocusPolicySummary => !AutofocusEnabled ? null
+        : "Autofocus: " + (AutofocusAtStart && AutofocusAfterFilterChange ? "track start + filter change"
+            : AutofocusAtStart ? "track start"
+            : AutofocusAfterFilterChange ? "filter change"
+            : "no trigger");
+
+    private static string Describe(StepDraftViewModel step) =>
+        string.IsNullOrWhiteSpace(step.Summary) ? step.Title : $"{step.Title} · {step.Summary}";
+
+    protected override void OnShown()
+    {
+        OnPropertyChanged(nameof(Lane));
+        OnPropertyChanged(nameof(AutofocusPolicySummary));
+    }
 
     internal override IEnumerable<RigPickerViewModel> RigPickers => [Rig];
 

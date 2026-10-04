@@ -13,8 +13,10 @@ public class MainViewModelTests
     [Theory]
     [InlineData(AppPage.Dashboard)]
     [InlineData(AppPage.Equipment)]
-    [InlineData(AppPage.Sequencer)]
+    [InlineData(AppPage.Session)]
     [InlineData(AppPage.Imaging)]
+    [InlineData(AppPage.Diagnostics)]
+    [InlineData(AppPage.Settings)]
     public async Task Navigation_SelectsTheComposedPage(AppPage page)
     {
         await using var host = new AstraRuntimeHost();
@@ -25,8 +27,10 @@ public class MainViewModelTests
         Assert.Same(page switch
         {
             AppPage.Equipment => (ViewModelBase)vm.Equipment,
-            AppPage.Sequencer => vm.SequencerPage,
+            AppPage.Session => vm.SessionPage,
             AppPage.Imaging => vm.Imaging,
+            AppPage.Diagnostics => vm.Diagnostics,
+            AppPage.Settings => vm.Settings,
             _ => vm.Dashboard
         }, vm.CurrentPage);
         Assert.Same(vm.Sequencer, vm.Dashboard.Sequencer);

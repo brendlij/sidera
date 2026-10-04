@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             x:Class="Astra.Desktop.Views.Diagnostics.DiagnosticsView"
+             x:DataType="vm:DiagnosticsViewModel">
+
+    <!-- Diagnostics: the facts of this session, compactly, and the way to its log. No log viewer. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="760" HorizontalAlignment="Left">
+            <ctl:PageHeader Title="Diagnostics" Subtitle="The log of this session. Attach the file to a bug report." />
+
+            <StackPanel Spacing="12">
+                <TextBlock Classes="eyebrow" Text="SESSION" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="2">
+                        <ctl:InfoRow Label="Session" Value="{Binding SessionText}" IsVisible="{Binding IsLoggingConfigured}"
+                                     AutomationProperties.AutomationId="DiagnosticsSession" />
+                        <ctl:InfoRow Label="Logging" Value="{Binding LevelText}" IsVisible="{Binding IsLoggingConfigured}"
+                                     AutomationProperties.AutomationId="DiagnosticsLevel" />
+                        <ctl:InfoRow Label="Astra" Value="{Binding VersionText}" />
+                        <ctl:InfoRow Label="Current log" Value="{Binding LogFileName}" AutomationProperties.AutomationId="DiagnosticsLogFile" />
+                        <ctl:InfoRow Label="Folder" Value="{Binding LogFolderText}" IsVisible="{Binding IsLoggingConfigured}"
+                                     AutomationProperties.AutomationId="DiagnosticsLogFolder" />
+                    </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}" />
+                    <Button Classes="ghost" Content="Copy path" Command="{Binding CopyPathCommand}" />
+                </StackPanel>
+                <Border Classes="notice-danger" IsVisible="{Binding HasError}">
+                    <TextBlock Classes="danger" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="12" IsVisible="{Binding HasSummary}">
+                <TextBlock Classes="eyebrow" Text="WARNINGS AND ERRORS" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="12">
+                        <TextBlock Classes="value" Text="{Binding ProblemsText}" AutomationProperties.AutomationId="DiagnosticsProblems" />
+                        <ItemsControl ItemsSource="{Binding RecentProblems}" IsVisible="{Binding HasProblems}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProblemRow">
+                                    <Grid ColumnDefinitions="64,Auto,*" ColumnSpacing="12">
+                                        <TextBlock Classes="meta" Text="{Binding TimeText}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                        <ctl:StatusIndicator Grid.Column="1" Kind="{Binding Kind}" Text="{Binding Source}" VerticalAlignment="Top" />
+                                        <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding Message}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="meta" Text="The latest five. The log file has all of them, with their details."
+                                   IsVisible="{Binding HasProblems}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -49,6 +49,7 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMoving))]
+    [NotifyPropertyChangedFor(nameof(MotionText))]
     public partial FocuserMotionState MotionState { get; private set; }
 
     [ObservableProperty]
@@ -64,6 +65,9 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
     public partial bool IsManualMoveRunning { get; private set; }
 
     public bool IsMoving => MotionState == FocuserMotionState.Moving;
+
+    /// <summary>"Idle" or "Moving".</summary>
+    public string MotionText => IsMoving ? "Moving" : "Idle";
 
     public string PositionText => string.Create(CultureInfo.InvariantCulture, $"{Position} steps");
 
@@ -121,6 +125,9 @@ public sealed partial class FocuserViewModel : DeviceViewModelBase
         base.RefreshCommands();
         MoveCommand.NotifyCanExecuteChanged();
     }
+
+    protected override DeviceActivity DescribeActivity() =>
+        IsMoving ? new DeviceActivity($"Moving · {PositionText}", null, true) : new DeviceActivity($"Idle · {PositionText}");
 
     public override void Dispose()
     {

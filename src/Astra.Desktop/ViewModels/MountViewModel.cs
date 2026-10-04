@@ -118,6 +118,13 @@ public sealed partial class MountViewModel : DeviceViewModelBase
         SlewCommand.NotifyCanExecuteChanged();
     }
 
+    protected override DeviceActivity DescribeActivity() => MotionState switch
+    {
+        MountMotionState.Slewing => new DeviceActivity("Slewing", null, true),
+        MountMotionState.Tracking => new DeviceActivity("Tracking"),
+        _ => new DeviceActivity("Idle"),
+    };
+
     private static string Format(double value) => value.ToString("0.###", CultureInfo.CurrentCulture);
 
     // Accepts the decimal separator of the user's culture as well as a dot.

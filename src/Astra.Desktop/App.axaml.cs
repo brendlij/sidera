@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Astra.Desktop.Diagnostics;
 using Astra.Desktop.ViewModels;
 using Astra.Desktop.Views;
+using Astra.Desktop.Views.Shell;
 using Astra.Runtime;
 using Astra.Runtime.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -39,11 +40,13 @@ public partial class App : Application
             host.Start();
 
             var filePicker = new AvaloniaSequenceFilePicker();
+            var clipboard = new AvaloniaClipboardService();
             var viewModel = new MainViewModel(
-                host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo);
+                host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard);
 
             var window = new MainWindow { DataContext = viewModel };
             filePicker.Attach(window);
+            clipboard.Attach(window);
             desktop.MainWindow = window;
 
             // Stop the runtime asynchronously without blocking the UI thread, then shut down for real.

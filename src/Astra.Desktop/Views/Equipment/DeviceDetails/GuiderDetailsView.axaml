@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:equipment="using:Astra.Desktop.Views.Equipment"
+             x:Class="Astra.Desktop.Views.Equipment.DeviceDetails.GuiderDetailsView"
+             x:DataType="vm:GuiderDetailViewModel">
+
+    <!-- A guider: whether it guides, start and stop, and what it can do for a session -->
+    <equipment:DeviceDetailShell>
+        <equipment:DeviceDetailShell.OverviewContent>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="STATUS" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="2">
+                            <ctl:InfoRow Label="Guiding" Value="{Binding Guider.ActivityText}" IsVisible="{Binding Guider.IsConnected}" />
+                            <ctl:InfoRow Label="Guiding" Value="Not connected" IsVisible="{Binding Guider.IsDisconnected}" />
+                            <ctl:InfoRow Label="Used by" Value="The whole session" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="CAPABILITIES" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="2">
+                            <ctl:InfoRow Label="Dithering" Value="{Binding Guider.DitherSupportText}" />
+                            <ctl:InfoRow Label="Settling" Value="{Binding Guider.SettleSupportText}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </equipment:DeviceDetailShell.OverviewContent>
+
+        <equipment:DeviceDetailShell.ControlsContent>
+            <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Left">
+                <TextBlock Classes="eyebrow" Text="GUIDING" />
+                <Border Classes="panel">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="primary" Content="Start Guiding" Command="{Binding Guider.StartGuidingCommand}" />
+                        <Button Content="Stop Guiding" Command="{Binding Guider.StopGuidingCommand}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </equipment:DeviceDetailShell.ControlsContent>
+    </equipment:DeviceDetailShell>
+</UserControl>

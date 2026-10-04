@@ -65,6 +65,16 @@ public sealed partial class SequenceNodeViewModel(SequenceNode node) : Observabl
     [NotifyPropertyChangedFor(nameof(HasIteration))]
     public partial string? IterationText { get; set; }
 
+    /// <summary>
+    /// For a running Repeat: the repetition it is in (from 1) and how many there are. The repetitions before it have
+    /// ended, so <c>Iteration - 1</c> frames of an imaging repeat are done. <c>null</c> when it does not apply.
+    /// </summary>
+    [ObservableProperty]
+    public partial int? Iteration { get; set; }
+
+    [ObservableProperty]
+    public partial int? IterationCount { get; set; }
+
     public bool HasIteration => IterationText is not null;
     public bool IsActive => Status == NodeStatus.Active;
     public bool IsDone => Status == NodeStatus.Done;
@@ -224,6 +234,13 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     /// <summary>The sequence has no steps.</summary>
     public bool IsEmpty => Definition.Count == 0;
 
+    /// <summary>
+    /// <see cref="Definition"/> is the snapshot of a run (with what is done and running), not the draft: true from the
+    /// start of a run until the draft changes.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowsRun { get; private set; }
+
     // The row of a draft step, as shown while nothing runs.
     private sealed record DraftRow(
         Guid Id, string Label, string Title, string Summary, string? Problem, SequenceStepKind Kind, int Depth);
@@ -250,6 +267,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     private void ShowDraft()
     {
         _shownDraft = ReadDraftRows();
+        ShowsRun = false;
 
         // Rows only: what is inside a container is listed after it, indented, without a tree behind them.
         ShowRoots(
@@ -362,6 +380,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsCancelled))]
     [NotifyPropertyChangedFor(nameof(IsFailed))]
     [NotifyPropertyChangedFor(nameof(StateText))]
+    [NotifyPropertyChangedFor(nameof(StateKind))]
     [NotifyPropertyChangedFor(nameof(IsRunningState))]
     [NotifyPropertyChangedFor(nameof(IsPausing))]
     [NotifyPropertyChangedFor(nameof(IsPaused))]
@@ -377,6 +396,17 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ResumeCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial SequenceState State { get; private set; }
+
+    /// <summary>When the last run started; <c>null</c> before the first one.</summary>
+    [ObservableProperty]
+    public partial DateTimeOffset? RunStartedAt { get; private set; }
+
+    /// <summary>When the last run ended; <c>null</c> while it is in progress and before the first one.</summary>
+    [ObservableProperty]
+    public partial DateTimeOffset? RunEndedAt { get; private set; }
+
+    /// <summary>How long the last run has gone on, or went on (a pause counts); <c>null</c> before the first run.</summary>
+    public TimeSpan? Elapsed => RunStartedAt is { } started ? (RunEndedAt ?? DateTimeOffset.Now) - started : null;
 
     /// <summary>A run is in progress, including while it is pausing or paused.</summary>
     public bool IsRunning => State is SequenceState.Running or SequenceState.Pausing or SequenceState.Paused;
@@ -400,6 +430,16 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
     public bool IsPauseState => IsPausing || IsPaused;
 
     public string StateText => State == SequenceState.Pausing ? "Pausing…" : State.ToString();
+
+    /// <summary>How the state is shown: active while it runs, a warning when paused or cancelled, ok when completed, an error when it failed.</summary>
+    public StatusKind StateKind => State switch
+    {
+        SequenceState.Running => StatusKind.Active,
+        SequenceState.Pausing or SequenceState.Paused or SequenceState.Cancelled => StatusKind.Warning,
+        SequenceState.Completed => StatusKind.Ok,
+        SequenceState.Failed => StatusKind.Error,
+        _ => StatusKind.Neutral,
+    };
 
     /// <summary>Why the sequence cannot start now (for example "Connect Main Camera first."); <c>null</c> when it can.</summary>
     [ObservableProperty]
@@ -542,8 +582,11 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         }
 
         ClearAutofocus();
+        ShowsRun = true;
         var cts = new CancellationTokenSource();
         _cts = cts;
+        RunStartedAt = DateTimeOffset.Now;
+        RunEndedAt = null;
 
         try
         {
@@ -570,6 +613,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             _cts = null;
             cts.Dispose();
             _activity.IsSequenceRunning = false;
+            RunEndedAt = DateTimeOffset.Now;
             RefreshExecution();
 
             RefreshReadiness();
@@ -685,6 +729,17 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
                 && _latestIteration.TryGetValue(vm.Node, out var iteration)
                     ? $"iteration {iteration + 1} / {repeat.Count}"
                     : null;
+            if (vm is { Status: NodeStatus.Active, Node.Step: RepeatStep running }
+                && _latestIteration.TryGetValue(vm.Node, out var latest))
+            {
+                vm.Iteration = latest + 1;
+                vm.IterationCount = running.Count;
+            }
+            else
+            {
+                vm.Iteration = null;
+                vm.IterationCount = null;
+            }
         }
 
         var lines = SequenceStatusLine.From(current);

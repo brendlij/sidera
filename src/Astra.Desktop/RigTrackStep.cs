@@ -70,6 +70,10 @@ public sealed class RigTrackStep : ISequenceStep
     }
 
     public Guid TrackId { get; }
+
+    /// <summary>The rig the track images with, when it was told (for what shows the run, and for the log).</summary>
+    public RigId? RigId => _rigId;
+
     public string Name { get; }
     public IReadOnlyList<ISequenceStep> Steps { get; }
 

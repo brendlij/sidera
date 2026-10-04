@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             x:Class="Astra.Desktop.Views.Imaging.FrameMetricsView"
+             x:DataType="vm:ImagingViewModel">
+
+    <!-- What the analysis of the frame found. Only what was measured from its pixels; nothing before the analysis is done. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="24" VerticalAlignment="Top">
+
+            <StackPanel Spacing="12" IsVisible="{Binding CanAnalyze}">
+                <TextBlock Classes="eyebrow" Text="FRAME ANALYSIS" />
+
+                <TextBlock Classes="secondary" Text="Analysing frame…" IsVisible="{Binding IsAnalyzing}"
+                           AutomationProperties.AutomationId="ImagingAnalysisStatus" />
+                <TextBlock Classes="secondary" Text="Analysis starts when a frame arrives." IsVisible="{Binding !HasFrame}" />
+                <TextBlock Classes="secondary warn" Text="{Binding AnalysisMessage}" TextWrapping="Wrap"
+                           IsVisible="{Binding HasAnalysisMessage}" AutomationProperties.AutomationId="ImagingAnalysisMessage" />
+
+                <StackPanel Spacing="16" IsVisible="{Binding HasMetrics}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="meta" Text="Median HFR" />
+                        <TextBlock Classes="value-large" Text="{Binding MedianHfrText}" AutomationProperties.AutomationId="ImagingMedianHfr" />
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="meta" Text="Stars" />
+                        <TextBlock Classes="value" Text="{Binding StarsText}" AutomationProperties.AutomationId="ImagingStars" />
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="meta" Text="Background" />
+                            <TextBlock Classes="value" Text="{Binding BackgroundText}" AutomationProperties.AutomationId="ImagingBackground" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Classes="meta" Text="Noise" />
+                            <TextBlock Classes="value" Text="{Binding NoiseText}" AutomationProperties.AutomationId="ImagingNoise" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="meta" Text="Saturated stars" />
+                        <TextBlock Classes="value" Text="{Binding SaturatedText}" AutomationProperties.AutomationId="ImagingSaturated" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="12" IsVisible="{Binding HasFrame}">
+                <Border Classes="divider" />
+                <TextBlock Classes="eyebrow" Text="FRAME" />
+                <StackPanel Spacing="8">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="meta" Text="Source" />
+                        <TextBlock Classes="value" Text="{Binding SourceText}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="meta" Text="Size" />
+                            <TextBlock Classes="value" Text="{Binding DimensionsText}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Classes="meta" Text="Exposure" />
+                            <TextBlock Classes="value" Text="{Binding ExposureText}" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="meta" Text="Captured" />
+                        <TextBlock Classes="value" Text="{Binding CapturedText}" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

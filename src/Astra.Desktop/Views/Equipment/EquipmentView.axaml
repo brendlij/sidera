@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:equipment="using:Astra.Desktop.Views.Equipment"
+             x:Class="Astra.Desktop.Views.Equipment.EquipmentView"
+             x:DataType="vm:EquipmentViewModel">
+
+    <!--
+        The equipment workspace: a browser on the left and the detail of what is selected on the right. Two modes that are
+        never mixed: Devices (the default), the hardware by kind, one device in detail; Rigs (only when there are any), the
+        optional groupings of those devices into optical trains, one rig in detail.
+    -->
+    <Grid RowDefinitions="Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="24">
+
+        <ctl:PageHeader Title="Equipment">
+            <equipment:EquipmentModeSelector IsVisible="{Binding HasRigs}" />
+        </ctl:PageHeader>
+
+        <!-- Devices -->
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsDevicesMode}">
+            <equipment:DeviceBrowserView IsVisible="{Binding HasDevices}" />
+            <equipment:SelectedDeviceDetailsView Grid.Column="1" IsVisible="{Binding HasDevices}" />
+            <ctl:EmptyState Grid.ColumnSpan="2" Icon="{StaticResource IconEquipment}" Margin="0,96"
+                            Title="No devices"
+                            Message="Devices appear here when they are added to Astra. Rigs are optional: add one later when you want grouped or Multi-Rig imaging."
+                            IsVisible="{Binding !HasDevices}" />
+        </Grid>
+
+        <!-- Rigs -->
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="32" IsVisible="{Binding IsRigsMode}">
+            <equipment:RigBrowserView />
+            <ContentControl Grid.Column="1" Content="{Binding SelectedRig}">
+                <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:RigViewModel">
+                        <equipment:RigDetailsView />
+                    </DataTemplate>
+                </ContentControl.ContentTemplate>
+            </ContentControl>
+        </Grid>
+    </Grid>
+</UserControl>

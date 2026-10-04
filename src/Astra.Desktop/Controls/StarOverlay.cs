@@ -23,8 +23,9 @@ public sealed class StarOverlay : Control
     public static readonly StyledProperty<double> FrameHeightProperty =
         AvaloniaProperty.Register<StarOverlay, double>(nameof(FrameHeight));
 
-    private static readonly IPen UsablePen = new Pen(new SolidColorBrush(Color.FromRgb(0x4C, 0xD9, 0x64)), 1.5);
-    private static readonly IPen SkippedPen = new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0xB3, 0x40)), 1.5);
+    // Thin and a little transparent: the overlay marks the stars, it does not compete with them.
+    private static readonly IPen UsablePen = new Pen(new SolidColorBrush(Color.FromArgb(0xC8, 0x6F, 0xCB, 0x9F)), 1);
+    private static readonly IPen SkippedPen = new Pen(new SolidColorBrush(Color.FromArgb(0xC8, 0xE3, 0xB2, 0x5E)), 1);
 
     static StarOverlay()
     {

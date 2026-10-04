@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:equipment="using:Astra.Desktop.Views.Equipment"
+             x:Class="Astra.Desktop.Views.Equipment.DeviceDetails.FocuserDetailsView"
+             x:DataType="vm:FocuserDetailViewModel">
+
+    <!-- A focuser: where it is and what it is doing, the range it can travel, and a move to an absolute position -->
+    <equipment:DeviceDetailShell>
+        <equipment:DeviceDetailShell.OverviewContent>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="STATUS" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="2">
+                            <ctl:InfoRow Label="Position" Value="{Binding Focuser.PositionText}" />
+                            <ctl:InfoRow Label="Motion" Value="{Binding Focuser.MotionText}" IsVisible="{Binding Focuser.IsConnected}" />
+                            <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="TRAVEL" />
+                    <Border Classes="panel">
+                        <ctl:InfoRow Label="Range" Value="{Binding Focuser.RangeText}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </equipment:DeviceDetailShell.OverviewContent>
+
+        <equipment:DeviceDetailShell.ControlsContent>
+            <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Left">
+                <TextBlock Classes="eyebrow" Text="MOVE" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="16">
+                        <ctl:FieldRow Label="Target position" Unit="steps"><TextBox Text="{Binding Focuser.TargetInput}" /></ctl:FieldRow>
+                        <Button Classes="primary" Content="Move" Command="{Binding Focuser.MoveCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </equipment:DeviceDetailShell.ControlsContent>
+    </equipment:DeviceDetailShell>
+</UserControl>

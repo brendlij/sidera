@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:conv="using:Astra.Desktop.Converters"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             x:Class="Astra.Desktop.Views.Equipment.DeviceBrowserView"
+             x:DataType="vm:EquipmentViewModel">
+
+    <UserControl.DataTemplates>
+        <DataTemplate x:DataType="vm:DeviceViewModelBase">
+            <Button Classes="nav" Classes.active="{Binding IsSelected}" Command="{Binding OpenCommand}"
+                    AutomationProperties.Name="{Binding Name}">
+                <Grid ColumnDefinitions="Auto,*,Auto" Height="36">
+                    <Border Classes="navMarker" />
+                    <TextBlock Grid.Column="1" Margin="12,0,8,0" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                    <ctl:StatusIndicator Grid.Column="2" Margin="0,0,4,0" Kind="{Binding StatusKind}" AutomationProperties.Name="{Binding StatusText}" />
+                </Grid>
+            </Button>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <!-- The devices by kind, one quiet row each: the name and a dot for the connection. Selecting a row shows it in the detail. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Sections}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="16" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:EquipmentSection">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="eyebrow" Margin="12,0,0,4"
+                                   Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}" />
+                        <ItemsControl ItemsSource="{Binding Items}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>
