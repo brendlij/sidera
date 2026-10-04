@@ -2,6 +2,7 @@ using Astra.Ascom.Drivers;
 using Astra.Ascom.Mounts;
 using Astra.Core.Devices;
 using Astra.Core.Mounts;
+using Astra.Runtime;
 using Xunit.Abstractions;
 
 namespace Astra.Ascom.IntegrationTests;
@@ -121,37 +122,75 @@ public sealed class HardwareMountValidationTests(ITestOutputHelper output)
         }
     }
 
+    // A target near the one the mount has, along declination: a change of right ascension at the pole (where the mount waits at home)
+    // would move nothing at all, and nothing is ever sent to a fixed or named place. Never more than the given number of degrees.
+    private static CelestialCoordinates Nearby(CelestialCoordinates from, double degrees) =>
+        new(from.RightAscensionHours, from.DeclinationDegrees > 0 ? from.DeclinationDegrees - degrees : from.DeclinationDegrees + degrees);
+
+    // The slews go through the host, the way the Mount page starts one: the same lease, the same events.
+    private async Task<(AstraRuntimeHost Host, AscomMount Mount)> HostedMountAsync()
+    {
+        var host = new AstraRuntimeHost();
+        var mount = NewMount();
+        host.AddDevice(mount);
+        await host.DeviceOperations.ConnectAsync(mount.Id);
+        return (host, mount);
+    }
+
     [HardwareFact("ASTRA_ASCOM_MOUNT")]
-    public async Task TheRealMount_SlewsAFractionOfADegree_AndBack_OnlyWithItsGate()
+    public async Task TheRealMount_SlewsHalfADegree_AndBack_OnlyWithItsGate()
     {
         if (!Gate("ASTRA_ASCOM_MOUNT_SLEW_OK"))
         {
             return;
         }
 
-        var mount = NewMount();
-        await mount.ConnectAsync();
+        var (host, mount) = await HostedMountAsync();
         try
         {
             Assert.Null(await WhyNotAliveAsync(mount));
             var start = mount.Coordinates;
-            var target = new CelestialCoordinates((start.RightAscensionHours + 0.02) % 24, start.DeclinationDegrees);
-            output.WriteLine($"from {start} to {target} (0.3 degrees of right ascension)");
-            var slew = mount.SlewToAsync(target);
-            await Task.Delay(500);
-            output.WriteLine($"during the slew: Astra state {mount.MotionState}");
-            await slew;
-            await mount.RefreshAsync();
-            output.WriteLine($"arrived at {mount.Coordinates}, slewing {mount.Telemetry!.Slewing}");
-            Assert.False(mount.Telemetry!.Slewing);
-            Assert.Equal(target.RightAscensionHours, mount.Coordinates.RightAscensionHours, 2);
+            var target = Nearby(start, 0.5);
+            Assert.NotEqual(new CelestialCoordinates(0, 0), target);
+            output.WriteLine($"from {start} to {target} (0.5 degrees of declination)");
 
-            await mount.SlewToAsync(start);
+            var states = new List<MountMotionState>();
+            using var watching = new CancellationTokenSource();
+            var watcher = Task.Run(async () =>
+            {
+                while (!watching.IsCancellationRequested)
+                {
+                    var state = mount.MotionState;
+                    if (states.Count == 0 || states[^1] != state)
+                    {
+                        states.Add(state);
+                    }
+
+                    await Task.Delay(25);
+                }
+            });
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            await host.DeviceOperations.SlewToAsync(mount.Id, target);
+            output.WriteLine($"the slew took {clock.ElapsedMilliseconds} ms; states seen: {string.Join(" -> ", states)}");
+            await watching.CancelAsync();
+            await watcher;
+
+            await mount.RefreshAsync();
+            output.WriteLine($"arrived at {mount.Coordinates}, driver slewing {mount.Telemetry!.Slewing}, Astra state {mount.MotionState}");
+            Assert.False(mount.Telemetry!.Slewing);
+            Assert.Equal(target.DeclinationDegrees, mount.Coordinates.DeclinationDegrees, 1);
+
+            // Back where it was. A second slew only starts when the first one has let go of the mount.
+            await host.DeviceOperations.SlewToAsync(mount.Id, start);
+            await mount.RefreshAsync();
             output.WriteLine($"back at {mount.Coordinates}");
+            Assert.Equal(start.DeclinationDegrees, mount.Coordinates.DeclinationDegrees, 1);
         }
         finally
         {
-            await mount.DisconnectAsync();
+            await mount.StopAsync();
+            await host.DeviceOperations.DisconnectAsync(mount.Id);
+            await host.DisposeAsync();
         }
     }
 
@@ -163,28 +202,46 @@ public sealed class HardwareMountValidationTests(ITestOutputHelper output)
             return;
         }
 
-        var mount = NewMount();
-        await mount.ConnectAsync();
+        var (host, mount) = await HostedMountAsync();
+        var start = mount.Coordinates;
         try
         {
             Assert.Null(await WhyNotAliveAsync(mount));
-            var start = mount.Coordinates;
-            var target = new CelestialCoordinates((start.RightAscensionHours + 0.1) % 24, start.DeclinationDegrees);
-            var slew = mount.SlewToAsync(target);
-            await Task.Delay(1000);
+            var target = Nearby(start, 2);
+            output.WriteLine($"from {start} to {target} (2 degrees of declination), to be stopped");
+            var slew = host.DeviceOperations.SlewToAsync(mount.Id, target);
+            var sawSlewing = false;
+            for (var i = 0; i < 40 && !slew.IsCompleted; i++)
+            {
+                await mount.RefreshAsync();
+                if (mount.Telemetry!.Slewing)
+                {
+                    sawSlewing = true;
+                    break;
+                }
+
+                await Task.Delay(50);
+            }
+
+            output.WriteLine($"the mount reported slewing before the stop: {sawSlewing}");
             await mount.StopAsync();
             var outcome = await Record.ExceptionAsync(() => slew);
             await mount.RefreshAsync();
-            output.WriteLine($"slew task ended with {outcome?.GetType().Name ?? "completion"}; slewing {mount.Telemetry!.Slewing}; at {mount.Coordinates}; state {mount.MotionState}");
+            output.WriteLine($"slew task ended with {outcome?.GetType().Name ?? "completion"}; driver slewing {mount.Telemetry!.Slewing}; at {mount.Coordinates}; Astra state {mount.MotionState}");
             Assert.False(mount.Telemetry!.Slewing);
 
-            await mount.SlewToAsync(start);
+            // Usable afterwards: another read, and a slew back that is accepted.
+            await mount.RefreshAsync();
+            await host.DeviceOperations.SlewToAsync(mount.Id, start);
+            await mount.RefreshAsync();
             output.WriteLine($"back at {mount.Coordinates}");
+            Assert.Equal(start.DeclinationDegrees, mount.Coordinates.DeclinationDegrees, 1);
         }
         finally
         {
             await mount.StopAsync();
-            await mount.DisconnectAsync();
+            await host.DeviceOperations.DisconnectAsync(mount.Id);
+            await host.DisposeAsync();
         }
     }
 

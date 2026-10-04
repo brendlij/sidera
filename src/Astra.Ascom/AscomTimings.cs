@@ -21,6 +21,9 @@ public sealed record AscomTimings
 
     public TimeSpan MountPollInterval { get; init; } = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>How long Astra waits for a mount to report the tracking state it was told to take.</summary>
+    public TimeSpan TrackingConfirmWait { get; init; } = TimeSpan.FromSeconds(3);
+
     public TimeSpan MountSlewTimeout { get; init; } = TimeSpan.FromSeconds(300);
 
     public TimeSpan CameraPollInterval { get; init; } = TimeSpan.FromMilliseconds(200);

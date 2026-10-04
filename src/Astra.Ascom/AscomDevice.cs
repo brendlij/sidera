@@ -285,11 +285,25 @@ public abstract class AscomDevice<TDriver> : IDevice, IBackendDescribed, IAsyncD
         }
     }
 
+    /// <summary>Called on the driver's thread, before the driver is disconnected: whatever the device started and must not leave running.</summary>
+    protected virtual void BeforeRelease(TDriver driver)
+    {
+    }
+
     private void ReleaseDriver(TDriver? driver)
     {
         if (driver is null)
         {
             return;
+        }
+
+        try
+        {
+            BeforeRelease(driver);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "{Device}: cleaning up before the release failed: {Reason}", Name, AscomErrors.Describe(ex));
         }
 
         try

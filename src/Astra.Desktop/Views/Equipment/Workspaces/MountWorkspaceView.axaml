@@ -33,7 +33,17 @@
                 <StackPanel Spacing="16">
                     <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding Mount.RightAscensionInput}" /></ctl:FieldRow>
                     <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding Mount.DeclinationInput}" /></ctl:FieldRow>
-                    <Button Classes="primary" Content="Slew" Command="{Binding Mount.SlewCommand}" HorizontalAlignment="Left" />
+                    <TextBlock Classes="danger" Text="{Binding Mount.SlewProblemText}" IsVisible="{Binding Mount.HasSlewProblem}" TextWrapping="Wrap" MaxWidth="360" />
+                    <Button Classes="primary" Content="Slew" Command="{Binding Mount.SlewCommand}" HorizontalAlignment="Left" IsVisible="{Binding !Mount.IsConfirmingLargeSlew}" />
+                    <Border Classes="notice-danger" IsVisible="{Binding Mount.IsConfirmingLargeSlew}" MaxWidth="360">
+                        <StackPanel Spacing="12">
+                            <TextBlock Classes="danger" Text="{Binding Mount.LargeSlewText}" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Cancel" Command="{Binding Mount.CancelSlewCommand}" AutomationProperties.Name="Cancel large slew" />
+                                <Button Classes="primary" Content="Slew" Command="{Binding Mount.ConfirmSlewCommand}" AutomationProperties.Name="Confirm large slew" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ctl:WorkspaceSection>
 

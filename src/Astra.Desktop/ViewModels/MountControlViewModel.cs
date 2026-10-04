@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Astra.Core.Devices;
 using Astra.Core.Mounts;
@@ -111,16 +112,16 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
     public partial TrackingRate SelectedTrackingRate { get; set; }
 
     [ObservableProperty]
-    public partial string SyncRaText { get; set; } = "0";
+    public partial string SyncRaText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string SyncDecText { get; set; } = "0";
+    public partial string SyncDecText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string AltitudeText { get; set; } = "45";
+    public partial string AltitudeText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string AzimuthText { get; set; } = "180";
+    public partial string AzimuthText { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial string PulseMillisecondsText { get; set; } = "500";
@@ -216,12 +217,53 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
             _loading = false;
         }
 
+        if (!_syncEdited && !_altAzEdited && (SyncRaText.Length == 0 || AltitudeText.Length == 0))
+        {
+            FillTargets(t);
+        }
+
         TelemetryLines = BuildTelemetry(t);
         InfoLines = BuildInfo(c);
     }
 
     private bool _editingRates;
     private bool _loading;
+    private bool _syncEdited;
+    private bool _altAzEdited;
+    private bool _fillingTargets;
+
+    partial void OnSyncRaTextChanged(string value) => _syncEdited |= !_fillingTargets;
+
+    partial void OnSyncDecTextChanged(string value) => _syncEdited |= !_fillingTargets;
+
+    partial void OnAltitudeTextChanged(string value) => _altAzEdited |= !_fillingTargets;
+
+    partial void OnAzimuthTextChanged(string value) => _altAzEdited |= !_fillingTargets;
+
+    // The fields of the sync and of the horizontal slew start from where the mount points now, never from a made-up number: a sync
+    // to 0 / 0 would tell the mount something false, a slew to 45 / 180 would send it somewhere nobody chose. Typed values are kept.
+    private void FillTargets(MountTelemetry? t)
+    {
+        _fillingTargets = true;
+        try
+        {
+            if (!_syncEdited)
+            {
+                SyncRaText = t?.Coordinates is { } c ? c.RightAscensionHours.ToString("0.#####", CultureInfo.InvariantCulture) : string.Empty;
+                SyncDecText = t?.Coordinates is { } d ? d.DeclinationDegrees.ToString("0.#####", CultureInfo.InvariantCulture) : string.Empty;
+            }
+
+            if (!_altAzEdited)
+            {
+                AltitudeText = t?.Horizontal is { } h ? h.AltitudeDegrees.ToString("0.#####", CultureInfo.InvariantCulture) : string.Empty;
+                AzimuthText = t?.Horizontal is { } z ? z.AzimuthDegrees.ToString("0.#####", CultureInfo.InvariantCulture) : string.Empty;
+            }
+        }
+        finally
+        {
+            _fillingTargets = false;
+        }
+    }
 
     partial void OnGuideRateRaTextChanged(string value) => _editingRates |= !_loading;
 
@@ -439,6 +481,7 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
         }
         finally
         {
+            IsJogging = false;
             Update();
         }
     }
@@ -446,6 +489,10 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
     // The jog pad moves an axis only while a button is held: pressing starts the movement at the rate typed, releasing sets the axis
     // back to 0. N and S are the secondary axis (declination), E and W the primary one (right ascension); the corners are both.
     // These are not guarded by CanOperate: releasing must always be possible, and so must pressing while something else is shown busy.
+    // Start and end go one after the other: a release that comes while the press is still being sent must not overtake it (a
+    // diagonal sets two axes, and an axis set moving after its stop would never be stopped).
+    private readonly SemaphoreSlim _jogGate = new(1, 1);
+
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task JogStartAsync(string? direction)
     {
@@ -455,6 +502,7 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
         }
 
         ClearError();
+        await _jogGate.WaitAsync();
         try
         {
             if (!TryNumber(JogRateText, out var rate) || rate <= 0)
@@ -480,31 +528,53 @@ public sealed partial class MountControlViewModel : DevicePanelViewModel
             ReportError(ex);
             await StopQuietlyAsync();
         }
+        finally
+        {
+            _jogGate.Release();
+        }
     }
 
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task JogEndAsync(string? direction)
     {
-        if (direction is null || !IsJogging)
+        if (direction is null)
         {
             return;
         }
 
-        IsJogging = false;
+        await _jogGate.WaitAsync();
         try
         {
+            if (!IsJogging)
+            {
+                return;
+            }
+
+            IsJogging = false;
+
+            // Every axis the direction names is set back to 0, whatever happens to the first one.
+            var failed = false;
             foreach (var (axis, _) in JogMoves(direction, 1))
             {
-                await _mount.MoveAxisAsync(axis, 0);
+                try
+                {
+                    await _mount.MoveAxisAsync(axis, 0);
+                }
+                catch (Exception ex)
+                {
+                    failed = true;
+                    ReportError(ex);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            ReportError(ex);
-            await StopQuietlyAsync();
+
+            if (failed)
+            {
+                await StopQuietlyAsync();
+            }
         }
         finally
         {
+            _jogGate.Release();
             Update();
         }
     }

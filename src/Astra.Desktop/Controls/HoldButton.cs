@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 
 namespace Astra.Desktop.Controls;
 
@@ -20,6 +21,11 @@ public sealed class HoldButton : Button
         AvaloniaProperty.Register<HoldButton, ICommand?>(nameof(ReleaseCommand));
 
     private bool _held;
+
+    public HoldButton()
+    {
+        LostFocus += (_, _) => Release();
+    }
 
     protected override Type StyleKeyOverride => typeof(Button);
 
@@ -60,11 +66,32 @@ public sealed class HoldButton : Button
         Release();
     }
 
+    private Window? _window;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _window = TopLevel.GetTopLevel(this) as Window;
+        if (_window is not null)
+        {
+            _window.Deactivated += OnWindowDeactivated;
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (_window is not null)
+        {
+            _window.Deactivated -= OnWindowDeactivated;
+            _window = null;
+        }
+
         Release();
     }
+
+    // The window loses the foreground (alt-tab, a dialog): the pointer events may never come, the movement must end.
+    private void OnWindowDeactivated(object? sender, EventArgs e) => Release();
 
     private void Release()
     {
