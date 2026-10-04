@@ -1,0 +1,55 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:fw="using:Sidera.Core.FilterWheels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:workspaces="using:Sidera.Desktop.Views.Equipment.Workspaces"
+             x:Class="Sidera.Desktop.Views.Equipment.Workspaces.FilterWheelWorkspaceView"
+             x:DataType="vm:FilterWheelDetailViewModel">
+
+    <!-- A filter wheel: the filter in the light path, its slots, and a change to another slot -->
+    <StackPanel Spacing="8">
+        <WrapPanel>
+            <ctl:WorkspaceSection Header="CURRENT">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="page-title" Text="{Binding Wheel.CurrentFilterText}" Margin="0,0,0,8" />
+                    <ctl:InfoRow Label="Slot" Value="{Binding Wheel.SlotText}" />
+                    <ctl:InfoRow Label="Motion" Value="{Binding Wheel.MotionText}" IsVisible="{Binding Wheel.IsConnected}" />
+                    <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="CHANGE FILTER">
+                <StackPanel Spacing="16">
+                    <ctl:LabeledField Label="Change to">
+                        <ComboBox ItemsSource="{Binding Wheel.Filters}" SelectedItem="{Binding Wheel.SelectedFilter}" HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="fw:FilterSlot">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Classes="meta" Text="{Binding Index}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                    <Button Classes="primary" Content="Change" Command="{Binding Wheel.ChangeCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="FILTERS">
+                <ItemsControl ItemsSource="{Binding Wheel.Filters}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="fw:FilterSlot">
+                            <Grid ColumnDefinitions="140,*" MinHeight="28">
+                                <TextBlock Classes="secondary" Text="{Binding Index, StringFormat={}Slot {0}}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="value" Text="{Binding Name}" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ctl:WorkspaceSection>
+        </WrapPanel>
+
+    </StackPanel>
+</UserControl>

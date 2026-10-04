@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:workspaces="using:Sidera.Desktop.Views.Equipment.Workspaces"
+             x:Class="Sidera.Desktop.Views.Equipment.Workspaces.CameraWorkspaceView"
+             x:DataType="vm:CameraDetailViewModel">
+
+    <!--
+        The camera: exposing and what the last frame was, then only the sections the connected camera supports (cooling, the
+        sensor and the frame, gain and readout). They wrap into as many columns as the window has room for; what the camera does not
+        have is not there.
+    -->
+    <StackPanel Spacing="8">
+        <WrapPanel>
+            <ctl:WorkspaceSection Header="EXPOSURE">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Exposure time" Unit="s"><TextBox Text="{Binding Camera.ExposureInput}" /></ctl:FieldRow>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="primary" Content="Start Exposure" Command="{Binding Camera.StartExposureCommand}" />
+                        <Button Content="Stop Exposure" Command="{Binding Camera.StopExposureCommand}" IsVisible="{Binding Camera.SupportsStop}"
+                                AutomationProperties.Name="Stop Exposure" ToolTip.Tip="Ends the exposure now and keeps the image of what was collected" />
+                        <Button Classes="danger" Content="{Binding Camera.CancelButtonText}" Command="{Binding Camera.CancelExposureCommand}"
+                                AutomationProperties.Name="Abort Exposure" ToolTip.Tip="Throws the exposure away; no image" />
+                    </StackPanel>
+                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding Camera.IsExposing}" />
+                    <StackPanel Spacing="2">
+                        <ctl:InfoRow Label="Camera" Value="{Binding Camera.ActivityText}" IsVisible="{Binding Camera.IsConnected}" />
+                        <ctl:InfoRow Label="Camera" Value="Not connected" IsVisible="{Binding Camera.IsDisconnected}" />
+                        <ctl:InfoRow Label="Last frame" Value="{Binding Camera.LastFrameText}" />
+                        <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
+                    </StackPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="COOLING" IsVisible="{Binding Settings.ShowCoolingSection}">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="2">
+                        <ctl:InfoRow Label="Sensor" Value="{Binding Settings.CcdTemperatureText}" IsVisible="{Binding Settings.ShowCcdTemperature}" />
+                        <ctl:InfoRow Label="Cooler power" Value="{Binding Settings.CoolerPowerText}" IsVisible="{Binding Settings.ShowCoolerPower}" />
+                        <ctl:InfoRow Label="Heat sink" Value="{Binding Settings.HeatSinkText}" IsVisible="{Binding Settings.ShowHeatSink}" />
+                    </StackPanel>
+                    <ctl:FieldRow Label="Target" Unit="°C" IsVisible="{Binding Settings.ShowTargetTemperature}">
+                        <TextBox Text="{Binding Settings.TargetTemperatureText}" />
+                    </ctl:FieldRow>
+                    <CheckBox Content="Cooler on" IsChecked="{Binding Settings.CoolerOn}" IsVisible="{Binding Settings.ShowCooler}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SENSOR AND FRAME" IsVisible="{Binding Settings.IsAvailable}">
+                <StackPanel Spacing="16">
+                    <ItemsControl ItemsSource="{Binding Settings.SensorLines}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:InfoLine">
+                                <ctl:InfoRow Label="{Binding Label}" Value="{Binding Value}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ctl:FieldRow Label="Binning" IsVisible="{Binding Settings.ShowBinning}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox ItemsSource="{Binding Settings.BinChoices}" SelectedItem="{Binding Settings.SelectedBinX}" />
+                            <TextBlock Classes="secondary" Text="x" VerticalAlignment="Center" IsVisible="{Binding Settings.ShowAsymmetricBinning}" />
+                            <ComboBox ItemsSource="{Binding Settings.BinChoices}" SelectedItem="{Binding Settings.SelectedBinY}"
+                                      IsVisible="{Binding Settings.ShowAsymmetricBinning}" />
+                        </StackPanel>
+                    </ctl:FieldRow>
+                    <StackPanel Spacing="8" IsVisible="{Binding Settings.ShowSubframe}">
+                        <ctl:FieldRow Label="Start X" Unit="px"><TextBox Text="{Binding Settings.StartXText}" /></ctl:FieldRow>
+                        <ctl:FieldRow Label="Start Y" Unit="px"><TextBox Text="{Binding Settings.StartYText}" /></ctl:FieldRow>
+                        <ctl:FieldRow Label="Width" Unit="px"><TextBox Text="{Binding Settings.WidthText}" /></ctl:FieldRow>
+                        <ctl:FieldRow Label="Height" Unit="px"><TextBox Text="{Binding Settings.HeightText}" /></ctl:FieldRow>
+                        <TextBlock Classes="secondary" Text="{Binding Settings.SubframeHint}" TextWrapping="Wrap" />
+                        <Button Content="Full frame" Command="{Binding Settings.FullFrameCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="GAIN AND READOUT" IsVisible="{Binding Settings.ShowGainSection}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Gain" Unit="{Binding Settings.Gain.Hint}" IsVisible="{Binding Settings.Gain.IsRange}">
+                        <TextBox Text="{Binding Settings.Gain.Text}" />
+                    </ctl:FieldRow>
+                    <ctl:LabeledField Label="Gain" IsVisible="{Binding Settings.Gain.IsList}">
+                        <ComboBox ItemsSource="{Binding Settings.Gain.Choices}" SelectedIndex="{Binding Settings.Gain.SelectedIndex}" HorizontalAlignment="Stretch" />
+                    </ctl:LabeledField>
+                    <ctl:FieldRow Label="Offset" Unit="{Binding Settings.Offset.Hint}" IsVisible="{Binding Settings.Offset.IsRange}">
+                        <TextBox Text="{Binding Settings.Offset.Text}" />
+                    </ctl:FieldRow>
+                    <ctl:LabeledField Label="Offset" IsVisible="{Binding Settings.Offset.IsList}">
+                        <ComboBox ItemsSource="{Binding Settings.Offset.Choices}" SelectedIndex="{Binding Settings.Offset.SelectedIndex}" HorizontalAlignment="Stretch" />
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Readout mode" IsVisible="{Binding Settings.ShowReadout}">
+                        <ComboBox ItemsSource="{Binding Settings.ReadoutChoices}" SelectedIndex="{Binding Settings.SelectedReadout}" HorizontalAlignment="Stretch" />
+                    </ctl:LabeledField>
+                    <CheckBox Content="Fast readout" IsChecked="{Binding Settings.FastReadout}" IsVisible="{Binding Settings.ShowFastReadout}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+        </WrapPanel>
+
+        <!-- A change is applied as it is made: these are the defaults of this camera, what its exposures use unless a sequence step says otherwise -->
+        <TextBlock Classes="meta" Margin="2,0,0,24" Text="Changes apply as you make them. They are the defaults of this camera; a sequence step can set its own."
+                   IsVisible="{Binding Settings.HasSettings}" />
+        <TextBlock Classes="secondary" Margin="0,0,0,24" Text="Connect the camera to see which settings it supports."
+                   IsVisible="{Binding Settings.IsUnavailable}" />
+
+    </StackPanel>
+</UserControl>

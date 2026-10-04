@@ -1,0 +1,114 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Buttons come in four weights. The default is secondary. Only one primary button belongs in a view (Run).
+        primary   the action the view is for
+        (default) secondary: the other actions
+        ghost     utilities, in toolbars and next to titles
+        danger    what stops or discards
+        A button with the class "icon" is square and holds a PathIcon.
+    -->
+    <Style Selector="Button">
+        <Setter Property="Background" Value="{DynamicResource SideraBg3}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraBg4}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraLineStrong}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraBg3}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Button.primary, Button.accent">
+        <Setter Property="Background" Value="{DynamicResource SideraAccent}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnAccent}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraAccentHover}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnAccent}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraAccentPressed}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnAccent}" />
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraAccent}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnAccent}" />
+        <Setter Property="Opacity" Value="0.35" />
+    </Style>
+
+    <Style Selector="Button.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraTextSecondary}" />
+        <Setter Property="Padding" Value="10,6" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraBg3}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
+    <Style Selector="Button.ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraBg4}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
+    <Style Selector="Button.ghost:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraTextSecondary}" />
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Button.danger">
+        <Setter Property="Background" Value="{DynamicResource SideraDangerTint}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#40E57F7F" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
+    </Style>
+    <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#55E57F7F" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
+    </Style>
+    <Style Selector="Button.danger:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraDangerTint}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Button.icon">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button PathIcon">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+    </Style>
+
+    <!-- Flyout menus: the same raised surface as the other controls -->
+    <Style Selector="MenuItem">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Padding" Value="12,7" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="4" />
+    </Style>
+</Styles>

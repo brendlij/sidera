@@ -1,0 +1,76 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        The workflow list of a session: flat rows on the workspace, a quiet hover, and the selected row in an accent tint
+        with a bar on its left edge.
+    -->
+    <Style Selector="ListBox.workflow">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.workflow ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="AutomationProperties.Name" Value="{ReflectionBinding Title}" />
+    </Style>
+    <Style Selector="ListBox.workflow ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraBg2}" />
+    </Style>
+    <Style Selector="ListBox.workflow ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+    </Style>
+
+    <!--
+        Dragging a step of the workflow. The handle is quiet until the pointer is on its row; the step being dragged fades; the
+        place it would go to is an accent line between two rows, and a place it may not go to tints the row under the pointer.
+    -->
+    <Style Selector="Border.drag-handle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Cursor" Value="SizeAll" />
+    </Style>
+    <Style Selector="Border.drag-handle PathIcon">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraLineStrong}" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover Border.drag-handle PathIcon, ListBoxItem:selected Border.drag-handle PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraTextSecondary}" />
+    </Style>
+    <Style Selector="Border.drag-handle:pointerover PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
+    <Style Selector="Panel.step-row.dragging">
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Border.step-reject">
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.step-reject.rejected">
+        <Setter Property="Background" Value="{DynamicResource SideraDangerTint}" />
+    </Style>
+    <Style Selector="Border.drop-line">
+        <Setter Property="Height" Value="2" />
+        <Setter Property="CornerRadius" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource SideraAccent}" />
+    </Style>
+
+    <!-- A list that only lays its items out: no selection look, no padding -->
+    <Style Selector="ListBox.plain">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.plain ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+</Styles>

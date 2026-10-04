@@ -1,0 +1,167 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:app="using:Sidera.Desktop"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:conv="using:Sidera.Desktop.Converters"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             x:Class="Sidera.Desktop.Views.Session.WorkflowView"
+             x:DataType="vm:SessionPageViewModel">
+
+    <!--
+        The workflow of the session: a toolbar with the few actions that matter and an overflow for the rest, then the
+        steps as rows. While nothing runs the rows are the draft, to select, edit and reorder (drag a row by its handle, or
+        Alt+Up and Alt+Down in the list; the code behind only finds the row under the pointer, the draft decides); while a sequence runs
+        they are the snapshot of the run, with what is done, running and waiting, and the lanes of a Multi-Rig block above them.
+    -->
+    <StackPanel Spacing="12">
+
+        <!-- Toolbar: add, duplicate, remove, and the rest behind the dots -->
+        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !Sequencer.IsRunning}">
+            <Button Classes="secondary" AutomationProperties.Name="Add step" IsEnabled="{Binding Draft.IsEditable}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{StaticResource IconAdd}" />
+                    <TextBlock Text="Add step" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                        <MenuItem Header="Exposure" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
+                        <MenuItem Header="Delay" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                        <MenuItem Header="Slew" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Slew}" />
+                        <MenuItem Header="Start Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StartGuiding}" />
+                        <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
+                        <MenuItem Header="Dither" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
+                        <MenuItem Header="Move Focuser" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                        <MenuItem Header="Change Filter" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
+                        <MenuItem Header="Autofocus" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
+                        <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
+                        <MenuItem Header="Multi-Rig Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />
+                        <Separator />
+                        <MenuItem Header="Add Rig Track" Command="{Binding Draft.AddTrackCommand}" IsVisible="{Binding Draft.IsMultiRigContext}" />
+                        <MenuItem Header="Add to selected Rig Track" IsVisible="{Binding Draft.IsMultiRigContext}">
+                            <MenuItem Header="Exposure" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
+                            <MenuItem Header="Delay" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                            <MenuItem Header="Move Focuser" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                            <MenuItem Header="Change Filter" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
+                            <MenuItem Header="Autofocus" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
+                            <MenuItem Header="Repeat" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
+                        </MenuItem>
+                        <MenuItem Header="Add to selected Repeat" IsEnabled="{Binding Draft.CanAddChildHere}">
+                            <MenuItem Header="Exposure" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
+                            <MenuItem Header="Delay" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
+                            <MenuItem Header="Slew" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Slew}" />
+                            <MenuItem Header="Start Guiding" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.StartGuiding}" />
+                            <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
+                            <MenuItem Header="Dither" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
+                            <MenuItem Header="Move Focuser" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                            <MenuItem Header="Change Filter" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
+                            <MenuItem Header="Autofocus" Command="{Binding Draft.AddChildCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
+                        </MenuItem>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+            <Button Classes="ghost" Content="Duplicate" Command="{Binding Draft.DuplicateStepCommand}" />
+            <Button Classes="ghost" Content="Remove" Command="{Binding Draft.RemoveStepCommand}" />
+            <Button Classes="ghost icon" AutomationProperties.Name="More">
+                <PathIcon Data="{StaticResource IconMore}" />
+                <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                        <MenuItem Header="Copy" Command="{Binding Draft.CopyStepCommand}" />
+                        <MenuItem Header="Paste" Command="{Binding Draft.PasteStepCommand}" />
+                        <Separator />
+                        <MenuItem Header="Move Up" Command="{Binding Draft.MoveStepUpCommand}" />
+                        <MenuItem Header="Move Down" Command="{Binding Draft.MoveStepDownCommand}" />
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+        </StackPanel>
+
+        <!-- While a Multi-Rig sequence runs: its lanes -->
+        <Panel IsVisible="{Binding Execution.HasRunningLanes}">
+            <session:ExecutionTracksView DataContext="{Binding Execution}" />
+        </Panel>
+
+        <!-- The draft while nothing runs -->
+        <StackPanel IsVisible="{Binding !Sequencer.IsRunning}">
+            <ListBox x:Name="StepList" Classes="workflow" ItemsSource="{Binding Draft.Rows}" SelectedItem="{Binding Draft.SelectedStep}"
+                     IsVisible="{Binding !Draft.IsEmpty}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled" DragDrop.AllowDrop="True">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StepDraftViewModel">
+                        <Panel Classes="step-row" Classes.dragging="{Binding IsDragSource}">
+                            <!-- Refused as a place for the dragged step -->
+                            <Border Classes="step-reject" Classes.rejected="{Binding IsDropRejected}" />
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" MinHeight="48">
+                                <!-- The depth of the step: a rule next to the indent, in the colour of the lane it belongs to -->
+                                <Grid Width="{Binding IndentWidth}">
+                                    <Border Width="2" HorizontalAlignment="Right" Margin="0,6,10,6" CornerRadius="1"
+                                            Background="{DynamicResource SideraLineStrong}" IsVisible="{Binding IsChild}" />
+                                    <Border Width="2" HorizontalAlignment="Right" Margin="0,6,10,6" CornerRadius="1"
+                                            Background="{DynamicResource SideraAccent}" IsVisible="{Binding InTrack}" />
+                                </Grid>
+                                <Border Grid.Column="1" Classes="drag-handle" Margin="4,0,0,0" ToolTip.Tip="Drag to reorder">
+                                    <PathIcon Data="{StaticResource IconDrag}" />
+                                </Border>
+                                <Border Grid.Column="2" Classes="lane-bar" Margin="8,8,0,8" IsVisible="{Binding IsTrack}" />
+                                <TextBlock Grid.Column="2" Classes="meta" Text="{Binding NumberLabel}" Width="36" Margin="8,0,0,0"
+                                           VerticalAlignment="Center" IsVisible="{Binding !IsTrack}" />
+                                <StackPanel Grid.Column="3" Spacing="2" Margin="12,8,8,8" VerticalAlignment="Center">
+                                    <TextBlock Classes="eyebrow accent" Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}"
+                                               IsVisible="{Binding IsMultiRig}" />
+                                    <TextBlock Classes="card-title" Text="{Binding Title}" IsVisible="{Binding !IsMultiRig}" />
+                                    <TextBlock Classes="secondary" Text="{Binding Summary}" TextWrapping="Wrap" IsVisible="{Binding !HasProblems}" />
+                                    <TextBlock Classes="secondary danger" Text="{Binding FirstProblem}" TextWrapping="Wrap" IsVisible="{Binding HasProblems}" />
+                                </StackPanel>
+                                <PathIcon Grid.Column="4" Data="{StaticResource IconWarning}" Width="16" Height="16" Margin="8,0,12,0"
+                                          Foreground="{DynamicResource SideraDanger}" IsVisible="{Binding HasProblems}"
+                                          ToolTip.Tip="This step has a problem" />
+                            </Grid>
+                            <!-- Where the dragged step would go: a line at the top or the bottom of the row, as far in as the row -->
+                            <Grid VerticalAlignment="Top" ColumnDefinitions="Auto,*" IsHitTestVisible="False" IsVisible="{Binding ShowsDropBefore}">
+                                <Border Width="{Binding DropIndentWidth}" />
+                                <Border Grid.Column="1" Classes="drop-line" />
+                            </Grid>
+                            <Grid VerticalAlignment="Bottom" ColumnDefinitions="Auto,*" IsHitTestVisible="False" IsVisible="{Binding ShowsDropAfter}">
+                                <Border Width="{Binding DropIndentWidth}" />
+                                <Border Grid.Column="1" Classes="drop-line" />
+                            </Grid>
+                        </Panel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <!-- An empty session: a clear place to begin, in the middle of the space -->
+            <ctl:EmptyState Icon="{StaticResource IconSession}" IsVisible="{Binding Draft.IsEmpty}" Margin="0,120"
+                            Title="Create your imaging session"
+                            Message="Build a workflow from exposures, guiding, mount movement, autofocus and Multi-Rig blocks.">
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <Button Classes="primary" Content="+ Add first step" Command="{Binding Draft.AddStepCommand}"
+                            CommandParameter="{x:Static app:SequenceStepKind.Exposure}" HorizontalAlignment="Center" AutomationProperties.Name="Add first step" />
+                    <Button Classes="ghost" Content="Open existing sequence" Command="{Binding Document.OpenCommand}" HorizontalAlignment="Center" />
+                </StackPanel>
+            </ctl:EmptyState>
+        </StackPanel>
+
+        <!-- The snapshot of the running sequence, with where it is -->
+        <ItemsControl ItemsSource="{Binding Sequencer.Definition}" IsVisible="{Binding Sequencer.IsRunning}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SequenceNodeViewModel">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" MinHeight="40" Margin="0,2">
+                        <Border Width="{Binding IndentWidth}" />
+                        <Ellipse Grid.Column="1" Classes="step-dot" Classes.active="{Binding IsActive}" Classes.done="{Binding IsDone}"
+                                 Classes.failed="{Binding IsFailedNode}" Margin="12,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Classes="meta" Text="{Binding NumberText}" IsVisible="{Binding HasNumber}"
+                                   MinWidth="32" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="3" Spacing="2" Margin="0,6" VerticalAlignment="Center">
+                            <TextBlock Classes="card-title" Text="{Binding Title}" IsVisible="{Binding IsContainer}" />
+                            <TextBlock Classes="value" Text="{Binding Title}" IsVisible="{Binding !IsContainer}" />
+                            <TextBlock Classes="secondary" Text="{Binding SubText}" IsVisible="{Binding HasSubText}" TextWrapping="Wrap" />
+                            <TextBlock Classes="secondary accent" Text="{Binding IterationText}" IsVisible="{Binding HasIteration}" />
+                            <TextBlock Classes="secondary accent" Text="{Binding ActiveNote}" IsVisible="{Binding HasNote}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="4" Classes="secondary" Text="{Binding Detail}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

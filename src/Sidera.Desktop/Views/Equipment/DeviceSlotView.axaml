@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:equipment="using:Sidera.Desktop.Views.Equipment"
+             xmlns:workspaces="using:Sidera.Desktop.Views.Equipment.Workspaces"
+             x:Class="Sidera.Desktop.Views.Equipment.DeviceSlotView"
+             x:DataType="vm:DeviceSlotViewModel">
+
+    <!--
+        One kind of device, the way an imaging program does it: a list of the drivers (none, the simulator, the installed ASCOM
+        drivers) with setup, rescan and connect beside it. Choosing a driver is the whole of configuring the device. Under it the
+        state of the device and its controls, as sections.
+    -->
+    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="16">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+            <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice, Mode=TwoWay}" HorizontalAlignment="Stretch"
+                      IsEnabled="{Binding CanChoose}" PlaceholderText="Select a driver…" AutomationProperties.Name="Driver">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DriverChoice">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Classes="meta" Text="{Binding Group}" VerticalAlignment="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Grid.Column="1" Content="Setup" Command="{Binding SetupCommand}" AutomationProperties.Name="Driver setup"
+                    ToolTip.Tip="Opens the setup dialog of the driver" />
+            <Button Grid.Column="2" Content="Rescan" Command="{Binding RescanCommand}" AutomationProperties.Name="Rescan drivers"
+                    ToolTip.Tip="Looks for installed drivers again" />
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+                <Button Classes="primary" Content="Connect" Command="{Binding Device.ConnectCommand}" AutomationProperties.Name="Connect"
+                        IsVisible="{Binding Device.IsDisconnected, FallbackValue=False}" />
+                <Button Content="Disconnect" Command="{Binding Device.DisconnectCommand}" AutomationProperties.Name="Disconnect"
+                        IsVisible="{Binding Device.IsConnected, FallbackValue=False}" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="8">
+            <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+                <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+            </Border>
+            <TextBlock Classes="meta" Text="{Binding DiscoveryText}" TextWrapping="Wrap"
+                       IsVisible="{Binding DiscoveryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+
+        <ContentControl Grid.Row="2" Content="{Binding Detail}">
+            <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="vm:DeviceDetailViewModel">
+                    <workspaces:DeviceHeaderView />
+                </DataTemplate>
+            </ContentControl.ContentTemplate>
+        </ContentControl>
+
+        <Panel Grid.Row="3">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <ContentControl Content="{Binding Detail}" HorizontalContentAlignment="Stretch">
+                    <ContentControl.ContentTemplate>
+                        <equipment:DeviceWorkspaceTemplate />
+                    </ContentControl.ContentTemplate>
+                </ContentControl>
+            </ScrollViewer>
+            <ctl:EmptyState Icon="{StaticResource IconEquipment}" Title="Nothing chosen" Message="{Binding EmptyText}" Margin="0,64" IsVisible="{Binding IsEmpty}" />
+        </Panel>
+    </Grid>
+</UserControl>
