@@ -163,6 +163,13 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
 
     public bool HasShared => SharedItems.Count > 0;
 
+    /// <summary>The guider of the session when it measures: its graph and RMS are shown on the dashboard.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGuider))]
+    public partial GuiderViewModel? Guider { get; private set; }
+
+    public bool HasGuider => Guider is not null;
+
     [RelayCommand]
     private void OpenSession() => _navigate(AppPage.Session);
 
@@ -182,6 +189,9 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(string.Empty);
         RefreshElapsed();
         SharedItems = ReadShared();
+        Guider = (_equipment.Guiders.FirstOrDefault(g => g.DeviceIdText == _shared.Guider.SelectedId?.Value) ?? _equipment.Guiders.FirstOrDefault()) is { HasMeasurements: true } measured
+            ? measured
+            : null;
 
         // The clock ticks only while a sequence runs.
         if (_sequencer.IsRunning && _clock is null)

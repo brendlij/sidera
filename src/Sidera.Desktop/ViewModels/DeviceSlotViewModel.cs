@@ -107,7 +107,10 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
-    public bool CanChoose => _management is not null;
+    /// <summary>The driver can be changed: not while the device is connected, connecting or disconnecting.</summary>
+    public bool CanChoose => _management is not null && !IsDeviceInUse;
+
+    private bool IsDeviceInUse => Device is { ConnectionState: not (DeviceConnectionState.Disconnected or DeviceConnectionState.Faulted) };
 
     public bool IsEmpty => Device is null;
 
@@ -125,10 +128,37 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         ApplyChoice(value);
     }
 
-    partial void OnDeviceChanged(DeviceViewModelBase? value)
+    partial void OnDeviceChanged(DeviceViewModelBase? oldValue, DeviceViewModelBase? newValue)
     {
+        if (oldValue is not null)
+        {
+            oldValue.PropertyChanged -= OnDevicePropertyChanged;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.PropertyChanged += OnDevicePropertyChanged;
+        }
+
+        OnDeviceUseChanged();
         OnPropertyChanged(nameof(IsEmpty));
         SetupCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnDevicePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DeviceViewModelBase.ConnectionState))
+        {
+            OnDeviceUseChanged();
+        }
+    }
+
+    private void OnDeviceUseChanged()
+    {
+        OnPropertyChanged(nameof(CanChoose));
+        SetupCommand.NotifyCanExecuteChanged();
+        RescanCommand.NotifyCanExecuteChanged();
+        SavePhd2Command.NotifyCanExecuteChanged();
     }
 
     /// <summary>Reads the equipment again: the device of the slot and the choice that matches it.</summary>
@@ -231,7 +261,7 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         }
     }
 
-    private bool CanRescan() => _management is not null && AscomKind is not null && !IsScanning;
+    private bool CanRescan() => _management is not null && !IsDeviceInUse && AscomKind is not null && !IsScanning;
 
     partial void OnIsScanningChanged(bool value) => RescanCommand.NotifyCanExecuteChanged();
 
@@ -252,7 +282,7 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         }
     }
 
-    public bool CanSetup() => _management is not null && SelectedChoice is { IsAscom: true };
+    public bool CanSetup() => _management is not null && !IsDeviceInUse && SelectedChoice is { IsAscom: true };
 
     // Makes the device of the slot match the choice: removes it, or replaces it with the one of the driver, with the same id.
     private void ApplyChoice(DriverChoice choice)
@@ -399,12 +429,14 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         _phd2Edited = false;
     }
 
-    private bool CanSavePhd2() => _management is not null && Device is not null && SelectedChoice is { IsPhd2: true };
+    private bool CanSavePhd2() => _management is not null && !IsDeviceInUse && Device is not null && SelectedChoice is { IsPhd2: true };
 
     private void Fail(string problem)
     {
         ProblemText = problem;
         Refresh(); // the choice goes back to what the equipment has
+        // The combo box is still in the middle of its own selection change: it takes the revert once that is over.
+        Avalonia.Threading.Dispatcher.UIThread.Post(Refresh);
     }
 
     private string FreshId()

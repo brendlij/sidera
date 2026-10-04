@@ -77,7 +77,7 @@ public partial class App : Application
             var clipboard = new AvaloniaClipboardService();
             var viewModel = new MainViewModel(
                 host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard,
-                equipmentManagement: management);
+                equipmentManagement: management, withDemoSequence: false);
 
             var window = new MainWindow { DataContext = viewModel };
             filePicker.Attach(window);
@@ -96,16 +96,14 @@ public partial class App : Application
                 logger.LogInformation("Sidera is shutting down");
                 viewModel.Dispose();
 
-                try
+                // A device that never answers must not keep the window open: each step gets a bounded time, then the process goes on.
+                var inTime = await WithinAsync(StopHostAsync(host), ShutdownStepTimeout);
+                inTime &= await WithinAsync(host.DisposeAsync().AsTask(), ShutdownStepTimeout);
+                if (!inTime)
                 {
-                    await host.StopAsync();
-                }
-                catch (Exception)
-                {
-                    // Nothing more to do at exit; every device was still tried, and the host logged each failure.
+                    logger.LogWarning("Shutdown did not finish within {Seconds} s per step; leaving anyway", ShutdownStepTimeout.TotalSeconds);
                 }
 
-                await host.DisposeAsync();
                 logger.LogInformation("Sidera shut down cleanly");
 
                 // Last: flushes and closes the log file.
@@ -117,6 +115,23 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static readonly TimeSpan ShutdownStepTimeout = TimeSpan.FromSeconds(8);
+
+    private static async Task<bool> WithinAsync(Task work, TimeSpan limit) =>
+        await Task.WhenAny(work, Task.Delay(limit)) == work;
+
+    private static async Task StopHostAsync(SideraRuntimeHost host)
+    {
+        try
+        {
+            await host.StopAsync();
+        }
+        catch (Exception)
+        {
+            // Nothing more to do at exit; every device was still tried, and the host logged each failure.
+        }
     }
 
     // What nobody handled goes into the log before the process goes (or the task is forgotten), with its stack trace.
