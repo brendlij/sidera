@@ -64,7 +64,9 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
             device.Refreshed += OnExecutionRefreshed;
         }
 
-        Units = _equipment.HasRigs ? _equipment.Rigs.Cast<object>().ToList() : _equipment.Cameras.Cast<object>().ToList();
+        _equipment.DeviceViewModelAdded += OnDeviceAdded;
+        _equipment.DevicesChanged += OnDevicesChanged;
+        Units = BuildUnits();
         Refresh();
     }
 
@@ -74,7 +76,23 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
     public ExecutionOverviewViewModel Execution { get; }
 
     /// <summary>What the equipment is doing, as cards: the rigs when there are any, otherwise the cameras.</summary>
-    public IReadOnlyList<object> Units { get; }
+    public IReadOnlyList<object> Units { get; private set; }
+
+    private IReadOnlyList<object> BuildUnits() =>
+        _equipment.HasRigs ? _equipment.Rigs.Cast<object>().ToList() : _equipment.Cameras.Cast<object>().ToList();
+
+    // A device came or went: the cards are made again, and the new device is followed like the others.
+    private void OnDeviceAdded(object? sender, DeviceViewModelBase device) => device.Refreshed += OnExecutionRefreshed;
+
+    private void OnDevicesChanged(object? sender, EventArgs e)
+    {
+        Units = BuildUnits();
+        OnPropertyChanged(nameof(Units));
+        OnPropertyChanged(nameof(UnitsAreRigs));
+        OnPropertyChanged(nameof(UnitsTitle));
+        OnPropertyChanged(nameof(HasUnits));
+        OnPropertyChanged(nameof(ShowUnits));
+    }
 
     /// <summary>Rigs are optional: with none, the units are cameras and nothing says "rig".</summary>
     public bool UnitsAreRigs => _equipment.HasRigs;
@@ -227,6 +245,8 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         _document.PropertyChanged -= OnChanged;
         _shared.PropertyChanged -= OnChanged;
         Execution.PropertyChanged -= OnChanged;
+        _equipment.DeviceViewModelAdded -= OnDeviceAdded;
+        _equipment.DevicesChanged -= OnDevicesChanged;
         foreach (var device in _equipment.Devices)
         {
             device.Refreshed -= OnExecutionRefreshed;

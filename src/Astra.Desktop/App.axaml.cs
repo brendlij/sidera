@@ -4,7 +4,11 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Astra.Ascom;
+using Astra.Ascom.Discovery;
+using Astra.Ascom.Drivers;
 using Astra.Desktop.Diagnostics;
+using Astra.Desktop.Hardware;
 using Astra.Desktop.ViewModels;
 using Astra.Desktop.Views;
 using Astra.Desktop.Views.Shell;
@@ -35,14 +39,28 @@ public partial class App : Application
             AstraLogging.LogStartup(logger, logInfo);
             ReportUnhandledExceptions(logger);
 
-            DemoSetup.AddDemoEquipment(host);
-            DemoSetup.AddDemoRigs(host);
+            // The equipment is what the user configured: loaded from the equipment file, every device disconnected. A first
+            // start has none; the equipment page offers to add devices (ASCOM or simulated) or the simulated demo.
+            var drivers = new ComAscomDriverFactory();
+            var factories = new DeviceFactoryRegistry(
+                [new SimulatorDeviceFactory(), new AscomBackendFactory(new AscomDeviceFactory(drivers, host.LoggerFactory))]);
+            var equipmentFile = Environment.GetEnvironmentVariable("ASTRA_EQUIPMENT_FILE");
+            var store = string.IsNullOrWhiteSpace(equipmentFile)
+                ? EquipmentConfigurationStore.CreateDefault()
+                : new EquipmentConfigurationStore(equipmentFile);
+            var equipment = new EquipmentService(host, store, factories, host.LoggerFactory.CreateLogger<EquipmentService>());
+            equipment.Load();
             host.Start();
+            var management = new EquipmentManagement(
+                equipment,
+                new AscomDiscovery(host.LoggerFactory.CreateLogger<AscomDiscovery>()),
+                new AscomSetupService(drivers, host.LoggerFactory.CreateLogger<AscomSetupService>()));
 
             var filePicker = new AvaloniaSequenceFilePicker();
             var clipboard = new AvaloniaClipboardService();
             var viewModel = new MainViewModel(
-                host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard);
+                host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard,
+                equipmentManagement: management);
 
             var window = new MainWindow { DataContext = viewModel };
             filePicker.Attach(window);

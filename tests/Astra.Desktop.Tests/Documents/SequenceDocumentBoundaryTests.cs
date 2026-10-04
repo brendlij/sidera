@@ -34,22 +34,28 @@ public class SequenceDocumentBoundaryTests
     private static bool InDocumentsFolder(string path) =>
         Path.GetRelativePath(DesktopSources(), path).StartsWith("Documents" + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 
+    // The equipment file is another file with a format of its own, kept in the Hardware folder: it may be JSON, and the
+    // sequence file still may not be known to be.
+    private static bool InHardwareFolder(string path) =>
+        Path.GetRelativePath(DesktopSources(), path).StartsWith("Hardware" + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+
     [Fact]
-    public void OnlyTheSerializer_UsesSystemTextJson()
+    public void OnlyTheSerializers_UseSystemTextJson_OneForTheSequenceAndOneForTheEquipment()
     {
         var users = Files("*.cs")
             .Where(path => File.ReadAllText(path).Contains("System.Text.Json", StringComparison.Ordinal))
             .Select(path => Path.GetFileName(path))
+            .Order()
             .ToList();
 
-        Assert.Equal(["JsonSequenceDocumentSerializer.cs"], users);
+        Assert.Equal(["EquipmentConfigurationSerializer.cs", "JsonSequenceDocumentSerializer.cs"], users);
     }
 
     [Fact]
     public void ViewModelsAndViews_DoNotKnowThatTheFormatIsJson()
     {
         var offenders = Files("*.cs", "*.axaml")
-            .Where(path => !InDocumentsFolder(path))
+            .Where(path => !InDocumentsFolder(path) && !InHardwareFolder(path))
             .Where(path => File.ReadAllText(path).Contains("json", StringComparison.OrdinalIgnoreCase))
             .Select(path => Path.GetRelativePath(DesktopSources(), path))
             .ToList();
@@ -62,7 +68,7 @@ public class SequenceDocumentBoundaryTests
     {
         // The windows, the view models and the file dialog: every string a person could read.
         var offenders = Files("*.axaml", "*.cs")
-            .Where(path => !InDocumentsFolder(path))
+            .Where(path => !InDocumentsFolder(path) && !InHardwareFolder(path))
             .Where(path => File.ReadAllText(path).Contains(".json", StringComparison.OrdinalIgnoreCase))
             .ToList();
 

@@ -47,7 +47,7 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(exposureDuration, TimeSpan.Zero);
 
-        var focuser = DeviceLookup.Resolve<IFocuser>(_registry, _focuserId, "focuser");
+        var focuser = DeviceLookup.ResolveAbsoluteFocuser(_registry, _focuserId);
         var camera = DeviceLookup.Resolve<ICamera>(_registry, _cameraId, "camera");
 
         if (focuser.ConnectionState != DeviceConnectionState.Connected)

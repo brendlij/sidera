@@ -114,6 +114,36 @@ public sealed class AstraRuntimeHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// Takes a device out of the host: it leaves the registry and the state store forgets it. The device must not be
+    /// connected (the caller disconnects it first), and no rig may refer to it. The device itself is not disposed here;
+    /// whoever created it ends it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The device is connected or busy connecting, or a rig refers to it.</exception>
+    /// <returns>Whether there was such a device.</returns>
+    public bool RemoveDevice(DeviceId id)
+    {
+        ThrowIfDisposed();
+        if (!DeviceRegistry.TryGet(id, out var device) || device is null)
+        {
+            return false;
+        }
+
+        if (device.ConnectionState != DeviceConnectionState.Disconnected)
+        {
+            throw new InvalidOperationException($"Device '{id}' is {device.ConnectionState.ToString().ToLowerInvariant()}; disconnect it before removing it.");
+        }
+
+        if (RigRegistry.GetAll().FirstOrDefault(r => r.CameraId == id || r.FocuserId == id || r.FilterWheelId == id) is { } rig)
+        {
+            throw new InvalidOperationException($"Device '{id}' is part of the rig '{rig.Id}'.");
+        }
+
+        DeviceRegistry.Unregister(id);
+        StateStore.Remove(id);
+        return true;
+    }
+
+    /// <summary>
     /// Registers a rig. The devices it refers to must already have been added to the host.
     /// Devices are not owned by the rig and several rigs may share one.
     /// </summary>

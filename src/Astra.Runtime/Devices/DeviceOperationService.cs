@@ -102,7 +102,7 @@ public sealed class DeviceOperationService
     /// <exception cref="InvalidOperationException">The device is not registered or is not a focuser.</exception>
     public async Task MoveFocuserToAsync(DeviceId focuserId, int target, CancellationToken cancellationToken = default)
     {
-        var focuser = DeviceLookup.Resolve<IFocuser>(_registry, focuserId, "focuser");
+        var focuser = DeviceLookup.ResolveAbsoluteFocuser(_registry, focuserId);
 
         _logger.LogInformation(
             "Moving focuser {DeviceId} from position {FromPosition} to {TargetPosition}", focuserId, focuser.Position, target);

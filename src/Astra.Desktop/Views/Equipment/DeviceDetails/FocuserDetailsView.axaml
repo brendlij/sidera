@@ -17,6 +17,7 @@
                             <ctl:InfoRow Label="Position" Value="{Binding Focuser.PositionText}" />
                             <ctl:InfoRow Label="Motion" Value="{Binding Focuser.MotionText}" IsVisible="{Binding Focuser.IsConnected}" />
                             <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
+                            <ctl:InfoRow Label="Temperature" Value="{Binding Control.TemperatureText}" IsVisible="{Binding Control.ShowTemperature}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -30,15 +31,46 @@
         </equipment:DeviceDetailShell.OverviewContent>
 
         <equipment:DeviceDetailShell.ControlsContent>
+          <StackPanel>
             <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Left">
-                <TextBlock Classes="eyebrow" Text="MOVE" />
-                <Border Classes="panel">
+                <Border Classes="panel" IsVisible="{Binding Focuser.IsRelative}">
+                    <TextBlock Classes="secondary" TextWrapping="Wrap"
+                               Text="This focuser is relative: it has no position, so it cannot move to a target and autofocus cannot use it. Move it by a number of steps." />
+                </Border>
+                <TextBlock Classes="eyebrow" Text="MOVE TO POSITION" IsVisible="{Binding Focuser.IsAbsolute}" />
+                <Border Classes="panel" IsVisible="{Binding Focuser.IsAbsolute}">
                     <StackPanel Spacing="16">
                         <ctl:FieldRow Label="Target position" Unit="steps"><TextBox Text="{Binding Focuser.TargetInput}" /></ctl:FieldRow>
                         <Button Classes="primary" Content="Move" Command="{Binding Focuser.MoveCommand}" HorizontalAlignment="Left" />
                     </StackPanel>
                 </Border>
             </StackPanel>
+            <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Left" Margin="0,16,0,0"
+                        IsVisible="{Binding Control.IsAvailable}">
+                <TextBlock Classes="eyebrow" Text="MOVE BY STEPS" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="16">
+                        <ctl:FieldRow Label="Steps" Unit="{Binding Control.StepsHint}"><TextBox Text="{Binding Control.StepsText}" /></ctl:FieldRow>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Move in" Command="{Binding Control.MoveByCommand}" CommandParameter="-" />
+                            <Button Content="Move out" Command="{Binding Control.MoveByCommand}" CommandParameter="+" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+          </StackPanel>
         </equipment:DeviceDetailShell.ControlsContent>
+
+        <equipment:DeviceDetailShell.SettingsContent>
+            <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Left" IsVisible="{Binding Control.ShowTempComp}">
+                <TextBlock Classes="eyebrow" Text="TEMPERATURE COMPENSATION" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="16">
+                        <CheckBox Content="Compensate for temperature" IsChecked="{Binding Control.TempComp}" />
+                        <Button Classes="primary" Content="Apply" Command="{Binding Control.ApplyTempCompCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </equipment:DeviceDetailShell.SettingsContent>
     </equipment:DeviceDetailShell>
 </UserControl>

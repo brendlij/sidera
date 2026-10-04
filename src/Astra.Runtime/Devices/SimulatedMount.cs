@@ -12,7 +12,7 @@ namespace Astra.Runtime.Devices;
 /// coordinates stay at the last position that was actually reached; the target is never reported as reached.
 /// </para>
 /// </summary>
-public sealed class SimulatedMount : IMount
+public sealed partial class SimulatedMount : IMountControl
 {
     /// <summary>Where a new mount points.</summary>
     public static CelestialCoordinates DefaultCoordinates { get; } = new(0, 0);
@@ -133,6 +133,11 @@ public sealed class SimulatedMount : IMount
                 throw new InvalidOperationException("The mount is already slewing.");
             }
 
+            if (_parked)
+            {
+                throw new InvalidOperationException($"{Name} is parked. Unpark it first.");
+            }
+
             _motionState = MountMotionState.Slewing;
             startedAt = _coordinates;
         }
@@ -193,6 +198,7 @@ public sealed class SimulatedMount : IMount
             _connectionState = state;
         }
 
+        OnConnectionStateSet(state);
         await PublishConnectionAsync(previous, state, cancellationToken);
     }
 

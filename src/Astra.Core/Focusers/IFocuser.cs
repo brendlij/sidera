@@ -9,6 +9,13 @@ namespace Astra.Core.Focusers;
 /// </summary>
 public interface IFocuser : IDevice
 {
+    /// <summary>
+    /// <c>false</c> for a focuser that can only move by a number of steps (see <see cref="IFocuserControl"/>): it has no
+    /// position, <see cref="Position"/> and the limits mean nothing, and everything that needs a position (a move to a
+    /// target, autofocus) refuses it before anything moves. Absolute unless a device says otherwise.
+    /// </summary>
+    bool IsAbsolute => true;
+
     FocuserMotionState MotionState { get; }
 
     /// <summary>The current position in steps: the start position, or the last position that was actually reached.</summary>

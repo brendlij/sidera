@@ -60,7 +60,7 @@ public class ThemeDisciplineTests
                      "Dashboard/DashboardView", "Session/SessionView", "Session/WorkflowView", "Session/StepInspectorView",
                      "Session/MultiRigEditorView", "Session/ExecutionTracksView", "Equipment/EquipmentView", "Equipment/EquipmentModeSelector",
                      "Equipment/DeviceBrowserView", "Equipment/SelectedDeviceDetailsView", "Equipment/DeviceDetailShell",
-                     "Equipment/RigBrowserView", "Equipment/RigDetailsView", "Equipment/DeviceDetails/CameraDetailsView",
+                     "Equipment/RigBrowserView", "Equipment/RigDetailsView", "Equipment/DeviceEditorView", "Equipment/DeviceConfigurationView", "Equipment/DeviceDetails/CameraDetailsView",
                      "Equipment/DeviceDetails/FocuserDetailsView", "Equipment/DeviceDetails/FilterWheelDetailsView",
                      "Equipment/DeviceDetails/MountDetailsView", "Equipment/DeviceDetails/GuiderDetailsView",
                      "Imaging/ImagingView", "Imaging/FrameMetricsView",

@@ -100,7 +100,7 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
         var started = Stopwatch.GetTimestamp();
         try
         {
-            var focuser = DeviceLookup.Resolve<IFocuser>(_registry, FocuserId, "focuser");
+            var focuser = DeviceLookup.ResolveAbsoluteFocuser(_registry, FocuserId);
             var camera = DeviceLookup.Resolve<ICamera>(_registry, CameraId, "camera");
 
             // Before anything moves: a run that cannot measure must not start by moving the focuser.

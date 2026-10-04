@@ -35,6 +35,7 @@
         <SolidColorBrush x:Key="AstraLine" Color="{StaticResource AstraLineColor}" />
         <SolidColorBrush x:Key="AstraLineStrong" Color="{StaticResource AstraLineStrongColor}" />
         <SolidColorBrush x:Key="AstraPreview" Color="#0A0B0E" />
+        <SolidColorBrush x:Key="AstraScrim" Color="#B30A0B0E" />
 
         <SolidColorBrush x:Key="AstraText" Color="#EDEBE7" />
         <SolidColorBrush x:Key="AstraTextSecondary" Color="#B6B8C2" />

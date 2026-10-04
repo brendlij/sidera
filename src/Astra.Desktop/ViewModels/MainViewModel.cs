@@ -31,6 +31,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 {
     /// <param name="store">Where sequence documents are read and written; the file store of the current format by default.</param>
     /// <param name="filePicker">How the user chooses sequence files; by default nothing can be chosen.</param>
+    /// <param name="equipmentManagement">What lets the user add, edit and remove devices; without it the equipment page only shows the devices of the host.</param>
     public MainViewModel(
         AstraRuntimeHost host,
         Action<Action> postToUi,
@@ -39,17 +40,18 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         ISequenceFilePicker? filePicker = null,
         LogInfo? logInfo = null,
         IFolderOpener? folderOpener = null,
-        IClipboardService? clipboard = null)
+        IClipboardService? clipboard = null,
+        EquipmentManagement? equipmentManagement = null)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
 
         Imaging = new ImagingViewModel(host.FrameAnalyzer, postToUi);
-        Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure);
+        Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure, equipmentManagement);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
         SequenceDraft = new SequenceDraftViewModel(
-            host.DeviceRegistry, defaults, defaults.InitialSteps(),
+            host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 ? [] : defaults.InitialSteps(),
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory);
@@ -80,14 +82,38 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         UpdateNavigation();
 
         // The runtime summary and the "can the sequence start" hint follow the equipment and the sequence.
+        void OnDeviceRefreshed(object? sender, EventArgs e)
+        {
+            Runtime.Refresh();
+            Sequencer.RefreshReadiness();
+        }
+
         foreach (var device in Equipment.Devices)
         {
-            device.Refreshed += (_, _) =>
+            device.Refreshed += OnDeviceRefreshed;
+        }
+
+        // Devices that are added while Astra runs are followed too; the draft is told about devices that came or went.
+        Equipment.DeviceViewModelAdded += (_, device) => device.Refreshed += OnDeviceRefreshed;
+        Equipment.DevicesChanged += (_, _) => OnDeviceRefreshed(this, EventArgs.Empty);
+
+        // The demo is a quick start: when it is added to an installation whose session is still empty and untouched, the
+        // session gets the demo sequence that a first start with equipment always had.
+        if (equipmentManagement is not null)
+        {
+            equipmentManagement.Service.Changed += (_, change) =>
             {
-                Runtime.Refresh();
-                Sequencer.RefreshReadiness();
+                if (change.Kind == Astra.Desktop.Hardware.EquipmentChangeKind.RigsAdded
+                    && SequenceDraft.IsEmpty && !SequenceDocument.IsDirty && SequenceDocument.FilePath is null && !Sequencer.IsRunning)
+                {
+                    SequenceDraft.ReplaceSteps(SequenceDraftDefaults.From(options, host.DeviceRegistry).InitialSteps());
+                }
             };
         }
+
+        Equipment.RemovalGuard = id => SequenceDraft.RequiredDeviceIds().Any(d => d.Value == id)
+            ? "It is used by a step of the current sequence."
+            : null;
 
         Sequencer.ExecutionRefreshed += (_, _) => Runtime.Refresh();
         Sequencer.RefreshReadiness();

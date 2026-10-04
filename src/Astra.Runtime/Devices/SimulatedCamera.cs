@@ -4,7 +4,7 @@ using Astra.Core.Events;
 
 namespace Astra.Runtime.Devices;
 
-public sealed class SimulatedCamera : ICamera
+public sealed partial class SimulatedCamera : ICameraControl
 {
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(200);
 
@@ -195,6 +195,7 @@ public sealed class SimulatedCamera : ICamera
             var frame = Sky is { } sky && PsfSigmaSource?.Invoke() is { } sigma
                 ? sky.Render(sigma, duration, Interlocked.Increment(ref _exposureCount))
                 : _frameGenerator.Generate(duration);
+            frame = ApplyGeometry(frame);
             completed = true;
             return frame;
         }
@@ -283,6 +284,7 @@ public sealed class SimulatedCamera : ICamera
             _connectionState = state;
         }
 
+        OnConnectionStateSet(state);
         await PublishConnectionStateChangedAsync(previous, state, cancellationToken);
     }
 
