@@ -40,7 +40,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
         [
             new RigConfiguration(
                 "rig.main", "Main Rig", "camera.main", "focuser.main", "filterwheel.main",
-                new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176)),
+                new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176)),
         ]);
 
     private static EquipmentConfigurationException Reject(string json) =>
@@ -97,7 +97,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     {
         var configuration = new EquipmentConfiguration(
             Sample().Devices,
-            [new RigConfiguration("rig.main", "Main Rig", "camera.main", null, null, new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176), 20000)]);
+            [new RigConfiguration("rig.main", "Main Rig", "camera.main", null, null, new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), 20000)]);
 
         var read = EquipmentConfigurationSerializer.Deserialize(EquipmentConfigurationSerializer.Serialize(configuration));
 

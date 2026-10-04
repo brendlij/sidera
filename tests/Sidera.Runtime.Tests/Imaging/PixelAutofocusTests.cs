@@ -22,7 +22,7 @@ public class PixelAutofocusTests
     private static readonly RigId MainRig = new("rig.main");
     private static readonly DeviceId MainCamera = new("camera.main");
     private static readonly DeviceId MainFocuser = new("focuser.main");
-    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 23.5, 15.7, 6248, 4176);
+    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 3.76, 6248, 4176);
     private static readonly AutofocusOptions Quick = new(TimeSpan.FromMilliseconds(20), 400, 7);
 
     private static async Task<(SideraRuntimeHost Host, SimulatedCamera Camera, SimulatedFocuser Focuser)> Create(

@@ -107,7 +107,7 @@ public sealed record RigConfiguration(
     string CameraId,
     string? FocuserId,
     string? FilterWheelId,
-    OpticalTrain Optics,
+    OpticalTrain? Optics,
     int? SimulatedBestFocus = null);
 
 /// <summary>

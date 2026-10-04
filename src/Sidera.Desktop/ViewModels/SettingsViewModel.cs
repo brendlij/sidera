@@ -16,14 +16,15 @@ public sealed record SettingsGroup(string Title, string Description, IReadOnlyLi
 }
 
 /// <summary>
-/// The settings page. Sidera has no setting a user can change yet, and the page does not pretend otherwise: it names the
+/// The settings page. The observing site is the one setting a user can change; for the rest the page does not pretend: it names the
 /// groups the settings will live in (general, appearance, logging, equipment defaults) and shows what is decided today,
 /// read-only. A setting is added here when it is real.
 /// </summary>
 public sealed class SettingsViewModel : ViewModelBase
 {
-    public SettingsViewModel(LogInfo? log = null)
+    public SettingsViewModel(LogInfo? log = null, Sidera.Desktop.Settings.SiteService? site = null)
     {
+        Site = site is null ? null : new SiteSettingsViewModel(site);
         Groups =
         [
             new SettingsGroup(
@@ -52,8 +53,13 @@ public sealed class SettingsViewModel : ViewModelBase
         ];
     }
 
+    /// <summary>The observing site; <c>null</c> without a settings store (tests of other pages).</summary>
+    public SiteSettingsViewModel? Site { get; }
+
+    public bool HasSite => Site is not null;
+
     public IReadOnlyList<SettingsGroup> Groups { get; }
 
     /// <summary>The sentence that says why nothing can be changed here yet.</summary>
-    public string NoteText => "Nothing can be changed here yet. Today these values are decided by the build; they are listed so that you know where each kind of setting will be.";
+    public string NoteText => "The observing site can be set here. The other values are decided by the build; they are listed so that you know where each kind of setting will be.";
 }

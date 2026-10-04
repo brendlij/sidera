@@ -12,7 +12,7 @@ namespace Sidera.Runtime.Devices;
 /// coordinates stay at the last position that was actually reached; the target is never reported as reached.
 /// </para>
 /// </summary>
-public sealed partial class SimulatedMount : IMountControl
+public sealed partial class SimulatedMount : IMountSiteControl
 {
     /// <summary>Where a new mount points.</summary>
     public static CelestialCoordinates DefaultCoordinates { get; } = new(0, 0);

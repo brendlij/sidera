@@ -25,7 +25,7 @@ public class AutofocusActionTests
     private static readonly DeviceId MainFocuser = new("focuser.main");
     private static readonly DeviceId WideCamera = new("camera.wide");
     private static readonly DeviceId WideFocuser = new("focuser.wide");
-    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 23.5, 15.7, 6248, 4176);
+    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 3.76, 6248, 4176);
 
     private static readonly AutofocusOptions Quick = new(TimeSpan.FromMilliseconds(40), 300, 7);
 

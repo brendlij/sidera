@@ -1,4 +1,5 @@
 using Sidera.Core.Devices;
+using Sidera.Core.Location;
 using Sidera.Core.Mounts;
 
 namespace Sidera.Runtime.Devices;
@@ -32,7 +33,22 @@ public sealed partial class SimulatedMount
     public event EventHandler? StateChanged;
 
     /// <summary>Where the simulated mount stands on the earth.</summary>
-    public MountSite SimulatedSite { get; init; } = new(50.1, 8.6, 120);
+    public MountSite SimulatedSite
+    {
+        get { lock (_control) { return _simulatedSite; } }
+        init => _simulatedSite = value;
+    }
+
+    private MountSite _simulatedSite = new(50.1, 8.6, 120);
+
+    /// <summary>Whether the simulated mount takes a site from outside; a mount with a GPS of its own does not.</summary>
+    public bool SiteWritable { get; init; } = true;
+
+    /// <summary>A mount that stores its site coarsely (a step of degrees; 0 stores exactly): what it reads back is the rounded value.</summary>
+    public double SiteResolutionDegrees { get; init; }
+
+    /// <summary>For tests of a refusal: the property that the simulated mount refuses to take ("latitude", "longitude" or "elevation"); the ones before it were written.</summary>
+    public string? RefuseSiteProperty { get; init; }
 
     /// <summary>The clock the sidereal time and the horizontal position follow.</summary>
     public Func<DateTime> UtcNow { get; init; } = () => DateTime.UtcNow;
@@ -46,7 +62,7 @@ public sealed partial class SimulatedMount
 
     public MountTelemetry? Telemetry => Capabilities.IsAvailable ? ReadTelemetry() : null;
 
-    private static MountCapabilities BuildCapabilities() => new()
+    private MountCapabilities BuildCapabilities() => new()
     {
         Driver = new DriverMetadata("Sidera simulated mount", "A mount that only pretends", "Sidera.Runtime", "1.0", null),
         CanSlew = true,
@@ -76,6 +92,7 @@ public sealed partial class SimulatedMount
         Alignment = AlignmentKind.GermanPolar,
         HasRefractionSetting = true,
         HasSite = true,
+        SiteWrite = SiteWritable ? MountSiteWriteSupport.Supported : MountSiteWriteSupport.NotSupported,
         HasSiderealTime = true,
         HasUtcDate = true,
         HasAltAz = true,
@@ -469,6 +486,47 @@ public sealed partial class SimulatedMount
 
         RaiseStateChanged();
         return Task.CompletedTask;
+    }
+
+    private double Stored(double degrees) =>
+        SiteResolutionDegrees > 0 ? Math.Round(degrees / SiteResolutionDegrees) * SiteResolutionDegrees : degrees;
+
+    public Task SetSiteAsync(ObservingSite site, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(site);
+        RequireConnected();
+        if (!SiteWritable)
+        {
+            throw new MountSiteWriteException("The simulated mount does not take a site (it owns its location).");
+        }
+
+        string? refused = null;
+        lock (_control)
+        {
+            var next = _simulatedSite;
+            foreach (var property in new[] { "latitude", "longitude", "elevation" })
+            {
+                if (property == RefuseSiteProperty)
+                {
+                    refused = property;
+                    break;
+                }
+
+                next = property switch
+                {
+                    "latitude" => next with { LatitudeDegrees = Stored(site.LatitudeDegrees) },
+                    "longitude" => next with { LongitudeDegrees = Stored(site.LongitudeDegrees) },
+                    _ => next with { ElevationMeters = site.ElevationMeters },
+                };
+            }
+
+            _simulatedSite = next;
+        }
+
+        RaiseStateChanged();
+        return refused is null
+            ? Task.CompletedTask
+            : throw new MountSiteWriteException($"The simulated mount refused the {refused} of its site.");
     }
 
     public Task SetRefractionAsync(bool corrects, CancellationToken cancellationToken = default)

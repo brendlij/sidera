@@ -54,7 +54,7 @@ public class SideraRuntimeHostTests
         new RigId(rigId),
         rigId,
         new DeviceId(cameraId),
-        new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176));
+        new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176));
 
     [Fact]
     public async Task Host_ExposesRigRegistry()

@@ -3,6 +3,7 @@ using Sidera.Ascom.Drivers;
 using Sidera.Ascom.Infrastructure;
 using Sidera.Core.Devices;
 using Sidera.Core.Events;
+using Sidera.Core.Location;
 using Sidera.Core.Mounts;
 using Microsoft.Extensions.Logging;
 
@@ -23,7 +24,7 @@ namespace Sidera.Ascom.Mounts;
 /// assumed.
 /// </para>
 /// </summary>
-public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
+public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountSiteControl
 {
     private readonly CapabilityHolder<MountCapabilities> _capabilities = new();
     private MountTelemetry? _telemetry;
@@ -211,6 +212,7 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
             FocalLengthMeters = focalLength is > 0 ? focalLength : null,
             HasRefractionSetting = probe.Try("DoesRefraction", () => d.DoesRefraction) is not null,
             HasSite = hasSite,
+            SiteWrite = hasSite ? MountSiteWriteSupport.Unknown : MountSiteWriteSupport.NotSupported,
             HasSiderealTime = probe.Try("SiderealTime", () => d.SiderealTime) is not null,
             HasUtcDate = probe.Try("UTCDate", () => d.UtcDate) is not null,
             HasAltAz = hasAltAz,
@@ -819,6 +821,70 @@ public sealed class AscomMount : AscomDevice<IAscomMountDriver>, IMountControl
             },
             cancellationToken);
         await AfterOperationAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SetSiteAsync(ObservingSite site, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(site);
+        var capabilities = Require("set the site of", c => c.HasSite && c.SiteWrite != MountSiteWriteSupport.NotSupported, "does not take a site");
+
+        using var scope = BeginScope();
+        // One property at a time, in the signs of the standard (north and east positive), so that a refusal says which value it was.
+        var writes = new (string Name, Action<IAscomMountDriver> Write)[]
+        {
+            ("latitude", d => d.SiteLatitude = site.LatitudeDegrees),
+            ("longitude", d => d.SiteLongitude = site.LongitudeDegrees),
+            ("elevation", d => d.SiteElevation = site.ElevationMeters),
+        };
+        string? refused = null;
+        Exception? refusal = null;
+        foreach (var (name, write) in writes)
+        {
+            try
+            {
+                await CallAsync($"set the {name} of", write, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                refused = name;
+                refusal = ex;
+                break;
+            }
+        }
+
+        // Whatever happened, what the mount holds now is read again: the caller must see the truth, and nothing is retried.
+        try
+        {
+            var now = await CallAsync("read the site of", d => new MountSite(d.SiteLatitude, d.SiteLongitude, d.SiteElevation), cancellationToken);
+            lock (_state)
+            {
+                _site = now;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "{Device}: the site could not be read back after it was written", Name);
+        }
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        if (refusal is null)
+        {
+            return;
+        }
+
+        var notImplemented = refusal is AscomDeviceException { InnerException: { } inner } && inner.GetType().Name.Contains("NotImplemented", StringComparison.Ordinal);
+        if (notImplemented)
+        {
+            _capabilities.Set(capabilities with { SiteWrite = MountSiteWriteSupport.NotSupported }, this);
+        }
+
+        Logger.LogWarning(refusal, "{Device}: the mount refused the {Property} of its site", Name, refused);
+        throw new MountSiteWriteException(
+            notImplemented
+                ? $"{Name} does not take a site from Sidera (its {refused} cannot be set; it probably owns its location). Nothing was changed by Sidera beyond what the mount reports now."
+                : $"{Name} refused the {refused} of its site ({refusal.Message}). The mount may hold a mix of the old and the new site.",
+            refusal);
     }
 
     public async Task SetRefractionAsync(bool corrects, CancellationToken cancellationToken = default)

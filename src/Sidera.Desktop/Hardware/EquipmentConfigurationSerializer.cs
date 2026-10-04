@@ -86,15 +86,27 @@ public static class EquipmentConfigurationSerializer
                         w.WriteString("filterWheelId", rig.FilterWheelId);
                     }
 
-                    w.WriteStartObject("optics");
-                    w.WriteNumber("focalLengthMm", rig.Optics.FocalLengthMm);
-                    w.WriteNumber("apertureMm", rig.Optics.ApertureMm);
-                    w.WriteNumber("pixelSizeMicrons", rig.Optics.PixelSizeMicrons);
-                    w.WriteNumber("sensorWidthMm", rig.Optics.SensorWidthMm);
-                    w.WriteNumber("sensorHeightMm", rig.Optics.SensorHeightMm);
-                    w.WriteNumber("resolutionWidth", rig.Optics.ResolutionWidth);
-                    w.WriteNumber("resolutionHeight", rig.Optics.ResolutionHeight);
-                    w.WriteEndObject();
+                    if (rig.Optics is { } optics)
+                    {
+                        // Only the inputs: the pixel scale, the sensor size and the field of view are derived and never stored.
+                        w.WriteStartObject("optics");
+                        w.WriteNumber("focalLengthMm", optics.FocalLengthMm);
+                        WriteOptional(w, "apertureMm", optics.ApertureMm);
+                        WriteOptional(w, "pixelSizeXMicrons", optics.PixelSizeXMicrons);
+                        WriteOptional(w, "pixelSizeYMicrons", optics.PixelSizeYMicrons);
+                        if (optics.SensorWidthPixels is { } sensorWidth)
+                        {
+                            w.WriteNumber("sensorWidthPixels", sensorWidth);
+                        }
+
+                        if (optics.SensorHeightPixels is { } sensorHeight)
+                        {
+                            w.WriteNumber("sensorHeightPixels", sensorHeight);
+                        }
+
+                        w.WriteEndObject();
+                    }
+
                     if (rig.SimulatedBestFocus is { } best)
                     {
                         w.WriteNumber("simulatedBestFocus", best);
@@ -259,23 +271,26 @@ public static class EquipmentConfigurationSerializer
         var focuserId = Optional(element, "focuserId");
         var wheelId = Optional(element, "filterWheelId");
 
-        if (!element.TryGetProperty("optics", out var optics))
+        // A rig of an older file may have no optics, or the older names (one pixel size, the resolution); both still load.
+        OpticalTrain? train = null;
+        if (element.TryGetProperty("optics", out var optics) && optics.ValueKind != JsonValueKind.Null)
         {
-            throw new EquipmentConfigurationException($"The rig '{id}' has no optics.");
-        }
-
-        RequireObject(optics, $"the optics of '{id}'");
-        OpticalTrain train;
-        try
-        {
-            train = new OpticalTrain(
-                Number(optics, "focalLengthMm", id), Number(optics, "apertureMm", id), Number(optics, "pixelSizeMicrons", id),
-                Number(optics, "sensorWidthMm", id), Number(optics, "sensorHeightMm", id),
-                (int)Number(optics, "resolutionWidth", id), (int)Number(optics, "resolutionHeight", id));
-        }
-        catch (ArgumentException ex)
-        {
-            throw new EquipmentConfigurationException($"The optics of the rig '{id}' are not valid: {ex.Message.Split('\n', 2)[0]}", ex);
+            RequireObject(optics, $"the optics of '{id}'");
+            try
+            {
+                var legacyPixel = OptionalNumber(optics, "pixelSizeMicrons");
+                train = new OpticalTrain(
+                    Number(optics, "focalLengthMm", id),
+                    OptionalNumber(optics, "apertureMm"),
+                    OptionalNumber(optics, "pixelSizeXMicrons") ?? legacyPixel,
+                    OptionalNumber(optics, "pixelSizeYMicrons") ?? legacyPixel,
+                    OptionalCount(optics, "sensorWidthPixels") ?? OptionalCount(optics, "resolutionWidth"),
+                    OptionalCount(optics, "sensorHeightPixels") ?? OptionalCount(optics, "resolutionHeight"));
+            }
+            catch (ArgumentException ex)
+            {
+                throw new EquipmentConfigurationException($"The optics of the rig '{id}' are not valid: {ex.Message.Split('\n', 2)[0]}", ex);
+            }
         }
 
         int? best = element.TryGetProperty("simulatedBestFocus", out var bestElement) && bestElement.ValueKind == JsonValueKind.Number && bestElement.TryGetInt32(out var value) ? value : null;
@@ -302,6 +317,20 @@ public static class EquipmentConfigurationSerializer
         String(element, name) is { } text && !string.IsNullOrWhiteSpace(text)
             ? text
             : throw new EquipmentConfigurationException($"{Capitalize(owner)} has no '{name}'.");
+
+    private static void WriteOptional(Utf8JsonWriter w, string name, double? value)
+    {
+        if (value is { } v)
+        {
+            w.WriteNumber(name, v);
+        }
+    }
+
+    private static double? OptionalNumber(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) ? number : null;
+
+    private static int? OptionalCount(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number) ? number : null;
 
     private static double Number(JsonElement element, string name, string rig) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number)

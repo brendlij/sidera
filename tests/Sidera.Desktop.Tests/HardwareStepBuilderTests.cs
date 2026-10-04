@@ -223,7 +223,7 @@ public class HardwareStepBuilderTests
         await using var host = CreateHost();
         // The wide rig has a focuser but no filter wheel.
         var block = Block(Track(Wide, RigChange(0), Exposure()), Track(Main, Exposure()));
-        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176)));
+        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
         var bare = Block(Track(new RigId("rig.bare"), RigMove(), Exposure()), Track(Main, Exposure()));
 
         Assert.Equal(["Step 1.1.1 (Change Filter): The rig 'rig.wide' has no filter wheel."], Problems(host, block));
@@ -234,7 +234,7 @@ public class HardwareStepBuilderTests
     public async Task ARigStepNeverBorrowsTheDeviceOfAnotherRig()
     {
         await using var host = CreateHost();
-        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176)));
+        host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
         var bare = Block(Track(new RigId("rig.bare"), RigMove(), RigChange(), Exposure()), Track(Main, RigMove(), Exposure()));
 
         var problems = Problems(host, bare);

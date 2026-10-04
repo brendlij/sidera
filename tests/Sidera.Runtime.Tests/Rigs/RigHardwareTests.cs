@@ -8,7 +8,7 @@ namespace Sidera.Runtime.Tests.Rigs;
 /// <summary>Rigs with optional focuser and filter wheel: the camera stays the only required device.</summary>
 public class RigHardwareTests
 {
-    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 23.5, 15.7, 6248, 4176);
+    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 3.76, 6248, 4176);
 
     private static SideraRuntimeHost CreateHost()
     {

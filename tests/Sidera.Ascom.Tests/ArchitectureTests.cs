@@ -26,7 +26,7 @@ public class ArchitectureTests
     private static readonly DeviceId CameraId = new("camera.main");
     private static readonly DeviceId FocuserId = new("focuser.main");
     private static readonly DeviceId MountId = new("mount.main");
-    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 23.5, 15.7, 800, 600);
+    private static readonly OpticalTrain Optics = new(750, 150, 3.76, 3.76, 800, 600);
 
     // The sigma of the stars that a focus model gives at a position: the same relation the simulated camera uses.
     private static readonly double HfrPerSigma = Math.Sqrt(2 * Math.Log(2));

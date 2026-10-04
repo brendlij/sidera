@@ -1,4 +1,5 @@
 using Sidera.Core.Devices;
+using Sidera.Core.Location;
 
 namespace Sidera.Core.Mounts;
 
@@ -81,7 +82,30 @@ public sealed record HorizontalCoordinates
 }
 
 /// <summary>Where a mount stands on the earth, as the driver knows it.</summary>
-public sealed record MountSite(double LatitudeDegrees, double LongitudeDegrees, double ElevationMeters);
+public sealed record MountSite(double LatitudeDegrees, double LongitudeDegrees, double ElevationMeters)
+{
+    /// <summary>
+    /// The site as an <see cref="ObservingSite"/>, or <c>null</c> when the mount does not report a place: a value out of range, or a latitude and
+    /// longitude of exactly 0 and 0, which is what a mount that was never given a site reports (and a point in the Gulf of Guinea, never an
+    /// observatory). A site like that is unknown, not a place to compare with.
+    /// </summary>
+    public ObservingSite? ToObservingSite() =>
+        LatitudeDegrees == 0 && LongitudeDegrees == 0 ? null
+        : ObservingSite.TryCreate(LatitudeDegrees, LongitudeDegrees, ElevationMeters, null, out var site, out _) ? site : null;
+}
+
+/// <summary>Whether a mount takes a new site. The standard has no flag for it: a driver that has a site but owns it (a GPS) refuses the write.</summary>
+public enum MountSiteWriteSupport
+{
+    /// <summary>The mount reports no site, or it said that the site cannot be written.</summary>
+    NotSupported,
+
+    /// <summary>The mount has a site and has not been asked to change it yet; the write may still be refused.</summary>
+    Unknown,
+
+    /// <summary>The mount takes a site.</summary>
+    Supported,
+}
 
 /// <summary>
 /// What a mount supports. The flags are the standard capability flags of the telescope interface, plus members that were
@@ -137,6 +161,9 @@ public sealed record MountCapabilities
     public bool HasRefractionSetting { get; init; }
 
     public bool HasSite { get; init; }
+
+    /// <summary>Whether Sidera may offer to send a site to the mount.</summary>
+    public MountSiteWriteSupport SiteWrite { get; init; }
     public bool HasSiderealTime { get; init; }
     public bool HasUtcDate { get; init; }
     public bool HasAltAz { get; init; }
@@ -223,3 +250,17 @@ public interface IMountControl : IMount, ICapable<MountCapabilities>, IObservabl
 
     Task SetRefractionAsync(bool corrects, CancellationToken cancellationToken = default);
 }
+
+/// <summary>A mount whose site Sidera can write: the optional part of the site handling beside <see cref="IMountControl"/>.</summary>
+public interface IMountSiteControl : IMountControl
+{
+    /// <summary>
+    /// Writes the latitude, the longitude and the elevation to the mount, in the units and with the signs of <see cref="ObservingSite"/>, and
+    /// reads them back into <see cref="IMountControl.Site"/>. Never done by itself.
+    /// </summary>
+    /// <exception cref="MountSiteWriteException">The mount refused a value; <see cref="IMountControl.Site"/> says what it holds now.</exception>
+    Task SetSiteAsync(ObservingSite site, CancellationToken cancellationToken = default);
+}
+
+/// <summary>The mount refused to take its site, wholly or in part.</summary>
+public sealed class MountSiteWriteException(string message, Exception? inner = null) : InvalidOperationException(message, inner);

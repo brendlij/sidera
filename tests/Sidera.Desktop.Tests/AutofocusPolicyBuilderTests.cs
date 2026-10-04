@@ -15,7 +15,7 @@ public class AutofocusPolicyBuilderTests
     private static readonly RigId Main = new("rig.main");
     private static readonly RigId Wide = new("rig.wide");
     private static readonly RigId Narrow = new("rig.narrow");
-    private static readonly OpticalTrain Optics = new(250, 60, 3.76, 23.5, 15.7, 6248, 4176);
+    private static readonly OpticalTrain Optics = new(250, 60, 3.76, 3.76, 6248, 4176);
 
     private static SideraRuntimeHost CreateHost()
     {

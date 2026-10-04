@@ -55,7 +55,7 @@ public abstract partial class DeviceDetailViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public void Dispose() => Panel?.Dispose();
+    public virtual void Dispose() => Panel?.Dispose();
 
     /// <summary>The device the detail is about: its identity, connection and state are those of the card view model.</summary>
     public DeviceViewModelBase Device { get; }
@@ -69,11 +69,12 @@ public sealed class CameraDetailViewModel : DeviceDetailViewModel
 {
     public CameraDetailViewModel(
         CameraViewModel camera, RigViewModel? rig, DeviceConfigurationViewModel? configuration = null, IDevicePreferenceStore? preferences = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null, Sidera.Desktop.Hardware.EquipmentService? equipment = null)
         : base(camera, configuration)
     {
         Camera = camera;
         Rig = rig;
+        Optics = new OpticalTrainViewModel(camera, rig?.Optics, equipment);
         if (camera.DeviceModel is ICameraControl control)
         {
             Settings = new CameraSettingsViewModel(camera, control, preferences, pollInterval);
@@ -85,6 +86,15 @@ public sealed class CameraDetailViewModel : DeviceDetailViewModel
     public CameraSettingsViewModel? Settings { get; }
 
     public CameraViewModel Camera { get; }
+
+    /// <summary>The optical train of the rig of the camera: what is configured, what the camera reports, what follows from both.</summary>
+    public OpticalTrainViewModel Optics { get; }
+
+    public override void Dispose()
+    {
+        Optics.Dispose();
+        base.Dispose();
+    }
 
     /// <summary>The rig the camera is part of, if any; the camera works the same without one.</summary>
     public RigViewModel? Rig { get; }
@@ -139,10 +149,11 @@ public sealed class MountDetailViewModel : DeviceDetailViewModel
 {
     public MountDetailViewModel(
         MountViewModel mount, DeviceConfigurationViewModel? configuration = null, IDevicePreferenceStore? preferences = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null, Sidera.Desktop.Settings.SiteService? site = null)
         : base(mount, configuration)
     {
         Mount = mount;
+        Site = new MountSiteViewModel(mount, site);
         if (mount.DeviceModel is IMountControl control)
         {
             Control = new MountControlViewModel(mount, control, preferences, pollInterval);
@@ -152,6 +163,9 @@ public sealed class MountDetailViewModel : DeviceDetailViewModel
 
     public MountControlViewModel? Control { get; }
     public MountViewModel Mount { get; }
+
+    /// <summary>The site of the mount against the site of Sidera; shows nothing unless they differ or one is missing.</summary>
+    public MountSiteViewModel Site { get; }
 
     public override System.Windows.Input.ICommand? StopCommand => Control?.StopCommand;
 

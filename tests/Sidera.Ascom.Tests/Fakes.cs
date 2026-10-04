@@ -367,9 +367,41 @@ public sealed class FakeMountDriver(CallLog log) : FakeDriver(log), IAscomMountD
     public double ApertureArea => 0.01;
     public double ApertureDiameter => 0.1;
     public double FocalLength => 0.5;
-    public double SiteLatitude => HasSiteValue ? 50.1 : throw new NotImplementedException("SiteLatitude");
-    public double SiteLongitude => HasSiteValue ? 8.6 : throw new NotImplementedException("SiteLongitude");
-    public double SiteElevation => HasSiteValue ? 120 : throw new NotImplementedException("SiteElevation");
+    public double? SiteLatitudeValue { get; set; } = 50.1;
+    public double? SiteLongitudeValue { get; set; } = 8.6;
+    public double? SiteElevationValue { get; set; } = 120;
+
+    /// <summary>The property the fake driver refuses to write ("SiteLongitude"...), as a driver that owns its site does; <c>null</c> accepts all.</summary>
+    public string? RefuseSiteWrite { get; set; }
+
+    public double SiteLatitude
+    {
+        get => HasSiteValue ? SiteLatitudeValue!.Value : throw new NotImplementedException("SiteLatitude");
+        set => WriteSite("SiteLatitude", value, v => SiteLatitudeValue = v);
+    }
+
+    public double SiteLongitude
+    {
+        get => HasSiteValue ? SiteLongitudeValue!.Value : throw new NotImplementedException("SiteLongitude");
+        set => WriteSite("SiteLongitude", value, v => SiteLongitudeValue = v);
+    }
+
+    public double SiteElevation
+    {
+        get => HasSiteValue ? SiteElevationValue!.Value : throw new NotImplementedException("SiteElevation");
+        set => WriteSite("SiteElevation", value, v => SiteElevationValue = v);
+    }
+
+    private void WriteSite(string name, double value, Action<double> store)
+    {
+        Log.Add($"{name} = {value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        if (RefuseSiteWrite == name)
+        {
+            throw new NotImplementedException(name);
+        }
+
+        store(value);
+    }
 
     public void SlewToAltAz(double altitudeDegrees, double azimuthDegrees)
     {

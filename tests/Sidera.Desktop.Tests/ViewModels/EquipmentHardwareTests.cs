@@ -352,7 +352,7 @@ public class EquipmentHardwareTests
         host.AddSimulatedCamera(new DeviceId("camera.main"), "Main Camera");
         host.AddRig(new Sidera.Core.Rigs.Rig(
             new Sidera.Core.Rigs.RigId("rig.bare"), "Bare Rig", new DeviceId("camera.main"),
-            new Sidera.Core.Rigs.OpticalTrain(500, 100, 3.76, 23.5, 15.7, 6248, 4176)));
+            new Sidera.Core.Rigs.OpticalTrain(500, 100, 3.76, 3.76, 6248, 4176)));
         using var vm = new MainViewModel(host, action => action(), Fast);
 
         var rig = vm.Equipment.Rigs.Single();

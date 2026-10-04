@@ -20,6 +20,11 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 - **Focuser:** absolute and relative moves, halt, temperature.
 - **Guider:** PHD2 as the guiding backend (host and port are the settings of the device; its equipment, calibration and star stay in PHD2).
   Start, stop, pause; live guide graph in arcseconds, rolling RMS, star SNR, the settle after a dither, and what PHD2 reports about its setup.
+- **Observing site:** one place for the whole application (Settings): latitude north and longitude east positive (or write N, S, E, W),
+  elevation in meters. Unknown until you enter it. When a mount connects its site is compared with it; a real difference (more than 100 m)
+  asks what to do (use the mount's location, send Sidera's to the mount, or keep both). Nothing is written to a mount by itself.
+- **Optical train:** the focal length (and optionally aperture, pixel size, sensor pixels) of a camera's rig, on the camera page. Pixel scale,
+  sensor size and field of view are derived from it and from what the camera reports, never stored.
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
@@ -63,6 +68,7 @@ Tests that touch real devices are skipped unless you opt in with environment var
 | `SIDERA_ASCOM_CAMERA_COOLING_OK=1` | Short cooling check |
 | `SIDERA_ASCOM_MOUNT_TRACKING_OK=1`, `_SLEW_OK=1`, `_AXIS_OK=1` | Tracking toggle, a small slew and stop, a slow axis move |
 | `SIDERA_ASCOM_AUTOFOCUS_OK=1` | A real autofocus run (needs a star field) |
+| `SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1` | Writes the site that the mount reports back to it, unchanged (reading and validating the site needs no gate) |
 | `SIDERA_PHD2_TESTS=1` | Connects to a running PHD2 (`SIDERA_PHD2_HOST`, `SIDERA_PHD2_PORT`, default 127.0.0.1:4400) and reads its state; moves nothing |
 | `SIDERA_PHD2_GUIDING_OK=1` | Starts and stops real guiding in PHD2 (its equipment must be connected, a guide star needed) |
 | `SIDERA_PHD2_DITHER_OK=1` | One real dither with its settle |
@@ -73,6 +79,8 @@ Every physical action has its own gate: no gate, no movement. Only run mount tes
 
 - Equipment: `%APPDATA%\Sidera\equipment.json` (override with `SIDERA_EQUIPMENT_FILE`). An equipment file from the time the project was
   called Astra (`%APPDATA%\Astra\equipment.json`) is copied on the first start; the old one is left untouched.
+- Settings (the observing site): `%APPDATA%\Sidera\settings.json` (override with `SIDERA_SETTINGS_FILE`). Without the file, or without a
+  site in it, the site is unknown; Sidera never assumes 0° 0° 0 m. Rigs keep their optical inputs in the equipment file.
 - Environment variables with the old `ASTRA_` prefix still work when the `SIDERA_` one of the same name is not set.
 - The extension `.astraseq` and the format names `astra-sequence` and `astra-equipment` belong to the formats from before the rename.
   They are kept, so existing files keep loading.

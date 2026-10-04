@@ -76,7 +76,7 @@ public static class DemoSetup
         var wideFocuser = AddFocuser(host, options, WideFocuserId, "Wide Focuser", start: 5200, max: 12000);
         host.AddRig(new Rig(
             WideRigId, "Wide Rig", wide.Id,
-            new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176),
+            new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176),
             wideFocuser.Id));
         host.AddSimulatedFocusModel(WideRigId, new SimulatedFocusModel(WideBestFocus));
 
@@ -86,7 +86,7 @@ public static class DemoSetup
             NarrowFilterWheelId, "Narrow Filter Wheel", NarrowFilters, moveDuration: options.FilterWheelMoveDuration);
         host.AddRig(new Rig(
             NarrowRigId, "Narrow Rig", narrow.Id,
-            new OpticalTrain(1200, 200, 3.76, 17.6, 13.2, 4656, 3520),
+            new OpticalTrain(1200, 200, 3.76, 3.76, 4656, 3520),
             narrowFocuser.Id, narrowWheel.Id));
         host.AddSimulatedFocusModel(NarrowRigId, new SimulatedFocusModel(NarrowBestFocus));
     }
@@ -111,11 +111,10 @@ public static class DemoSetup
             new OpticalTrain(
                 focalLengthMm: 750,
                 apertureMm: 150,
-                pixelSizeMicrons: 3.76,
-                sensorWidthMm: 23.5,
-                sensorHeightMm: 15.7,
-                resolutionWidth: 6248,
-                resolutionHeight: 4176),
+                pixelSizeXMicrons: 3.76,
+                pixelSizeYMicrons: 3.76,
+                sensorWidthPixels: 6248,
+                sensorHeightPixels: 4176),
             focuser.Id,
             wheel.Id);
         host.AddRig(rig);
@@ -155,13 +154,13 @@ public static class DemoSetup
             [
                 new RigConfiguration(
                     MainRigId.Value, "Main Rig", MainCameraId.Value, MainFocuserId.Value, MainFilterWheelId.Value,
-                    new OpticalTrain(750, 150, 3.76, 23.5, 15.7, 6248, 4176), MainBestFocus),
+                    new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), MainBestFocus),
                 new RigConfiguration(
                     WideRigId.Value, "Wide Rig", WideCameraId.Value, WideFocuserId.Value, null,
-                    new OpticalTrain(250, 60, 3.76, 23.5, 15.7, 6248, 4176), WideBestFocus),
+                    new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176), WideBestFocus),
                 new RigConfiguration(
                     NarrowRigId.Value, "Narrow Rig", NarrowCameraId.Value, NarrowFocuserId.Value, NarrowFilterWheelId.Value,
-                    new OpticalTrain(1200, 200, 3.76, 17.6, 13.2, 4656, 3520), NarrowBestFocus),
+                    new OpticalTrain(1200, 200, 3.76, 3.76, 4656, 3520), NarrowBestFocus),
             ]);
     }
 

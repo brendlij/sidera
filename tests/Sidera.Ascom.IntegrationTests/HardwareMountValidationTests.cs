@@ -12,7 +12,7 @@ namespace Sidera.Ascom.IntegrationTests;
 /// The real mount. Reading is safe and runs with <c>SIDERA_ASCOM_MOUNT</c>. Every physical action has a gate of its own and does
 /// nothing without it: <c>SIDERA_ASCOM_MOUNT_TRACKING_OK=1</c> (switches tracking once and puts it back),
 /// <c>SIDERA_ASCOM_MOUNT_SLEW_OK=1</c> (a slew of a fraction of a degree, and one that is stopped part of the way),
-/// <c>SIDERA_ASCOM_MOUNT_AXIS_OK=1</c> (the slowest rate of one axis for a second). Sync, park, unpark and find-home have no real
+/// <c>SIDERA_ASCOM_MOUNT_AXIS_OK=1</c> (the slowest rate of one axis for a second), <c>SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1</c> (writes the site the mount reports back to it, unchanged). Sync, park, unpark and find-home have no real
 /// test: they change the mount's model or its state and are only tested against the ASCOM simulator. Even with a gate set a test
 /// first checks that the driver's state looks alive: a mount that is not powered or linked answers with zeros and a standing clock.
 /// </summary>
@@ -79,6 +79,70 @@ public sealed class HardwareMountValidationTests(ITestOutputHelper output)
                 $"axes {c.CanMovePrimaryAxis}/{c.CanMoveSecondaryAxis} rates {string.Join(" ", c.AxisRates.Select(r => $"{r.Key}:[{string.Join(",", r.Value.Select(x => $"{x.Minimum}-{x.Maximum}"))}]"))}");
             output.WriteLine("alive check: " + (await WhyNotAliveAsync(mount) ?? "looks alive"));
             Assert.False(t.Slewing);
+        }
+        finally
+        {
+            await mount.DisconnectAsync();
+        }
+    }
+
+    [HardwareFact("SIDERA_ASCOM_MOUNT")]
+    public async Task TheRealMount_Site_IsReadAndValidated_ReadOnly()
+    {
+        var mount = NewMount();
+        await mount.ConnectAsync();
+        try
+        {
+            var c = mount.Capabilities.Value!;
+            output.WriteLine($"has site {c.HasSite}; site write {c.SiteWrite}");
+            Assert.True(c.HasSite, "the mount reports no site");
+            var site = mount.Site!;
+            var place = site.ToObservingSite();
+            output.WriteLine($"raw {site.LatitudeDegrees} / {site.LongitudeDegrees} / {site.ElevationMeters} m");
+            output.WriteLine(place is null
+                ? "NOT A PLACE: out of range or 0 / 0 (the mount holds no site)"
+                : $"{Sidera.Core.Location.GeoCoordinateFormat.FormatLatitude(place.LatitudeDegrees)}, {Sidera.Core.Location.GeoCoordinateFormat.FormatLongitude(place.LongitudeDegrees)}, {Sidera.Core.Location.GeoCoordinateFormat.FormatElevation(place.ElevationMeters)}");
+
+            // What Sidera would say against a site a few meters away and against one far away, from the real values.
+            if (place is not null)
+            {
+                var near = new Sidera.Core.Location.ObservingSite(Math.Clamp(place.LatitudeDegrees + 0.00003, -90, 90), place.LongitudeDegrees, place.ElevationMeters);
+                var far = new Sidera.Core.Location.ObservingSite(Math.Clamp(place.LatitudeDegrees + 1, -90, 90), place.LongitudeDegrees, place.ElevationMeters);
+                output.WriteLine($"3 m away: {Sidera.Runtime.Location.MountSiteSynchronizer.Assess(near, site, c.SiteWrite).Situation}; 1 degree away: {Sidera.Runtime.Location.MountSiteSynchronizer.Assess(far, site, c.SiteWrite).Situation}");
+            }
+        }
+        finally
+        {
+            await mount.DisconnectAsync();
+        }
+    }
+
+    [HardwareFact("SIDERA_ASCOM_MOUNT")]
+    public async Task TheRealMount_Site_IsWrittenBackUnchanged_OnlyWithItsGate()
+    {
+        if (!Gate("SIDERA_ASCOM_MOUNT_SITE_WRITE_OK"))
+        {
+            output.WriteLine("NOT RUN: set SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1 to write the site that the mount reports back to it.");
+            return;
+        }
+
+        var mount = NewMount();
+        await mount.ConnectAsync();
+        try
+        {
+            var before = mount.Site!;
+            var place = before.ToObservingSite();
+            if (place is null)
+            {
+                output.WriteLine($"NOT RUN: the mount reports no place ({before}); Sidera does not invent one to write.");
+                return;
+            }
+
+            // The same values: if the mount takes them nothing changes, and if it refuses it says so.
+            var outcome = await Sidera.Runtime.Location.MountSiteSynchronizer.SendToMountAsync(mount, place);
+            output.WriteLine($"outcome: succeeded {outcome.Succeeded}; {outcome.Problem}; read back {outcome.ReadBack}; before {before}");
+            Assert.True(outcome.Succeeded || outcome.Problem is not null);
+            Assert.Equal(before.LatitudeDegrees, mount.Site!.LatitudeDegrees, 3);
         }
         finally
         {
