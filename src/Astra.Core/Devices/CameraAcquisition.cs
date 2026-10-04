@@ -140,6 +140,18 @@ public sealed record FrameAcquisition
     public int? Height { get; init; }
     public string? ReadoutMode { get; init; }
     public bool? FastReadout { get; init; }
+
+    /// <summary>
+    /// The exposure was stopped early and this frame is what the camera had collected. <see cref="CameraFrame.ExposureDuration"/> is
+    /// still the time that was asked for: a driver does not say how long a stopped exposure really was.
+    /// </summary>
+    public bool Stopped { get; init; }
+
+    /// <summary>
+    /// For a stopped frame: the time Astra measured between starting the exposure and the stop being accepted. Approximate (it is the
+    /// time of the commands, not of the sensor); <c>null</c> for a frame that ran its time.
+    /// </summary>
+    public TimeSpan? StoppedAfter { get; init; }
 }
 
 /// <summary>

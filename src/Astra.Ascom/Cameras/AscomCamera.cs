@@ -17,8 +17,13 @@ namespace Astra.Ascom.Cameras;
 /// camera with a lower MaxADU than 65535 is not scaled.
 /// </para>
 /// <para>
-/// An exposure is never retried. Cancelling (or a timeout) calls <c>AbortExposure</c> when the camera can abort; a camera
-/// that cannot is never claimed to have stopped, and its exposure may still be running when the next one is started.
+/// An exposure is never retried. Two things end one early, and they are not the same:
+/// <b>Abort</b> (<see cref="AbortExposureAsync"/>, and cancelling the token of <c>ExposeAsync</c>, and a timeout) calls
+/// <c>AbortExposure</c>: the exposure is discarded and no image is used. <b>Stop</b> (<see cref="StopExposureAsync"/>, only on
+/// request, never as a way to cancel) calls <c>StopExposure</c>: the camera ends the exposure and delivers the image of what it
+/// collected, which <c>ExposeAsync</c> returns, marked as stopped. A camera that cannot abort is never claimed to have stopped:
+/// cancelling then only ends Astra's waiting, and the exposure may still be running (and may block the next one) until the driver
+/// is done with it.
 /// </para>
 /// </summary>
 public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraControl
@@ -33,6 +38,11 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
     private TimeSpan? _exposureDuration;
     private TimeSpan _exposureElapsed;
     private bool _canAbort;
+    private bool _stopRequested;
+    private bool _abortRequested;
+    private TimeSpan? _stoppedAfter;
+    private Stopwatch? _exposureClock;
+    private CameraExposureOutcome _outcome = CameraExposureOutcome.None;
 
     public AscomCamera(
         DeviceId id,
@@ -76,6 +86,27 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
     }
 
     public event EventHandler? ExposureProgressChanged;
+
+    public CameraExposureOutcome LastOutcome
+    {
+        get { lock (_state) { return _outcome; } }
+    }
+
+    // A camera that is released while it exposes is told to abort first: nobody is waiting for that image any more.
+    protected override void BeforeRelease(IAscomCameraDriver driver)
+    {
+        bool exposing, canAbort;
+        lock (_state)
+        {
+            (exposing, canAbort) = (_exposureState == CameraExposureState.Exposing, _canAbort);
+        }
+
+        if (exposing && canAbort)
+        {
+            Logger.LogWarning("{Device} was exposing at the release; aborting the exposure", Name);
+            driver.AbortExposure();
+        }
+    }
 
     protected override bool IsBusy => ExposureState == CameraExposureState.Exposing;
 
@@ -458,6 +489,119 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
                 Logger.LogWarning("{Device}: the settings could not be read back: {Reason}", Name, ex.Message);
             }
         }
+
+        // What the camera reports now against what it was told. A subframe may be adjusted by a driver (to a size it can read out):
+        // that is logged, and the frame says what it really is. Anything else that did not take is an error: an exposure must not
+        // start with another gain, binning or cooler state than the one asked for.
+        var (adjusted, refused) = ReadBackProblems(change, Settings);
+        foreach (var line in adjusted)
+        {
+            Logger.LogWarning("{Device}: {Problem}", Name, line);
+        }
+
+        if (refused.Count > 0)
+        {
+            throw new AscomDeviceException(
+                Id, ProgId, "change the settings of", $"{Name} ({ProgId}) accepted the settings but reports something else: {string.Join(" ", refused)}");
+        }
+    }
+
+    private static (List<string> Adjusted, List<string> Refused) ReadBackProblems(CameraSettings asked, CameraSettings? actual)
+    {
+        List<string> adjusted = [], refused = [];
+        if (actual is null)
+        {
+            return (adjusted, refused);
+        }
+
+        void Check<T>(string what, T? wanted, T? reported, List<string> into) where T : struct, IEquatable<T>
+        {
+            if (wanted is { } w && reported is { } r && !w.Equals(r))
+            {
+                into.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{what} was set to {w} and reads back {r}."));
+            }
+        }
+
+        Check("Gain", asked.Gain, actual.Gain, refused);
+        Check("Offset", asked.Offset, actual.Offset, refused);
+        Check("BinX", asked.BinX, actual.BinX, refused);
+        Check("BinY", asked.BinY, actual.BinY, refused);
+        Check("Readout mode", asked.ReadoutMode, actual.ReadoutMode, refused);
+        Check("Fast readout", asked.FastReadout, actual.FastReadout, refused);
+        Check("Cooler", asked.CoolerOn, actual.CoolerOn, refused);
+        if (asked.TargetTemperature is { } target && actual.TargetTemperature is { } reportedTarget && Math.Abs(target - reportedTarget) > 0.05)
+        {
+            refused.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"The target temperature was set to {target} and reads back {reportedTarget}."));
+        }
+
+        Check("StartX", asked.StartX, actual.StartX, adjusted);
+        Check("StartY", asked.StartY, actual.StartY, adjusted);
+        Check("NumX", asked.NumX, actual.NumX, adjusted);
+        Check("NumY", asked.NumY, actual.NumY, adjusted);
+        return (adjusted, refused);
+    }
+
+    public async Task StopExposureAsync(CancellationToken cancellationToken = default)
+    {
+        var capabilities = Capabilities.Value ?? throw new InvalidOperationException($"{Name} is not connected.");
+        if (!capabilities.CanStopExposure)
+        {
+            throw new AscomUnsupportedException(
+                Id, ProgId, "stop the exposure of", $"{Name} ({ProgId}) cannot stop an exposure and keep its image. Abort it instead.");
+        }
+
+        TimeSpan after;
+        lock (_state)
+        {
+            if (_exposureState != CameraExposureState.Exposing)
+            {
+                throw new InvalidOperationException("No exposure is running.");
+            }
+
+            if (_abortRequested)
+            {
+                throw new InvalidOperationException("The exposure is being aborted.");
+            }
+
+            after = _exposureClock?.Elapsed ?? TimeSpan.Zero;
+        }
+
+        using var scope = BeginScope();
+        Logger.LogInformation("Stopping the exposure of {Device} after {Seconds:0.###} s; the image is kept", Name, after.TotalSeconds);
+        await CallAsync("stop the exposure of", d => d.StopExposure(), cancellationToken);
+        lock (_state)
+        {
+            _stopRequested = true;
+            _stoppedAfter = after;
+        }
+    }
+
+    public async Task AbortExposureAsync(CancellationToken cancellationToken = default)
+    {
+        var capabilities = Capabilities.Value ?? throw new InvalidOperationException($"{Name} is not connected.");
+        if (!capabilities.CanAbortExposure)
+        {
+            throw new AscomUnsupportedException(
+                Id, ProgId, "abort the exposure of", $"{Name} ({ProgId}) cannot abort an exposure; Astra cannot stop what it is doing.");
+        }
+
+        lock (_state)
+        {
+            if (_exposureState != CameraExposureState.Exposing)
+            {
+                throw new InvalidOperationException("No exposure is running.");
+            }
+
+            _abortRequested = true;
+        }
+
+        using var scope = BeginScope();
+        Logger.LogInformation("Aborting the exposure of {Device}; no image will be used", Name);
+        if (!await AbortAsync())
+        {
+            throw new AscomDeviceException(
+                Id, ProgId, "abort the exposure of", $"{Name} ({ProgId}) could not be confirmed idle after AbortExposure.");
+        }
     }
 
     /// <exception cref="ArgumentOutOfRangeException">The duration is not positive.</exception>
@@ -501,6 +645,19 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             }
         }
 
+        // What the frame is described with is what the camera reports now, read just before the exposure starts: not what was asked
+        // for, and not what was read some time ago (a driver may say something else than it was told).
+        try
+        {
+            await RefreshAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning("{Device}: the settings could not be read before the exposure: {Reason}", Name, ex.Message);
+        }
+
+        var acquisition = Describe(frameType);
+        var clock = Stopwatch.StartNew();
         lock (_state)
         {
             if (_exposureState == CameraExposureState.Exposing)
@@ -511,10 +668,10 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             _exposureState = CameraExposureState.Exposing;
             _exposureDuration = duration;
             _exposureElapsed = TimeSpan.Zero;
+            (_stopRequested, _abortRequested, _stoppedAfter, _exposureClock) = (false, false, null, clock);
         }
 
         using var scope = BeginScope();
-        var clock = Stopwatch.StartNew();
         var completed = false;
         var announced = false;
         var imageReady = false;
@@ -530,9 +687,15 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             await CallAsync("start the exposure of", d => d.StartExposure(duration.TotalSeconds, frameType is FrameType.Light or FrameType.Flat), cancellationToken);
 
             var limit = duration + Timings.CameraDownloadMargin;
+            var idleWithoutImage = 0;
             while (true)
             {
                 await Task.Delay(Timings.CameraPollInterval, cancellationToken);
+                if (AbortWasRequested())
+                {
+                    throw new OperationCanceledException("The exposure was aborted.");
+                }
+
                 SetElapsed(clock.Elapsed < duration ? clock.Elapsed : duration);
 
                 var (ready, state) = await CallAsync("poll", d => (d.ImageReady, d.CameraState), cancellationToken);
@@ -546,6 +709,20 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
                 {
                     throw new AscomDeviceException(
                         Id, ProgId, "expose", $"{Name} reports an error state and did not deliver an image.");
+                }
+
+                // Stopped, idle and still no image for a few polls: the driver does not deliver one. Not waited for until the limit.
+                if (StopWasRequested() && state == AscomCameraState.Idle)
+                {
+                    if (++idleWithoutImage >= 3)
+                    {
+                        throw new CameraExposureStoppedException(
+                            $"{Name} ({ProgId}) ended the exposure when it was stopped and delivered no image.");
+                    }
+                }
+                else
+                {
+                    idleWithoutImage = 0;
                 }
 
                 if (clock.Elapsed > limit)
@@ -564,16 +741,33 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             var (array, numX, numY) = await CallAsync("read the image of", d => (d.ImageArray, d.NumX, d.NumY), cancellationToken);
             var converted = Convert(array, numX, numY);
             completed = true;
+            TimeSpan? stoppedAfter;
             lock (_state)
             {
                 _exposed = true;
+
+                // Only a stop that came before the exposure was over made a shorter frame.
+                stoppedAfter = _stopRequested && _stoppedAfter is { } t && t < duration ? t : null;
+                _outcome = stoppedAfter is null ? CameraExposureOutcome.Completed : CameraExposureOutcome.Stopped;
             }
 
-            Logger.LogInformation("{Device} delivered a frame of {Width} x {Height}", Name, converted.Width, converted.Height);
-            return new CameraFrame(converted.Width, converted.Height, converted.Pixels, duration) { Acquisition = Describe(frameType) };
+            Logger.LogInformation(
+                stoppedAfter is null ? "{Device} delivered a frame of {Width} x {Height}" : "{Device} delivered a frame of {Width} x {Height} after a stop",
+                Name, converted.Width, converted.Height);
+            return new CameraFrame(converted.Width, converted.Height, converted.Pixels, duration)
+            {
+                Acquisition = acquisition with { Stopped = stoppedAfter is not null, StoppedAfter = stoppedAfter },
+            };
+        }
+        catch (OperationCanceledException) when (AbortWasRequested() && !cancellationToken.IsCancellationRequested)
+        {
+            // AbortExposureAsync did the aborting already.
+            SetOutcome(CameraExposureOutcome.Aborted);
+            throw;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            SetOutcome(CameraExposureOutcome.Aborted);
             Logger.LogInformation("Exposure of {Device} cancelled; asking the driver to abort", Name);
             var aborted = await AbortAsync();
             Logger.LogInformation(
@@ -583,10 +777,16 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
                 Name);
             throw;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException and not AscomTimeoutException)
+        catch (AscomTimeoutException)
         {
+            SetOutcome(CameraExposureOutcome.Failed);
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            SetOutcome(CameraExposureOutcome.Failed);
             Logger.LogError(ex, "Exposure of {Device} failed", Name);
-            if (!imageReady)
+            if (!imageReady && ex is not CameraExposureStoppedException)
             {
                 await AbortAsync();
             }
@@ -612,6 +812,30 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             }
 
             StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private bool AbortWasRequested()
+    {
+        lock (_state)
+        {
+            return _abortRequested;
+        }
+    }
+
+    private bool StopWasRequested()
+    {
+        lock (_state)
+        {
+            return _stopRequested;
+        }
+    }
+
+    private void SetOutcome(CameraExposureOutcome outcome)
+    {
+        lock (_state)
+        {
+            _outcome = outcome;
         }
     }
 
@@ -658,7 +882,7 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
         catch (ImageConversionException ex)
         {
             Logger.LogError("{Device}: the image was rejected. {Detail}", Name, ex.Detail);
-            throw new AscomDeviceException(Id, ProgId, "expose", $"{Name} ({ProgId}): {ex.Message}", ex);
+            throw new AscomDeviceException(Id, ProgId, "expose", $"{Name} ({ProgId}): {ex.Message} {ex.Detail}", ex);
         }
     }
 

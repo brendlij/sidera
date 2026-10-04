@@ -388,6 +388,8 @@ public sealed class ComAscomDriverFactory : IAscomDriverFactory
 
         public void AbortExposure() => inner.AbortExposure();
 
+        public void StopExposure() => inner.StopExposure();
+
         public object? ImageArray => inner.ImageArray;
 
         public int Gain

@@ -156,6 +156,59 @@ public sealed partial class SimulatedCamera : ICameraControl
         return ExposeCoreAsync(request.Duration, request.FrameType, request.Change, cancellationToken);
     }
 
+    private CameraExposureOutcome _outcome = CameraExposureOutcome.None;
+    private CancellationTokenSource? _exposureCts;
+    private Stopwatch? _exposureClock;
+    private bool _stopRequested;
+    private bool _abortRequested;
+    private TimeSpan? _stoppedAfter;
+
+    public CameraExposureOutcome LastOutcome
+    {
+        get { lock (_gate) { return _outcome; } }
+    }
+
+    /// <summary>Ends the exposure now: the frame of what has been collected is returned, marked as stopped.</summary>
+    public Task StopExposureAsync(CancellationToken cancellationToken = default)
+    {
+        CancellationTokenSource? cts;
+        lock (_gate)
+        {
+            if (_exposureState != CameraExposureState.Exposing)
+            {
+                throw new InvalidOperationException("No exposure is running.");
+            }
+
+            if (_abortRequested)
+            {
+                throw new InvalidOperationException("The exposure is being aborted.");
+            }
+
+            (_stopRequested, _stoppedAfter, cts) = (true, _exposureClock?.Elapsed, _exposureCts);
+        }
+
+        cts?.Cancel();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Throws the exposure away: the pending exposure ends with an <see cref="OperationCanceledException"/>.</summary>
+    public Task AbortExposureAsync(CancellationToken cancellationToken = default)
+    {
+        CancellationTokenSource? cts;
+        lock (_gate)
+        {
+            if (_exposureState != CameraExposureState.Exposing)
+            {
+                throw new InvalidOperationException("No exposure is running.");
+            }
+
+            (_abortRequested, cts) = (true, _exposureCts);
+        }
+
+        cts?.Cancel();
+        return Task.CompletedTask;
+    }
+
     private async Task<CameraFrame> ExposeCoreAsync(
         TimeSpan duration, FrameType frameType, CameraSettings? change, CancellationToken cancellationToken)
     {
@@ -179,6 +232,8 @@ public sealed partial class SimulatedCamera : ICameraControl
             await ApplyAsync(change, cancellationToken);
         }
 
+        using var exposureCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var stopwatch = Stopwatch.StartNew();
         lock (_gate)
         {
             if (_connectionState != DeviceConnectionState.Connected)
@@ -194,10 +249,11 @@ public sealed partial class SimulatedCamera : ICameraControl
             _exposureState = CameraExposureState.Exposing;
             _exposureDuration = duration;
             _exposureElapsed = TimeSpan.Zero;
+            (_exposureCts, _exposureClock, _stopRequested, _abortRequested, _stoppedAfter) = (exposureCts, stopwatch, false, false, null);
         }
 
-        var stopwatch = Stopwatch.StartNew();
         var completed = false;
+        var outcome = CameraExposureOutcome.Failed;
 
         try
         {
@@ -207,12 +263,21 @@ public sealed partial class SimulatedCamera : ICameraControl
                 cancellationToken);
             RaiseExposureProgressChanged();
 
+            var stopped = false;
             while (stopwatch.Elapsed < duration)
             {
                 var remaining = duration - stopwatch.Elapsed;
-                await Task.Delay(
-                    remaining < ProgressInterval ? remaining : ProgressInterval,
-                    cancellationToken);
+                try
+                {
+                    await Task.Delay(
+                        remaining < ProgressInterval ? remaining : ProgressInterval,
+                        exposureCts.Token);
+                }
+                catch (OperationCanceledException) when (StopOnly(cancellationToken))
+                {
+                    stopped = true;
+                    break;
+                }
 
                 if (stopwatch.Elapsed < duration)
                 {
@@ -220,21 +285,51 @@ public sealed partial class SimulatedCamera : ICameraControl
                 }
             }
 
-            SetElapsed(duration);
+            // A stopped exposure is the frame of what was collected so far; its frame still says how long was asked for.
+            var taken = stopped ? stopwatch.Elapsed : duration;
+            SetElapsed(taken);
             var frame = frameType switch
             {
-                FrameType.Dark or FrameType.Bias => _frameGenerator.GenerateDark(duration),
-                FrameType.Flat => _frameGenerator.GenerateFlat(duration),
+                FrameType.Dark or FrameType.Bias => _frameGenerator.GenerateDark(taken),
+                FrameType.Flat => _frameGenerator.GenerateFlat(taken),
                 _ => Sky is { } sky && PsfSigmaSource?.Invoke() is { } sigma
-                    ? sky.Render(sigma, duration, Interlocked.Increment(ref _exposureCount))
-                    : _frameGenerator.Generate(duration),
+                    ? sky.Render(sigma, taken, Interlocked.Increment(ref _exposureCount))
+                    : _frameGenerator.Generate(taken),
             };
             frame = FinishFrame(frame, frameType);
+            if (stopped)
+            {
+                TimeSpan after;
+                lock (_gate)
+                {
+                    after = _stoppedAfter ?? taken;
+                }
+
+                var pixels = System.Runtime.InteropServices.MemoryMarshal.TryGetArray(frame.Pixels, out var segment) && segment.Offset == 0 && segment.Count == segment.Array!.Length
+                    ? segment.Array
+                    : frame.Pixels.ToArray();
+                frame = new CameraFrame(frame.Width, frame.Height, pixels, duration)
+                {
+                    Acquisition = (frame.Acquisition ?? new FrameAcquisition { FrameType = frameType }) with { Stopped = true, StoppedAfter = after },
+                };
+            }
+
             completed = true;
+            outcome = stopped ? CameraExposureOutcome.Stopped : CameraExposureOutcome.Completed;
             return frame;
+        }
+        catch (OperationCanceledException)
+        {
+            outcome = CameraExposureOutcome.Aborted;
+            throw;
         }
         finally
         {
+            lock (_gate)
+            {
+                _outcome = outcome;
+            }
+
             if (!completed)
             {
                 // Cancelled: keep the portion that actually elapsed instead of jumping to 100%.
@@ -250,6 +345,15 @@ public sealed partial class SimulatedCamera : ICameraControl
                 CameraExposureState.Exposing,
                 CameraExposureState.Idle,
                 CancellationToken.None);
+        }
+    }
+
+    // The exposure was stopped (and not aborted or cancelled): the wait was only interrupted to deliver what there is.
+    private bool StopOnly(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return _stopRequested && !_abortRequested && !cancellationToken.IsCancellationRequested;
         }
     }
 

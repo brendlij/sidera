@@ -294,6 +294,219 @@ public sealed class HardwareValidationTests(ITestOutputHelper output)
         }
     }
 
+    private static bool Gate(string name) => Env(name) == "1";
+
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_Stop_KeepsTheImage_AndTheCameraIsUsableAfterwards_OnlyWithItsGate()
+    {
+        if (!Gate("ASTRA_ASCOM_CAMERA_STOP_OK"))
+        {
+            return;
+        }
+
+        var camera = NewCamera();
+        await camera.ConnectAsync();
+        try
+        {
+            var caps = camera.Capabilities.Value!;
+            output.WriteLine($"CanStopExposure {caps.CanStopExposure}, CanAbortExposure {caps.CanAbortExposure}");
+            Assert.True(caps.CanStopExposure);
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var exposure = camera.ExposeAsync(Request(8));
+            await Task.Delay(2000);
+            Assert.Equal(CameraExposureState.Exposing, camera.ExposureState);
+            await camera.StopExposureAsync();
+            var frame = await exposure;
+            var (min, max, mean) = Stats(frame);
+            output.WriteLine($"stopped after {clock.ElapsedMilliseconds} ms; frame {frame.Width}x{frame.Height} min {min} max {max} mean {mean:0.0}; " +
+                $"requested {frame.ExposureDuration.TotalSeconds} s, stopped after {frame.Acquisition!.StoppedAfter?.TotalSeconds:0.00} s, state {camera.ExposureState}, outcome {camera.LastOutcome}");
+            Assert.True(frame.Acquisition.Stopped);
+            Assert.Equal((caps.SensorWidth, caps.SensorHeight), (frame.Width, frame.Height));
+            Assert.True(clock.Elapsed < TimeSpan.FromSeconds(6));
+            Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
+
+            var next = await camera.ExposeAsync(Request(0.1));
+            output.WriteLine($"next exposure: {next.Width}x{next.Height}, stopped {next.Acquisition!.Stopped}, outcome {camera.LastOutcome}");
+            Assert.False(next.Acquisition.Stopped);
+        }
+        finally
+        {
+            await camera.DisconnectAsync();
+        }
+    }
+
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_ADisconnectDuringAnExposure_IsRefused_AndAnAbortThenAllowsIt()
+    {
+        var camera = NewCamera();
+        await camera.ConnectAsync();
+        try
+        {
+            using var cts = new CancellationTokenSource();
+            var exposure = camera.ExposeAsync(Request(5), cts.Token);
+            await Task.Delay(1000);
+            var refused = await Record.ExceptionAsync(() => camera.DisconnectAsync());
+            output.WriteLine($"disconnect during the exposure: {refused?.GetType().Name}: {refused?.Message}");
+            Assert.IsType<InvalidOperationException>(refused);
+            Assert.Equal(DeviceConnectionState.Connected, camera.ConnectionState);
+
+            cts.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => exposure);
+            Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
+            await camera.DisconnectAsync();
+            output.WriteLine("after the cancel the disconnect worked");
+        }
+        finally
+        {
+            if (camera.ConnectionState == DeviceConnectionState.Connected)
+            {
+                await camera.DisconnectAsync();
+            }
+        }
+    }
+
+    private static async Task<List<double>> ExposeRepeatedly(AscomCamera camera, CameraCapabilities caps, int count)
+    {
+        var means = new List<double>();
+        for (var i = 0; i < count; i++)
+        {
+            var frame = await camera.ExposeAsync(Request(0.1));
+            means.Add(Stats(frame).Mean);
+            Assert.Equal((caps.SensorWidth, caps.SensorHeight), (frame.Width, frame.Height));
+            Assert.Equal(CameraExposureState.Idle, camera.ExposureState);
+            Assert.Equal(CameraExposureOutcome.Completed, camera.LastOutcome);
+        }
+
+        return means;
+    }
+
+    private static long SettledMemory()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        return GC.GetTotalMemory(true);
+    }
+
+    // The memory is compared after 5 and after 25 exposures, with no frame held by the test: a frame is 50 MB, so a leak per exposure
+    // would show as hundreds of MB. What one exposure leaves behind (the last frame can still be reachable) is the same in both.
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_TwentyFiveShortExposures_StayStable_WithoutAGrowingMemory()
+    {
+        var camera = NewCamera();
+        await camera.ConnectAsync();
+        try
+        {
+            var caps = camera.Capabilities.Value!;
+            var first = await ExposeRepeatedly(camera, caps, 5);
+            var after5 = SettledMemory();
+            var more = await ExposeRepeatedly(camera, caps, 20);
+            var after25 = SettledMemory();
+            var growth = after25 - after5;
+            output.WriteLine($"25 exposures; means {first.Concat(more).Min():0.0} to {first.Concat(more).Max():0.0}; managed memory after 5: {after5 / 1048576.0:0.0} MB, after 25: {after25 / 1048576.0:0.0} MB");
+            Assert.True(growth < 120L * 1024 * 1024, $"managed memory grew by {growth / 1048576.0:0.0} MB between the 5th and the 25th exposure");
+        }
+        finally
+        {
+            await camera.DisconnectAsync();
+        }
+    }
+
+    // The anomaly seen once: the driver said Offset 50 and a frame behaved as if the offset were 0. Per cycle: connect, read what the
+    // driver reports, expose, then set the same offset again explicitly and expose again. The mean of a dark-ish frame is the bias level,
+    // about 10 x the offset for this camera (50 gives about 500, 0 gives about 3): supporting evidence, not proof of the internal state.
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_ReportedOffset_AgainstTheBiasLevelOfTheFrames_OverSeveralConnects()
+    {
+        var anomalies = new List<string>();
+        for (var cycle = 1; cycle <= 5; cycle++)
+        {
+            var camera = NewCamera();
+            await camera.ConnectAsync();
+            try
+            {
+                var reported = camera.Settings!.Offset;
+                var first = await camera.ExposeAsync(Request(0.1));
+                var meanFirst = Stats(first).Mean;
+                var metadata = first.Acquisition!.Offset;
+
+                await camera.ApplyAsync(new CameraSettings { Offset = reported });
+                var second = await camera.ExposeAsync(Request(0.1));
+                var meanSecond = Stats(second).Mean;
+
+                output.WriteLine($"cycle {cycle}: reported offset {reported}, metadata offset {metadata}, mean before set {meanFirst:0.0}, after setting {reported} again {meanSecond:0.0}");
+                if (reported is { } r && r > 0 && (meanFirst < 5 * r || meanSecond < 5 * r))
+                {
+                    anomalies.Add($"cycle {cycle}: reported {r}, means {meanFirst:0.0} / {meanSecond:0.0}");
+                }
+
+                await Task.Delay(1500);
+            }
+            finally
+            {
+                await camera.DisconnectAsync();
+            }
+        }
+
+        output.WriteLine(anomalies.Count == 0 ? "no cycle showed a frame that disagreed with the reported offset" : "ANOMALIES: " + string.Join("; ", anomalies));
+        Assert.Empty(anomalies);
+    }
+
+    [HardwareFact("ASTRA_ASCOM_CAMERA")]
+    public async Task TheRealCamera_Cooling_IsReadOnlyUnlessTheGateIsSet()
+    {
+        var camera = NewCamera();
+        await camera.ConnectAsync();
+        try
+        {
+            var caps = camera.Capabilities.Value!;
+            await camera.RefreshAsync();
+            var t = camera.Telemetry!;
+            var s = camera.Settings!;
+            output.WriteLine($"cooling: can set target {caps.CanSetCcdTemperature}, cooler {caps.HasCooler}, power readable {caps.CanGetCoolerPower}; " +
+                $"temperature {t.CcdTemperature}, cooler on {s.CoolerOn}, target {s.TargetTemperature}, power {t.CoolerPower}");
+            if (!Gate("ASTRA_ASCOM_CAMERA_COOLING_OK"))
+            {
+                output.WriteLine("cooling commands NOT TESTED: ASTRA_ASCOM_CAMERA_COOLING_OK is not set");
+                return;
+            }
+
+            // A small, short check; everything is put back. No cool-down.
+            var (originalOn, originalTarget) = (s.CoolerOn, s.TargetTemperature);
+            var current = t.CcdTemperature ?? throw new InvalidOperationException("The camera does not report its temperature.");
+            try
+            {
+                var target = Math.Round(current - 3);
+                await camera.ApplyAsync(new CameraSettings { TargetTemperature = target, CoolerOn = true });
+                Assert.True(camera.Settings!.CoolerOn);
+                Assert.Equal(target, camera.Settings.TargetTemperature!.Value, 1);
+                var powers = new List<double?>();
+                for (var i = 0; i < 6; i++)
+                {
+                    await Task.Delay(1000);
+                    await camera.RefreshAsync();
+                    powers.Add(camera.Telemetry!.CoolerPower);
+                }
+
+                output.WriteLine($"target {target}: cooler power over 6 s {string.Join(", ", powers.Select(p => p?.ToString("0") ?? "n/a"))}, temperature now {camera.Telemetry!.CcdTemperature}");
+            }
+            finally
+            {
+                await camera.ApplyAsync(new CameraSettings { CoolerOn = originalOn, TargetTemperature = originalTarget });
+                await camera.RefreshAsync();
+                output.WriteLine($"restored: cooler on {camera.Settings!.CoolerOn}, target {camera.Settings.TargetTemperature}");
+            }
+        }
+        finally
+        {
+            await camera.DisconnectAsync();
+        }
+    }
+
     [HardwareFact("ASTRA_ASCOM_FOCUSER")]
     public async Task TheRealFocuser_ReportsItself_MovesByTheTwoPathsAndComesBack()
     {
