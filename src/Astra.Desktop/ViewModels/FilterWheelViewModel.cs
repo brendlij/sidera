@@ -53,6 +53,7 @@ public sealed partial class FilterWheelViewModel : DeviceViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMoving))]
+    [NotifyPropertyChangedFor(nameof(MotionText))]
     public partial FilterWheelMotionState MotionState { get; private set; }
 
     [ObservableProperty]
@@ -69,6 +70,9 @@ public sealed partial class FilterWheelViewModel : DeviceViewModelBase
     public partial bool IsManualChangeRunning { get; private set; }
 
     public bool IsMoving => MotionState == FilterWheelMotionState.Moving;
+
+    /// <summary>"Idle" or "Turning".</summary>
+    public string MotionText => IsMoving ? "Turning" : "Idle";
 
     /// <summary>The name of the filter in the light path.</summary>
     public string CurrentFilterText => CurrentSlot.Name;
@@ -121,6 +125,9 @@ public sealed partial class FilterWheelViewModel : DeviceViewModelBase
         base.RefreshCommands();
         ChangeCommand.NotifyCanExecuteChanged();
     }
+
+    protected override DeviceActivity DescribeActivity() =>
+        IsMoving ? new DeviceActivity("Turning", null, true) : new DeviceActivity($"{CurrentFilterText} · {SlotText}");
 
     public override void Dispose()
     {

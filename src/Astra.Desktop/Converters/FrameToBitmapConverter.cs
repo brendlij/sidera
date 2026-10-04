@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Astra.Core.Devices;
 using Astra.Desktop.Imaging;
@@ -14,9 +15,12 @@ public sealed class FrameToBitmapConverter : IValueConverter
 {
     public static FrameToBitmapConverter Instance { get; } = new();
 
+    // The picture of a frame is made once, however many views show it (the dashboard and the imaging page).
+    private readonly ConditionalWeakTable<CameraFrame, WriteableBitmap> _bitmaps = new();
+
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        return value is CameraFrame frame ? ToBitmap(frame) : null;
+        return value is CameraFrame frame ? _bitmaps.GetValue(frame, ToBitmap) : null;
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

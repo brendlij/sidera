@@ -15,7 +15,6 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
 {
     private readonly ICamera _camera;
     private readonly ImagingViewModel _imaging;
-    private readonly TimeSpan _manualExposure;
     private readonly IDisposable _exposureSubscription;
     private CancellationTokenSource? _exposureCts;
 
@@ -30,7 +29,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
     {
         _camera = camera;
         _imaging = imaging;
-        _manualExposure = manualExposure;
+        ExposureInput = Format(manualExposure);
 
         _camera.ExposureProgressChanged += OnExposureProgressChanged;
         _exposureSubscription = host.EventBus.Subscribe<CameraExposureStateChanged>((e, _) =>
@@ -80,13 +79,33 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
             $"{ExposureElapsed.TotalSeconds:0.0} / {ExposureDuration.TotalSeconds:0.0} s")
         : string.Empty;
 
+    /// <summary>What the last manual exposure of this camera produced, or that there was none yet; it is on the Imaging page.</summary>
+    [ObservableProperty]
+    public partial string LastFrameText { get; private set; } = "No manual exposure yet";
+
     /// <summary>Length of a manual exposure, shown on the button.</summary>
-    public string ManualExposureText =>
-        string.Create(CultureInfo.InvariantCulture, $"{_manualExposure.TotalSeconds:0.##} s");
+    public string ManualExposureText => $"{ExposureInput.Trim()} s";
+
+    /// <summary>The length of the next manual exposure, in seconds, as typed by the user.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ManualExposureText))]
+    public partial string ExposureInput { get; set; } = string.Empty;
+
+    private static string Format(TimeSpan duration) =>
+        duration.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);
 
     [RelayCommand(CanExecute = nameof(CanStartExposure))]
     private async Task StartExposureAsync()
     {
+        var text = ExposureInput?.Trim();
+        if ((!double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out var seconds)
+                && !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out seconds))
+            || !double.IsFinite(seconds) || seconds <= 0)
+        {
+            ReportError(new FormatException("Exposure must be a number of seconds greater than 0."));
+            return;
+        }
+
         var cts = new CancellationTokenSource();
         _exposureCts = cts;
         ClearError();
@@ -95,8 +114,10 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
 
         try
         {
-            var frame = await Host.DeviceOperations.ExposeAsync(Id, _manualExposure, cts.Token);
+            var frame = await Host.DeviceOperations.ExposeAsync(Id, TimeSpan.FromSeconds(seconds), cts.Token);
             _imaging.Publish(frame, SourceDescription());
+            LastFrameText = string.Create(
+                CultureInfo.InvariantCulture, $"{frame.ExposureDuration.TotalSeconds:0.###} s exposure, shown on the Imaging page");
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -151,6 +172,12 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         CancelExposureCommand.NotifyCanExecuteChanged();
     }
 
+    protected override DeviceActivity DescribeActivity() => IsExposing
+        ? new DeviceActivity(
+            string.Create(CultureInfo.InvariantCulture, $"Exposing {ExposureElapsed.TotalSeconds:0.#} / {ExposureDuration.TotalSeconds:0.#} s"),
+            ExposureProgress, true)
+        : new DeviceActivity("Idle");
+
     // Raised on the camera's thread, about five times a second during an exposure.
     private void OnExposureProgressChanged(object? sender, EventArgs e)
     {
@@ -159,6 +186,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
             ExposureElapsed = _camera.ExposureElapsed;
             ExposureDuration = _camera.ExposureDuration ?? TimeSpan.Zero;
             ExposureProgress = _camera.ExposureProgress;
+            RefreshSummary();
         });
     }
 

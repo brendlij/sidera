@@ -497,7 +497,15 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     public bool CanPaste => IsEditable && _clipboard.HasContent && FindPasteTarget() is not null;
 
-    partial void OnIsEditableChanged(bool value) => NotifyCommands();
+    partial void OnIsEditableChanged(bool value)
+    {
+        if (!value)
+        {
+            EndDrag();
+        }
+
+        NotifyCommands();
+    }
 
     partial void OnSelectedStepChanged(StepDraftViewModel? value) => NotifyCommands();
 
@@ -522,6 +530,210 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     private ObservableCollection<StepDraftViewModel> SiblingsOf(StepDraftViewModel step) => step.Parent?.Children ?? Steps;
 
+    // Drag and drop. The view finds the row under the pointer and asks; the draft judges, moves, selects and says it was
+    // modified. A step moves within its own list only (the sequence, a Repeat, a Rig Track, a Multi-Rig block): to a place
+    // that would break the structure it is refused, and to another list it is not offered.
+
+    /// <summary>The step that is being dragged now, or <c>null</c>.</summary>
+    public StepDraftViewModel? DraggedStep { get; private set; }
+
+    /// <summary>
+    /// Whether the step could be put into the list of <paramref name="targetParentId"/> (<c>null</c> for the sequence) at
+    /// <paramref name="targetIndex"/>, counted among the siblings as they are now, before the step is taken out.
+    /// </summary>
+    public bool CanMoveStep(Guid sourceId, Guid? targetParentId, int targetIndex) =>
+        JudgeMove(sourceId, targetParentId, targetIndex).IsMove;
+
+    /// <summary>Why the step cannot be put there, in a sentence; <c>null</c> when it can, and also when it is there already.</summary>
+    public string? WhyNotMoveStep(Guid sourceId, Guid? targetParentId, int targetIndex) =>
+        JudgeMove(sourceId, targetParentId, targetIndex).Reason;
+
+    /// <summary>
+    /// Moves the step to the place and selects it; the draft is then modified. Nothing happens, and nothing is reported,
+    /// when <see cref="CanMoveStep"/> says no.
+    /// </summary>
+    /// <returns>Whether the step was moved.</returns>
+    public bool MoveStep(Guid sourceId, Guid? targetParentId, int targetIndex)
+    {
+        if (!JudgeMove(sourceId, targetParentId, targetIndex).IsMove)
+        {
+            return false;
+        }
+
+        var step = Rows.First(row => row.Id == sourceId);
+        var siblings = SiblingsOf(step);
+        var from = siblings.IndexOf(step);
+        siblings.Move(from, targetIndex > from ? targetIndex - 1 : targetIndex);
+        RebuildRows();
+        SelectedStep = step;
+        Revalidate();
+        Modified?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>
+    /// The place a dragged step would go to when it is dropped before or after a row: next to that row, in the list it is
+    /// in. After a row that holds steps means after all of them. Pure: nothing is changed, nothing is marked.
+    /// </summary>
+    public StepDropPlan PlanDrop(Guid sourceId, Guid overRowId, DropPlacement placement)
+    {
+        var over = Rows.FirstOrDefault(row => row.Id == overRowId);
+        if (over is null)
+        {
+            return new StepDropPlan(StepDropOutcome.Rejected, null, 0, null, null, false, "That row is not in the sequence.");
+        }
+
+        var index = SiblingsOf(over).IndexOf(over) + (placement == DropPlacement.After ? 1 : 0);
+        var judged = JudgeMove(sourceId, over.Parent?.Id, index);
+        var before = placement == DropPlacement.Before;
+        return judged with { Over = over, Marker = before ? over : LastRowOf(over), MarkerBefore = before };
+    }
+
+    /// <summary>Starts dragging a step: it is selected and marked as the one being moved. Not while the sequence runs.</summary>
+    public bool BeginDrag(Guid sourceId)
+    {
+        EndDrag();
+        if (!IsEditable || Rows.FirstOrDefault(row => row.Id == sourceId) is not { } step)
+        {
+            return false;
+        }
+
+        SelectedStep = step;
+        DraggedStep = step;
+        step.IsDragSource = true;
+        return true;
+    }
+
+    /// <summary>Marks the place of a plan (the insertion line, or the refusal) and clears the marks of the plan before.</summary>
+    public void ShowDrop(StepDropPlan? plan)
+    {
+        ClearDropMarks();
+        if (plan is null)
+        {
+            return;
+        }
+
+        if (plan.IsMove && plan.Marker is { } marker && plan.Over is { } over)
+        {
+            marker.DropIndentWidth = over.IndentWidth;
+            if (plan.MarkerBefore)
+            {
+                marker.ShowsDropBefore = true;
+            }
+            else
+            {
+                marker.ShowsDropAfter = true;
+            }
+        }
+        else if (plan.Outcome == StepDropOutcome.Rejected && plan.Over is { } refused)
+        {
+            refused.IsDropRejected = true;
+        }
+    }
+
+    /// <summary>Ends the drag, whether it ended in a drop or not: all marks go.</summary>
+    public void EndDrag()
+    {
+        ClearDropMarks();
+        if (DraggedStep is { } step)
+        {
+            step.IsDragSource = false;
+            DraggedStep = null;
+        }
+    }
+
+    /// <summary>Drops the dragged step before or after a row: moves it if that is allowed, and ends the drag.</summary>
+    /// <returns>Whether the step was moved.</returns>
+    public bool Drop(Guid sourceId, Guid overRowId, DropPlacement placement)
+    {
+        var plan = PlanDrop(sourceId, overRowId, placement);
+        EndDrag();
+        return plan.IsMove && MoveStep(sourceId, plan.ParentId, plan.Index);
+    }
+
+    private void ClearDropMarks()
+    {
+        foreach (var row in Rows)
+        {
+            row.ShowsDropBefore = false;
+            row.ShowsDropAfter = false;
+            row.IsDropRejected = false;
+        }
+    }
+
+    private static StepDraftViewModel LastRowOf(StepDraftViewModel row) =>
+        row is ContainerStepDraftViewModel { Children.Count: > 0 } container ? LastRowOf(container.Children[^1]) : row;
+
+    // The judgement of a move: the structure first (what the step may be next to), then that it stays in its list, then
+    // whether it would change anything.
+    private StepDropPlan JudgeMove(Guid sourceId, Guid? parentId, int index)
+    {
+        StepDropPlan Refuse(string reason) => new(StepDropOutcome.Rejected, parentId, index, null, null, false, reason);
+
+        if (!IsEditable)
+        {
+            return Refuse("The sequence cannot be changed while it runs.");
+        }
+
+        if (Rows.FirstOrDefault(row => row.Id == sourceId) is not { } step)
+        {
+            return Refuse("That step is not in the sequence.");
+        }
+
+        ContainerStepDraftViewModel? parent = null;
+        if (parentId is { } id)
+        {
+            parent = Rows.FirstOrDefault(row => row.Id == id) as ContainerStepDraftViewModel;
+            if (parent is null)
+            {
+                return Refuse("Steps can only be put into a Repeat, a Rig Track or a Multi-Rig block.");
+            }
+
+            if (Ancestors(parent).Contains(step))
+            {
+                return Refuse("A step cannot be put into itself.");
+            }
+        }
+
+        if (!Accepts(parent, step.Kind))
+        {
+            return Refuse(WhyNotAccepted(step, parent));
+        }
+
+        if (parent != step.Parent)
+        {
+            return Refuse("Steps are reordered within their own list.");
+        }
+
+        var siblings = SiblingsOf(step);
+        if (index < 0 || index > siblings.Count)
+        {
+            return Refuse("That place is outside the list.");
+        }
+
+        var from = siblings.IndexOf(step);
+        return index == from || index == from + 1
+            ? new StepDropPlan(StepDropOutcome.Unchanged, parentId, index, null, null, false, null)
+            : new StepDropPlan(StepDropOutcome.Move, parentId, index, null, null, false, null);
+    }
+
+    private static string WhyNotAccepted(StepDraftViewModel step, ContainerStepDraftViewModel? parent)
+    {
+        var rigLocal = step.Kind is SequenceStepKind.RigExposure or SequenceStepKind.RigMoveFocuser
+            or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus;
+        var inTrack = parent is RigTrackDraftViewModel or RepeatStepDraftViewModel { IsInTrack: true };
+        return step switch
+        {
+            RepeatStepDraftViewModel when parent is RepeatStepDraftViewModel => "A Repeat cannot be put into another Repeat.",
+            MultiRigStepDraftViewModel => "A Multi-Rig block belongs at the top level of the sequence.",
+            RigTrackDraftViewModel => "A Rig Track belongs in a Multi-Rig block.",
+            _ when rigLocal => "A rig step only exists inside a Rig Track.",
+            _ when parent is MultiRigStepDraftViewModel => "A Multi-Rig block holds Rig Tracks only.",
+            _ when inTrack => $"{step.Title} is a step of the session and cannot be part of a Rig Track.",
+            _ => $"{step.Title} cannot be put there.",
+        };
+    }
+
     // The selected step and then the containers around it, innermost first.
     private static IEnumerable<StepDraftViewModel> Ancestors(StepDraftViewModel? step)
     {
@@ -543,6 +755,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Autofocus,
         RigTrackDraftViewModel => kind is SequenceStepKind.RigExposure or SequenceStepKind.Delay or SequenceStepKind.Repeat
             or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus,
+        MultiRigStepDraftViewModel => kind is SequenceStepKind.RigTrack,
         _ => false,
     };
 

@@ -68,6 +68,13 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
     [ObservableProperty]
     public partial double? BestHfr { get; private set; }
 
+    /// <summary>
+    /// What the run is doing in one line, from what it reported: "Sample 4 / 7 · HFR 2.11 px", "Fitting focus curve",
+    /// "Focused at 19970 · HFR 1.82 px". Empty until the run said something.
+    /// </summary>
+    [ObservableProperty]
+    public partial string Summary { get; private set; } = string.Empty;
+
     /// <summary>The samples of the run so far, in the order they were taken.</summary>
     public IReadOnlyList<FocusMeasurement> Measurements => _measurements;
 
@@ -96,6 +103,7 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
                     }
 
                     Show([Invariant($"Sampling {progress.SampleCount} focus positions"), .. Pass(progress)]);
+                    Summarize(Invariant($"Sampling {progress.SampleCount} positions"));
                 }
                 else
                 {
@@ -107,17 +115,21 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
                         Invariant($"HFR {progress.Hfr:0.00} px"),
                         .. Pass(progress),
                     ]);
+                    Summarize(Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount} · HFR {progress.Hfr:0.00} px"));
                 }
 
                 break;
             case AutofocusPhase.Fitting:
                 Show(["Fitting focus curve", .. Pass(progress)]);
+                Summarize("Fitting focus curve");
                 break;
             case AutofocusPhase.Moving:
                 Show(["Moving to best focus", Invariant($"{progress.BestPosition} steps")]);
+                Summarize("Moving to best focus");
                 break;
             case AutofocusPhase.Verifying:
                 Show(["Checking the focus", Invariant($"Position {progress.BestPosition}")]);
+                Summarize("Checking the focus");
                 break;
             case AutofocusPhase.Completed:
                 IsActive = false;
@@ -131,10 +143,12 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
                     "HFR",
                     Invariant($"{progress.BestHfr:0.00} px"),
                 ]);
+                Summarize(Invariant($"Focused at {progress.BestPosition} · HFR {progress.BestHfr:0.00} px"));
                 break;
             case AutofocusPhase.Stopped:
                 IsActive = false;
                 Show(["Autofocus stopped"]);
+                Summarize("Autofocus stopped");
                 break;
         }
     }
@@ -144,6 +158,8 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
         _body = body;
         Lines = Compose();
     }
+
+    private void Summarize(string summary) => Summary = summary;
 
     private IReadOnlyList<string> Compose() => Origin is null ? _body : [Origin, .. _body];
 

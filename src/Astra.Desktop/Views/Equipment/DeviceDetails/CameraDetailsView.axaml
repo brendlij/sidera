@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:equipment="using:Astra.Desktop.Views.Equipment"
+             x:Class="Astra.Desktop.Views.Equipment.DeviceDetails.CameraDetailsView"
+             x:DataType="vm:CameraDetailViewModel">
+
+    <!-- A camera: what it is doing and what is known about its sensor, the manual exposure, and where the frame goes -->
+    <equipment:DeviceDetailShell>
+        <equipment:DeviceDetailShell.OverviewContent>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="STATUS" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="8">
+                            <StackPanel Spacing="2">
+                                <ctl:InfoRow Label="Exposure" Value="{Binding Camera.ActivityText}" IsVisible="{Binding Camera.IsConnected}" />
+                                <ctl:InfoRow Label="Exposure" Value="Not connected" IsVisible="{Binding Camera.IsDisconnected}" />
+                                <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding Camera.IsExposing}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="SENSOR" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="2">
+                            <ctl:InfoRow Label="Resolution" Value="{Binding ResolutionText}" />
+                            <ctl:InfoRow Label="Pixel size" Value="{Binding PixelSizeText}" />
+                            <ctl:InfoRow Label="Sensor size" Value="{Binding SensorText}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </equipment:DeviceDetailShell.OverviewContent>
+
+        <equipment:DeviceDetailShell.ControlsContent>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="MANUAL EXPOSURE" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="16">
+                            <ctl:FieldRow Label="Exposure time" Unit="s"><TextBox Text="{Binding Camera.ExposureInput}" /></ctl:FieldRow>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Content="Start Exposure" Command="{Binding Camera.StartExposureCommand}" />
+                                <Button Classes="danger" Content="Cancel Exposure" Command="{Binding Camera.CancelExposureCommand}"
+                                        IsVisible="{Binding Camera.IsManualExposureRunning}" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Camera.ExposureProgress}" IsVisible="{Binding Camera.IsExposing}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="PREVIEW" />
+                    <Border Classes="panel">
+                        <ctl:InfoRow Label="Last frame" Value="{Binding Camera.LastFrameText}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </equipment:DeviceDetailShell.ControlsContent>
+    </equipment:DeviceDetailShell>
+</UserControl>

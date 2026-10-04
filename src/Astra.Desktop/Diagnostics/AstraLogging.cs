@@ -16,12 +16,16 @@ public sealed class AstraLogging : IDisposable
 {
     private readonly RollingFileLoggerProvider _file;
 
-    private AstraLogging(LoggingOptions options, ILoggerFactory factory, RollingFileLoggerProvider file)
+    private AstraLogging(LoggingOptions options, ILoggerFactory factory, RollingFileLoggerProvider file, LogSummary summary)
     {
         Options = options;
         Factory = factory;
         _file = file;
+        Summary = summary;
     }
+
+    /// <summary>The warnings and errors of this session, for the diagnostics page.</summary>
+    public LogSummary Summary { get; }
 
     public LoggingOptions Options { get; }
 
@@ -31,7 +35,7 @@ public sealed class AstraLogging : IDisposable
     public string CurrentFilePath => _file.CurrentFilePath;
 
     /// <summary>What the diagnostics page shows.</summary>
-    public LogInfo Info(string sessionId) => new(Options.LogDirectory, CurrentFilePath, Options.MinimumLevel, sessionId);
+    public LogInfo Info(string sessionId) => new(Options.LogDirectory, CurrentFilePath, Options.MinimumLevel, sessionId, Summary);
 
     /// <summary>
     /// Console and file, at the level of <paramref name="options"/>. Microsoft's own categories only report warnings and
@@ -41,6 +45,7 @@ public sealed class AstraLogging : IDisposable
     {
         options.Validate();
         var file = new RollingFileLoggerProvider(options);
+        var summary = new LogSummary();
         var factory = LoggerFactory.Create(builder =>
         {
             builder.SetMinimumLevel(options.MinimumLevel);
@@ -58,9 +63,10 @@ public sealed class AstraLogging : IDisposable
             }
 
             builder.AddProvider(file);
+            builder.AddProvider(summary);
         });
 
-        return new AstraLogging(options, factory, file);
+        return new AstraLogging(options, factory, file, summary);
     }
 
     /// <summary>
@@ -76,6 +82,14 @@ public sealed class AstraLogging : IDisposable
         logger.LogInformation(
             "Logging to {LogFile} at level {MinimumLevel}; files older than {RetentionDays} days are removed",
             info.CurrentFile, info.MinimumLevel, LoggingOptions.DefaultRetentionDays);
+    }
+
+    /// <summary>The version for people: "1.0.0 (751a2d5)" instead of the whole commit hash.</summary>
+    public static string DisplayVersion()
+    {
+        var version = Version();
+        var plus = version.IndexOf('+');
+        return plus > 0 && version.Length - plus - 1 >= 7 ? $"{version[..plus]} ({version.Substring(plus + 1, 7)})" : version;
     }
 
     public static string Version() =>
@@ -99,4 +113,5 @@ public sealed class AstraLogging : IDisposable
 }
 
 /// <summary>Where the log of this session is and how much it says; shown by the diagnostics page.</summary>
-public sealed record LogInfo(string Directory, string? CurrentFile, LogLevel MinimumLevel, string SessionId);
+public sealed record LogInfo(
+    string Directory, string? CurrentFile, LogLevel MinimumLevel, string SessionId, LogSummary? Summary = null);

@@ -12,13 +12,15 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Astra.Desktop.ViewModels;
 
+/// <summary>The pages of the application. The first four are the work, the last two the care of the application.</summary>
 public enum AppPage
 {
     Dashboard,
-    Equipment,
-    Sequencer,
+    Session,
     Imaging,
-    Diagnostics
+    Equipment,
+    Diagnostics,
+    Settings
 }
 
 /// <summary>
@@ -36,7 +38,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         ISequenceDocumentStore? store = null,
         ISequenceFilePicker? filePicker = null,
         LogInfo? logInfo = null,
-        IFolderOpener? folderOpener = null)
+        IFolderOpener? folderOpener = null,
+        IClipboardService? clipboard = null)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -50,19 +53,31 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory);
-        Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener);
+        Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
+        Settings = new SettingsViewModel(logInfo);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(
             SequenceDraft, store ?? SequenceDocumentStore.CreateDefault(), filePicker ?? new NoSequenceFilePicker());
-        SequencerPage = new SequencerPageViewModel(
-            SequenceDocument, SequenceDraft, Sequencer, new SharedEquipmentViewModel(SequenceDraft, Equipment));
+        var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);
+        Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
+        SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution);
         Dashboard = new DashboardViewModel(
-            Runtime, Sequencer, Imaging,
-            Equipment.Rigs.FirstOrDefault(),
-            Equipment.Cameras.FirstOrDefault(c => c.CameraId == DemoSetup.MainCameraId) ?? Equipment.Cameras.FirstOrDefault(),
-            Equipment.Mounts.FirstOrDefault(),
-            Equipment.Guiders.FirstOrDefault());
+            Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, postToUi, page => SelectedPage = page);
+
+        PrimaryNavigation =
+        [
+            Item(AppPage.Dashboard, "Dashboard", "IconDashboard"),
+            Item(AppPage.Session, "Session", "IconSession"),
+            Item(AppPage.Imaging, "Imaging", "IconImaging"),
+            Item(AppPage.Equipment, "Equipment", "IconEquipment"),
+        ];
+        SecondaryNavigation =
+        [
+            Item(AppPage.Diagnostics, "Diagnostics", "IconDiagnostics"),
+            Item(AppPage.Settings, "Settings", "IconSettings"),
+        ];
+        UpdateNavigation();
 
         // The runtime summary and the "can the sequence start" hint follow the equipment and the sequence.
         foreach (var device in Equipment.Devices)
@@ -83,34 +98,49 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public SequenceDraftViewModel SequenceDraft { get; }
     public SequenceDocumentViewModel SequenceDocument { get; }
     public SequencerViewModel Sequencer { get; }
-    public SequencerPageViewModel SequencerPage { get; }
+    public SessionPageViewModel SessionPage { get; }
+    public ExecutionOverviewViewModel Execution { get; }
     public ImagingViewModel Imaging { get; }
     public RuntimeStatusViewModel Runtime { get; }
     public DiagnosticsViewModel Diagnostics { get; }
+    public SettingsViewModel Settings { get; }
+
+    /// <summary>The sidebar entries of the work: dashboard, session, imaging, equipment.</summary>
+    public IReadOnlyList<NavItemViewModel> PrimaryNavigation { get; }
+
+    /// <summary>The sidebar entries below the separator: diagnostics and settings.</summary>
+    public IReadOnlyList<NavItemViewModel> SecondaryNavigation { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
-    [NotifyPropertyChangedFor(nameof(IsDashboardSelected))]
-    [NotifyPropertyChangedFor(nameof(IsEquipmentSelected))]
-    [NotifyPropertyChangedFor(nameof(IsSequencerSelected))]
-    [NotifyPropertyChangedFor(nameof(IsImagingSelected))]
-    [NotifyPropertyChangedFor(nameof(IsDiagnosticsSelected))]
+    [NotifyPropertyChangedFor(nameof(PageTitle))]
     public partial AppPage SelectedPage { get; private set; }
 
     public ViewModelBase CurrentPage => SelectedPage switch
     {
-        AppPage.Equipment => Equipment,
-        AppPage.Sequencer => SequencerPage,
+        AppPage.Session => SessionPage,
         AppPage.Imaging => Imaging,
+        AppPage.Equipment => Equipment,
         AppPage.Diagnostics => Diagnostics,
+        AppPage.Settings => Settings,
         _ => Dashboard,
     };
 
-    public bool IsDashboardSelected => SelectedPage == AppPage.Dashboard;
-    public bool IsEquipmentSelected => SelectedPage == AppPage.Equipment;
-    public bool IsSequencerSelected => SelectedPage == AppPage.Sequencer;
-    public bool IsImagingSelected => SelectedPage == AppPage.Imaging;
-    public bool IsDiagnosticsSelected => SelectedPage == AppPage.Diagnostics;
+    /// <summary>The name of the current page, as the sidebar names it.</summary>
+    public string PageTitle => SelectedPage.ToString();
+
+    partial void OnSelectedPageChanged(AppPage value) => UpdateNavigation();
+
+    private NavItemViewModel Item(AppPage page, string title, string iconKey) =>
+        new(page, title, iconKey, new RelayCommand(() => SelectedPage = page));
+
+    private void UpdateNavigation()
+    {
+        foreach (var item in PrimaryNavigation.Concat(SecondaryNavigation))
+        {
+            item.IsSelected = item.Page == SelectedPage;
+        }
+    }
 
     [RelayCommand]
     private void Navigate(AppPage page) => SelectedPage = page;
@@ -158,6 +188,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        Dashboard.Dispose();
+        Execution.Dispose();
+        Diagnostics.Dispose();
         Imaging.Dispose();
         Sequencer.Dispose();
         Equipment.Dispose();

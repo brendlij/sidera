@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Astra.Core.Devices;
 using Astra.Core.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Astra.Desktop.ViewModels;
 
@@ -36,6 +37,10 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(HasFrame))]
     [NotifyPropertyChangedFor(nameof(DimensionsText))]
     [NotifyPropertyChangedFor(nameof(ExposureText))]
+    [NotifyPropertyChangedFor(nameof(DisplayWidth))]
+    [NotifyPropertyChangedFor(nameof(DisplayHeight))]
+    [NotifyPropertyChangedFor(nameof(FrameWidth))]
+    [NotifyPropertyChangedFor(nameof(FrameHeight))]
     public partial CameraFrame? LatestFrame { get; private set; }
 
     /// <summary>Where the frame came from, for example "Main Camera (manual)" or "Demo sequence".</summary>
@@ -52,6 +57,7 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     /// <summary>Where the analysis of the latest frame stands.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAnalyzing))]
+    [NotifyPropertyChangedFor(nameof(AnalysisSummaryText))]
     public partial FrameAnalysisState AnalysisState { get; private set; }
 
     /// <summary>The metrics of the latest frame; <c>null</c> until its analysis is done, and when it failed.</summary>
@@ -62,11 +68,14 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(BackgroundText))]
     [NotifyPropertyChangedFor(nameof(NoiseText))]
     [NotifyPropertyChangedFor(nameof(SaturatedText))]
+    [NotifyPropertyChangedFor(nameof(AnalysisSummaryText))]
+    [NotifyPropertyChangedFor(nameof(HasUsableStars))]
     public partial FrameMetrics? Metrics { get; private set; }
 
     /// <summary>Why the analysis of the latest frame gave nothing (no stars, a failure), or <c>null</c>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasAnalysisMessage))]
+    [NotifyPropertyChangedFor(nameof(AnalysisSummaryText))]
     public partial string? AnalysisMessage { get; private set; }
 
     /// <summary>The stars of the latest frame, for the overlay; empty until the analysis is done.</summary>
@@ -77,12 +86,56 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial bool ShowStars { get; set; }
 
+    /// <summary>The frame is shown pixel for pixel (1:1), scrolled when it is bigger than the view; otherwise it is fitted to the view.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFitToView))]
+    [NotifyPropertyChangedFor(nameof(DisplayWidth))]
+    [NotifyPropertyChangedFor(nameof(DisplayHeight))]
+    [NotifyPropertyChangedFor(nameof(ScrollVisibility))]
+    public partial bool IsActualSize { get; set; }
+
+    public bool IsFitToView => !IsActualSize;
+
+    /// <summary>The width of the latest frame in pixels, 0 without one.</summary>
+    public double FrameWidth => LatestFrame?.Width ?? 0;
+
+    public double FrameHeight => LatestFrame?.Height ?? 0;
+
+    /// <summary>The size the frame is laid out at: its own size at 1:1, <c>NaN</c> (as much as there is) when fitted.</summary>
+    public double DisplayWidth => IsActualSize && LatestFrame is { } frame ? frame.Width : double.NaN;
+
+    public double DisplayHeight => IsActualSize && LatestFrame is { } frame ? frame.Height : double.NaN;
+
+    /// <summary>Fitted frames never scroll; a frame at 1:1 does when it is bigger than the view.</summary>
+    public Avalonia.Controls.Primitives.ScrollBarVisibility ScrollVisibility => IsActualSize
+        ? Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+        : Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
+
+    [RelayCommand]
+    private void Fit() => IsActualSize = false;
+
+    [RelayCommand]
+    private void ActualSize() => IsActualSize = true;
+
     /// <summary>The analysis of the latest frame; completed when it is done (or was dropped). For callers that wait.</summary>
     public Task AnalysisCompletion { get; private set; } = Task.CompletedTask;
 
     public bool CanAnalyze => _analyzer is not null;
 
     public bool HasMetrics => Metrics is not null;
+
+    /// <summary>The frame has stars its focus can be judged by: the median HFR is a number.</summary>
+    public bool HasUsableStars => Metrics?.MedianHfr is not null;
+
+    /// <summary>
+    /// The analysis of the latest frame in one line, for the dashboard: "42 stars · HFR 1.79 px", or why there is none
+    /// ("Analysing frame…", "No stars were detected in this frame."). Empty when frames are not analysed.
+    /// </summary>
+    public string AnalysisSummaryText => Metrics is { } m
+        ? m.MedianHfr is { } hfr
+            ? string.Create(CultureInfo.InvariantCulture, $"{m.UsableStarCount} stars · HFR {hfr:0.00} px")
+            : AnalysisMessage ?? "No usable stars"
+        : IsAnalyzing ? "Analysing frame…" : AnalysisMessage ?? string.Empty;
 
     public bool IsAnalyzing => AnalysisState == FrameAnalysisState.Analyzing;
 

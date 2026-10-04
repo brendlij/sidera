@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:equipment="using:Astra.Desktop.Views.Equipment"
+             x:Class="Astra.Desktop.Views.Equipment.DeviceDetails.MountDetailsView"
+             x:DataType="vm:MountDetailViewModel">
+
+    <!-- A mount: where it points and what it is doing, and a slew to coordinates -->
+    <equipment:DeviceDetailShell>
+        <equipment:DeviceDetailShell.OverviewContent>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="STATUS" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="2">
+                            <ctl:InfoRow Label="Motion" Value="{Binding Mount.ActivityText}" IsVisible="{Binding Mount.IsConnected}" />
+                            <ctl:InfoRow Label="Motion" Value="Not connected" IsVisible="{Binding Mount.IsDisconnected}" />
+                            <ctl:InfoRow Label="Coordinates" Value="{Binding Mount.CoordinatesText}" />
+                            <ctl:InfoRow Label="Used by" Value="The whole session" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </equipment:DeviceDetailShell.OverviewContent>
+
+        <equipment:DeviceDetailShell.ControlsContent>
+            <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Left">
+                <TextBlock Classes="eyebrow" Text="SLEW" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="16">
+                        <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding Mount.RightAscensionInput}" /></ctl:FieldRow>
+                        <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding Mount.DeclinationInput}" /></ctl:FieldRow>
+                        <Button Classes="primary" Content="Slew" Command="{Binding Mount.SlewCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </equipment:DeviceDetailShell.ControlsContent>
+    </equipment:DeviceDetailShell>
+</UserControl>

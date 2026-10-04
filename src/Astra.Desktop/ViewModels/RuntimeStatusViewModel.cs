@@ -28,6 +28,9 @@ public sealed partial class RuntimeStatusViewModel : ViewModelBase
     /// <summary>Astra runs on this computer only.</summary>
     public string ModeText => "Standalone · local runtime";
 
+    /// <summary>The runtime is part of the application: it is there for as long as the window is.</summary>
+    public string StatusText => "Runtime online";
+
     [ObservableProperty]
     public partial int DeviceCount { get; private set; }
 

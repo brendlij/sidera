@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Astra.Desktop.ViewModels"
+             xmlns:ctl="using:Astra.Desktop.Controls"
+             xmlns:conv="using:Astra.Desktop.Converters"
+             x:Class="Astra.Desktop.Views.Settings.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <!-- Settings: the groups they will live in, and what is decided today. No switch that does nothing. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="760" HorizontalAlignment="Left">
+            <ctl:PageHeader Title="Settings" />
+            <Border Classes="notice-info">
+                <TextBlock Classes="secondary" Text="{Binding NoteText}" TextWrapping="Wrap" />
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="24" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingsGroup">
+                        <StackPanel Spacing="12">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="eyebrow" Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}" />
+                                <TextBlock Classes="secondary" Text="{Binding Description}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Border Classes="panel" IsVisible="{Binding HasRows}">
+                                <ItemsControl ItemsSource="{Binding Rows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SettingRow">
+                                            <ctl:InfoRow Label="{Binding Label}" Value="{Binding Value}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

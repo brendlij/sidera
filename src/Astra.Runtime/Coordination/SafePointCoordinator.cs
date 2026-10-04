@@ -169,7 +169,6 @@ public sealed class SafePointCoordinator
 
         Task waitForEnd;
         Group g;
-        int required, safe;
         lock (_gate)
         {
             if (!_groups.TryGetValue(group, out g!) || !g.Participants.ContainsKey(participant) || g.Active is null)
@@ -178,14 +177,16 @@ public sealed class SafePointCoordinator
             }
 
             g.Participants[participant] = ParticipantState.AtSafePoint;
+            var (required, safe) = Count(g, g.Active);
+
+            // Logged before the barrier is completed, so that the trail reads in the order things happened: the arrival, and
+            // only then the operation it releases. (The logger queues the entry; it does not wait for any sink.)
+            _logger.LogDebug(
+                "Group {CoordinationGroupId}: participant {ParticipantId} reached a safe point ({Arrived} of {Required} required are safe)",
+                group, participant, safe, required);
             CheckBarrier(g);
             waitForEnd = g.Active.Done.Task;
-            (required, safe) = Count(g, g.Active);
         }
-
-        _logger.LogDebug(
-            "Group {CoordinationGroupId}: participant {ParticipantId} reached a safe point ({Arrived} of {Required} required are safe)",
-            group, participant, safe, required);
 
         try
         {

@@ -1,0 +1,126 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Surfaces. Four levels, from the darkest: window and sidebar, workspace, panel, raised. Most things sit on the
+        workspace without a box of their own; a panel is used for a group that has to read as one thing, and borders are rare.
+    -->
+    <Style Selector="Border.sidebar">
+        <Setter Property="Background" Value="{DynamicResource AstraBg0}" />
+    </Style>
+    <Style Selector="Border.workspace">
+        <Setter Property="Background" Value="{DynamicResource AstraBg1}" />
+    </Style>
+    <Style Selector="Border.panel">
+        <Setter Property="Background" Value="{DynamicResource AstraBg2}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+        <Setter Property="Padding" Value="{StaticResource InsetPanel}" />
+    </Style>
+    <Style Selector="Border.panel.flush">
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Border.panel.compact">
+        <Setter Property="Padding" Value="12,10" />
+    </Style>
+    <Style Selector="Border.raised">
+        <Setter Property="Background" Value="{DynamicResource AstraBg3}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Border.preview">
+        <Setter Property="Background" Value="{DynamicResource AstraPreview}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.divider">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource AstraLine}" />
+    </Style>
+    <Style Selector="Border.vdivider">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource AstraLine}" />
+    </Style>
+    <Style Selector="Border.notice-danger">
+        <Setter Property="Background" Value="{DynamicResource AstraDangerTint}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Border.notice-info">
+        <Setter Property="Background" Value="{DynamicResource AstraAccentTint}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <!-- Sidebar navigation: a quiet row, the current page with a tint and an accent bar -->
+    <Style Selector="Button.nav">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource AstraTextSecondary}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AstraBg2}" />
+        <Setter Property="Foreground" Value="{DynamicResource AstraText}" />
+    </Style>
+    <Style Selector="Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AstraAccentTint}" />
+        <Setter Property="Foreground" Value="{DynamicResource AstraText}" />
+    </Style>
+    <Style Selector="Button.nav Border.navMarker">
+        <Setter Property="Width" Value="3" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="Margin" Value="0,8" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.nav.active Border.navMarker">
+        <Setter Property="Background" Value="{DynamicResource AstraAccent}" />
+    </Style>
+    <Style Selector="Button.nav.active PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource AstraAccent}" />
+    </Style>
+
+    <!-- The dot in front of a step of a running sequence: hollow while it waits, filled when it ran -->
+    <Style Selector="Ellipse.step-dot">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Fill" Value="Transparent" />
+        <Setter Property="Stroke" Value="{DynamicResource AstraLineStrong}" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Ellipse.step-dot.active">
+        <Setter Property="Fill" Value="{DynamicResource AstraAccent}" />
+        <Setter Property="Stroke" Value="{DynamicResource AstraAccent}" />
+    </Style>
+    <Style Selector="Ellipse.step-dot.done">
+        <Setter Property="Fill" Value="{DynamicResource AstraOk}" />
+        <Setter Property="Stroke" Value="{DynamicResource AstraOk}" />
+    </Style>
+    <Style Selector="Ellipse.step-dot.failed">
+        <Setter Property="Fill" Value="{DynamicResource AstraDanger}" />
+        <Setter Property="Stroke" Value="{DynamicResource AstraDanger}" />
+    </Style>
+
+    <!-- A block of equipment or a track, on a panel: a card that can be opened -->
+    <Style Selector="Border.card-selected">
+        <Setter Property="Background" Value="{DynamicResource AstraAccentTint}" />
+    </Style>
+
+    <!-- A lane of a Multi-Rig block: the track has a bar of its own on the left -->
+    <Style Selector="Border.lane-bar">
+        <Setter Property="Width" Value="3" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="Background" Value="{DynamicResource AstraAccent}" />
+    </Style>
+    <Style Selector="Border.lane-bar.idle">
+        <Setter Property="Background" Value="{DynamicResource AstraLineStrong}" />
+    </Style>
+    <Style Selector="Border.lane-bar.danger">
+        <Setter Property="Background" Value="{DynamicResource AstraDanger}" />
+    </Style>
+    <Style Selector="Border.lane-bar.ok">
+        <Setter Property="Background" Value="{DynamicResource AstraOk}" />
+    </Style>
+</Styles>
