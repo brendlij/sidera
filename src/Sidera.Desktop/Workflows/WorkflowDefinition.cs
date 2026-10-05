@@ -101,8 +101,12 @@ public sealed record WorkflowDefinition(
     IReadOnlyList<ImagingBlock> Imaging,
     IReadOnlyList<WorkflowStep> Finish,
     WorkflowDither Dither,
-    IReadOnlyList<SetupAutofocus> AutofocusPolicies)
+    IReadOnlyList<SetupAutofocus> AutofocusPolicies,
+    Sidera.Core.Mounts.MeridianFlipSettings? MeridianFlip = null)
 {
+    /// <summary>The meridian flip of the workflow; off when the workflow has none.</summary>
+    public Sidera.Core.Mounts.MeridianFlipSettings FlipSettings => MeridianFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings();
+
     /// <summary>A workflow with a target and nothing else.</summary>
     public static WorkflowDefinition Empty { get; } = new(WorkflowTarget.Default, [], [], [], WorkflowDither.Off, []);
 

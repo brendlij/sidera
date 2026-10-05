@@ -170,7 +170,12 @@ public static class SequenceDraftBuilder
             MultiRigStepDraft m => new(
                 MultiRigName,
                 (m.Tracks.Count == 0 ? "no rig tracks" : m.Tracks.Count == 1 ? "1 rig track" : $"{m.Tracks.Count} rig tracks")
-                + (m.DitherPolicy is { Enabled: true } policy ? "\n" + DescribePolicy(policy, context) : string.Empty)),
+                + (m.DitherPolicy is { Enabled: true } policy ? "\n" + DescribePolicy(policy, context) : string.Empty)
+                + (m.MeridianFlip is { IsEnabled: true } flip
+                    ? string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"\nMeridian flip: hold {flip.Settings.PauseBeforeMeridianMinutes:0.#} min before · flip {flip.Settings.FlipAfterMeridianMinutes:0.#} min after the meridian · latest {flip.Settings.LatestAllowedFlipMinutes:0.#} min")
+                    : string.Empty)),
             _ => new(step.Kind.ToString(), string.Empty),
         };
     }
@@ -954,6 +959,7 @@ public static class SequenceDraftBuilder
             }
 
             DitherPolicy(multiRig, label);
+            FlipPolicy(multiRig);
 
             var rigs = new HashSet<RigId>();
             var cameras = new HashSet<DeviceId>();
@@ -961,6 +967,72 @@ public static class SequenceDraftBuilder
             {
                 _ids.Add(track.Id);
                 Track(track, rigs, cameras);
+            }
+        }
+
+        // The meridian flip of a block, when it is on: settings that make sense, a target, a setup with a mount, and what the flip uses afterwards (plate solving, autofocus, a guider that settles
+        // and dithers). A policy that is off is not looked at.
+        private void FlipPolicy(MultiRigStepDraft multiRig)
+        {
+            if (multiRig.MeridianFlip is not { IsEnabled: true } flip)
+            {
+                return;
+            }
+
+            var problems = new List<string>(flip.Settings.Problems());
+            if (!double.IsFinite(flip.RightAscensionHours) || flip.RightAscensionHours is < 0 or >= 24 || !double.IsFinite(flip.DeclinationDegrees) || flip.DeclinationDegrees is < -90 or > 90)
+            {
+                problems.Add("The meridian flip needs a target: right ascension 0 to 24 hours, declination -90 to 90 degrees.");
+            }
+
+            var onMounts = multiRig.Tracks
+                .Where(track => track.RigId is { } id && TryGetRig(context, id, out var rig) && StepScopes.EffectiveMount(rig, null, context?.Shared) is not null)
+                .ToList();
+            if (onMounts.Count == 0)
+            {
+                problems.Add("The meridian flip needs a setup with a mount. Give a rig a mount on the Equipment page.");
+            }
+
+            if (flip.PointingRigId is { } pointing && multiRig.Tracks.All(track => track.RigId != pointing))
+            {
+                problems.Add($"The pointing setup '{pointing}' is not a track of this block.");
+            }
+
+            if (flip.Settings.RecenterAfterFlip && context?.PlateSolving is null)
+            {
+                problems.Add("Centering after the flip needs plate solving, which is not available. Switch the recentering off or set up a plate solver.");
+            }
+
+            if (flip.Settings.AutofocusAfterFlip && context?.FocusMetrics is null)
+            {
+                problems.Add("Autofocus is not available: there is nothing to measure focus with.");
+            }
+
+            if (flip.SettleStableSeconds <= 0 || flip.SettleTimeoutSeconds <= flip.SettleStableSeconds)
+            {
+                problems.Add("Settling after the flip needs a stable time greater than 0 and a timeout longer than it.");
+            }
+
+            foreach (var track in onMounts)
+            {
+                TryGetRig(context, track.RigId!.Value, out var rig);
+                if (StepScopes.EffectiveGuider(rig, null, context?.Shared) is { } guiderId && registry.TryGet(guiderId, out var guider) && guider is IGuider)
+                {
+                    if (flip.Settings.DitherAfterFlip && guider is not IDitherGuider)
+                    {
+                        problems.Add($"Guider '{guiderId}' does not support dithering, which the flip is set to do afterwards.");
+                    }
+
+                    if (flip.Settings.RestartGuidingAfterFlip && guider is not IGuidingSettler)
+                    {
+                        problems.Add($"Guider '{guiderId}' does not support settling, which the flip waits for after it restarts guiding.");
+                    }
+                }
+            }
+
+            foreach (var problem in problems.Distinct())
+            {
+                Report(multiRig.Id, problem);
             }
         }
 

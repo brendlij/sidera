@@ -202,6 +202,65 @@
                             <TextBlock Classes="secondary" Text="{Binding DitherSummary}" TextWrapping="Wrap" AutomationProperties.AutomationId="WorkflowDitherSummary" />
                         </StackPanel>
                     </Border>
+
+                    <!-- The meridian flip: a policy, not steps. It holds new exposures that would not fit, and flips the mount once for every setup on it. -->
+                    <Border Classes="panel" Padding="20,16" Margin="0,8,0,0">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="eyebrow" Text="MERIDIAN FLIP" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="secondary accent" Text="{Binding MeridianInfoText}" IsVisible="{Binding HasMeridianInfo}" AutomationProperties.AutomationId="WorkflowMeridianInfo" />
+                            </Grid>
+                            <CheckBox Content="Flip at the meridian" IsChecked="{Binding FlipEnabled}" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowFlipEnabled" />
+                            <StackPanel Spacing="12" IsVisible="{Binding FlipEnabled}" IsEnabled="{Binding IsEditable}">
+                                <TextBlock Classes="meta" Text="TIMING (minutes from the moment the target is on the meridian)" />
+                                <WrapPanel ItemSpacing="16" LineSpacing="8">
+                                    <ctl:LabeledField Label="Hold new exposures before"><TextBox Text="{Binding FlipPauseBeforeText}" Width="90" AutomationProperties.AutomationId="WorkflowFlipPauseBefore" /></ctl:LabeledField>
+                                    <ctl:LabeledField Label="Flip after"><TextBox Text="{Binding FlipAfterText}" Width="90" AutomationProperties.AutomationId="WorkflowFlipAfter" /></ctl:LabeledField>
+                                    <ctl:LabeledField Label="Latest allowed flip"><TextBox Text="{Binding FlipLatestText}" Width="90" AutomationProperties.AutomationId="WorkflowFlipLatest" /></ctl:LabeledField>
+                                </WrapPanel>
+                                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="{Binding FlipSummary}" />
+                                <TextBlock Classes="meta" Text="BEFORE THE FLIP" />
+                                <WrapPanel ItemSpacing="20" LineSpacing="4">
+                                    <CheckBox Content="Finish the current exposure" IsChecked="{Binding FlipFinishCurrentExposure, Mode=OneWay}" IsEnabled="False" ToolTip.Tip="Always on: an exposure is never aborted for a flip." />
+                                    <CheckBox Content="Stop guiding" IsChecked="{Binding FlipStopGuiding}" />
+                                </WrapPanel>
+                                <TextBlock Classes="meta" Text="AFTER THE FLIP" />
+                                <WrapPanel ItemSpacing="20" LineSpacing="4">
+                                    <CheckBox Content="Recenter" IsChecked="{Binding FlipRecenter}" AutomationProperties.AutomationId="WorkflowFlipRecenter" />
+                                    <CheckBox Content="Verify rotation" IsChecked="{Binding FlipRotation}" />
+                                    <CheckBox Content="Autofocus" IsChecked="{Binding FlipAutofocus}" AutomationProperties.AutomationId="WorkflowFlipAutofocus" />
+                                    <CheckBox Content="Restart guiding" IsChecked="{Binding FlipRestartGuiding}" />
+                                    <CheckBox Content="Dither" IsChecked="{Binding FlipDither}" AutomationProperties.AutomationId="WorkflowFlipDither" />
+                                </WrapPanel>
+                                <WrapPanel ItemSpacing="16" LineSpacing="8">
+                                    <ctl:LabeledField Label="Pause after (min)"><TextBox Text="{Binding FlipPauseAfterText}" Width="90" AutomationProperties.AutomationId="WorkflowFlipPauseAfter" /></ctl:LabeledField>
+                                    <ctl:LabeledField Label="Attempts"><TextBox Text="{Binding FlipAttemptsText}" Width="70" /></ctl:LabeledField>
+                                    <ctl:LabeledField Label="Centering tolerance (&quot;)"><TextBox Text="{Binding FlipToleranceText}" Width="90" /></ctl:LabeledField>
+                                    <ctl:LabeledField Label="Centering attempts"><TextBox Text="{Binding FlipCenterAttemptsText}" Width="90" /></ctl:LabeledField>
+                                </WrapPanel>
+                                <CheckBox Content="If the flip fails, hold the setups of that mount and ask me (off: end the session)" IsChecked="{Binding FlipPauseOnFailure}" />
+                                <TextBlock Classes="meta" TextWrapping="Wrap"
+                                           Text="In this order: stop guiding, flip, center, rotate, autofocus, restart guiding and settle, dither, pause. The mount is never synchronized. The flip happens once for every setup on a mount, and other mounts keep imaging." />
+                            </StackPanel>
+
+                            <!-- What the flips of a run are doing -->
+                            <ItemsControl ItemsSource="{Binding FlipStatuses}" IsVisible="{Binding HasFlipStatus}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MeridianFlipStatusViewModel">
+                                        <StackPanel Spacing="4" Margin="0,6,0,0">
+                                            <TextBlock Classes="card-title" Text="{Binding Title}" />
+                                            <TextBlock Classes="secondary" Text="{Binding SetupsText}" />
+                                            <TextBlock Classes="value" Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding IsActive}" AutomationProperties.AutomationId="WorkflowFlipMessage" />
+                                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaitingForDecision}">
+                                                <Button Classes="primary" Content="Retry the flip" Command="{Binding RetryCommand}" AutomationProperties.AutomationId="WorkflowFlipRetry" />
+                                                <Button Classes="danger" Content="Abort the session" Command="{Binding AbortCommand}" AutomationProperties.AutomationId="WorkflowFlipAbort" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Finish -->

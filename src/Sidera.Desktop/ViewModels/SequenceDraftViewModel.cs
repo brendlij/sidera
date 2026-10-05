@@ -229,7 +229,20 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
-    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation);
+    private SequenceDraftContext Context => new(
+        _rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation, Time: Clock, Site: SiteProvider);
+
+    /// <summary>The observing site of the application, for what needs the sky (the meridian flip); <c>null</c> where there is none.</summary>
+    public Func<Sidera.Core.Location.ObservingSite?>? SiteProvider { get; set; }
+
+    /// <summary>The clock the sky follows; <c>null</c> is the real one. For tests.</summary>
+    public TimeProvider? Clock { get; set; }
+
+    /// <summary>The meridian flips of the sequence that was built last, one for each mount; what the status of a run follows.</summary>
+    public IReadOnlyList<Sidera.Runtime.Sequencing.MeridianFlipGroup> FlipGroups { get; private set; } = [];
+
+    /// <summary>Raised when a sequence was built (a run is starting) and <see cref="FlipGroups"/> changed.</summary>
+    public event EventHandler? FlipGroupsChanged;
 
     // New steps use the shared equipment of the session wherever they have a mount or a guider.
     private SequenceDraftDefaults EffectiveDefaults => _defaults with
@@ -254,7 +267,30 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             throw new SequenceConfigurationException(ValidationErrors);
         }
 
-        return SequenceDraftBuilder.Build(_registry, Snapshot(), Context);
+        var built = SequenceDraftBuilder.Build(_registry, Snapshot(), Context);
+        FlipGroups = FlipGroupsOf(built.Steps);
+        FlipGroupsChanged?.Invoke(this, EventArgs.Empty);
+        return built;
+    }
+
+    private static List<Sidera.Runtime.Sequencing.MeridianFlipGroup> FlipGroupsOf(IEnumerable<BuiltStep> steps)
+    {
+        var groups = new List<Sidera.Runtime.Sequencing.MeridianFlipGroup>();
+        void Walk(IEnumerable<BuiltStep> level)
+        {
+            foreach (var step in level)
+            {
+                if (step.Step is Sidera.Runtime.Sequencing.MeridianGateStep gate && !groups.Contains(gate.Group))
+                {
+                    groups.Add(gate.Group);
+                }
+
+                Walk(step.Children ?? []);
+            }
+        }
+
+        Walk(steps);
+        return groups;
     }
 
     /// <summary>Reads all fields again and validates. Also catches a device that disappeared since the last time.</summary>
@@ -967,7 +1003,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                     multiRig.Id,
                     multiRig.Children.Select(track => (RigTrackDraft)ReadStep(track, parseErrors)).ToList(),
                     multiRig.ReadPolicy(errors),
-                    multiRig.SingleTrack);
+                    multiRig.SingleTrack,
+                    multiRig.MeridianFlip);
                 break;
             default:
                 draft = step.Read(errors);

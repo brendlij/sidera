@@ -77,7 +77,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             SequenceDraft, store ?? SequenceDocumentStore.CreateDefault(), filePicker ?? new NoSequenceFilePicker());
         var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
-        Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution);
+        SequenceDraft.SiteProvider = () => equipmentManagement?.Site?.Site;
+        Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site);
         SequenceDocument.Workflow = Workflow;
         SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, Workflow);
         Dashboard = new DashboardViewModel(

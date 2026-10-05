@@ -133,7 +133,8 @@ public static class WorkflowCompiler
                 tracks.Add(new RigTrackDraft(trackId, rig.Id, trackSteps, PolicyOf(workflow, rig, blocksOf[rig.Id][0].Id, problems)));
             }
 
-            steps.Add(new MultiRigStepDraft(Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true));
+            steps.Add(new MultiRigStepDraft(
+                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, setups, blocksOf, problems)));
         }
 
         foreach (var step in workflow.Finish.Where(s => s.Enabled))
@@ -253,6 +254,33 @@ public static class WorkflowCompiler
                 }
             }
         }
+    }
+
+    // The meridian flip of the Imaging section: for every mount of the imaged setups, once, for all the setups on it. The target it slews back to is the target of the workflow.
+    private static MeridianFlipPolicyDraft? FlipOf(
+        WorkflowDefinition workflow, IReadOnlyList<Rig> setups, IReadOnlyDictionary<RigId, List<ImagingBlock>> blocksOf, List<WorkflowProblem> problems)
+    {
+        var settings = workflow.FlipSettings;
+        if (!settings.Enabled)
+        {
+            return null;
+        }
+
+        foreach (var problem in settings.Problems())
+        {
+            problems.Add(new WorkflowProblem(null, "Meridian flip: " + problem));
+        }
+
+        if (!setups.Any(r => r.MountId is not null))
+        {
+            problems.Add(new WorkflowProblem(blocksOf[setups[0].Id][0].Id, "The meridian flip needs a setup with a mount. Give a setup a mount on the Equipment page, or turn the flip off."));
+        }
+
+        var target = workflow.Target;
+        var dither = workflow.Dither;
+        return new MeridianFlipPolicyDraft(
+            settings, target.RightAscensionHours, target.DeclinationDegrees, target.Name, target.DesiredRotationDegrees, target.PointingSetup,
+            dither.AmplitudePixels, dither.SettleThresholdPixels, dither.SettleStableSeconds, Math.Max(dither.SettleTimeoutSeconds, 60));
     }
 
     // The autofocus policy of a setup as the track has it; nothing for a setup that does not focus by itself.
