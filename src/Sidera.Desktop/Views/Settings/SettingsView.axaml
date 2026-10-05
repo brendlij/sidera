@@ -12,11 +12,25 @@
         <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="760" HorizontalAlignment="Left">
             <ctl:PageHeader Title="Settings" />
             <Border Classes="notice-info">
-                <TextBlock Classes="secondary" Text="{Binding NoteText}" TextWrapping="Wrap" />
+                <StackPanel Spacing="4">
+                    <TextBlock Classes="secondary" Text="{Binding NoteText}" TextWrapping="Wrap" />
+                    <TextBlock Classes="secondary" Text="{Binding SaveNoteText}" TextWrapping="Wrap" AutomationProperties.AutomationId="SettingsSaveNote" />
+                </StackPanel>
             </Border>
 
+            <ItemsControl ItemsSource="{Binding Tabs}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingsTabViewModel">
+                        <RadioButton Classes="tab" GroupName="SettingsTab" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
             <!-- The observing site: one place for the whole application, unknown until it is entered -->
-            <StackPanel Spacing="12" IsVisible="{Binding HasSite}">
+            <StackPanel Spacing="12" IsVisible="{Binding IsObservatory}">
                 <StackPanel Spacing="2">
                     <TextBlock Classes="eyebrow" Text="OBSERVING SITE" />
                     <TextBlock Classes="secondary" TextWrapping="Wrap"
@@ -42,7 +56,7 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel DataContext="{Binding PlateSolving}" x:DataType="vm:PlateSolvingSettingsViewModel" IsVisible="{Binding $parent[UserControl].DataContext.HasSite}" Spacing="12">
+            <StackPanel DataContext="{Binding PlateSolving}" x:DataType="vm:PlateSolvingSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsPlateSolving}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="PLATE SOLVING" />
                 <ctl:LabeledField Label="Backend"><ComboBox ItemsSource="{Binding Backends}" SelectedItem="{Binding Backend}" /></ctl:LabeledField>
                 <ctl:LabeledField Label="ASTAP executable (empty for discovery)"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding ExecutablePath}" /><Button Grid.Column="1" Content="Browse" Command="{Binding BrowseCommand}" /></Grid></ctl:LabeledField>
@@ -66,7 +80,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Save plate solving" Command="{Binding SaveCommand}" /><Button Content="Refresh detection" Command="{Binding RefreshCommand}" /></StackPanel>
                 <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel DataContext="{Binding SkyAtlas}" x:DataType="vm:SkyAtlasSettingsViewModel" IsVisible="{Binding $parent[UserControl].DataContext.HasSite}" Spacing="12">
+            <StackPanel DataContext="{Binding SkyAtlas}" x:DataType="vm:SkyAtlasSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsFraming}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="SKY ATLAS (FRAMING)" />
                 <ctl:LabeledField Label="Default survey"><ComboBox ItemsSource="{Binding Surveys}" SelectedItem="{Binding SelectedSurvey}">
                     <ComboBox.ItemTemplate><DataTemplate x:DataType="sky:SkySurveyDescriptor"><TextBlock Text="{Binding Title}" /></DataTemplate></ComboBox.ItemTemplate>
@@ -80,7 +94,7 @@
                 <Button Content="Save sky atlas" Command="{Binding SaveCommand}" HorizontalAlignment="Left" />
                 <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
             </StackPanel>
-            <ItemsControl ItemsSource="{Binding Groups}">
+            <ItemsControl ItemsSource="{Binding Groups}" IsVisible="{Binding IsGeneral}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="24" />

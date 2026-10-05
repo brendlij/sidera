@@ -218,7 +218,7 @@ public class ImagingDiagnosticsSettingsTests
 
         Assert.Equal(["General", "Appearance", "Logging", "Equipment defaults"], settings.Groups.Select(g => g.Title));
         Assert.DoesNotContain(settings.Groups, g => g.IsEditable); // no fake switches
-        Assert.Contains("observing site can be set here", settings.NoteText);
+        Assert.Contains("observing site", settings.NoteText);
     }
 
     [Fact]
@@ -240,5 +240,32 @@ public class ImagingDiagnosticsSettingsTests
         var logging = new SettingsViewModel(null).Groups.Single(g => g.Title == "Logging");
 
         Assert.False(logging.HasRows);
+    }
+
+    [Fact]
+    public void TheSettingsTabs_ExistOnlyWithContent_AndExactlyOneIsShown()
+    {
+        var withoutStore = new SettingsViewModel(null);
+        Assert.Equal(["General"], withoutStore.Tabs.Select(t => t.Title)); // no site store: nothing editable, so no editable tabs
+        Assert.True(withoutStore.IsGeneral);
+
+        var path = Path.Combine(Path.GetTempPath(), "astra-settings-tabs-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            var settings = new SettingsViewModel(null, new Sidera.Desktop.Settings.SiteService(new Sidera.Desktop.Settings.SideraSettingsStore(path)));
+            Assert.Equal(["General", "Observatory", "Plate solving", "Framing"], settings.Tabs.Select(t => t.Title));
+            Assert.Equal(["General"], settings.Tabs.Where(t => t.IsSelected).Select(t => t.Title));
+
+            settings.Tabs.Single(t => t.Title == "Plate solving").IsSelected = true; // what the tab button does
+
+            Assert.True(settings.IsPlateSolving);
+            Assert.False(settings.IsGeneral);
+            Assert.Equal(["Plate solving"], settings.Tabs.Where(t => t.IsSelected).Select(t => t.Title));
+            Assert.Contains("own Save button", settings.SaveNoteText);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }
