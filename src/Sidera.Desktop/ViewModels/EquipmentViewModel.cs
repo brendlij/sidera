@@ -139,7 +139,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             CameraViewModel camera => new CameraDetailViewModel(camera, _rigs.FirstOrDefault(r => r.Camera == camera), configuration, preferences, poll, _management?.Service),
             FocuserViewModel focuser => new FocuserDetailViewModel(focuser, _rigs.FirstOrDefault(r => r.Focuser == focuser), configuration, preferences, poll),
             FilterWheelViewModel wheel => new FilterWheelDetailViewModel(wheel, _rigs.FirstOrDefault(r => r.FilterWheel == wheel), configuration),
-            RotatorViewModel rotator => new RotatorDetailViewModel(rotator, _rigs.FirstOrDefault(r => r.RotatorId?.Value == rotator.DeviceIdText), configuration),
+            RotatorViewModel rotator => new RotatorDetailViewModel(
+                rotator, _rigs.FirstOrDefault(r => r.RotatorId?.Value == rotator.DeviceIdText), configuration, _host, _management?.Service,
+                () => _management?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()),
             MountViewModel mount => new MountDetailViewModel(mount, configuration, preferences, poll, _management?.Site),
             GuiderViewModel guider => new GuiderDetailViewModel(guider, configuration),
             _ => throw new NotSupportedException($"No detail for {device.GetType().Name}."),

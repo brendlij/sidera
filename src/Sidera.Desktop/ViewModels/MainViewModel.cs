@@ -61,7 +61,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults,
-            plateSolving: host.PlateSolving, solveDefaults: () => (equipmentManagement?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()).Defaults());
+            plateSolving: host.PlateSolving, solveDefaults: () => (equipmentManagement?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()).Defaults(),
+            rotation: host.Rotation);
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
         Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site);
         PlateSolve = new PlateSolveViewModel(host, Imaging, equipmentManagement?.Site, postToUi);

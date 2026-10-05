@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Sidera.Core.Devices;
 using Sidera.Core.Focusers;
 using Sidera.Core.Mounts;
@@ -148,13 +149,31 @@ public sealed class FilterWheelDetailViewModel(FilterWheelViewModel wheel, RigVi
 /// The rotator: its position and moves, and what Sidera knows about how that position relates to the rotation of the sky in an image (the calibration of the rig it belongs
 /// to). The two are shown apart and never as one number.
 /// </summary>
-public sealed class RotatorDetailViewModel : DeviceDetailViewModel
+public sealed partial class RotatorDetailViewModel : DeviceDetailViewModel
 {
-    public RotatorDetailViewModel(RotatorViewModel rotator, RigViewModel? rig, DeviceConfigurationViewModel? configuration = null)
+    private readonly Sidera.Runtime.SideraRuntimeHost? _host;
+    private readonly EquipmentService? _service;
+    private readonly Func<Sidera.Desktop.Settings.PlateSolvingSettings>? _solveSettings;
+    private System.Threading.CancellationTokenSource? _calibration;
+
+    public RotatorDetailViewModel(
+        RotatorViewModel rotator, RigViewModel? rig, DeviceConfigurationViewModel? configuration = null,
+        Sidera.Runtime.SideraRuntimeHost? host = null, EquipmentService? service = null, Func<Sidera.Desktop.Settings.PlateSolvingSettings>? solveSettings = null)
         : base(rotator, configuration)
     {
         Rotator = rotator;
         Rig = rig;
+        _host = host;
+        _service = service;
+        _solveSettings = solveSettings;
+        ReversedChoice = rig?.RotatorModel?.Reversed ?? false;
+        rotator.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(RotatorViewModel.IsConnected) or nameof(RotatorViewModel.IsMoving))
+            {
+                CalibrateCommand.NotifyCanExecuteChanged();
+            }
+        };
         rotator.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(RotatorViewModel.Position))
@@ -184,6 +203,77 @@ public sealed class RotatorDetailViewModel : DeviceDetailViewModel
     public string SkyNowText => Model is { } m
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{m.SkyRotationOf(Rotator.Position):0.0#}°")
         : "—";
+
+    /// <summary>More position means less sky rotation. Chosen before calibrating: the offset that a solve gives depends on it, so it is applied by the next calibration, not to the one that is stored.</summary>
+    [ObservableProperty] public partial bool ReversedChoice { get; set; }
+
+    [ObservableProperty] public partial string CalibrationStatus { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CalibrateCommand), nameof(CancelCalibrationCommand))]
+    public partial bool IsCalibrating { get; private set; }
+
+    /// <summary>Why the rotator cannot be calibrated now, in a sentence; empty when it can.</summary>
+    public string CalibrationBlockedText =>
+        _service is null || _host is null ? "Calibration is not available here."
+        : _host.Rotation is null ? "No plate solver is configured."
+        : Rig is null ? "Add the rotator to a rig (on the camera page) to calibrate it."
+        : !Rotator.IsConnected ? "Connect the rotator to calibrate it."
+        : string.Empty;
+
+    private bool CanCalibrate() => !IsCalibrating && !Rotator.IsMoving && CalibrationBlockedText.Length == 0;
+
+    /// <summary>
+    /// Measures the sky rotation at the position the rotator is at now with one plate solve and keeps the offset (and the time) for the rig. Moves nothing and does not synchronize the
+    /// mount. The direction is the one that is chosen, not a guess: a wrong direction shows at the first verified rotation, which then fails.
+    /// </summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand(CanExecute = nameof(CanCalibrate))]
+    private async System.Threading.Tasks.Task CalibrateAsync()
+    {
+        if (Rig is not { } rigViewModel || _host?.Rotation is not { } service || _service is null || !_host.RigRegistry.TryGet(rigViewModel.Id, out var rig) || rig is null)
+        {
+            return;
+        }
+
+        IsCalibrating = true;
+        _calibration = new System.Threading.CancellationTokenSource();
+        CalibrationStatus = "Solving…";
+        try
+        {
+            var solve = _solveSettings?.Invoke() ?? new Sidera.Desktop.Settings.PlateSolvingSettings();
+            var starting = (rig.RotatorModel ?? new Sidera.Core.Rotators.RotatorSkyModel(0)) with { Reversed = ReversedChoice };
+            var mount = _host.DeviceRegistry.GetAll().OfType<Sidera.Core.Mounts.IMount>().FirstOrDefault()?.Id;
+            var result = await service.CalibrateAsync(
+                rig.WithRotatorModel(starting), mount, TimeSpan.FromSeconds(solve.ExposureSeconds), solve.Defaults(), cancellationToken: _calibration.Token);
+            if (!result.Success || result.Model is not { } model)
+            {
+                CalibrationStatus = result.Message ?? "The calibration failed.";
+                return;
+            }
+
+            var saved = _service.SetRotatorModel(rig.Id.Value, model);
+            CalibrationStatus = saved.Succeeded
+                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Calibrated: the sky had {result.SolvedRotationDegrees:0.0#}° at position {result.PositionDegrees:0.0#}°.")
+                : saved.Problem ?? "The calibration could not be saved.";
+        }
+        catch (OperationCanceledException)
+        {
+            CalibrationStatus = "Cancelled";
+        }
+        catch (Exception ex)
+        {
+            CalibrationStatus = ex.Message;
+        }
+        finally
+        {
+            _calibration?.Dispose();
+            _calibration = null;
+            IsCalibrating = false;
+        }
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand(CanExecute = nameof(IsCalibrating))]
+    private void CancelCalibration() => _calibration?.Cancel();
 
     public string CalibrationNote => Model is { } m
         ? m.CalibratedAt is { } at

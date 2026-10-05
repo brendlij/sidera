@@ -118,12 +118,16 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
 
     public PlateSolveService? PlateSolving { get; private set; }
 
+    /// <summary>Rotating to a sky angle, verifying it and centering and rotating; there once a plate solver is configured, since every verification solves.</summary>
+    public RotationService? Rotation { get; private set; }
+
     public void ConfigurePlateSolver(IPlateSolver solver)
     {
         ThrowIfDisposed();
-        if (PlateSolving?.IsSolving == true) throw new InvalidOperationException("The plate solver is busy.");
+        if (PlateSolving?.IsSolving == true || Rotation?.IsBusy == true) throw new InvalidOperationException("The plate solver is busy.");
         PlateSolving = new PlateSolveService(solver, DeviceRegistry, ResourceManager, AcquisitionDefaults,
             LoggerFactory.CreateLogger<PlateSolveService>());
+        Rotation = new RotationService(PlateSolving, DeviceRegistry, RigRegistry, ResourceManager, LoggerFactory.CreateLogger<RotationService>());
     }
 
     /// <summary>Registers a device with the host. The host disconnects it on shutdown.</summary>

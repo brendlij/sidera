@@ -141,7 +141,7 @@ public sealed class SimulatedRotatorTests
 
         Assert.Equal(100, rotator.Position, 6);
         Assert.Equal(30, rotator.MechanicalPosition!.Value, 6);
-        Assert.Equal(true, rotator.Telemetry!.MechanicalPosition == 30);
+        Assert.Equal(30, rotator.Telemetry!.MechanicalPosition!.Value, 6);
     }
 
     [Fact]

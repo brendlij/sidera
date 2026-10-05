@@ -36,6 +36,9 @@
                         <MenuItem Header="Autofocus" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
                         <MenuItem Header="Plate Solve" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.PlateSolve}" />
                         <MenuItem Header="Slew &amp; Center" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.SlewAndCenter}" />
+                        <MenuItem Header="Rotate to Angle" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.RotateToAngle}" />
+                        <MenuItem Header="Rotate &amp; Verify" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.RotateAndVerify}" />
+                        <MenuItem Header="Center &amp; Rotate" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.CenterAndRotate}" />
                         <MenuItem Header="Sync Mount to Solved Position" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.SyncMountToSolved}" />
                         <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
                         <MenuItem Header="Multi-Rig Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />

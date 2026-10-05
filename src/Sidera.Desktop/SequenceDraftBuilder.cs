@@ -43,7 +43,8 @@ public sealed record SequenceDraftContext(
     ILoggerFactory? Loggers = null,
     IAcquisitionDefaultsSource? AcquisitionDefaults = null,
     Sidera.Runtime.Astrometry.PlateSolveService? PlateSolving = null,
-    Func<Sidera.Core.Astrometry.PlateSolveDefaults>? PlateSolveDefaults = null
+    Func<Sidera.Core.Astrometry.PlateSolveDefaults>? PlateSolveDefaults = null,
+    Sidera.Runtime.Astrometry.RotationService? Rotation = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -130,6 +131,13 @@ public static class SequenceDraftBuilder
             SlewAndCenterStepDraft c => new(c.TargetName is { } framed ? $"Slew & Center · {framed}" : "Slew & Center", string.Create(
                 CultureInfo.InvariantCulture,
                 $"RA {c.RightAscensionHours:0.###} h · Dec {c.DeclinationDegrees:+0.##;-0.##;0}° · within {c.ToleranceArcseconds:0.##} arcsec · {c.MaxAttempts} attempts")),
+            RotateToAngleStepDraft r => new("Rotate to Angle", string.Create(
+                CultureInfo.InvariantCulture, $"{r.RigId?.Value ?? "no rig"} · sky rotation {r.SkyRotationDegrees:0.##}° · does not solve")),
+            RotateAndVerifyStepDraft r => new("Rotate & Verify", string.Create(
+                CultureInfo.InvariantCulture, $"{r.RigId?.Value ?? "no rig"} · sky rotation {r.SkyRotationDegrees:0.##}° ± {r.ToleranceDegrees:0.##}° · {r.MaxAttempts} attempts")),
+            CenterAndRotateStepDraft c => new(c.TargetName is { } rotated ? $"Center & Rotate · {rotated}" : "Center & Rotate", string.Create(
+                CultureInfo.InvariantCulture,
+                $"RA {c.RightAscensionHours:0.###} h · Dec {c.DeclinationDegrees:+0.##;-0.##;0}° · within {c.ToleranceArcseconds:0.##} arcsec · rotation {c.SkyRotationDegrees:0.##}° ± {c.RotationToleranceDegrees:0.##}°")),
             SyncMountStepDraft m => new("Sync Mount to Solved Position", $"{DeviceName(registry, m.MountId, "no mount")} · uses the last successful plate solve"),
             PlateSolveStepDraft p => new("Plate Solve", $"{p.RigId?.Value ?? "no rig"} · {Seconds(p.ExposureSeconds)}"),
             ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, e.CameraId)}"),
@@ -298,6 +306,9 @@ public static class SequenceDraftBuilder
                 foreach (var autofocus in step is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [step])
                 {
                     if (autofocus is SlewAndCenterStepDraft { RigId: { } centerRigId } && TryGetRig(context, centerRigId, out var centerRig)) ids.Add(centerRig.CameraId);
+                    if (autofocus is RotateToAngleStepDraft { RigId: { } rotateRigId } && TryGetRig(context, rotateRigId, out var rotateRig)) ids.AddRange(new[] { rotateRig.CameraId, rotateRig.RotatorId }.OfType<DeviceId>());
+                    if (autofocus is RotateAndVerifyStepDraft { RigId: { } verifyRigId } && TryGetRig(context, verifyRigId, out var verifyRig)) ids.AddRange(new[] { verifyRig.CameraId, verifyRig.RotatorId }.OfType<DeviceId>());
+                    if (autofocus is CenterAndRotateStepDraft { RigId: { } crRigId } && TryGetRig(context, crRigId, out var crRig)) ids.AddRange(new[] { crRig.CameraId, crRig.RotatorId }.OfType<DeviceId>());
                     if (autofocus is PlateSolveStepDraft { RigId: { } solveRigId } && TryGetRig(context, solveRigId, out var solveRig)) ids.Add(solveRig.CameraId);
                     if (autofocus is AutofocusStepDraft { RigId: { } rigId } && TryGetRig(context, rigId, out var rig))
                     {
@@ -574,6 +585,14 @@ public static class SequenceDraftBuilder
         SlewAndCenterStepDraft c => new SlewAndCenterAction(context!.PlateSolving!,
             TryGetRig(context, c.RigId!.Value, out var centerRig) ? centerRig : null!, c.MountId!.Value,
             new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees), c.ToleranceArcseconds, c.MaxAttempts,
+            TimeSpan.FromSeconds(c.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
+        RotateToAngleStepDraft r => new RotateToAngleAction(context!.Rotation!, TryGetRig(context, r.RigId!.Value, out var rotateRig) ? rotateRig : null!, r.SkyRotationDegrees),
+        RotateAndVerifyStepDraft r => new RotateAndVerifyAction(context!.Rotation!,
+            TryGetRig(context, r.RigId!.Value, out var verifyRig) ? verifyRig : null!, context.Shared?.MountId, r.SkyRotationDegrees, r.ToleranceDegrees, r.MaxAttempts,
+            TimeSpan.FromSeconds(r.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
+        CenterAndRotateStepDraft c => new CenterAndRotateAction(context!.Rotation!,
+            TryGetRig(context, c.RigId!.Value, out var crRig) ? crRig : null!, c.MountId!.Value, new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees),
+            c.SkyRotationDegrees, c.ToleranceArcseconds, c.RotationToleranceDegrees, c.MaxCenteringAttempts, c.MaxRotationAttempts, c.MaxRounds,
             TimeSpan.FromSeconds(c.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
         SyncMountStepDraft m => new SyncMountToSolvedPositionAction(context!.PlateSolving!, m.MountId!.Value),
         PlateSolveStepDraft p => new PlateSolveAction(context!.PlateSolving!,
@@ -916,7 +935,7 @@ public static class SequenceDraftBuilder
                 case AutofocusStepDraft:
                     problems.Add("Use Autofocus of the track here: its rig is the rig of the track.");
                     break;
-                case PlateSolveStepDraft or SlewAndCenterStepDraft or SyncMountStepDraft:
+                case PlateSolveStepDraft or SlewAndCenterStepDraft or SyncMountStepDraft or RotateToAngleStepDraft or RotateAndVerifyStepDraft or CenterAndRotateStepDraft:
                     problems.Add("Plate solving steps move or synchronize the shared mount and must be outside a Rig Track.");
                     break;
                 case MoveFocuserStepDraft:
@@ -979,6 +998,38 @@ public static class SequenceDraftBuilder
                     if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
                     if (c.RigId is not { } centerRigId || !TryGetRig(context, centerRigId, out var centerRig)) problems.Add("Select an available rig.");
                     else CheckDevice<ICamera>(centerRig.CameraId, "camera", problems);
+                    break;
+                case RotateToAngleStepDraft r:
+                    CheckAngle(r.SkyRotationDegrees, problems);
+                    CheckRotationRig(r.RigId, problems);
+                    if (context?.Rotation is null) problems.Add("No plate solver configured.");
+                    break;
+                case RotateAndVerifyStepDraft r:
+                    CheckAngle(r.SkyRotationDegrees, problems);
+                    CheckRotationTolerance(r.ToleranceDegrees, r.MaxAttempts, problems);
+                    CheckDuration(r.ExposureSeconds, "Solve exposure", problems);
+                    CheckRotationRig(r.RigId, problems);
+                    if (context?.Rotation is null) problems.Add("No plate solver configured.");
+                    break;
+                case CenterAndRotateStepDraft c:
+                    CheckDevice<IMount>(c.MountId, "mount", problems);
+                    CheckAngle(c.SkyRotationDegrees, problems);
+                    CheckRotationTolerance(c.RotationToleranceDegrees, c.MaxRotationAttempts, problems);
+                    CheckDuration(c.ExposureSeconds, "Solve exposure", problems);
+                    if (!double.IsFinite(c.ToleranceArcseconds) || c.ToleranceArcseconds <= 0) problems.Add("The tolerance must be greater than zero.");
+                    if (c.MaxCenteringAttempts is < 1 or > 100) problems.Add("The centering attempts must be from 1 to 100.");
+                    if (c.MaxRounds is < 1 or > 20) problems.Add("The rounds must be from 1 to 20.");
+                    try
+                    {
+                        _ = new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        problems.Add(UserFacingError.Describe(ex));
+                    }
+
+                    CheckRotationRig(c.RigId, problems);
+                    if (context?.Rotation is null) problems.Add("No plate solver configured.");
                     break;
                 case SyncMountStepDraft m:
                     CheckDevice<IMount>(m.MountId, "mount", problems);
@@ -1258,6 +1309,9 @@ public static class SequenceDraftBuilder
                 case SlewAndCenterStepDraft c:
                     Mismatch(c.MountId, _shared.MountId, "mount");
                     break;
+                case CenterAndRotateStepDraft c:
+                    Mismatch(c.MountId, _shared.MountId, "mount");
+                    break;
                 case SyncMountStepDraft m:
                     Mismatch(m.MountId, _shared.MountId, "mount");
                     break;
@@ -1366,6 +1420,38 @@ public static class SequenceDraftBuilder
         }
 
         // A positive duration that a TimeSpan can hold.
+        private static void CheckAngle(double degrees, List<string> problems)
+        {
+            if (!double.IsFinite(degrees)) problems.Add("The sky rotation must be a number of degrees.");
+        }
+
+        private static void CheckRotationTolerance(double tolerance, int attempts, List<string> problems)
+        {
+            if (!double.IsFinite(tolerance) || tolerance <= 0 || tolerance > 90) problems.Add("The rotation tolerance must be greater than 0 and at most 90 degrees.");
+            if (attempts is < 1 or > 20) problems.Add("The rotation attempts must be from 1 to 20.");
+        }
+
+        // A rotation needs a rig with a rotator, a camera to solve with, and a calibration: without one the position of the rotator says nothing about the sky.
+        private void CheckRotationRig(RigId? rigId, List<string> problems)
+        {
+            if (rigId is not { } id || !TryGetRig(context, id, out var rig))
+            {
+                problems.Add("Select an available rig.");
+                return;
+            }
+
+            CheckDevice<ICamera>(rig.CameraId, "camera", problems);
+            if (rig.RotatorId is not { } rotatorId)
+            {
+                problems.Add($"The rig '{rig.Name}' has no rotator.");
+            }
+            else
+            {
+                CheckDevice<Sidera.Core.Rotators.IRotator>(rotatorId, "rotator", problems);
+                if (rig.RotatorModel is null) problems.Add($"The rotator of the rig '{rig.Name}' is not calibrated: calibrate it with a plate solve first.");
+            }
+        }
+
         private static void CheckDuration(double seconds, string label, List<string> problems)
         {
             if (!IsPositive(seconds))
@@ -1448,6 +1534,9 @@ public static class SequenceDraftBuilder
         SequenceStepKind.ChangeFilter or SequenceStepKind.RigChangeFilter => "Change Filter",
         SequenceStepKind.PlateSolve => "Plate Solve",
         SequenceStepKind.SlewAndCenter => "Slew & Center",
+        SequenceStepKind.RotateToAngle => "Rotate to Angle",
+        SequenceStepKind.RotateAndVerify => "Rotate & Verify",
+        SequenceStepKind.CenterAndRotate => "Center & Rotate",
         SequenceStepKind.SyncMountToSolved => "Sync Mount to Solved Position",
         SequenceStepKind.Autofocus or SequenceStepKind.RigAutofocus => "Autofocus",
         SequenceStepKind.Repeat => "Repeat",

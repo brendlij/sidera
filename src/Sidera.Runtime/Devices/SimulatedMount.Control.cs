@@ -257,12 +257,16 @@ public sealed partial class SimulatedMount
         RaiseStateChanged();
     }
 
+    /// <summary>How often the mount was synchronized: for tests that show that an operation never does it by itself.</summary>
+    public int SyncCount { get; private set; }
+
     public Task SyncAsync(CelestialCoordinates coordinates, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(coordinates);
         RequireConnected();
         lock (_gate)
         {
+            SyncCount++;
             RequireNotParked("sync");
             if (_motionState == MountMotionState.Slewing)
             {

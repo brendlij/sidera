@@ -12,12 +12,15 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 
 ## What it does today
 
-- **Equipment:** one page with a tab per device kind (camera, mount, focuser, filter wheel, guider). Choose a driver (none, simulator,
+- **Equipment:** one page with a tab per device kind (camera, mount, focuser, filter wheel, guider, rotator). Choose a driver (none, simulator,
   or an installed ASCOM driver), open its setup dialog, connect. Camera settings apply as you change them.
 - **Camera:** exposures with gain, offset, binning, subframe and readout mode where the camera supports them; stop and abort;
   cooling controls; frames shown on the Imaging page.
 - **Mount:** slew, tracking, sync, park, hold-to-move pad, and a Stop that is always there. A large slew asks for confirmation.
 - **Focuser:** absolute and relative moves, halt, temperature.
+- **Rotator:** absolute and relative moves, halt, sync and reverse where the driver supports them (the page shows only what the rotator can do). A rotator belongs to
+  a rig, which is optional. Its position is the mechanical angle of the driver and is never taken for the rotation of the sky in the image: that is a calibration of the
+  rig, measured by one plate solve and kept with it. Rotating to a sky angle, verifying it with a solve and centering while rotating are described below.
 - **Guider:** PHD2 as the guiding backend (host and port are the settings of the device; its equipment, calibration and star stay in PHD2).
   Start, stop, pause; live guide graph in arcseconds, rolling RMS, star SNR, the settle after a dither, and what PHD2 reports about its setup.
 - **Observing site:** one place for the whole application (Settings): latitude north and longitude east positive (or write N, S, E, W),
@@ -26,8 +29,8 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 - **Optical train:** the focal length (and optionally aperture, pixel size, sensor pixels) of a camera's rig, on the camera page. Pixel scale,
   sensor size and field of view are derived from it and from what the camera reports, never stored.
 - **Framing:** search an object (M31, NGC 7000, IC 434), see the field of the selected rig on a sky survey (HiPS tiles from the CDS, cached on your disk),
-  drag and turn the frame, then Slew & Center on it or add it to the session. The desired rotation is a plan, compared with the rotation of a plate solve; nothing
-  is rotated and the mount is never synchronized. No survey is bundled; the rights of each survey are shown with it.
+  drag and turn the frame, then Slew & Center on it or add it to the session. With a rotator in the rig the page offers Center & Rotate instead, and a rig without one
+  compares the rotation of a plate solve with the plan and says by how many degrees to change it (Solve Again after you turned the camera). The mount is never synchronized. No survey is bundled; the rights of each survey are shown with it.
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
@@ -67,6 +70,8 @@ Tests that touch real devices are skipped unless you opt in with environment var
 | Variable | Enables |
 |---|---|
 | `SIDERA_ASCOM_TESTS=1` | Tests against the ASCOM simulators (needs the ASCOM Platform) |
+| `SIDERA_ASCOM_ROTATOR` | The ProgId of a real rotator; connects and reads it |
+| `SIDERA_ASCOM_ROTATOR_OK=1` | A real rotator moves two degrees and back |
 | `SIDERA_ASCOM_CAMERA`, `SIDERA_ASCOM_FOCUSER`, `SIDERA_ASCOM_MOUNT` | The ProgId of the device; connects and reads it, short exposures, small focuser moves |
 | `SIDERA_ASCOM_CAMERA_STOP_OK=1` | Stop-exposure test |
 | `SIDERA_ASCOM_CAMERA_COOLING_OK=1` | Short cooling check |
@@ -114,6 +119,24 @@ Do not enable these gates unless physical operation is intended.
 The backend-neutral Plate Solve sequence step is persisted as `plateSolve`
 in `.astraseq` version 7. Versions 1–6 continue to load; older Sidera versions
 reject version 7 rather than silently skipping the new action.
+
+### Rotation
+
+The rotation of the sky in an image is the angle from the top of the image to celestial north, counterclockwise, in (−180, 180] (the `CROTA2` of a plate
+solve). A rotator reports a position from 0 to 360. They are related by the calibration of the rig, `sky = ±position + offset`, which Sidera does not guess:
+Calibrate (Equipment → Rotator) measures the offset with one plate solve at the current position and keeps it, with the time, for the rig. The direction is a
+setting (not reversed unless chosen); a wrong direction shows at the first verified rotation, which fails instead of turning on.
+
+- **Rotate to Angle** turns the rotator by the calibration and does not solve. Without a calibration it fails and says so.
+- **Rotate & Verify** turns, solves, compares by the shortest signed angle, corrects, and repeats until the error is within the tolerance (default 0.5°, set
+  in Settings → Plate Solving) or the attempts (default 4) are used up. The solve is the authority; an error that grows after a correction stops it.
+- **Center & Rotate** centers the target, rotates and verifies, and centers again when turning moved the field; it ends only when both the pointing and the
+  rotation tolerances hold, after at most 3 rounds.
+
+They are sequence steps (`rotateToAngle`, `rotateAndVerify`, `centerAndRotate`, `.astraseq` version 7) and are offered by Framing and Add to Session for a rig
+with a rotator. A rotation holds the rotator and every camera on it (and the mount when it centers) for its whole duration: the rotator does not move while a camera
+exposes, and two rotations do not overlap. Plate Solve, Slew & Center, Rotate & Verify and Center & Rotate never synchronize the mount; only the explicit
+Sync step or button does.
 
 Safe installed-ASTAP tests use `SIDERA_ASTAP_TESTS=1`. A known FITS can be
 supplied in `SIDERA_ASTAP_TEST_IMAGE`, with optional expected center in

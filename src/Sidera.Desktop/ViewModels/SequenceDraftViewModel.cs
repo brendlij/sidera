@@ -44,6 +44,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
     private readonly Sidera.Runtime.Astrometry.PlateSolveService? _plateSolving;
     private readonly Func<Sidera.Core.Astrometry.PlateSolveDefaults>? _solveDefaults;
+    private readonly Sidera.Runtime.Astrometry.RotationService? _rotation;
     private HashSet<Guid> _unreadable = [];
     private bool _rebuilding;
 
@@ -59,12 +60,13 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         ILoggerFactory? loggers = null,
         IAcquisitionDefaultsSource? acquisitionDefaults = null,
         Sidera.Runtime.Astrometry.PlateSolveService? plateSolving = null,
-        Func<Sidera.Core.Astrometry.PlateSolveDefaults>? solveDefaults = null)
+        Func<Sidera.Core.Astrometry.PlateSolveDefaults>? solveDefaults = null,
+        Sidera.Runtime.Astrometry.RotationService? rotation = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(defaults);
         _acquisitionDefaults = acquisitionDefaults;
-        _plateSolving = plateSolving; _solveDefaults = solveDefaults;
+        _plateSolving = plateSolving; _solveDefaults = solveDefaults; _rotation = rotation;
         _registry = registry;
         _rigs = rigs;
         _focusMetrics = focusMetrics;
@@ -214,7 +216,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyCollection<DeviceId> RequiredDeviceIds() =>
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
-    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults);
+    private SequenceDraftContext Context => new(_rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation);
 
     // New steps use the shared equipment of the session wherever they have a mount or a guider.
     private SequenceDraftDefaults EffectiveDefaults => _defaults with
@@ -1046,6 +1048,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         RigMoveFocuserStepDraft f => new RigMoveFocuserStepDraftViewModel(f),
         RigChangeFilterStepDraft c => RigFilterViewModel(c),
         SlewAndCenterStepDraft c => new SlewAndCenterStepDraftViewModel(_registry, c, new RigPickerViewModel(_rigs, _registry, c.RigId)),
+        RotateToAngleStepDraft r => new RotateToAngleStepDraftViewModel(r, new RigPickerViewModel(_rigs, _registry, r.RigId)),
+        RotateAndVerifyStepDraft r => new RotateAndVerifyStepDraftViewModel(r, new RigPickerViewModel(_rigs, _registry, r.RigId)),
+        CenterAndRotateStepDraft c => new CenterAndRotateStepDraftViewModel(_registry, c, new RigPickerViewModel(_rigs, _registry, c.RigId)),
         SyncMountStepDraft m => new SyncMountStepDraftViewModel(_registry, m),
         PlateSolveStepDraft p => new PlateSolveStepDraftViewModel(p, new RigPickerViewModel(_rigs, _registry, p.RigId)),
         AutofocusStepDraft a => new AutofocusStepDraftViewModel(a, new RigPickerViewModel(_rigs, _registry, a.RigId)),

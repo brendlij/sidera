@@ -73,6 +73,11 @@ public static class SequenceDocumentMapper
     private static DocumentLeafStep ToDocumentLeaf(LeafStepDraft step) => step switch
     {
         SlewAndCenterStepDraft c => new SlewAndCenterDocumentStep(c.Id, c.MountId?.Value, c.RigId?.Value, c.RightAscensionHours, c.DeclinationDegrees, c.ToleranceArcseconds, c.MaxAttempts, c.ExposureSeconds, c.TargetName, c.DesiredRotationDegrees),
+        RotateToAngleStepDraft r => new RotateToAngleDocumentStep(r.Id, r.RigId?.Value, r.SkyRotationDegrees),
+        RotateAndVerifyStepDraft r => new RotateAndVerifyDocumentStep(r.Id, r.RigId?.Value, r.SkyRotationDegrees, r.ToleranceDegrees, r.MaxAttempts, r.ExposureSeconds),
+        CenterAndRotateStepDraft c => new CenterAndRotateDocumentStep(
+            c.Id, c.MountId?.Value, c.RigId?.Value, c.RightAscensionHours, c.DeclinationDegrees, c.ToleranceArcseconds, c.MaxCenteringAttempts,
+            c.SkyRotationDegrees, c.RotationToleranceDegrees, c.MaxRotationAttempts, c.MaxRounds, c.ExposureSeconds, c.TargetName),
         SyncMountStepDraft m => new SyncMountDocumentStep(m.Id, m.MountId?.Value),
         PlateSolveStepDraft p => new PlateSolveDocumentStep(p.Id, p.RigId?.Value, p.ExposureSeconds),
         ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds, e.Acquisition.IsDefault ? null : e.Acquisition),
@@ -109,6 +114,11 @@ public static class SequenceDocumentMapper
     private static LeafStepDraft ToDraftLeaf(DocumentLeafStep step) => step switch
     {
         SlewAndCenterDocumentStep c => new SlewAndCenterStepDraft(c.Id, Device(c.MountId), c.RigId is null ? null : new RigId(c.RigId), c.RaHours, c.DecDegrees, c.ToleranceArcseconds, c.MaxAttempts, c.ExposureSeconds, c.TargetName, c.DesiredRotationDegrees),
+        RotateToAngleDocumentStep r => new RotateToAngleStepDraft(r.Id, r.RigId is null ? null : new RigId(r.RigId), r.SkyRotationDegrees),
+        RotateAndVerifyDocumentStep r => new RotateAndVerifyStepDraft(r.Id, r.RigId is null ? null : new RigId(r.RigId), r.SkyRotationDegrees, r.ToleranceDegrees, r.MaxAttempts, r.ExposureSeconds),
+        CenterAndRotateDocumentStep c => new CenterAndRotateStepDraft(
+            c.Id, Device(c.MountId), c.RigId is null ? null : new RigId(c.RigId), c.RaHours, c.DecDegrees, c.ToleranceArcseconds, c.MaxCenteringAttempts,
+            c.SkyRotationDegrees, c.RotationToleranceDegrees, c.MaxRotationAttempts, c.MaxRounds, c.ExposureSeconds, c.TargetName),
         SyncMountDocumentStep m => new SyncMountStepDraft(m.Id, Device(m.MountId)),
         PlateSolveDocumentStep p => new PlateSolveStepDraft(p.Id, p.RigId is null ? null : new RigId(p.RigId), p.ExposureSeconds),
         ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds) { Acquisition = e.Acquisition ?? AcquisitionIntent.Default },

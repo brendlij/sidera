@@ -213,6 +213,38 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 }
 
                 break;
+            case RotateToAngleDocumentStep r:
+                Header(w, "rotateToAngle", r.Id);
+                Device(w, "rigId", r.RigId);
+                w.WriteNumber("skyRotationDegrees", r.SkyRotationDegrees);
+                break;
+            case RotateAndVerifyDocumentStep r:
+                Header(w, "rotateAndVerify", r.Id);
+                Device(w, "rigId", r.RigId);
+                w.WriteNumber("skyRotationDegrees", r.SkyRotationDegrees);
+                w.WriteNumber("toleranceDegrees", r.ToleranceDegrees);
+                w.WriteNumber("maxAttempts", r.MaxAttempts);
+                w.WriteNumber("exposureSeconds", r.ExposureSeconds);
+                break;
+            case CenterAndRotateDocumentStep c:
+                Header(w, "centerAndRotate", c.Id);
+                Device(w, "mountId", c.MountId);
+                Device(w, "rigId", c.RigId);
+                w.WriteNumber("raHours", c.RaHours);
+                w.WriteNumber("decDegrees", c.DecDegrees);
+                w.WriteNumber("toleranceArcseconds", c.ToleranceArcseconds);
+                w.WriteNumber("maxCenteringAttempts", c.MaxCenteringAttempts);
+                w.WriteNumber("skyRotationDegrees", c.SkyRotationDegrees);
+                w.WriteNumber("rotationToleranceDegrees", c.RotationToleranceDegrees);
+                w.WriteNumber("maxRotationAttempts", c.MaxRotationAttempts);
+                w.WriteNumber("maxRounds", c.MaxRounds);
+                w.WriteNumber("exposureSeconds", c.ExposureSeconds);
+                if (c.TargetName is { } centerTarget)
+                {
+                    w.WriteString("targetName", centerTarget);
+                }
+
+                break;
             case SyncMountDocumentStep m:
                 Header(w, "syncMountToSolved", m.Id);
                 Device(w, "mountId", m.MountId);
@@ -448,7 +480,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             || (version >= 2 && type is MultiRigType or RigExposureType)
             || (version >= 3 && type is MoveFocuserType or ChangeFilterType or RigMoveFocuserType or RigChangeFilterType)
             || (version >= 4 && type is AutofocusType or RigAutofocusType)
-            || (version >= 7 && type is "plateSolve" or "slewAndCenter" or "syncMountToSolved");
+            || (version >= 7 && type is "plateSolve" or "slewAndCenter" or "syncMountToSolved" or "rotateToAngle" or "rotateAndVerify" or "centerAndRotate");
         if (!known)
         {
             throw Structure($"Unknown sequence step type '{type}'.");
@@ -473,7 +505,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType
-                or MoveFocuserType or ChangeFilterType or AutofocusType or "plateSolve" or "slewAndCenter" or "syncMountToSolved")
+                or MoveFocuserType or ChangeFilterType or AutofocusType or "plateSolve" or "slewAndCenter" or "syncMountToSolved" or "rotateToAngle" or "rotateAndVerify" or "centerAndRotate")
         {
             throw Structure($"A '{type}' step cannot be used inside a rig track.");
         }
@@ -493,6 +525,16 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 element.TryGetProperty("targetName", out var targetNameElement) && targetNameElement.ValueKind == JsonValueKind.String ? targetNameElement.GetString() : null,
                 element.TryGetProperty("desiredRotationDegrees", out var rotationElement) && rotationElement.ValueKind == JsonValueKind.Number && rotationElement.TryGetDouble(out var desiredRotation)
                     ? desiredRotation : null),
+            "rotateToAngle" => new RotateToAngleDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "skyRotationDegrees")),
+            "rotateAndVerify" => new RotateAndVerifyDocumentStep(
+                id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "skyRotationDegrees"), ReadNumber(element, type, "toleranceDegrees"),
+                ReadWholeNumber(element, type, "maxAttempts"), ReadNumber(element, type, "exposureSeconds")),
+            "centerAndRotate" => new CenterAndRotateDocumentStep(
+                id, ReadDevice(element, type, "mountId"), ReadDevice(element, type, "rigId"), ReadNumber(element, type, "raHours"), ReadNumber(element, type, "decDegrees"),
+                ReadNumber(element, type, "toleranceArcseconds"), ReadWholeNumber(element, type, "maxCenteringAttempts"), ReadNumber(element, type, "skyRotationDegrees"),
+                ReadNumber(element, type, "rotationToleranceDegrees"), ReadWholeNumber(element, type, "maxRotationAttempts"), ReadWholeNumber(element, type, "maxRounds"),
+                ReadNumber(element, type, "exposureSeconds"),
+                element.TryGetProperty("targetName", out var centerNameElement) && centerNameElement.ValueKind == JsonValueKind.String ? centerNameElement.GetString() : null),
             "syncMountToSolved" => new SyncMountDocumentStep(id, ReadDevice(element, type, "mountId")),
             "plateSolve" => new PlateSolveDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds")),
             ExposureType => new ExposureDocumentStep(
