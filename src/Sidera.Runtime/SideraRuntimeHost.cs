@@ -1,3 +1,4 @@
+using Sidera.Core.Mounts;
 using Sidera.Core.Devices;
 using Sidera.Core.Astrometry;
 using Sidera.Runtime.Astrometry;
@@ -226,9 +227,12 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
     /// Creates a simulated mount wired to this host's event bus and registers it. The mount is a shared
     /// device: it is not part of any rig.
     /// </summary>
-    public SimulatedMount AddSimulatedMount(DeviceId id, string name, TimeSpan? slewDuration = null)
+    public SimulatedMount AddSimulatedMount(DeviceId id, string name, TimeSpan? slewDuration = null, Func<DateTime>? utcNow = null, MountSite? site = null)
     {
-        var mount = new SimulatedMount(id, name, EventBus, slewDuration);
+        var mount = utcNow is not null || site is not null
+            ? new SimulatedMount(id, name, EventBus, slewDuration) { UtcNow = utcNow ?? (() => DateTime.UtcNow), SimulatedSite = site ?? new MountSite(50.1, 8.6, 120) }
+            : new SimulatedMount(id, name, EventBus, slewDuration);
+
         AddDevice(mount);
         return mount;
     }

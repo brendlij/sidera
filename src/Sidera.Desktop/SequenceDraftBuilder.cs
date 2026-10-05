@@ -45,7 +45,9 @@ public sealed record SequenceDraftContext(
     Sidera.Runtime.Astrometry.PlateSolveService? PlateSolving = null,
     Func<Sidera.Core.Astrometry.PlateSolveDefaults>? PlateSolveDefaults = null,
     Sidera.Runtime.Astrometry.RotationService? Rotation = null,
-    TimeProvider? Time = null
+    TimeProvider? Time = null,
+    Func<Sidera.Core.Location.ObservingSite?>? Site = null,
+    TimeSpan? MeridianPollInterval = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -287,6 +289,18 @@ public static class SequenceDraftBuilder
                 {
                     ids.AddRange(new[] { domain.Mount, domain.Guider }.OfType<DeviceId>());
                 }
+
+                // A meridian flip moves the mount of every setup that has one and stops and starts its guider.
+                if (multiRig.MeridianFlip is { IsEnabled: true })
+                {
+                    foreach (var track in multiRig.Tracks)
+                    {
+                        if (track.RigId is { } flipRigId && TryGetRig(context, flipRigId, out var flipRig))
+                        {
+                            ids.AddRange(new[] { StepScopes.EffectiveMount(flipRig, null, context?.Shared), StepScopes.EffectiveGuider(flipRig, null, context?.Shared) }.OfType<DeviceId>());
+                        }
+                    }
+                }
             }
             else
             {
@@ -463,11 +477,13 @@ public static class SequenceDraftBuilder
     // What a Multi-Rig block with a dither policy is orchestrated with.
     private sealed record Orchestration(
         CoordinationGroupId Group,
-        MultiRigDitherPolicyDraft Policy,
+        MultiRigDitherPolicyDraft? Policy,
         DeviceId Mount,
-        DeviceId Guider,
+        DeviceId? Guider,
         IReadOnlyList<DeviceId> Cameras,
-        IReadOnlySet<Guid> Participants
+        IReadOnlySet<Guid> Participants,
+        MeridianFlipGroup? Flip = null,
+        List<AutofocusClock>? Clocks = null
     );
 
     // rig: the rig of the track the step is in; null outside a track. orchestration: that of the block
@@ -486,12 +502,11 @@ public static class SequenceDraftBuilder
         {
             case MultiRigStepDraft multiRig:
             {
-                var orchestrated = Orchestrate(multiRig, context);
-
-                // Only the tracks on the mount that the policy dithers are orchestrated: they hold safe points and wait for the dither. A rig on another mount is not disturbed by it and runs on
-                // as if the policy were not there.
+                // One orchestration for each mount that a dither or a meridian flip moves: only the tracks on it are orchestrated (they hold safe points and wait for the dither or the flip). A rig on
+                // another mount is not disturbed by it and runs on as if the policy were not there.
+                var orchestrations = Orchestrate(registry, multiRig, context);
                 var tracks = multiRig.Tracks
-                    .Select(track => BuildTrack(registry, track, context, orchestrated is { } o && o.Participants.Contains(track.Id) ? orchestrated : null))
+                    .Select(track => BuildTrack(registry, track, context, orchestrations.FirstOrDefault(o => o.Participants.Contains(track.Id))))
                     .ToList();
 
                 // A block of one track (the imaging of a single setup) has nothing to run next to: it is its track, in a group so that the block keeps its place in the tree.
@@ -500,24 +515,31 @@ public static class SequenceDraftBuilder
                     return new BuiltStep(step.Id, description, new SequenceGroup(MultiRigName, tracks.Select(t => t.Step)), tracks);
                 }
 
-                // With a policy the tracks of the dithered mount are the participants of a coordination group, so that a dither can wait for every one of them. Without one they have nothing to wait for.
-                if (orchestrated is null || tracks.Count(t => orchestrated.Participants.Contains(t.DraftId)) == tracks.Count)
+                // The tracks of a mount are the participants of a coordination group, so that a dither or a flip can wait for every one of them. A mount with one track has nobody to wait for.
+                var groups = orchestrations
+                    .Select(o => (Orchestration: o, Members: tracks.Where(t => o.Participants.Contains(t.DraftId)).ToList()))
+                    .Where(g => g.Members.Count >= 2)
+                    .ToList();
+                if (groups.Count == 0)
                 {
-                    var parallel = new ParallelStep(MultiRigName, tracks.Select(t => t.Step), orchestrated?.Group);
-                    return new BuiltStep(step.Id, description, parallel, tracks);
-                }
-
-                var members = tracks.Where(t => orchestrated.Participants.Contains(t.DraftId)).ToList();
-                var others = tracks.Where(t => !orchestrated.Participants.Contains(t.DraftId)).ToList();
-                if (members.Count < 2)
-                {
-                    // The trigger rig is alone on its mount: nobody else has to wait for its dither.
                     return new BuiltStep(step.Id, description, new ParallelStep(MultiRigName, tracks.Select(t => t.Step)), tracks);
                 }
 
-                var group = new ParallelStep(MultiRigName + " (dithered mount)", members.Select(t => t.Step), orchestrated.Group);
-                var branches = new List<BuiltStep> { Generated(group, members) };
-                branches.AddRange(others);
+                if (groups.Count == 1 && groups[0].Members.Count == tracks.Count)
+                {
+                    var parallel = new ParallelStep(MultiRigName, tracks.Select(t => t.Step), groups[0].Orchestration.Group);
+                    return new BuiltStep(step.Id, description, parallel, tracks);
+                }
+
+                var branches = new List<BuiltStep>();
+                foreach (var (orchestration2, members) in groups)
+                {
+                    var name = MultiRigName + (groups.Count == 1 && orchestration2.Policy is not null ? " (dithered mount)" : $" (mount {orchestration2.Mount.Value})");
+                    branches.Add(Generated(new ParallelStep(name, members.Select(t => t.Step), orchestration2.Group), members));
+                }
+
+                var grouped = groups.SelectMany(g => g.Members).ToHashSet();
+                branches.AddRange(tracks.Where(t => !grouped.Contains(t)));
                 return new BuiltStep(step.Id, description, new ParallelStep(MultiRigName, branches.Select(b => b.Step)), branches);
             }
             case RepeatStepDraft repeat:
@@ -550,6 +572,13 @@ public static class SequenceDraftBuilder
         for (var i = 0; i < steps.Count; i++)
         {
             var step = steps[i];
+
+            // The meridian flip's guard: before an exposure that would not end before the flip, the setup waits (at safe points) and takes part in the flip. It comes first: a flip that is due
+            // comes before an autofocus that is due, and the autofocus after it counts from the flip.
+            if (step is RigExposureStepDraft guarded && orchestration?.Flip is { } flip)
+            {
+                built.Add(Generated(new MeridianGateStep(flip, guarded.Seconds), flip.Children.Select(child => Generated(child)).ToList()));
+            }
 
             // The interval policy looks at the clock before each exposure of the track: the policy says "focus again when it is time", and the place between two exposures is where that is safe.
             // A pending dither of another track is served at the safe point before this, and one that becomes pending meanwhile waits for the autofocus like for any step.
@@ -598,9 +627,9 @@ public static class SequenceDraftBuilder
     private static BuiltStep TriggerStep(
         DeviceRegistry registry, Orchestration orchestration, FrameCounter counter, ILoggerFactory? loggers)
     {
-        var policy = orchestration.Policy;
+        var policy = orchestration.Policy!;
         var dither = new DitherAction(
-            registry, orchestration.Guider, orchestration.Mount, orchestration.Cameras, policy.AmplitudePixels,
+            registry, orchestration.Guider!.Value, orchestration.Mount, orchestration.Cameras, policy.AmplitudePixels,
             new GuidingSettleOptions(
                 policy.SettleThresholdPixels,
                 TimeSpan.FromSeconds(policy.SettleStableSeconds),
@@ -609,24 +638,94 @@ public static class SequenceDraftBuilder
         return Generated(new DitherEveryNthFrameStep(counter, policy.EveryNFrames, dither), [Generated(dither)]);
     }
 
-    // Validated before: an enabled policy has a trigger rig of the block, and shared equipment.
-    private static Orchestration? Orchestrate(MultiRigStepDraft multiRig, SequenceDraftContext? context)
+    // Validated before: an enabled dither policy has a trigger rig of the block and shared equipment, and a flip has setups on a mount. One orchestration for each mount that a dither or a
+    // meridian flip works on: its group, who takes part (every track whose rig sits on that mount), and what the policies of the block need there.
+    private static List<Orchestration> Orchestrate(DeviceRegistry registry, MultiRigStepDraft multiRig, SequenceDraftContext? context)
     {
-        if (multiRig.DitherPolicy is not { Enabled: true } policy)
+        var dither = multiRig.DitherPolicy is { Enabled: true } policy && DitherDomain(multiRig, policy, context) is { Mount: not null } domain ? (Policy: policy, Domain: domain) : default;
+        var flip = multiRig.MeridianFlip is { IsEnabled: true } flipPolicy ? flipPolicy : null;
+
+        var mounts = new List<DeviceId>();
+        var members = new Dictionary<DeviceId, List<RigTrackDraft>>();
+        void Join(DeviceId mount, RigTrackDraft track)
         {
-            return null;
+            if (!members.TryGetValue(mount, out var list))
+            {
+                members[mount] = list = [];
+                mounts.Add(mount);
+            }
+
+            if (!list.Contains(track))
+            {
+                list.Add(track);
+            }
         }
 
-        // Validated before: the trigger rig has a mount and a guider. The cameras that wait for a dither, and the tracks that take part in it, are those on the same mount.
-        var domain = DitherDomain(multiRig, policy, context)!;
-        var cameras = multiRig.Tracks
-            .Where(track => domain.Tracks.Contains(track.Id))
-            .Select(track => TryGetRig(context, track.RigId!.Value, out var rig) ? rig.CameraId : (DeviceId?)null)
-            .OfType<DeviceId>()
-            .Distinct()
-            .ToList();
-        return new Orchestration(
-            new CoordinationGroupId($"multirig.{multiRig.Id:N}"), policy, domain.Mount!.Value, domain.Guider!.Value, cameras, domain.Tracks.ToHashSet());
+        if (dither.Domain is { } ditherDomain)
+        {
+            foreach (var track in multiRig.Tracks.Where(t => ditherDomain.Tracks.Contains(t.Id)))
+            {
+                Join(ditherDomain.Mount!.Value, track);
+            }
+        }
+
+        if (flip is not null)
+        {
+            foreach (var track in multiRig.Tracks)
+            {
+                if (track.RigId is { } id && TryGetRig(context, id, out var rig) && StepScopes.EffectiveMount(rig, null, context?.Shared) is { } mount)
+                {
+                    Join(mount, track);
+                }
+            }
+        }
+
+        var result = new List<Orchestration>();
+        foreach (var mount in mounts)
+        {
+            var tracks = members[mount];
+            var group = new CoordinationGroupId(mounts.Count == 1 ? $"multirig.{multiRig.Id:N}" : $"multirig.{multiRig.Id:N}.{mount.Value}");
+            var cameras = tracks
+                .Select(track => TryGetRig(context, track.RigId!.Value, out var rig) ? rig.CameraId : (DeviceId?)null)
+                .OfType<DeviceId>()
+                .Distinct()
+                .ToList();
+            var dithers = dither.Domain is { } d && d.Mount == mount;
+            var clocks = new List<AutofocusClock>();
+            var flipGroup = flip is not null && context is not null ? CreateFlipGroup(registry, flip, mount, tracks, clocks, context) : null;
+            result.Add(new Orchestration(
+                group, dithers ? dither.Policy : null, mount, dithers ? dither.Domain!.Guider : null, cameras, tracks.Select(t => t.Id).ToHashSet(), flipGroup, clocks));
+        }
+
+        return result;
+    }
+
+    // The flip of one mount: its setups in the order of the block, the one that solves for it (the one the policy names, else the first), and the services it uses.
+    private static MeridianFlipGroup CreateFlipGroup(
+        DeviceRegistry registry, MeridianFlipPolicyDraft policy, DeviceId mount, IReadOnlyList<RigTrackDraft> tracks, List<AutofocusClock> clocks, SequenceDraftContext context)
+    {
+        var setups = tracks.Select(track => TryGetRig(context, track.RigId!.Value, out var rig) ? rig : null).OfType<Rig>().ToList();
+        var pointing = setups.FirstOrDefault(r => r.Id == policy.PointingRigId) ?? setups[0];
+        var focus = tracks.Select(t => t.AutofocusPolicy).FirstOrDefault(p => p is { Enabled: true });
+        var options = focus is null
+            ? new AutofocusOptions(TimeSpan.FromSeconds(1), 400, 7)
+            : new AutofocusOptions(TimeSpan.FromSeconds(focus.ExposureSeconds), focus.StepSize, focus.SampleCount);
+        var time = context.Time ?? TimeProvider.System;
+        var plan = new MeridianFlipPlan(
+            mount, policy.Settings, new CelestialCoordinates(policy.RightAscensionHours, policy.DeclinationDegrees), policy.TargetName, policy.DesiredRotationDegrees, pointing, setups, options,
+            new GuidingSettleOptions(policy.SettleThresholdPixels, TimeSpan.FromSeconds(policy.SettleStableSeconds), TimeSpan.FromSeconds(policy.SettleTimeoutSeconds)),
+            policy.DitherAmplitudePixels,
+            () =>
+            {
+                foreach (var clock in clocks.ToList())
+                {
+                    clock.Mark(time.GetUtcNow());
+                }
+            });
+        var services = new MeridianFlipServices(
+            registry, context.PlateSolving, context.Rotation, context.FocusMetrics, context.Events, context.Loggers, context.AcquisitionDefaults, context.PlateSolveDefaults, context.Time,
+            context.Site, context.MeridianPollInterval);
+        return new MeridianFlipGroup(plan, services);
     }
 
     private static BuiltStep BuildTrack(
@@ -634,8 +733,13 @@ public static class SequenceDraftBuilder
     {
         // Validated before: the rig is selected and there.
         TryGetRig(context, track.RigId!.Value, out var rig);
-        var counter = orchestration is not null && orchestration.Policy.TriggerRigId == track.RigId ? new FrameCounter() : null;
+        var counter = orchestration is { Policy: { } ditherPolicy } && ditherPolicy.TriggerRigId == track.RigId ? new FrameCounter() : null;
         var plan = PlanOf(track, rig, context);
+        if (plan?.Clock is { } clock)
+        {
+            orchestration?.Clocks?.Add(clock); // a flip that autofocuses starts the interval again
+        }
+
         var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter, plan);
 
         // At the start of the track, once: before the first step that does something, unless that is an autofocus.
