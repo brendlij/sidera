@@ -86,7 +86,7 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string ErrorText { get; private set; } = string.Empty;
 
-    public bool HasError => ErrorText.Length > 0;
+    public new bool HasError => ErrorText.Length > 0;
 
     public bool HasTarget => SelectedTarget is not null;
 
