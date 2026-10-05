@@ -20,6 +20,7 @@ public sealed partial class PlateSolvingSettingsViewModel : ViewModelBase
         Downsample = s.DownsampleFactor == 0 ? "Auto" : $"{s.DownsampleFactor}x";
         BlindFallback = s.BlindFallback; ExposureSeconds = s.ExposureSeconds;
         ToleranceArcseconds = s.CenteringToleranceArcseconds; MaxAttempts = s.MaxCenteringAttempts;
+        RotationToleranceDegrees = s.RotationToleranceDegrees; MaxRotationAttempts = s.MaxRotationAttempts;
         Refresh();
     }
     public IReadOnlyList<string> Backends { get; } = ["ASTAP"];
@@ -34,6 +35,8 @@ public sealed partial class PlateSolvingSettingsViewModel : ViewModelBase
     [ObservableProperty] public partial double ExposureSeconds { get; set; }
     [ObservableProperty] public partial double ToleranceArcseconds { get; set; }
     [ObservableProperty] public partial int MaxAttempts { get; set; }
+    [ObservableProperty] public partial double RotationToleranceDegrees { get; set; }
+    [ObservableProperty] public partial int MaxRotationAttempts { get; set; }
     [ObservableProperty] public partial string StatusText { get; private set; } = "";
     [ObservableProperty] public partial string ProblemText { get; private set; } = "";
     public Func<Task<string?>>? BrowseExecutable { get; set; }
@@ -53,7 +56,8 @@ public sealed partial class PlateSolvingSettingsViewModel : ViewModelBase
             Backend = Backend, ExecutablePath = string.IsNullOrWhiteSpace(ExecutablePath) ? null : ExecutablePath.Trim(),
             DatabasePath = string.IsNullOrWhiteSpace(DatabasePath) ? null : DatabasePath.Trim(), TimeoutSeconds = TimeoutSeconds,
             SearchRadiusDegrees = SearchRadiusDegrees, DownsampleFactor = Downsample == "Auto" ? 0 : int.Parse(Downsample[..1]),
-            BlindFallback = BlindFallback, ExposureSeconds = ExposureSeconds, CenteringToleranceArcseconds = ToleranceArcseconds, MaxCenteringAttempts = MaxAttempts
+            BlindFallback = BlindFallback, ExposureSeconds = ExposureSeconds, CenteringToleranceArcseconds = ToleranceArcseconds, MaxCenteringAttempts = MaxAttempts,
+            RotationToleranceDegrees = RotationToleranceDegrees, MaxRotationAttempts = MaxRotationAttempts
         };
         var result = _settings.SetPlateSolving(s);
         ProblemText = result.Problem ?? "Settings saved.";

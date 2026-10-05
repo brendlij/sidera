@@ -79,6 +79,45 @@ public sealed class PlateSolveIntegrationTests
         Assert.Equal(new PlateSolvingSettings(), SideraSettingsSerializer.Deserialize(Encoding.UTF8.GetBytes("{\"format\":\"sidera-settings\",\"version\":1}")).PlateSolving);
 
     [Fact]
+    public void TheRotationSettings_DefaultToHalfADegreeAndFourAttempts_AndRoundTrip()
+    {
+        Assert.Equal(0.5, new PlateSolvingSettings().RotationToleranceDegrees);
+        Assert.Equal(4, new PlateSolvingSettings().MaxRotationAttempts);
+        var path = Path.Combine(Path.GetTempPath(), "sidera-settings-rot-" + Guid.NewGuid().ToString("N"), "settings.json");
+        try
+        {
+            var service = new SiteService(new(path)); service.Load();
+            var solver = new PlateSolvingSettings { RotationToleranceDegrees = 0.25, MaxRotationAttempts = 6 };
+
+            Assert.True(service.SetPlateSolving(solver).Succeeded);
+
+            Assert.Equal(solver, new SideraSettingsStore(path).Load().PlateSolving);
+        }
+        finally { if (Directory.Exists(Path.GetDirectoryName(path))) Directory.Delete(Path.GetDirectoryName(path)!, true); }
+    }
+
+    [Theory]
+    [InlineData(0, 4)]
+    [InlineData(-1, 4)]
+    [InlineData(91, 4)]
+    [InlineData(double.NaN, 4)]
+    [InlineData(0.5, 0)]
+    [InlineData(0.5, 21)]
+    public void ANonsensicalRotationSetting_IsRefused(double tolerance, int attempts) =>
+        Assert.NotNull(new PlateSolvingSettings { RotationToleranceDegrees = tolerance, MaxRotationAttempts = attempts }.Problem);
+
+    [Fact]
+    public void ASettingsFileFromBeforeTheRotator_GetsTheDefaults_ForTheRotation()
+    {
+        const string old = "{\"format\":\"sidera-settings\",\"version\":1,\"plateSolving\":{\"Backend\":\"ASTAP\",\"CenteringToleranceArcseconds\":12}}";
+
+        var loaded = SideraSettingsSerializer.Deserialize(Encoding.UTF8.GetBytes(old)).PlateSolving;
+
+        Assert.Equal(0.5, loaded.RotationToleranceDegrees);
+        Assert.Equal(4, loaded.MaxRotationAttempts);
+    }
+
+    [Fact]
     public void DiagnosticEstimateUsesBinnedPixelSize()
     {
         var request = new PlateSolveRequest(new PlateSolveImage(new CameraFrame(1, 1, [1], TimeSpan.Zero), PixelSizeXMicrons: 4))

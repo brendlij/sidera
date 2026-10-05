@@ -53,6 +53,13 @@
                     <ctl:InfoRow Label="Direction" Value="{Binding DirectionText}" />
                     <ctl:InfoRow Label="Sky rotation now" Value="{Binding SkyNowText}" />
                     <TextBlock Classes="meta" TextWrapping="Wrap" Text="{Binding CalibrationNote}" />
+                    <CheckBox Content="More position means less sky rotation (reversed)" IsChecked="{Binding ReversedChoice}" IsEnabled="{Binding !IsCalibrating}" AutomationProperties.Name="Reversed direction" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="primary" Content="Calibrate with a plate solve" Command="{Binding CalibrateCommand}" AutomationProperties.Name="Calibrate rotator" />
+                        <Button Content="Cancel" Command="{Binding CancelCalibrationCommand}" />
+                    </StackPanel>
+                    <TextBlock Classes="meta" TextWrapping="Wrap" Text="{Binding CalibrationBlockedText}" IsVisible="{Binding CalibrationBlockedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock TextWrapping="Wrap" Text="{Binding CalibrationStatus}" IsVisible="{Binding CalibrationStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" AutomationProperties.AutomationId="RotatorCalibrationStatus" />
                 </StackPanel>
             </ctl:WorkspaceSection>
         </WrapPanel>

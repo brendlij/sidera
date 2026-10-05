@@ -74,6 +74,27 @@ public sealed class PlateSolveService
         CancellationToken cancellationToken = default) => RunAsync(() =>
             CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, overrides, cancellationToken));
 
+    /// <summary>
+    /// A capture and a solve inside an operation that already holds the camera lease and the busy state of its own (a rotation, a centering and rotating): it neither
+    /// acquires the camera nor claims the service as busy, so it never waits for what the caller holds. The result is recorded as the last one.
+    /// </summary>
+    public async Task<PlateSolveResult> CaptureAndSolveInLeaseAsync(Rig rig, DeviceId? mountId, TimeSpan exposure,
+        PlateSolveDefaults defaults, AcquisitionIntent? intent = null, PlateSolveOverrides? overrides = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, overrides, cancellationToken);
+        Record(result);
+        return result;
+    }
+
+    private void Record(PlateSolveResult result)
+    {
+        LastResult = result;
+        LastFailure = result.Message;
+        LastDuration = result.Duration;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     private async Task<PlateSolveResult> CaptureAndSolveCoreAsync(Rig rig, DeviceId? mountId, TimeSpan exposure,
         PlateSolveDefaults defaults, AcquisitionIntent? intent, PlateSolveOverrides? overrides, CancellationToken token)
     {
@@ -118,48 +139,62 @@ public sealed class PlateSolveService
         double toleranceArcseconds, int maxAttempts, TimeSpan exposure, PlateSolveDefaults defaults,
         AcquisitionIntent? intent = null, IProgress<CenteringProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        if (!double.IsFinite(toleranceArcseconds) || toleranceArcseconds <= 0) throw new ArgumentOutOfRangeException(nameof(toleranceArcseconds));
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxAttempts, 100);
+        ValidateCentering(toleranceArcseconds, maxAttempts);
         return RunAsync(async () =>
         {
             using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(mountId), ResourceId.ForDevice(rig.CameraId)], cancellationToken);
-            if (!_devices.TryGet(mountId, out var device) || device is not IMount mount) throw new InvalidOperationException("The selected mount is unavailable.");
-            if (mount is not SimulatedMount && Sidera.Core.SideraEnvironment.Get("SIDERA_ASTROMETRY_CENTERING_OK") != "1")
-                return CenterFailure(0, null, "Real mount centering requires SIDERA_ASTROMETRY_CENTERING_OK=1.");
-            using var scope = _logger.BeginScope(new Dictionary<string, object?> { ["RigId"] = rig.Id.Value, ["CameraId"] = rig.CameraId.Value, ["MountId"] = mountId.Value, ["Target"] = target, ["Backend"] = Solver.Name });
-            _logger.LogInformation(new EventId(5200, "CenteringStarted"), "CenteringStarted {Target}", target);
-            var commanded = target;
-            double? error = null;
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                progress?.Report(new("Slew", attempt));
-                try { await mount.SlewToAsync(commanded, cancellationToken); }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex) { return CenterFailure(attempt, error, $"Mount slew failed: {ex.Message}"); }
-                progress?.Report(new("Solve", attempt));
-                var result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, null, cancellationToken);
-                LastResult = result;
-                LastFailure = result.Message;
-                LastDuration = result.Duration;
-                Changed?.Invoke(this, EventArgs.Empty);
-                if (!result.Success || result.Center is null) return CenterFailure(attempt, error, result.Message ?? "Plate solving failed.");
-                error = SkyMath.DegreesToArcseconds(SkyMath.AngularSeparationDegrees(target, result.Center));
-                progress?.Report(new("Pointing error", attempt, error));
-                if (error <= toleranceArcseconds)
-                {
-                    _logger.LogInformation(new EventId(5202, "CenteringCompleted"), "CenteringCompleted after {Attempt} attempts, error {ErrorArcseconds}", attempt, error);
-                    progress?.Report(new("Centered", attempt, error));
-                    return new CenteringResult(true, attempt, error, null);
-                }
-                if (attempt == maxAttempts) break;
-                commanded = SkyMath.CorrectedTarget(commanded, result.Center, target);
-                _logger.LogInformation(new EventId(5201, "CenteringCorrection"), "CenteringCorrection {Attempt} to {Correction}, solved {Center}, error {ErrorArcseconds}", attempt, commanded, result.Center, error);
-                progress?.Report(new("Correction", attempt, error));
-            }
-            return CenterFailure(maxAttempts, error, "Maximum centering attempts reached.");
+            return await CenterTargetInLeaseAsync(target, rig, mountId, toleranceArcseconds, maxAttempts, exposure, defaults, intent, progress, cancellationToken);
         });
+    }
+
+    private static void ValidateCentering(double toleranceArcseconds, int maxAttempts)
+    {
+        if (!double.IsFinite(toleranceArcseconds) || toleranceArcseconds <= 0) throw new ArgumentOutOfRangeException(nameof(toleranceArcseconds));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxAttempts, 100);
+    }
+
+    /// <summary>
+    /// Centering inside an operation that already holds the mount and the camera and has the busy state of its own: the same slew, solve and correct loop, without
+    /// acquiring anything. Never synchronizes the mount.
+    /// </summary>
+    public async Task<CenteringResult> CenterTargetInLeaseAsync(CelestialCoordinates target, Rig rig, DeviceId mountId,
+        double toleranceArcseconds, int maxAttempts, TimeSpan exposure, PlateSolveDefaults defaults,
+        AcquisitionIntent? intent = null, IProgress<CenteringProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        ValidateCentering(toleranceArcseconds, maxAttempts);
+        if (!_devices.TryGet(mountId, out var device) || device is not IMount mount) throw new InvalidOperationException("The selected mount is unavailable.");
+        if (mount is not SimulatedMount && Sidera.Core.SideraEnvironment.Get("SIDERA_ASTROMETRY_CENTERING_OK") != "1")
+            return CenterFailure(0, null, "Real mount centering requires SIDERA_ASTROMETRY_CENTERING_OK=1.");
+        using var scope = _logger.BeginScope(new Dictionary<string, object?> { ["RigId"] = rig.Id.Value, ["CameraId"] = rig.CameraId.Value, ["MountId"] = mountId.Value, ["Target"] = target, ["Backend"] = Solver.Name });
+        _logger.LogInformation(new EventId(5200, "CenteringStarted"), "CenteringStarted {Target}", target);
+        var commanded = target;
+        double? error = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(new("Slew", attempt));
+            try { await mount.SlewToAsync(commanded, cancellationToken); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { return CenterFailure(attempt, error, $"Mount slew failed: {ex.Message}"); }
+            progress?.Report(new("Solve", attempt));
+            var result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, null, cancellationToken);
+            Record(result);
+            if (!result.Success || result.Center is null) return CenterFailure(attempt, error, result.Message ?? "Plate solving failed.");
+            error = SkyMath.DegreesToArcseconds(SkyMath.AngularSeparationDegrees(target, result.Center));
+            progress?.Report(new("Pointing error", attempt, error));
+            if (error <= toleranceArcseconds)
+            {
+                _logger.LogInformation(new EventId(5202, "CenteringCompleted"), "CenteringCompleted after {Attempt} attempts, error {ErrorArcseconds}", attempt, error);
+                progress?.Report(new("Centered", attempt, error));
+                return new CenteringResult(true, attempt, error, null);
+            }
+            if (attempt == maxAttempts) break;
+            commanded = SkyMath.CorrectedTarget(commanded, result.Center, target);
+            _logger.LogInformation(new EventId(5201, "CenteringCorrection"), "CenteringCorrection {Attempt} to {Correction}, solved {Center}, error {ErrorArcseconds}", attempt, commanded, result.Center, error);
+            progress?.Report(new("Correction", attempt, error));
+        }
+        return CenterFailure(maxAttempts, error, "Maximum centering attempts reached.");
     }
 
     /// <summary>

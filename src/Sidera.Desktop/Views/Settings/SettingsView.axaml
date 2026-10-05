@@ -59,6 +59,10 @@
                     <ctl:LabeledField Grid.Column="1" Label="Centering tolerance (arcsec)"><NumericUpDown Value="{Binding ToleranceArcseconds}" Minimum="0.01" Maximum="3600" /></ctl:LabeledField>
                     <ctl:LabeledField Grid.Column="2" Label="Max attempts"><NumericUpDown Value="{Binding MaxAttempts}" Minimum="1" Maximum="100" /></ctl:LabeledField>
                 </Grid>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Rotation tolerance (°)"><NumericUpDown Value="{Binding RotationToleranceDegrees}" Minimum="0.001" Maximum="90" Increment="0.1" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Rotation attempts"><NumericUpDown Value="{Binding MaxRotationAttempts}" Minimum="1" Maximum="20" /></ctl:LabeledField>
+                </Grid>
                 <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Save plate solving" Command="{Binding SaveCommand}" /><Button Content="Refresh detection" Command="{Binding RefreshCommand}" /></StackPanel>
                 <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
             </StackPanel>

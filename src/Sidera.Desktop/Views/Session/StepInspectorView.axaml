@@ -180,6 +180,58 @@
             </StackPanel>
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:RotateToAngleStepDraftViewModel}" x:DataType="vm:RotateToAngleStepDraftViewModel">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
+                    <TextBlock Classes="section-title" Text="Rotate to Angle" />
+                </StackPanel>
+                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:FieldRow Label="Sky rotation" Unit="°"><TextBox Text="{Binding AngleText}" /></ctl:FieldRow>
+                <TextBlock Classes="secondary" Text="Turns the rotator by the calibration of the rig. Does not solve and does not check the result; the mount is never synchronized." TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:RotateAndVerifyStepDraftViewModel}" x:DataType="vm:RotateAndVerifyStepDraftViewModel">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
+                    <TextBlock Classes="section-title" Text="Rotate &amp; Verify" />
+                </StackPanel>
+                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:FieldRow Label="Sky rotation" Unit="°"><TextBox Text="{Binding AngleText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Tolerance" Unit="°"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Attempts"><TextBox Text="{Binding MaxAttemptsText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Solve exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                <TextBlock Classes="secondary" Text="Rotates, solves, and corrects until the sky is at the angle within the tolerance; the solve decides. The mount is never synchronized." TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:CenterAndRotateStepDraftViewModel}" x:DataType="vm:CenterAndRotateStepDraftViewModel">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
+                    <TextBlock Classes="section-title" Text="Center &amp; Rotate" />
+                </StackPanel>
+                <ctl:LabeledField Label="Mount"><ContentControl Content="{Binding Mount}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding RightAscensionText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding DeclinationText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Position tolerance" Unit="arcsec"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Centering attempts"><TextBox Text="{Binding MaxCenteringAttemptsText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Sky rotation" Unit="°"><TextBox Text="{Binding AngleText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Rotation tolerance" Unit="°"><TextBox Text="{Binding RotationToleranceText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Rotation attempts"><TextBox Text="{Binding MaxRotationAttemptsText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Rounds"><TextBox Text="{Binding MaxRoundsText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Solve exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                <TextBlock Classes="meta" Text="{Binding FramingText}" IsVisible="{Binding FramingText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Classes="secondary" Text="Centers the target, rotates and verifies the rotation, and centers again when turning moved the field. Ends when both tolerances hold. The mount is never synchronized." TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:SyncMountStepDraftViewModel}" x:DataType="vm:SyncMountStepDraftViewModel">
             <StackPanel Spacing="16">
                 <StackPanel Spacing="2">

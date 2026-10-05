@@ -97,7 +97,9 @@ public class SequenceDraftViewModelTests
 
         Assert.Equal(
             AllKinds.Where(k => k is not (SequenceStepKind.Repeat or SequenceStepKind.RigExposure or SequenceStepKind.MultiRig or SequenceStepKind.RigTrack
-                or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus)).OrderBy(k => k),
+                or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus
+                // The rotation steps need a rig with a calibrated rotator, which the demo equipment does not have (see RotationActionsDocumentTests).
+                or SequenceStepKind.RotateToAngle or SequenceStepKind.RotateAndVerify or SequenceStepKind.CenterAndRotate)).OrderBy(k => k),
             draft.Steps.Select(s => s.Kind).OrderBy(k => k));
         Assert.True(draft.IsValid, string.Join(" ", draft.ValidationErrors));
         Assert.Equal(12, draft.Build().Sequence.Steps.Count);

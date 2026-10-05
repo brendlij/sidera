@@ -44,7 +44,16 @@ public enum SequenceStepKind
     Autofocus,
 
     /// <summary>Focuses the rig of its track; only exists inside a Rig Track.</summary>
-    RigAutofocus
+    RigAutofocus,
+
+    /// <summary>Turns the rotator of a rig so that the sky has an angle in the image, by the calibration; does not solve.</summary>
+    RotateToAngle,
+
+    /// <summary>Rotates, solves and corrects until the sky has the angle within a tolerance.</summary>
+    RotateAndVerify,
+
+    /// <summary>Centers a target and rotates to an angle, verified by solves.</summary>
+    CenterAndRotate
 }
 
 /// <summary>
@@ -72,6 +81,31 @@ public sealed record SlewAndCenterStepDraft(
     : LeafStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.SlewAndCenter;
+    public override IEnumerable<DeviceId> DeviceIds => Of(MountId);
+}
+
+/// <summary>Turns the rotator of a rig to a sky rotation (degrees, the one of a plate solve) by the calibration of the rig. Does not solve.</summary>
+public sealed record RotateToAngleStepDraft(Guid Id, RigId? RigId, double SkyRotationDegrees) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RotateToAngle;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>Rotates to a sky rotation and corrects until a plate solve shows it within <paramref name="ToleranceDegrees"/>.</summary>
+public sealed record RotateAndVerifyStepDraft(
+    Guid Id, RigId? RigId, double SkyRotationDegrees, double ToleranceDegrees, int MaxAttempts, double ExposureSeconds) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.RotateAndVerify;
+    public override IEnumerable<DeviceId> DeviceIds => [];
+}
+
+/// <summary>Centers a target and rotates the sky to an angle; both the pointing and the rotation are verified by plate solves.</summary>
+public sealed record CenterAndRotateStepDraft(
+    Guid Id, DeviceId? MountId, RigId? RigId, double RightAscensionHours, double DeclinationDegrees, double ToleranceArcseconds, int MaxCenteringAttempts,
+    double SkyRotationDegrees, double RotationToleranceDegrees, int MaxRotationAttempts, int MaxRounds, double ExposureSeconds, string? TargetName = null)
+    : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.CenterAndRotate;
     public override IEnumerable<DeviceId> DeviceIds => Of(MountId);
 }
 

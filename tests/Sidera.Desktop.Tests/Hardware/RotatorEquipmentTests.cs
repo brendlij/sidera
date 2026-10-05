@@ -56,6 +56,7 @@ public sealed class RotatorEquipmentTests : IAsyncLifetime
         equipment.Load();
         var settings = new SiteService(new SideraSettingsStore(Path.Combine(_directory, "settings.json")));
         settings.Load();
+        settings.SetPlateSolving(new PlateSolvingSettings { ExposureSeconds = 0.01 });
         var vm = new MainViewModel(
             host, a => a(), options,
             equipmentManagement: new EquipmentManagement(equipment, new NoDiscovery(), new NoSetup(), settings), withDemoSequence: false);
@@ -411,5 +412,141 @@ public sealed class RotatorEquipmentTests : IAsyncLifetime
         Assert.Equal("+12.0°", detail.OffsetText);
         Assert.True(detail.HasRig);
         Assert.Equal(rig.Name, detail.RigText);
+    }
+
+    // ---- The calibration on the rotator page
+
+    private sealed class RotatorSolver(SimulatedRotator rotator, Sidera.Core.Mounts.IMount? mount = null) : Sidera.Core.Astrometry.IPlateSolver
+    {
+        public string Name => "Test";
+        public Sidera.Core.Astrometry.PlateSolverCapabilities Capabilities => Sidera.Core.Astrometry.PlateSolverCapabilities.HintedSolve;
+        public int Calls { get; private set; }
+        public Task<Sidera.Core.Astrometry.PlateSolverStatus> GetStatusAsync(CancellationToken cancellationToken = default) => Task.FromResult(new Sidera.Core.Astrometry.PlateSolverStatus(true, [], null));
+
+        public Task<Sidera.Core.Astrometry.PlateSolveResult> SolveAsync(Sidera.Core.Astrometry.PlateSolveRequest request, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new Sidera.Core.Astrometry.PlateSolveResult
+            {
+                Success = true, Center = mount?.Coordinates ?? new Sidera.Core.Mounts.CelestialCoordinates(1, 1), RotationDegrees = rotator.CurrentSkyRotation, Backend = Name,
+            });
+        }
+    }
+
+    private async Task<(App App, RotatorDetailViewModel Detail, SimulatedRotator Rotator, RotatorSolver Solver)> CalibrationAppAsync(bool withRig = true, bool solver = true, bool connected = true)
+    {
+        var app = Create();
+        app.Equipment.Add(Camera);
+        app.Equipment.Add(Rotator);
+        if (withRig)
+        {
+            app.Equipment.SetCameraRotator("camera.main", "rotator.main");
+        }
+
+        var rotator = app.Host.DeviceRegistry.GetAll().OfType<SimulatedRotator>().Single();
+        var camera = app.Host.DeviceRegistry.GetAll().OfType<Sidera.Core.Devices.ICamera>().Single();
+        await camera.ConnectAsync();
+        if (connected)
+        {
+            await app.Host.DeviceOperations.ConnectAsync(rotator.Id);
+        }
+
+        var rotatorSolver = new RotatorSolver(rotator);
+        if (solver)
+        {
+            app.Host.ConfigurePlateSolver(rotatorSolver);
+        }
+
+        var detail = Assert.IsType<RotatorDetailViewModel>(app.Vm.Equipment.Slots.Single(s => s.Type == DeviceType.Rotator).Detail);
+        await WaitAsync(() => detail.Rotator.IsConnected == connected, "the connection");
+        return (app, detail, rotator, rotatorSolver);
+    }
+
+    private static RotatorDetailViewModel DetailOf(App app) =>
+        Assert.IsType<RotatorDetailViewModel>(app.Vm.Equipment.Slots.Single(s => s.Type == DeviceType.Rotator).Detail);
+
+    [Fact]
+    public async Task Calibrate_MeasuresWithOneSolve_KeepsTheModelOfTheRig_AndMovesNothing()
+    {
+        var (app, detail, rotator, solver) = await CalibrationAppAsync();
+        await app.Host.DeviceOperations.MoveRotatorToAsync(rotator.Id, 25);
+        var moves = rotator.MovesStarted;
+        Assert.Equal("Not calibrated", detail.OffsetText);
+
+        await detail.CalibrateCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, solver.Calls);
+        Assert.Equal(moves, rotator.MovesStarted);
+        var model = app.Host.RigRegistry.GetAll().Single().RotatorModel!;
+        Assert.Equal(0, model.OffsetDegrees, 6); // the simulated sky is at position + 0
+        Assert.False(model.Reversed);
+        Assert.NotNull(model.CalibratedAt);
+        Assert.Contains("skyOffsetDegrees", File.ReadAllText(EquipmentFile));
+        Assert.Equal("0.0°", DetailOf(app).OffsetText);
+        Assert.Contains("Calibrated", detail.CalibrationStatus);
+    }
+
+    [Fact]
+    public async Task Calibrate_WithTheDirectionThatWasChosen_KeepsThatDirection()
+    {
+        var (app, detail, rotator, _) = await CalibrationAppAsync();
+        await app.Host.DeviceOperations.MoveRotatorToAsync(rotator.Id, 25);
+        detail.ReversedChoice = true;
+
+        await detail.CalibrateCommand.ExecuteAsync(null);
+
+        var model = app.Host.RigRegistry.GetAll().Single().RotatorModel!;
+        Assert.True(model.Reversed);
+        Assert.Equal(50, model.OffsetDegrees, 6); // sky 25 = -25 + 50
+        Assert.Equal("More position means less sky rotation", DetailOf(app).DirectionText);
+    }
+
+    [Theory]
+    [InlineData(false, true, true, "Add the rotator to a rig")]
+    [InlineData(true, false, true, "No plate solver")]
+    [InlineData(true, true, false, "Connect the rotator")]
+    public async Task Calibrate_IsDisabled_WithTheReason(bool withRig, bool solver, bool connected, string reason)
+    {
+        var (_, detail, rotator, _) = await CalibrationAppAsync(withRig, solver, connected);
+
+        Assert.False(detail.CalibrateCommand.CanExecute(null));
+        Assert.Contains(reason, detail.CalibrationBlockedText);
+        Assert.Equal(0, rotator.MovesStarted);
+    }
+
+    [Fact]
+    public async Task Calibrate_WithASolveThatFails_ShowsWhy_AndKeepsTheOldCalibration()
+    {
+        var (app, detail, _, solver) = await CalibrationAppAsync();
+        var rig = app.Host.RigRegistry.GetAll().Single();
+        app.Equipment.SetRotatorModel(rig.Id.Value, new RotatorSkyModel(77, false, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+        detail = DetailOf(app);
+        var failing = new FailingSolver();
+        app.Host.ConfigurePlateSolver(failing);
+
+        await detail.CalibrateCommand.ExecuteAsync(null);
+
+        Assert.Contains("No solution", detail.CalibrationStatus);
+        Assert.Equal(77, app.Host.RigRegistry.GetAll().Single().RotatorModel!.OffsetDegrees);
+        Assert.Equal(0, solver.Calls);
+    }
+
+    private sealed class FailingSolver : Sidera.Core.Astrometry.IPlateSolver
+    {
+        public string Name => "Failing";
+        public Sidera.Core.Astrometry.PlateSolverCapabilities Capabilities => Sidera.Core.Astrometry.PlateSolverCapabilities.HintedSolve;
+        public Task<Sidera.Core.Astrometry.PlateSolverStatus> GetStatusAsync(CancellationToken cancellationToken = default) => Task.FromResult(new Sidera.Core.Astrometry.PlateSolverStatus(true, [], null));
+
+        public Task<Sidera.Core.Astrometry.PlateSolveResult> SolveAsync(Sidera.Core.Astrometry.PlateSolveRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Sidera.Core.Astrometry.PlateSolveResult.Failed(Name, Sidera.Core.Astrometry.PlateSolveFailure.NoSolution, "No solution.", TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void TheRotatorPage_OffersTheCalibration()
+    {
+        var xaml = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Sidera.Desktop", "Views", "Equipment", "Workspaces", "RotatorWorkspaceView.axaml"));
+
+        Assert.Contains("Calibrate with a plate solve", xaml);
+        Assert.Contains("Reversed direction", xaml);
     }
 }

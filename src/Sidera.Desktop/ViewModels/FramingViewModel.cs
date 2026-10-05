@@ -19,6 +19,15 @@ using Sidera.Sky;
 
 namespace Sidera.Desktop.ViewModels;
 
+/// <summary>
+/// Progress that is handed on at once, on the thread of the operation (the handler posts to the UI itself). <see cref="Progress{T}"/> would queue the report and could deliver it after
+/// the operation has ended, over its final status.
+/// </summary>
+internal sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
+{
+    public void Report(T value) => handler(value);
+}
+
 /// <summary>A drag of the picture, in pixels of the sky view.</summary>
 public sealed record ViewDelta(double Dx, double Dy);
 
@@ -125,7 +134,12 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     public bool HasTarget => Target is not null;
 
     partial void OnTargetChanged(FramingTarget? value) => UpdateSlewState();
-    partial void OnIsBusyChanged(bool value) => SlewAndCenterCommand.NotifyCanExecuteChanged();
+    partial void OnIsBusyChanged(bool value)
+    {
+        SlewAndCenterCommand.NotifyCanExecuteChanged();
+        CenterAndRotateCommand.NotifyCanExecuteChanged();
+        SolveAgainCommand.NotifyCanExecuteChanged();
+    }
 
     public string TargetName => Target?.Name ?? "No target";
 
@@ -499,6 +513,29 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     private PlateSolvingSettings SolveSettings => _settings?.PlateSolving ?? new PlateSolvingSettings();
 
+    // The selected rig is a snapshot; its rotator and the calibration of it can change while this page is open, so the registry is asked again.
+    private Rig? CurrentRig => SelectedRig is { } selected && _host.RigRegistry.TryGet(selected.Id, out var current) && current is not null ? current : SelectedRig;
+
+    /// <summary>The selected rig has a rotator: the page then offers Center &amp; Rotate. Otherwise Slew &amp; Center, and a rotation that is made by hand.</summary>
+    public bool HasRotator => CurrentRig?.RotatorId is not null;
+
+    public bool HasNoRotator => !HasRotator;
+
+    /// <summary>For a rig without a rotator: how far the sky is from the desired rotation, as signed degrees to change it by; empty before a solve.</summary>
+    [ObservableProperty] public partial string RotationAdjustmentText { get; private set; } = string.Empty;
+
+    private string RotatorProblem(Rig rig)
+    {
+        if (rig.RotatorId is not { } rotatorId)
+        {
+            return string.Empty;
+        }
+
+        return !_host.DeviceRegistry.TryGet(rotatorId, out var rotator) || rotator is null || rotator.ConnectionState != DeviceConnectionState.Connected ? "Connect the rotator to rotate."
+            : rig.RotatorModel is null ? "Calibrate the rotator first (Equipment, Rotator): its position says nothing about the sky until then."
+            : string.Empty;
+    }
+
     private void UpdateSlewState()
     {
         SlewDisabledText =
@@ -507,8 +544,13 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
             : SelectedMount is null ? "No mount is available."
             : SelectedMount.ConnectionState != DeviceConnectionState.Connected ? "Connect the mount to slew."
             : Target is null ? "Choose a target first."
+            : CurrentRig is { RotatorId: not null } withRotator ? RotatorProblem(withRotator)
             : string.Empty;
+        OnPropertyChanged(nameof(HasRotator));
+        OnPropertyChanged(nameof(HasNoRotator));
         SlewAndCenterCommand.NotifyCanExecuteChanged();
+        CenterAndRotateCommand.NotifyCanExecuteChanged();
+        SolveAgainCommand.NotifyCanExecuteChanged();
         AddToSessionCommand.NotifyCanExecuteChanged();
     }
 
@@ -535,7 +577,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         try
         {
             var solve = SolveSettings;
-            var progress = new Progress<CenteringProgress>(p => _post(() => StatusText = p.PointingErrorArcseconds is { } error
+            var progress = new InlineProgress<CenteringProgress>(p => _post(() => StatusText = p.PointingErrorArcseconds is { } error
                 ? Format($"{p.Stage} · attempt {p.Attempt} · error {error:0.#}\"")
                 : Format($"{p.Stage} · attempt {p.Attempt}")));
             var result = await service.CenterTargetAsync(
@@ -548,7 +590,120 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
             StatusText = result.Success ? "Centered" : "Not centered";
             if (service.LastResult is { Success: true, RotationDegrees: { } solved })
             {
-                RotationCompareText = Format($"Target {target.DesiredRotationDegrees:0.##}°\nCurrent {solved:0.##}°\nDifference {target.RotationDifferenceDegrees(solved):+0.##;-0.##;0}°");
+                ShowRotation(target, solved);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Cancelled";
+        }
+        catch (Exception ex)
+        {
+            StatusText = ex.Message;
+        }
+        finally
+        {
+            _centering?.Dispose();
+            _centering = null;
+            IsBusy = false;
+            UpdateSlewState();
+        }
+    }
+
+    // Target, current and difference of the rotation; for a rig without a rotator also what to change the rotation by (signed degrees of sky rotation, nothing about which way the camera turns).
+    private void ShowRotation(FramingTarget target, double solved)
+    {
+        RotationCompareText = Format($"Target {target.DesiredRotationDegrees:0.##}°\nCurrent {solved:0.##}°\nDifference {target.RotationDifferenceDegrees(solved):+0.##;-0.##;0}°");
+        RotationAdjustmentText = HasRotator ? string.Empty
+            : Format($"Change the sky rotation by {SkyMath.RotationDifferenceDegrees(solved, target.DesiredRotationDegrees):+0.##;-0.##;0}°, then solve again.");
+    }
+
+    /// <summary>
+    /// For a rig with a rotator: centers the target, rotates the sky to the desired rotation and verifies both with plate solves; centers again when the turn moved the field.
+    /// Needs a calibrated, connected rotator. Never synchronizes the mount.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSlew))]
+    private async Task CenterAndRotateAsync()
+    {
+        if (Target is not { } target || CurrentRig is not { RotatorId: not null } rig || SelectedMount is not { } mount || _host.Rotation is not { } service)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        _centering = new CancellationTokenSource();
+        PositionText = string.Empty;
+        RotationCompareText = string.Empty;
+        RotationAdjustmentText = string.Empty;
+        StatusText = "Centering…";
+        try
+        {
+            var solve = SolveSettings;
+            var progress = new InlineProgress<RotationProgress>(p => _post(() => StatusText = (p.PointingErrorArcseconds, p.RotationErrorDegrees) switch
+            {
+                ({ } pointing, _) => Format($"{p.Stage} · attempt {p.Attempt} · error {pointing:0.#}\""),
+                (_, { } rotation) => Format($"{p.Stage} · attempt {p.Attempt} · rotation error {rotation:+0.##;-0.##;0}°"),
+                _ => Format($"{p.Stage} · attempt {p.Attempt}"),
+            }));
+            var result = await service.CenterAndRotateAsync(
+                target.Center, target.DesiredRotationDegrees, rig, mount.Id, solve.CenteringToleranceArcseconds, solve.RotationToleranceDegrees, solve.MaxCenteringAttempts,
+                solve.MaxRotationAttempts, RotationService.DefaultMaxRounds, TimeSpan.FromSeconds(solve.ExposureSeconds), solve.Defaults(), progress: progress, cancellationToken: _centering.Token);
+
+            PositionText = result.PointingErrorArcseconds is { } pointingError ? Format($"{(result.Success ? "Centered" : "Off by")} · {pointingError:0}\"") : result.Message ?? string.Empty;
+            if (result.Rotation?.SolvedRotationDegrees is { } solved)
+            {
+                ShowRotation(target, solved);
+            }
+
+            StatusText = result.Success ? "Centered and rotated" : result.Message ?? "Not centered and rotated";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Cancelled";
+        }
+        catch (Exception ex)
+        {
+            StatusText = ex.Message;
+        }
+        finally
+        {
+            _centering?.Dispose();
+            _centering = null;
+            IsBusy = false;
+            UpdateSlewState();
+        }
+    }
+
+    private bool CanSolveAgain() => !IsBusy && Target is not null && SelectedRig is not null && _host.PlateSolving is not null;
+
+    /// <summary>
+    /// For a rig without a rotator, after the camera was turned by hand: a plate solve of what the camera sees now, to compare its rotation with the desired one. It moves nothing and
+    /// synchronizes nothing.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSolveAgain))]
+    private async Task SolveAgainAsync()
+    {
+        if (Target is not { } target || SelectedRig is not { } rig || _host.PlateSolving is not { } service)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        _centering = new CancellationTokenSource();
+        StatusText = "Solving…";
+        try
+        {
+            var solve = SolveSettings;
+            var result = await service.CaptureAndSolveAsync(
+                rig, SelectedMount?.Id, TimeSpan.FromSeconds(solve.ExposureSeconds), solve.Defaults(), cancellationToken: _centering.Token);
+            if (result is { Success: true, RotationDegrees: { } solved })
+            {
+                ShowRotation(target, solved);
+                StatusText = "Solved";
+            }
+            else
+            {
+                StatusText = result.Message ?? "The solve did not say the rotation.";
             }
         }
         catch (OperationCanceledException)
@@ -572,8 +727,8 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     private void Cancel() => _centering?.Cancel();
 
     /// <summary>
-    /// Puts a Slew &amp; Center on the framing into the session: the position, the rig and the desired rotation as metadata of the step. No sync step is added, and no rotation
-    /// step, because there is no rotator.
+    /// Puts the framing into the session: a Center &amp; Rotate for a rig with a rotator, otherwise a Slew &amp; Center with the desired rotation as metadata of the step. No sync step is
+    /// ever added.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddToSession))]
     private void AddToSession()
@@ -584,11 +739,18 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         }
 
         var solve = SolveSettings;
-        var step = new SlewAndCenterStepDraft(
-            Guid.NewGuid(), SelectedMount?.Id, SelectedRig?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees,
-            solve.CenteringToleranceArcseconds, solve.MaxCenteringAttempts, solve.ExposureSeconds, target.Name, target.DesiredRotationDegrees);
+        // A rig with a rotator gets the step that rotates; one without gets the position and the rotation as metadata. Neither adds a Sync step.
+        SequenceStepDraft step = HasRotator
+            ? new CenterAndRotateStepDraft(
+                Guid.NewGuid(), SelectedMount?.Id, SelectedRig?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, solve.CenteringToleranceArcseconds,
+                solve.MaxCenteringAttempts, target.DesiredRotationDegrees, solve.RotationToleranceDegrees, solve.MaxRotationAttempts, RotationService.DefaultMaxRounds,
+                solve.ExposureSeconds, target.Name)
+            : new SlewAndCenterStepDraft(
+                Guid.NewGuid(), SelectedMount?.Id, SelectedRig?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees,
+                solve.CenteringToleranceArcseconds, solve.MaxCenteringAttempts, solve.ExposureSeconds, target.Name, target.DesiredRotationDegrees);
+        var what = HasRotator ? "Center & Rotate" : "Slew & Center";
         StatusText = _session.AddStepDraft(step)
-            ? $"Added Slew & Center for {target.Name} to the session."
+            ? $"Added {what} for {target.Name} to the session."
             : "The session cannot be changed while it runs.";
     }
 

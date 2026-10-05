@@ -88,7 +88,8 @@
                     </ComboBox>
                 </ctl:LabeledField>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Classes="primary" Content="Slew &amp; Center" Command="{Binding SlewAndCenterCommand}" AutomationProperties.Name="Slew and Center" />
+                    <Button Classes="primary" Content="Slew &amp; Center" Command="{Binding SlewAndCenterCommand}" IsVisible="{Binding HasNoRotator}" AutomationProperties.Name="Slew and Center" />
+                    <Button Classes="primary" Content="Center &amp; Rotate" Command="{Binding CenterAndRotateCommand}" IsVisible="{Binding HasRotator}" AutomationProperties.Name="Center and Rotate" />
                     <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsBusy}" />
                 </StackPanel>
                 <TextBlock Classes="meta" Text="{Binding SlewDisabledText}" TextWrapping="Wrap" />
@@ -102,7 +103,9 @@
                 <StackPanel Spacing="2" IsVisible="{Binding RotationCompareText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <TextBlock Classes="eyebrow" Text="ROTATION" />
                     <TextBlock Text="{Binding RotationCompareText}" TextWrapping="Wrap" />
-                    <TextBlock Classes="meta" Text="Measured by the plate solve; nothing is rotated." />
+                    <TextBlock Text="{Binding RotationAdjustmentText}" TextWrapping="Wrap" IsVisible="{Binding RotationAdjustmentText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" AutomationProperties.AutomationId="FramingRotationAdjustment" />
+                    <Button Content="Solve Again" Command="{Binding SolveAgainCommand}" IsVisible="{Binding HasNoRotator}" HorizontalAlignment="Left" AutomationProperties.Name="Solve Again" />
+                    <TextBlock Classes="meta" Text="Measured by the plate solve. Slew &amp; Center never rotates; Center &amp; Rotate does, by the calibration of the rotator. The mount is never synchronized." TextWrapping="Wrap" />
                 </StackPanel>
             </StackPanel>
         </Grid>
