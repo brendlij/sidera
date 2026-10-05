@@ -110,7 +110,43 @@ public sealed record RigConfiguration(
     OpticalTrain? Optics,
     int? SimulatedBestFocus = null,
     string? RotatorId = null,
-    Sidera.Core.Rotators.RotatorSkyModel? RotatorModel = null);
+    Sidera.Core.Rotators.RotatorSkyModel? RotatorModel = null,
+    string? MountId = null,
+    string? GuiderId = null)
+{
+    /// <summary>The device this rig has for a role (an id as the file writes it); <c>null</c> when it has none.</summary>
+    public string? DeviceFor(Sidera.Core.Rigs.RigRole role) => role switch
+    {
+        Sidera.Core.Rigs.RigRole.Camera => CameraId,
+        Sidera.Core.Rigs.RigRole.Focuser => FocuserId,
+        Sidera.Core.Rigs.RigRole.FilterWheel => FilterWheelId,
+        Sidera.Core.Rigs.RigRole.Rotator => RotatorId,
+        Sidera.Core.Rigs.RigRole.Mount => MountId,
+        Sidera.Core.Rigs.RigRole.Guider => GuiderId,
+        _ => null,
+    };
+
+    /// <summary>The same rig with the device of a role replaced. A new rotator does not keep the calibration of the old one.</summary>
+    public RigConfiguration WithDevice(Sidera.Core.Rigs.RigRole role, string? deviceId) => role switch
+    {
+        Sidera.Core.Rigs.RigRole.Camera => this with { CameraId = deviceId ?? CameraId },
+        Sidera.Core.Rigs.RigRole.Focuser => this with { FocuserId = deviceId },
+        Sidera.Core.Rigs.RigRole.FilterWheel => this with { FilterWheelId = deviceId },
+        Sidera.Core.Rigs.RigRole.Rotator => this with { RotatorId = deviceId, RotatorModel = string.Equals(RotatorId, deviceId, StringComparison.OrdinalIgnoreCase) ? RotatorModel : null },
+        Sidera.Core.Rigs.RigRole.Mount => this with { MountId = deviceId },
+        Sidera.Core.Rigs.RigRole.Guider => this with { GuiderId = deviceId },
+        _ => throw new ArgumentOutOfRangeException(nameof(role)),
+    };
+
+    /// <summary>The runtime rig of this configuration (it holds device ids only).</summary>
+    public Sidera.Core.Rigs.Rig ToRig()
+    {
+        static Sidera.Core.Devices.DeviceId? Dev(string? id) => id is null ? null : new Sidera.Core.Devices.DeviceId(id);
+        return new Sidera.Core.Rigs.Rig(
+            new Sidera.Core.Rigs.RigId(Id), Name, new Sidera.Core.Devices.DeviceId(CameraId), Optics, Dev(FocuserId), Dev(FilterWheelId), Dev(RotatorId), RotatorModel,
+            Dev(MountId), Dev(GuiderId));
+    }
+}
 
 /// <summary>
 /// The equipment of one installation: its devices and the rigs that group them. Backend-neutral: a rig names device ids and
@@ -139,7 +175,9 @@ public sealed record EquipmentConfiguration(IReadOnlyList<DeviceConfiguration> D
         string.Equals(r.CameraId, deviceId, StringComparison.OrdinalIgnoreCase)
         || string.Equals(r.FocuserId, deviceId, StringComparison.OrdinalIgnoreCase)
         || string.Equals(r.FilterWheelId, deviceId, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(r.RotatorId, deviceId, StringComparison.OrdinalIgnoreCase));
+        || string.Equals(r.RotatorId, deviceId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(r.MountId, deviceId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(r.GuiderId, deviceId, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>The rules for the id of a device or a rig: what is safe to put in a file name, a log and a sequence.</summary>

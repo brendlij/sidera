@@ -104,6 +104,16 @@ public static class EquipmentConfigurationSerializer
                         }
                     }
 
+                    if (rig.MountId is not null)
+                    {
+                        w.WriteString("mountId", rig.MountId);
+                    }
+
+                    if (rig.GuiderId is not null)
+                    {
+                        w.WriteString("guiderId", rig.GuiderId);
+                    }
+
                     if (rig.Optics is { } optics)
                     {
                         // Only the inputs: the pixel scale, the sensor size and the field of view are derived and never stored.
@@ -289,6 +299,9 @@ public static class EquipmentConfigurationSerializer
         var focuserId = Optional(element, "focuserId");
         var wheelId = Optional(element, "filterWheelId");
         var rotatorId = Optional(element, "rotatorId");
+        // The mount and the guider of a rig are optional, and a file from before they were part of a rig has neither: nothing is assumed for it.
+        var mountId = Optional(element, "mountId");
+        var guiderId = Optional(element, "guiderId");
         Sidera.Core.Rotators.RotatorSkyModel? rotatorModel = null;
         if (rotatorId is not null && element.TryGetProperty("rotator", out var rotator) && rotator.ValueKind == JsonValueKind.Object)
         {
@@ -329,7 +342,7 @@ public static class EquipmentConfigurationSerializer
         int? best = element.TryGetProperty("simulatedBestFocus", out var bestElement) && bestElement.ValueKind == JsonValueKind.Number && bestElement.TryGetInt32(out var value) ? value : null;
 
         // The rig refers to devices by id; a rig whose device is not in the file would only fail later.
-        foreach (var reference in new[] { cameraId, focuserId, wheelId, rotatorId }.OfType<string>())
+        foreach (var reference in new[] { cameraId, focuserId, wheelId, rotatorId, mountId, guiderId }.OfType<string>())
         {
             if (!devices.Any(d => string.Equals(d.Id, reference, StringComparison.OrdinalIgnoreCase)))
             {
@@ -337,7 +350,7 @@ public static class EquipmentConfigurationSerializer
             }
         }
 
-        return new RigConfiguration(id, name, cameraId, focuserId, wheelId, train, best, rotatorId, rotatorModel);
+        return new RigConfiguration(id, name, cameraId, focuserId, wheelId, train, best, rotatorId, rotatorModel, mountId, guiderId);
     }
 
     private static string? String(JsonElement element, string name) =>

@@ -43,7 +43,7 @@ public sealed record EquipmentChange(EquipmentChangeKind Kind, string? DeviceId 
 /// they were. A device that cannot be changed because it is connected, part of a rig or in use says why.
 /// </para>
 /// </summary>
-public sealed class EquipmentService : IDevicePreferenceStore
+public sealed partial class EquipmentService : IDevicePreferenceStore
 {
     private readonly SideraRuntimeHost _host;
     private readonly EquipmentConfigurationStore _store;
@@ -287,45 +287,40 @@ public sealed class EquipmentService : IDevicePreferenceStore
             return EquipmentResult.Fail(cannot);
         }
 
-        // A rotator that is removed leaves the rigs that had it (and the rig that held only it goes).
-        var rotatorRigs = _configuration.Rigs.Where(r => string.Equals(r.RotatorId, id, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        // The rig that holds only the optics of this camera goes with it.
-        var optionsRigs = _configuration.Rigs
-            .Where(r => string.Equals(r.CameraId, id, StringComparison.OrdinalIgnoreCase) && IsOpticsRig(r.Id, r.FocuserId, r.FilterWheelId)).ToList();
-        var nextRigs = _configuration.Rigs.Except(optionsRigs).Except(rotatorRigs).ToList();
-        var keptWithoutRotator = new List<RigConfiguration>();
-        foreach (var rig in rotatorRigs.Except(optionsRigs))
+        // The rigs that name the device. A rig that Sidera made around a camera goes with the camera. For any other rig an optional device (rotator, mount, guider, ...) is taken off the
+        // rig, and the rig stays; a rig that was only a holder of that device goes with it.
+        var affected = _configuration.RigsUsing(id).ToList();
+        var nextRigs = _configuration.Rigs.Except(affected).ToList();
+        var keptWithout = new List<RigConfiguration>();
+        foreach (var rig in affected)
         {
-            var without = rig with { RotatorId = null, RotatorModel = null };
+            if (string.Equals(rig.CameraId, id, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var without = Detach(rig, id);
             if (!IsEmptyOpticsRig(without))
             {
-                keptWithoutRotator.Add(without);
+                keptWithout.Add(without);
             }
         }
 
-        nextRigs.AddRange(keptWithoutRotator);
+        nextRigs.AddRange(keptWithout);
         var next = _configuration.Without(id) with { Rigs = nextRigs };
         if (!TrySave(next, out var saveProblem))
         {
             return EquipmentResult.Fail(saveProblem!);
         }
 
-        foreach (var opticsRig in optionsRigs)
-        {
-            _host.RigRegistry.Unregister(new RigId(opticsRig.Id));
-        }
-
-        foreach (var rig in rotatorRigs.Except(optionsRigs))
+        foreach (var rig in affected)
         {
             _host.RigRegistry.Unregister(new RigId(rig.Id));
         }
 
-        foreach (var rig in keptWithoutRotator)
+        foreach (var rig in keptWithout)
         {
-            _host.AddRig(new Rig(
-                new RigId(rig.Id), rig.Name, new DeviceId(rig.CameraId), rig.Optics,
-                rig.FocuserId is { } focuser ? new DeviceId(focuser) : null, rig.FilterWheelId is { } wheel ? new DeviceId(wheel) : null));
+            _host.AddRig(rig.ToRig());
         }
 
         _host.DeviceRegistry.TryGet(new DeviceId(id), out var device);
@@ -335,7 +330,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         _ = EndAsync(device);
         _logger.LogInformation("Device {DeviceId} removed", id);
         Changed?.Invoke(this, new EquipmentChange(EquipmentChangeKind.DeviceRemoved, id));
-        if (optionsRigs.Count > 0 || rotatorRigs.Count > 0)
+        if (affected.Count > 0)
         {
             Changed?.Invoke(this, new EquipmentChange(EquipmentChangeKind.RigsChanged));
         }
@@ -351,7 +346,21 @@ public sealed class EquipmentService : IDevicePreferenceStore
 
     // A rig that Sidera made around a camera holds its optics and its rotator; when it holds neither, it is not needed.
     private static bool IsEmptyOpticsRig(RigConfiguration rig) =>
-        IsOpticsRig(rig.Id, rig.FocuserId, rig.FilterWheelId) && rig.Optics is null && rig.RotatorId is null;
+        IsOpticsRig(rig.Id, rig.FocuserId, rig.FilterWheelId) && rig.Optics is null && rig.RotatorId is null && rig.MountId is null && rig.GuiderId is null;
+
+    // The rig without the device, in every role it has (never the camera).
+    private static RigConfiguration Detach(RigConfiguration rig, string deviceId)
+    {
+        foreach (var role in new[] { RigRole.Focuser, RigRole.FilterWheel, RigRole.Rotator, RigRole.Mount, RigRole.Guider })
+        {
+            if (string.Equals(rig.DeviceFor(role), deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                rig = rig.WithDevice(role, null);
+            }
+        }
+
+        return rig;
+    }
 
     /// <summary>
     /// Sets the optics of the rig of a camera, and saves them. A camera that is in no rig gets a rig that holds only these optics (and goes
@@ -442,11 +451,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
 
         if (updated is not null)
         {
-            _host.AddRig(new Rig(
-                new RigId(updated.Id), updated.Name, new DeviceId(updated.CameraId), updated.Optics,
-                updated.FocuserId is { } focuser ? new DeviceId(focuser) : null,
-                updated.FilterWheelId is { } wheel ? new DeviceId(wheel) : null,
-                updated.RotatorId is { } rotator ? new DeviceId(rotator) : null, updated.RotatorModel));
+            _host.AddRig(updated.ToRig());
         }
 
         _configuration = next;
@@ -520,15 +525,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
 
     private Rig CreateRig(RigConfiguration configuration)
     {
-        var rig = new Rig(
-            new RigId(configuration.Id),
-            configuration.Name,
-            new DeviceId(configuration.CameraId),
-            configuration.Optics,
-            configuration.FocuserId is { } focuser ? new DeviceId(focuser) : null,
-            configuration.FilterWheelId is { } wheel ? new DeviceId(wheel) : null,
-            configuration.RotatorId is { } rotator ? new DeviceId(rotator) : null,
-            configuration.RotatorModel);
+        var rig = configuration.ToRig();
         _host.AddRig(rig);
         if (configuration.SimulatedBestFocus is { } best)
         {
