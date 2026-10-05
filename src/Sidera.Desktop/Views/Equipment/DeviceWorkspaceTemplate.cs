@@ -20,6 +20,7 @@ public sealed class DeviceWorkspaceTemplate : IDataTemplate
         FilterWheelDetailViewModel => new FilterWheelWorkspaceView(),
         MountDetailViewModel => new MountWorkspaceView(),
         GuiderDetailViewModel => new GuiderWorkspaceView(),
+        RotatorDetailViewModel => new RotatorWorkspaceView(),
         null => null,
         _ => new TextBlock { Text = $"No workspace for {param.GetType().Name}." },
     };

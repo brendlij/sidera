@@ -33,6 +33,11 @@ public static class SkyMath
         return wrapped;
     }
 
+    /// <summary>
+    /// The signed angle that turns the rotation <paramref name="fromDegrees"/> into <paramref name="toDegrees"/> by the short way, in (-180, 180]: 179° to -179° is +2°, not -358°.
+    /// </summary>
+    public static double RotationDifferenceDegrees(double fromDegrees, double toDegrees) => NormalizeRotationDegrees(toDegrees - fromDegrees);
+
     public static double HoursToDegrees(double hours) => hours * DegreesPerHour;
 
     public static double DegreesToHours(double degrees) => degrees / DegreesPerHour;

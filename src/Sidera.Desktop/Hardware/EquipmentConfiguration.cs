@@ -108,7 +108,9 @@ public sealed record RigConfiguration(
     string? FocuserId,
     string? FilterWheelId,
     OpticalTrain? Optics,
-    int? SimulatedBestFocus = null);
+    int? SimulatedBestFocus = null,
+    string? RotatorId = null,
+    Sidera.Core.Rotators.RotatorSkyModel? RotatorModel = null);
 
 /// <summary>
 /// The equipment of one installation: its devices and the rigs that group them. Backend-neutral: a rig names device ids and
@@ -136,7 +138,8 @@ public sealed record EquipmentConfiguration(IReadOnlyList<DeviceConfiguration> D
     public IEnumerable<RigConfiguration> RigsUsing(string deviceId) => Rigs.Where(r =>
         string.Equals(r.CameraId, deviceId, StringComparison.OrdinalIgnoreCase)
         || string.Equals(r.FocuserId, deviceId, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(r.FilterWheelId, deviceId, StringComparison.OrdinalIgnoreCase));
+        || string.Equals(r.FilterWheelId, deviceId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(r.RotatorId, deviceId, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>The rules for the id of a device or a rig: what is safe to put in a file name, a log and a sequence.</summary>

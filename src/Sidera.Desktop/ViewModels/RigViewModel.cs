@@ -91,6 +91,12 @@ public sealed partial class RigViewModel : ViewModelBase
     /// <summary>The rig's id of the camera, for matching it with running sequences.</summary>
     public RigId Id => _rig.Id;
 
+    /// <summary>The rotator of the rig; <c>null</c> for a rig without one.</summary>
+    public DeviceId? RotatorId => _rig.RotatorId;
+
+    /// <summary>The calibration of the rotator: how its position relates to the rotation of the sky in the image; <c>null</c> until calibrated.</summary>
+    public Sidera.Core.Rotators.RotatorSkyModel? RotatorModel => _rig.RotatorModel;
+
     /// <summary>Selects the rig on the equipment page, which shows its detail. Set by the page that lists the rigs.</summary>
     public ICommand? OpenCommand { get; set; }
 

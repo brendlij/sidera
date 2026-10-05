@@ -6,6 +6,7 @@ using Sidera.Core.Focusers;
 using Sidera.Core.Guiding;
 using Sidera.Core.Mounts;
 using Sidera.Core.Resources;
+using Sidera.Core.Rotators;
 using Sidera.Runtime.Resources;
 using Sidera.Runtime.Sequencing;
 using Microsoft.Extensions.Logging;
@@ -119,6 +120,54 @@ public sealed class DeviceOperationService
                 await focuser.MoveToAsync(target, cancellationToken);
             }
         });
+    }
+
+    /// <summary>
+    /// The cameras of the rigs that a rotator belongs to: a rotator turns them, so it is never moved while one of them exposes. Set by the host, which knows the rigs.
+    /// </summary>
+    public Func<DeviceId, IEnumerable<DeviceId>>? CamerasOfRotator { get; set; }
+
+    private ResourceId[] RotatorResources(DeviceId rotatorId) =>
+        [ResourceId.ForDevice(rotatorId), .. (CamerasOfRotator?.Invoke(rotatorId) ?? []).Distinct().Select(ResourceId.ForDevice)];
+
+    /// <summary>
+    /// Moves a rotator to an absolute position. Takes the rotator and the cameras of its rigs, so it waits for an exposure that is running and an exposure waits for it. Explicit
+    /// only: nothing in Sidera moves a rotator by itself.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a rotator.</exception>
+    public async Task MoveRotatorToAsync(DeviceId rotatorId, double positionDegrees, CancellationToken cancellationToken = default)
+    {
+        var rotator = DeviceLookup.Resolve<IRotator>(_registry, rotatorId, "rotator");
+        _logger.LogInformation("Moving rotator {DeviceId} from {FromPosition:0.##}° to {TargetPosition:0.##}°", rotatorId, rotator.Position, positionDegrees);
+        await Run("Rotator move", rotatorId, async () =>
+        {
+            using (await _resources.AcquireAsync(RotatorResources(rotatorId), cancellationToken))
+            {
+                await rotator.MoveToAsync(positionDegrees, cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Moves a rotator by an angle (negative is the other way); see <see cref="MoveRotatorToAsync"/>.</summary>
+    public async Task MoveRotatorByAsync(DeviceId rotatorId, double degrees, CancellationToken cancellationToken = default)
+    {
+        var rotator = DeviceLookup.Resolve<IRotatorControl>(_registry, rotatorId, "rotator");
+        _logger.LogInformation("Moving rotator {DeviceId} by {Degrees:+0.##;-0.##}°", rotatorId, degrees);
+        await Run("Rotator move", rotatorId, async () =>
+        {
+            using (await _resources.AcquireAsync(RotatorResources(rotatorId), cancellationToken))
+            {
+                await rotator.MoveByAsync(degrees, cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Asks a rotator to stop. Takes no resource: a halt must work while a move holds the rotator.</summary>
+    public async Task HaltRotatorAsync(DeviceId rotatorId, CancellationToken cancellationToken = default)
+    {
+        var rotator = DeviceLookup.Resolve<IRotatorControl>(_registry, rotatorId, "rotator");
+        _logger.LogInformation("Halting rotator {DeviceId}", rotatorId);
+        await Run("Rotator halt", rotatorId, () => rotator.HaltAsync(cancellationToken));
     }
 
     /// <summary>

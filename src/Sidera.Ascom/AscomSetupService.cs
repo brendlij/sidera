@@ -46,6 +46,7 @@ public sealed class AscomSetupService(IAscomDriverFactory drivers, ILogger? logg
                         {
                             AscomDeviceKind.Camera => (IAscomDriver)drivers.CreateCamera(progId),
                             AscomDeviceKind.Mount => drivers.CreateMount(progId),
+                            AscomDeviceKind.Rotator => drivers.CreateRotator(progId),
                             _ => drivers.CreateFocuser(progId),
                         };
                         driver.SetupDialog();

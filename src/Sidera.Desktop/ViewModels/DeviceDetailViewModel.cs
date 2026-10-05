@@ -144,6 +144,54 @@ public sealed class FilterWheelDetailViewModel(FilterWheelViewModel wheel, RigVi
 
 }
 
+/// <summary>
+/// The rotator: its position and moves, and what Sidera knows about how that position relates to the rotation of the sky in an image (the calibration of the rig it belongs
+/// to). The two are shown apart and never as one number.
+/// </summary>
+public sealed class RotatorDetailViewModel : DeviceDetailViewModel
+{
+    public RotatorDetailViewModel(RotatorViewModel rotator, RigViewModel? rig, DeviceConfigurationViewModel? configuration = null)
+        : base(rotator, configuration)
+    {
+        Rotator = rotator;
+        Rig = rig;
+        rotator.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RotatorViewModel.Position))
+            {
+                OnPropertyChanged(nameof(SkyNowText));
+            }
+        };
+    }
+
+    public RotatorViewModel Rotator { get; }
+
+    public RigViewModel? Rig { get; }
+
+    public bool HasRig => Rig is not null;
+
+    public string RigText => Rig?.Name ?? "Not part of a rig";
+
+    private Sidera.Core.Rotators.RotatorSkyModel? Model => Rig?.RotatorModel;
+
+    public string OffsetText => Model is { } m
+        ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{m.OffsetDegrees:+0.0#;-0.0#;0.0}°")
+        : "Not calibrated";
+
+    public string DirectionText => Model is { } m ? (m.Reversed ? "More position means less sky rotation" : "More position means more sky rotation") : "Not known";
+
+    /// <summary>The rotation of the sky in the image at the position of the rotator now, by the calibration; an em dash until there is one.</summary>
+    public string SkyNowText => Model is { } m
+        ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{m.SkyRotationOf(Rotator.Position):0.0#}°")
+        : "—";
+
+    public string CalibrationNote => Model is { } m
+        ? m.CalibratedAt is { } at
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Calibrated by a plate solve on {at.LocalDateTime:yyyy-MM-dd HH:mm}. A new camera angle on the rotator needs a new calibration.")
+            : "The offset was entered, not measured."
+        : "Sidera does not know how the position of this rotator relates to the sky in the image. Calibrate it with a plate solve before rotating to a sky angle.";
+}
+
 /// <summary>The mount: where it points and what it is doing, a slew; limits, site and tracking will be its settings.</summary>
 public sealed class MountDetailViewModel : DeviceDetailViewModel
 {

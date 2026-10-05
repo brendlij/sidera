@@ -55,6 +55,33 @@ public interface IAscomFocuserDriver : IAscomDriver
     void Halt();
 }
 
+public interface IAscomRotatorDriver : IAscomDriver
+{
+    /// <summary>The position in degrees, 0 to 360, in the frame of MoveAbsolute (it may include a synchronization offset).</summary>
+    double Position { get; }
+
+    /// <summary>The position without a synchronization offset; interface version 3 and later.</summary>
+    double MechanicalPosition { get; }
+
+    double StepSize { get; }
+
+    bool IsMoving { get; }
+
+    bool CanReverse { get; }
+
+    bool Reverse { get; set; }
+
+    /// <summary>Moves by an angle, positive or negative.</summary>
+    void Move(double relativeDegrees);
+
+    void MoveAbsolute(double positionDegrees);
+
+    /// <summary>Interface version 2 and later.</summary>
+    void Sync(double positionDegrees);
+
+    void Halt();
+}
+
 public interface IAscomMountDriver : IAscomDriver
 {
     // Capability flags
@@ -248,6 +275,8 @@ public interface IAscomDriverFactory
     IAscomFocuserDriver CreateFocuser(string progId);
 
     IAscomMountDriver CreateMount(string progId);
+
+    IAscomRotatorDriver CreateRotator(string progId);
 
     IAscomCameraDriver CreateCamera(string progId);
 }

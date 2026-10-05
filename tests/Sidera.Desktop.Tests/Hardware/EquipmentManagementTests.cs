@@ -262,7 +262,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         var editor = await OpenAscom(vm.Equipment);
 
         Assert.True(editor.IsAscom);
-        Assert.Equal(new[] { "Camera", "Focuser", "Mount" }, editor.TypeChoices.Select(t => t.Title).Order()); // no filter wheel, no guider
+        Assert.Equal(new[] { "Camera", "Focuser", "Mount", "Rotator" }, editor.TypeChoices.Select(t => t.Title).Order()); // no filter wheel, no guider; a rotator is ASCOM too
         Assert.Equal(["ASCOM Simulator Focuser Driver"], editor.Drivers.Select(d => d.Name));
         Assert.Equal("ASCOM.Simulator.Focuser", editor.ProgId);
         Assert.Equal("ASCOM Simulator Focuser Driver", editor.NameInput); // the driver names the device until the user does
@@ -764,7 +764,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         var (vm, _, _) = CreateApp();
         var equipment = vm.Equipment;
 
-        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.Slots.Select(sl => sl.Title));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider", "Rotator"], equipment.Slots.Select(sl => sl.Title));
         Assert.Null(equipment.SelectedSlot);
         Assert.All(equipment.Slots, sl =>
         {

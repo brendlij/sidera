@@ -62,6 +62,7 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
         AcquisitionDefaults = new AcquisitionDefaultsRegistry();
         DeviceOperations = new DeviceOperationService(
             DeviceRegistry, ResourceManager, LoggerFactory.CreateLogger<DeviceOperationService>(), AcquisitionDefaults);
+        DeviceOperations.CamerasOfRotator = rotatorId => RigRegistry.GetAll().Where(r => r.RotatorId == rotatorId).Select(r => r.CameraId);
         SafePointCoordinator = new SafePointCoordinator(LoggerFactory.CreateLogger<SafePointCoordinator>());
         FocusMetrics = new SimulatedFocusMetricProvider();
         FrameAnalyzer = new FrameAnalyzer(analysisOptions, logger: LoggerFactory.CreateLogger<FrameAnalyzer>());
@@ -152,7 +153,7 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
             throw new InvalidOperationException($"Device '{id}' is {device.ConnectionState.ToString().ToLowerInvariant()}; disconnect it before removing it.");
         }
 
-        if (RigRegistry.GetAll().FirstOrDefault(r => r.CameraId == id || r.FocuserId == id || r.FilterWheelId == id) is { } rig)
+        if (RigRegistry.GetAll().FirstOrDefault(r => r.CameraId == id || r.FocuserId == id || r.FilterWheelId == id || r.RotatorId == id) is { } rig)
         {
             throw new InvalidOperationException($"Device '{id}' is part of the rig '{rig.Id}'.");
         }
@@ -249,6 +250,16 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
     /// Creates a simulated focuser wired to this host's event bus and registers it. A focuser belongs to a rig
     /// only by the rig naming its ID; it can be used on its own just the same.
     /// </summary>
+    /// <summary>Creates a simulated rotator wired to this host's event bus and registers it. A rig names it by its ID.</summary>
+    public SimulatedRotator AddSimulatedRotator(
+        DeviceId id, string name, double startPosition = 0, double degreesPerSecond = SimulatedRotator.DefaultDegreesPerSecond,
+        double skyOffsetDegrees = 0, bool reversedMounting = false)
+    {
+        var rotator = new SimulatedRotator(id, name, EventBus, startPosition, degreesPerSecond) { SkyOffsetDegrees = skyOffsetDegrees, ReversedMounting = reversedMounting };
+        AddDevice(rotator);
+        return rotator;
+    }
+
     public SimulatedFocuser AddSimulatedFocuser(
         DeviceId id,
         string name,

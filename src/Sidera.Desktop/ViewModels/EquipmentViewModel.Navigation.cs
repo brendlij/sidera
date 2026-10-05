@@ -19,6 +19,7 @@ public enum EquipmentPage
     Focuser,
     FilterWheel,
     Guider,
+    Rotator,
 }
 
 /// <summary>One context of the workspace: the devices operated directly (standalone), or one rig.</summary>
@@ -341,6 +342,7 @@ public sealed partial class EquipmentViewModel
         MountViewModel => EquipmentPage.Mount,
         FocuserViewModel => EquipmentPage.Focuser,
         FilterWheelViewModel => EquipmentPage.FilterWheel,
+        RotatorViewModel => EquipmentPage.Rotator,
         _ => EquipmentPage.Guider,
     };
 
@@ -351,6 +353,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.Mount => "Mount",
         EquipmentPage.Focuser => "Focuser",
         EquipmentPage.FilterWheel => "Filter Wheel",
+        EquipmentPage.Rotator => "Rotator",
         _ => "Guider",
     };
 
@@ -360,6 +363,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.Mount => _mounts,
         EquipmentPage.Focuser => _focusers,
         EquipmentPage.FilterWheel => _filterWheels,
+        EquipmentPage.Rotator => _rotators,
         EquipmentPage.Guider => _guiders,
         _ => [],
     };

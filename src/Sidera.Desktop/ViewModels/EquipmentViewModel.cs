@@ -7,6 +7,7 @@ using Sidera.Ascom.Discovery;
 using Sidera.Core.Devices;
 using Sidera.Core.FilterWheels;
 using Sidera.Core.Focusers;
+using Sidera.Core.Rotators;
 using Sidera.Core.Guiding;
 using Sidera.Core.Mounts;
 using Sidera.Desktop.Hardware;
@@ -53,6 +54,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     private readonly List<CameraViewModel> _cameras;
     private readonly List<FocuserViewModel> _focusers;
     private readonly List<FilterWheelViewModel> _filterWheels;
+    private readonly List<RotatorViewModel> _rotators;
     private readonly List<MountViewModel> _mounts;
     private readonly List<GuiderViewModel> _guiders;
     private readonly List<RigViewModel> _rigs;
@@ -78,6 +80,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         _cameras = [.. devices.OfType<ICamera>().Select(CreateCamera)];
         _focusers = [.. devices.OfType<IFocuser>().Select(f => new FocuserViewModel(f, host, postToUi, activity))];
         _filterWheels = [.. devices.OfType<IFilterWheel>().Select(w => new FilterWheelViewModel(w, host, postToUi, activity))];
+        _rotators = [.. devices.OfType<IRotator>().Select(r => new RotatorViewModel(r, host, postToUi, activity))];
         _mounts = [.. devices.OfType<IMount>().Select(m => new MountViewModel(m, host, postToUi, activity))];
         _guiders = [.. devices.OfType<IGuider>().Select(g => new GuiderViewModel(g, host, postToUi, activity))];
         _rigs = [];
@@ -102,6 +105,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     public IReadOnlyList<CameraViewModel> Cameras => _cameras;
     public IReadOnlyList<FocuserViewModel> Focusers => _focusers;
     public IReadOnlyList<FilterWheelViewModel> FilterWheels => _filterWheels;
+    public IReadOnlyList<RotatorViewModel> Rotators => _rotators;
     public IReadOnlyList<MountViewModel> Mounts => _mounts;
     public IReadOnlyList<GuiderViewModel> Guiders => _guiders;
 
@@ -113,7 +117,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
 
     /// <summary>Every device, in display order.</summary>
     public IEnumerable<DeviceViewModelBase> Devices => _cameras.Cast<DeviceViewModelBase>()
-        .Concat(_focusers).Concat(_filterWheels).Concat(_mounts).Concat(_guiders);
+        .Concat(_focusers).Concat(_filterWheels).Concat(_rotators).Concat(_mounts).Concat(_guiders);
 
     /// <summary>A device was added, replaced or removed, or rigs were added: pages that built something from the lists build it again.</summary>
     public event EventHandler? DevicesChanged;
@@ -135,6 +139,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             CameraViewModel camera => new CameraDetailViewModel(camera, _rigs.FirstOrDefault(r => r.Camera == camera), configuration, preferences, poll, _management?.Service),
             FocuserViewModel focuser => new FocuserDetailViewModel(focuser, _rigs.FirstOrDefault(r => r.Focuser == focuser), configuration, preferences, poll),
             FilterWheelViewModel wheel => new FilterWheelDetailViewModel(wheel, _rigs.FirstOrDefault(r => r.FilterWheel == wheel), configuration),
+            RotatorViewModel rotator => new RotatorDetailViewModel(rotator, _rigs.FirstOrDefault(r => r.RotatorId?.Value == rotator.DeviceIdText), configuration),
             MountViewModel mount => new MountDetailViewModel(mount, configuration, preferences, poll, _management?.Site),
             GuiderViewModel guider => new GuiderDetailViewModel(guider, configuration),
             _ => throw new NotSupportedException($"No detail for {device.GetType().Name}."),
@@ -149,6 +154,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         ICamera camera => CreateCamera(camera),
         IFocuser focuser => new FocuserViewModel(focuser, _host, _postToUi, _activity),
         IFilterWheel wheel => new FilterWheelViewModel(wheel, _host, _postToUi, _activity),
+        IRotator rotator => new RotatorViewModel(rotator, _host, _postToUi, _activity),
         IMount mount => new MountViewModel(mount, _host, _postToUi, _activity),
         IGuider guider => new GuiderViewModel(guider, _host, _postToUi, _activity),
         _ => null,
@@ -298,6 +304,10 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                     Attach(vm);
                     RefreshNavigation();
                     DeviceViewModelAdded?.Invoke(this, vm);
+                    if (added is IRotator)
+                    {
+                        RefreshDetails(); // the camera pages offer the new rotator
+                    }
                     if (!_addingMany)
                     {
                         OpenDevice(vm);
@@ -312,6 +322,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
 
             case EquipmentChangeKind.DeviceRemoved when change.DeviceId is { } removedId:
                 RemoveViewModel(removedId);
+                RefreshDetails();
                 break;
 
             case EquipmentChangeKind.RigsAdded:
@@ -377,6 +388,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             case FilterWheelViewModel wheel:
                 _filterWheels.Remove(wheel);
                 break;
+            case RotatorViewModel rotator:
+                _rotators.Remove(rotator);
+                break;
             case MountViewModel mount:
                 _mounts.Remove(mount);
                 break;
@@ -413,6 +427,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                 break;
             case FilterWheelViewModel wheel:
                 Insert(_filterWheels, wheel);
+                break;
+            case RotatorViewModel rotator:
+                Insert(_rotators, rotator);
                 break;
             case MountViewModel mount:
                 Insert(_mounts, mount);
