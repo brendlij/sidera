@@ -13,7 +13,11 @@ namespace Sidera.Sky;
 /// <param name="Type">What it is ("Galaxy", "Nebula"), where the catalog says; <c>null</c> otherwise.</param>
 /// <param name="SizeArcminutes">The larger angular size, where known.</param>
 /// <param name="Source">The catalog that found it.</param>
-public sealed record CelestialObject(string Name, IReadOnlyList<string> Aliases, CelestialCoordinates Position, string? Type, double? SizeArcminutes, string Source);
+public sealed record CelestialObject(string Name, IReadOnlyList<string> Aliases, CelestialCoordinates Position, string? Type, double? SizeArcminutes, string Source)
+{
+    /// <summary>A line for a list of suggestions: the other names, then where it was found.</summary>
+    public string Subtitle => string.Join(" · ", Aliases.Take(2).Append(Source));
+}
 
 /// <summary>A catalog of objects that can be searched by name. The framing asks it and never knows which catalog answers: a local list, an online resolver or both.</summary>
 public interface ICelestialObjectCatalog

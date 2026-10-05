@@ -403,6 +403,76 @@ public sealed class FramingViewModelTests : IAsyncLifetime
         public Task<SkyImage> GetImageAsync(SkyViewport viewport, CancellationToken cancellationToken = default) => throw new InvalidOperationException("boom");
     }
 
+
+    // ---- Suggestions while typing
+
+    [Fact]
+    public async Task WhileTyping_TheSuggestionsAreTheObjectsThatMatch_AndNothingForAShortText()
+    {
+        var h = await CreateAsync();
+
+        var found = (await h.Framing.SuggestAsync("ngc 7000", CancellationToken.None)).Cast<CelestialObject>().ToList();
+        var none = await h.Framing.SuggestAsync("n", CancellationToken.None);
+        var unknown = await h.Framing.SuggestAsync("qqq", CancellationToken.None);
+
+        Assert.Equal("NGC 7000", Assert.Single(found).Name);
+        Assert.Empty(none);
+        Assert.Empty(unknown);
+        Assert.Null(h.Framing.Target); // suggesting plans nothing until one is chosen
+    }
+
+    [Fact]
+    public async Task ChoosingASuggestion_PlansTheFraming_LikeASearch()
+    {
+        var h = await CreateAsync();
+        var suggestion = (await h.Framing.SuggestAsync("m31", CancellationToken.None)).Cast<CelestialObject>().Single();
+
+        h.Framing.SelectedResult = suggestion;
+
+        Assert.Equal("M31", h.Framing.Target!.Name);
+        Assert.Contains("NGC 224", suggestion.Subtitle);
+    }
+
+    [Fact]
+    public async Task ACancelledSuggestion_GivesNothing_NotAnError()
+    {
+        var h = await CreateAsync();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        Assert.Empty(await h.Framing.SuggestAsync("m31", cts.Token));
+    }
+
+    [Fact]
+    public async Task TheBrightness_IsAViewSetting_ThatKeepsThePlanAndTheImageAsTheyAre()
+    {
+        var h = await CreateAsync();
+        await SearchAsync(h.Framing, "M31");
+        await WaitAsync(() => h.Framing.Image is not null, "the imagery");
+        var target = h.Framing.Target;
+        var image = h.Framing.Image;
+        var version = h.Framing.ImageVersion;
+
+        h.Framing.Brightness = 0.8;
+
+        Assert.Equal(target, h.Framing.Target);
+        Assert.Same(image, h.Framing.Image);
+        Assert.Equal(version, h.Framing.ImageVersion);
+    }
+
+    [Fact]
+    public async Task WhileLoading_TheWorkspaceSaysSo_AndWhileSearching_Too()
+    {
+        var h = await CreateAsync(delay: TimeSpan.FromMilliseconds(400));
+
+        await SearchAsync(h.Framing, "M31");
+
+        Assert.True(h.Framing.IsLoadingImage);
+        Assert.False(h.Framing.IsSearching); // the search itself is over
+        await WaitAsync(() => !h.Framing.IsLoadingImage, "the load to end");
+        Assert.NotNull(h.Framing.Image);
+    }
+
     // ---- Slew & Center
 
     [Fact]
@@ -550,5 +620,35 @@ public sealed class FramingViewModelTests : IAsyncLifetime
 
         Assert.False(result.Succeeded);
         Assert.False(File.Exists(path));
+    }
+}
+
+public sealed class FramingLabelsTests
+{
+    [Fact]
+    public void TheFrameIsLabelledWithItsFieldAndTheRotationOfItsTop()
+    {
+        Assert.Equal("1.79° × 1.20°", FramingLabels.Field(new RigField(1.7912, 1.2049)));
+        Assert.Equal(string.Empty, FramingLabels.Field(null));
+        Assert.Equal("top 0°", FramingLabels.Top(0));
+        Assert.Equal("top 87.5°", FramingLabels.Top(87.5));
+        Assert.Equal("top -170°", FramingLabels.Top(-170));
+    }
+
+    [Fact]
+    public void TheBrightness_LiftsTheDarkPartsMoreThanTheBrightOnes_AndZeroChangesNothing()
+    {
+        var none = FramingLabels.BrightnessTable(0);
+        var half = FramingLabels.BrightnessTable(0.5);
+        var full = FramingLabels.BrightnessTable(1);
+
+        Assert.All(Enumerable.Range(0, 256), i => Assert.Equal(i, none[i]));
+        Assert.Equal(0, full[0]);
+        Assert.Equal(255, full[255]);
+        Assert.True(half[40] > 40 && full[40] > half[40]);
+        Assert.True(full[40] - 40 > full[220] - 220); // the dark parts gain more than the bright
+        Assert.All(Enumerable.Range(1, 255), i => Assert.True(full[i] >= full[i - 1])); // never turns a shade round
+        Assert.Equal(3.5, FramingLabels.GammaOf(1));
+        Assert.Equal(1.0, FramingLabels.GammaOf(-5));
     }
 }

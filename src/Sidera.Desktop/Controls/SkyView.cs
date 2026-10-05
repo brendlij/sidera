@@ -30,6 +30,7 @@ public sealed class SkyView : Control
     public static readonly StyledProperty<SkyViewport?> ViewportProperty = AvaloniaProperty.Register<SkyView, SkyViewport?>(nameof(Viewport));
     public static readonly StyledProperty<RigField?> FieldProperty = AvaloniaProperty.Register<SkyView, RigField?>(nameof(Field));
     public static readonly StyledProperty<FramingTarget?> TargetProperty = AvaloniaProperty.Register<SkyView, FramingTarget?>(nameof(Target));
+    public static readonly StyledProperty<double> BrightnessProperty = AvaloniaProperty.Register<SkyView, double>(nameof(Brightness));
     public static readonly StyledProperty<string?> NoteProperty = AvaloniaProperty.Register<SkyView, string?>(nameof(Note));
     public static readonly StyledProperty<ICommand?> PanCommandProperty = AvaloniaProperty.Register<SkyView, ICommand?>(nameof(PanCommand));
     public static readonly StyledProperty<ICommand?> ZoomCommandProperty = AvaloniaProperty.Register<SkyView, ICommand?>(nameof(ZoomCommand));
@@ -38,6 +39,7 @@ public sealed class SkyView : Control
 
     private WriteableBitmap? _bitmap;
     private long _bitmapVersion = -1;
+    private double _bitmapBrightness = -1;
     private bool _dragTarget;
     private bool _panning;
     private Point _last;
@@ -46,7 +48,7 @@ public sealed class SkyView : Control
 
     static SkyView()
     {
-        AffectsRender<SkyView>(ImageProperty, ImageViewportProperty, ImageVersionProperty, ViewportProperty, FieldProperty, TargetProperty, NoteProperty);
+        AffectsRender<SkyView>(ImageProperty, ImageViewportProperty, ImageVersionProperty, ViewportProperty, FieldProperty, TargetProperty, NoteProperty, BrightnessProperty);
         FocusableProperty.OverrideDefaultValue<SkyView>(true);
     }
 
@@ -62,6 +64,9 @@ public sealed class SkyView : Control
     public RigField? Field { get => GetValue(FieldProperty); set => SetValue(FieldProperty, value); }
 
     public FramingTarget? Target { get => GetValue(TargetProperty); set => SetValue(TargetProperty, value); }
+
+    /// <summary>How much the picture is lifted, from 0 (as the survey is) to 1.</summary>
+    public double Brightness { get => GetValue(BrightnessProperty); set => SetValue(BrightnessProperty, value); }
 
     public string? Note { get => GetValue(NoteProperty); set => SetValue(NoteProperty, value); }
 
@@ -115,11 +120,12 @@ public sealed class SkyView : Control
             return;
         }
 
-        if (_bitmap is null || _bitmapVersion != ImageVersion || _bitmap.PixelSize.Width != image.Width)
+        if (_bitmap is null || _bitmapVersion != ImageVersion || _bitmapBrightness != Brightness || _bitmap.PixelSize.Width != image.Width)
         {
             _bitmap?.Dispose();
-            _bitmap = ToBitmap(image);
+            _bitmap = ToBitmap(image, Brightness);
             _bitmapVersion = ImageVersion;
+            _bitmapBrightness = Brightness;
         }
 
         // Where the picture belongs in the current view: its center is a position on the sky, and its scale may differ if the view was zoomed since.
@@ -135,14 +141,29 @@ public sealed class SkyView : Control
         context.DrawImage(_bitmap, new Rect(0, 0, image.Width, image.Height), new Rect(topLeft.X, topLeft.Y, width * layout.Scale, height * layout.Scale));
     }
 
-    private static WriteableBitmap ToBitmap(SkyImage image)
+    private static WriteableBitmap ToBitmap(SkyImage image, double brightness)
     {
         var bitmap = new WriteableBitmap(new PixelSize(image.Width, image.Height), new Vector(96, 96), PixelFormat.Rgba8888, AlphaFormat.Unpremul);
         using var buffer = bitmap.Lock();
         var rowBytes = image.Width * 4;
+        var source = image.Rgba;
+        if (brightness > 0.001)
+        {
+            // The picture is lifted through a table of 256 values; the survey's own pixels are not changed, so the slider can go back.
+            var table = FramingLabels.BrightnessTable(brightness);
+            source = new byte[image.Rgba.Length];
+            for (var i = 0; i < source.Length; i += 4)
+            {
+                source[i] = table[image.Rgba[i]];
+                source[i + 1] = table[image.Rgba[i + 1]];
+                source[i + 2] = table[image.Rgba[i + 2]];
+                source[i + 3] = image.Rgba[i + 3];
+            }
+        }
+
         for (var y = 0; y < image.Height; y++)
         {
-            Marshal.Copy(image.Rgba, y * rowBytes, buffer.Address + y * buffer.RowBytes, rowBytes);
+            Marshal.Copy(source, y * rowBytes, buffer.Address + y * buffer.RowBytes, rowBytes);
         }
 
         return bitmap;
@@ -187,7 +208,20 @@ public sealed class SkyView : Control
             g.EndFigure(true);
         }
 
-        context.DrawGeometry(new SolidColorBrush(Color.FromArgb(28, 124, 126, 255)), new Pen(accent, 2), geometry);
+        // Only the border: the sky is seen through the frame.
+        context.DrawGeometry(null, new Pen(accent, 2), geometry);
+
+        // The size of the field, written on the frame just inside its lower edge.
+        var label = FramingLabels.Field(field);
+        if (label.Length > 0)
+        {
+            var bottomMiddle = new Point((points[2].X + points[3].X) / 2, (points[2].Y + points[3].Y) / 2);
+            var toCenter = new Vector((points[0].X + points[2].X) / 2 - bottomMiddle.X, (points[0].Y + points[2].Y) / 2 - bottomMiddle.Y);
+            if (toCenter.Length > 1)
+            {
+                Text(context, label, accent, bottomMiddle + toCenter / toCenter.Length * 14, centered: true, backdrop: true);
+            }
+        }
 
         // The top of the frame: a short mark from the middle of the top edge, so that the rotation can be seen.
         var topMiddle = new Point((points[0].X + points[1].X) / 2, (points[0].Y + points[1].Y) / 2);
@@ -197,12 +231,17 @@ public sealed class SkyView : Control
         {
             var unit = outward / outward.Length;
             context.DrawLine(new Pen(accent, 2), topMiddle, topMiddle + unit * 14);
-            Text(context, "top", accent, topMiddle + unit * 26, centered: true);
+            Text(context, FramingLabels.Top(target.DesiredRotationDegrees), accent, topMiddle + unit * 28, centered: true, backdrop: true);
         }
     }
 
     private void DrawNote(DrawingContext context)
     {
+        if (Target is null)
+        {
+            return;
+        }
+
         var note = Image is null || Image.HasNoImagery ? (Note is { Length: > 0 } n ? n : "No imagery for this view") : Note;
         if (!string.IsNullOrEmpty(note))
         {
@@ -210,7 +249,7 @@ public sealed class SkyView : Control
         }
     }
 
-    private void Text(DrawingContext context, string value, IBrush brush, Point at, bool centered)
+    private void Text(DrawingContext context, string value, IBrush brush, Point at, bool centered, bool backdrop = false)
     {
         var key = value + "|" + (brush as ISolidColorBrush)?.Color;
         if (!_texts.TryGetValue(key, out var text))
@@ -220,10 +259,17 @@ public sealed class SkyView : Control
                 _texts.Clear();
             }
 
-            text = _texts[key] = new FormattedText(value, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Typeface.Default, 12, brush);
+            text = _texts[key] = new FormattedText(value, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Typeface.Default, 13, brush);
         }
 
-        context.DrawText(text, new Point(centered ? at.X - text.Width / 2 : at.X, at.Y - text.Height / 2));
+        var origin = new Point(centered ? at.X - text.Width / 2 : at.X, at.Y - text.Height / 2);
+        if (backdrop)
+        {
+            // A dark plate behind the words, so that they can be read on a bright part of the sky.
+            context.DrawRectangle(new SolidColorBrush(Color.FromArgb(150, 8, 9, 14)), null, new Rect(origin.X - 4, origin.Y - 1, text.Width + 8, text.Height + 2), 3, 3);
+        }
+
+        context.DrawText(text, origin);
     }
 
     // ---- Pointer
