@@ -5,6 +5,7 @@
     <Project Path="src/Sidera.Desktop/Sidera.Desktop.csproj" />
     <Project Path="src/Sidera.Phd2/Sidera.Phd2.csproj" />
     <Project Path="src/Sidera.Astap/Sidera.Astap.csproj" />
+    <Project Path="src/Sidera.Sky/Sidera.Sky.csproj" />
     <Project Path="src/Sidera.Runtime/Sidera.Runtime.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -13,6 +14,7 @@
     <Project Path="tests/Sidera.Desktop.Tests/Sidera.Desktop.Tests.csproj" />
     <Project Path="tests/Sidera.Phd2.Tests/Sidera.Phd2.Tests.csproj" />
     <Project Path="tests/Sidera.Astap.Tests/Sidera.Astap.Tests.csproj" />
+    <Project Path="tests/Sidera.Sky.Tests/Sidera.Sky.Tests.csproj" />
     <Project Path="tests/Sidera.Runtime.Tests/Sidera.Runtime.Tests.csproj" />
   </Folder>
 </Solution>
