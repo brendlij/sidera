@@ -110,7 +110,7 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
 
     public bool HasResult => BestFocusText.Length > 0;
 
-    public bool HasError => ErrorText.Length > 0;
+    public new bool HasError => ErrorText.Length > 0;
 
     public bool HasSamples => Samples.Count > 0;
 
@@ -165,7 +165,7 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
             return $"Connect the camera of {rig.Name} on the Equipment page.";
         }
 
-        if (!_host.DeviceRegistry.TryGet(rig.FocuserId!.Value, out var focuser) || focuser.ConnectionState != DeviceConnectionState.Connected)
+        if (!_host.DeviceRegistry.TryGet(rig.FocuserId!.Value, out var focuser) || focuser?.ConnectionState != DeviceConnectionState.Connected)
         {
             return $"Connect the focuser of {rig.Name} on the Equipment page.";
         }

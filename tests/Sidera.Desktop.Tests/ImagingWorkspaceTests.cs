@@ -175,9 +175,9 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
     [InlineData("0")]
     [InlineData("-1")]
     [InlineData("NaN")]
-    public void ANonsensicalExposure_IsNotBuilt(string text)
+    public async Task ANonsensicalExposure_IsNotBuilt(string text)
     {
-        var s = CreateAsync().GetAwaiter().GetResult();
+        var s = await CreateAsync();
         s.Capture.ExposureText = text;
 
         Assert.False(s.Capture.TryBuildIntent(out _, out _, out var problem));
