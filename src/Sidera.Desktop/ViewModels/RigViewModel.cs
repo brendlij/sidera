@@ -107,9 +107,9 @@ public sealed partial class RigViewModel : ViewModelBase
     /// <summary>The optics as configured; <c>null</c> for a rig that has none.</summary>
     public OpticalTrain? Optics => _rig.Optics;
 
-    /// <summary>The geometry of the rig: configured values first, what the camera reports for the rest. Derived every time, never stored.</summary>
+    /// <summary>The geometry of the rig: configured values first, then what the camera reports, then the camera database. Derived every time, never stored.</summary>
     public OpticalTrainGeometry Geometry =>
-        OpticalTrainGeometry.Resolve(_rig.Optics, SensorGeometry.From((Camera?.DeviceModel as ICameraControl)?.Capabilities.Value));
+        OpticalTrainGeometry.Resolve(_rig.Optics, SensorGeometry.For(Camera?.DeviceModel));
 
     private const string Unknown = "Not set";
 

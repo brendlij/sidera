@@ -27,7 +27,10 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   elevation in meters. Unknown until you enter it. When a mount connects its site is compared with it; a real difference (more than 100 m)
   asks what to do (use the mount's location, send Sidera's to the mount, or keep both). Nothing is written to a mount by itself.
 - **Optical train:** the focal length (and optionally aperture, pixel size, sensor pixels) of a camera's rig, on the camera page. Pixel scale,
-  sensor size and field of view are derived from it and from what the camera reports, never stored.
+  sensor size and field of view are derived from it and from what the camera reports, never stored. Each value is shown with its source, resolved one value at a time:
+  what you entered (Manual), else what the camera reports (Device), else the small built-in camera database for a camera it knows (Sidera Camera Database, a versioned
+  JSON resource in `Sidera.Core`), else unknown. The database is never copied into the rig, a manual value always wins and can be reverted, and a difference between the
+  camera and the database is shown as a warning, not replaced.
 - **Framing:** search an object (M31, NGC 7000, IC 434), see the field of the selected rig on a sky survey (HiPS tiles from the CDS, cached on your disk),
   drag and turn the frame, then Slew & Center on it or add it to the session. With a rotator in the rig the page offers Center & Rotate instead, and a rig without one
   compares the rotation of a plate solve with the plan and says by how many degrees to change it (Solve Again after you turned the camera). The mount is never synchronized. No survey is bundled; the rights of each survey are shown with it.

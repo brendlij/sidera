@@ -269,7 +269,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         }
 
         _host.DeviceRegistry.TryGet(rig.CameraId, out var camera);
-        var geometry = OpticalTrainGeometry.Resolve(rig.Optics, SensorGeometry.From((camera as ICameraControl)?.Capabilities.Value));
+        var geometry = OpticalTrainGeometry.Resolve(rig.Optics, SensorGeometry.For(camera));
         Field = RigField.From(geometry);
         PixelScaleTextValue = RigViewModel.PixelScaleOf(geometry);
     }
