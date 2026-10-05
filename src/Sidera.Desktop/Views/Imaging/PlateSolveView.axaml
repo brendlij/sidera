@@ -20,6 +20,7 @@
   <StackPanel Orientation="Horizontal" Spacing="8">
    <Button Classes="primary" Content="Capture &amp; Solve" Command="{Binding CaptureAndSolveCommand}" IsEnabled="{Binding !IsBusy}" />
    <Button Content="Solve Last Frame" Command="{Binding SolveLastFrameCommand}" IsEnabled="{Binding !IsBusy}" />
+   <Button Content="Sync Mount to Solved Position" Command="{Binding SyncMountCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Explicit only: Sidera never syncs the mount by itself" />
    <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsBusy}" />
   </StackPanel>
   <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />

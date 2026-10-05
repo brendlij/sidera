@@ -89,6 +89,13 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
         if (service.LastResult is { } solve) ShowResult(service, solve);
         StatusText = result.Success ? "Centered" : result.Message ?? "Centering failed.";
     });
+    /// <summary>Explicit only: tells the mount where the last solve found it. Never done by a solve, a sequence or centering.</summary>
+    [RelayCommand] private Task SyncMountAsync() => RunAsync(async (service, rig, token) =>
+    {
+        var mount = SelectedMount ?? throw new InvalidOperationException("Select a mount.");
+        await service.SyncMountToSolvedPositionAsync(mount.Id, token);
+        StatusText = "Mount synchronized to the solved position.";
+    });
     [RelayCommand] private void Cancel() => _cancel?.Cancel();
     private async Task RunAsync(Func<PlateSolveService, Rig, CancellationToken, Task> body)
     {

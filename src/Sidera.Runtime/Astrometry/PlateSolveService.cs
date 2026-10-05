@@ -162,6 +162,44 @@ public sealed class PlateSolveService
         });
     }
 
+    /// <summary>
+    /// Tells the mount that it points at the position of the last successful solve. Only ever called by a person's explicit action: a solve, a
+    /// sequence step and centering never synchronize the mount by themselves.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">There is no successful solve, the mount is unavailable, or it cannot sync.</exception>
+    public Task SyncMountToSolvedPositionAsync(DeviceId mountId, CancellationToken cancellationToken = default) => RunAsync(async () =>
+    {
+        if (LastResult is not { Success: true, Center: { } solved })
+        {
+            throw new InvalidOperationException("There is no successful plate solve to synchronize the mount to.");
+        }
+
+        if (!_devices.TryGet(mountId, out var device) || device is not IMountControl mount)
+        {
+            throw new InvalidOperationException("The selected mount cannot be synchronized.");
+        }
+
+        if (mount.Capabilities.Value is not { CanSync: true })
+        {
+            throw new InvalidOperationException($"{mount.Name} does not support sync.");
+        }
+
+        using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken);
+        _logger.LogInformation(new EventId(5300, "MountSyncStarted"), "MountSyncStarted {MountId} to {Solved}", mountId.Value, solved);
+        try
+        {
+            await mount.SyncAsync(solved, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(new EventId(5302, "MountSyncFailed"), ex, "MountSyncFailed {MountId}", mountId.Value);
+            throw;
+        }
+
+        _logger.LogInformation(new EventId(5301, "MountSyncCompleted"), "MountSyncCompleted {MountId}", mountId.Value);
+        return true;
+    });
+
     private CenteringResult CenterFailure(int attempt, double? error, string message)
     {
         LastFailure = message;
