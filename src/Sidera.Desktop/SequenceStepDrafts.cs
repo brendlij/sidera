@@ -356,4 +356,18 @@ public sealed record MultiRigStepDraft(
 }
 
 /// <summary>The equipment that the whole session shares: one mount and, usually, one guider.</summary>
-public sealed record SharedEquipmentDraft(DeviceId? MountId, DeviceId? GuiderId);
+public sealed record SharedEquipmentDraft(DeviceId? MountId, DeviceId? GuiderId)
+{
+    /// <summary>
+    /// What the rigs have in common, as the fallback for a step whose rig names no mount or guider: the one mount that every rig with a mount names, and likewise the guider. Rigs on different
+    /// mounts have no common one, so nothing is shared and each rig-local step uses its rig's own. Without any rig the given defaults are used (a session with devices and no rigs).
+    /// </summary>
+    public static SharedEquipmentDraft FromRigs(IEnumerable<Sidera.Core.Rigs.Rig> rigs, DeviceId? defaultMount, DeviceId? defaultGuider, bool useDefaults)
+    {
+        var all = rigs.ToList();
+        DeviceId? Single(IEnumerable<DeviceId?> ids) => ids.OfType<DeviceId>().Distinct().ToList() is [var only] ? only : null;
+        var mount = Single(all.Select(r => r.MountId));
+        var guider = Single(all.Select(r => r.GuiderId));
+        return useDefaults ? new SharedEquipmentDraft(defaultMount, defaultGuider) : new SharedEquipmentDraft(mount, guider);
+    }
+}

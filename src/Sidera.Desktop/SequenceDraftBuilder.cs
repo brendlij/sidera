@@ -250,8 +250,9 @@ public static class SequenceDraftBuilder
         string.Join('.', path.Select(index => (index + 1).ToString(CultureInfo.InvariantCulture)));
 
     /// <summary>
-    /// The devices a draft needs for running: those its steps name, and the camera of each rig of a Multi-Rig block.
-    /// Only what is actually used; the shared equipment of the session is not needed unless a step uses it.
+    /// The devices a draft needs for running, resolved from the rigs the steps work for (see <see cref="StepScopes"/>): a rig-local step needs the devices of its rig (its mount
+    /// and not another rig's), a step that names a device needs that one, and a Multi-Rig block needs the camera of each rig of its tracks and what the steps of the track use.
+    /// Only what is actually used.
     /// </summary>
     public static IReadOnlyCollection<DeviceId> RequiredDeviceIds(IEnumerable<SequenceStepDraft> steps, SequenceDraftContext? context = null)
     {
@@ -264,62 +265,61 @@ public static class SequenceDraftBuilder
             {
                 foreach (var track in multiRig.Tracks)
                 {
-                    if (track.RigId is { } rigId && TryGetRig(context, rigId, out var rig))
+                    TryGetRig(context, track.RigId ?? default, out var rig);
+                    if (track.RigId is not null && rig is not null)
                     {
                         ids.Add(rig.CameraId);
-
-                        // The focuser and the filter wheel of a rig are only needed by a track that uses them.
-                        var local = track.Steps
-                            .SelectMany(inner => inner is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [inner])
-                            .ToList();
-                        if (rig.FocuserId is { } focuser && local.Any(inner => inner is RigMoveFocuserStepDraft))
+                        foreach (var inner in track.Steps)
                         {
-                            ids.Add(focuser);
+                            ids.AddRange(StepScopes.Resolve(inner, context, rig).Select(d => d.Device));
                         }
 
-                        if (rig.FilterWheelId is { } wheel && local.Any(inner => inner is RigChangeFilterStepDraft))
-                        {
-                            ids.Add(wheel);
-                        }
-
-                        if (rig.FocuserId is { } autofocusFocuser
-                            && (local.Any(inner => inner is RigAutofocusStepDraft) || track.AutofocusPolicy is { IsActive: true }))
+                        if (rig.FocuserId is { } autofocusFocuser && track.AutofocusPolicy is { IsActive: true })
                         {
                             ids.Add(autofocusFocuser);
                         }
                     }
-
-                    ids.AddRange(track.Steps.SelectMany(inner => inner.DeviceIds));
+                    else
+                    {
+                        ids.AddRange(track.Steps.SelectMany(inner => inner.DeviceIds));
+                    }
                 }
 
-                // A dither policy moves the shared mount and uses the shared guider; without one they are not used.
-                if (multiRig.DitherPolicy is { Enabled: true } && context?.Shared is { } shared)
+                // A dither policy moves the mount of the trigger rig and uses its guider; without one they are not used.
+                if (multiRig.DitherPolicy is { Enabled: true } policy && DitherDomain(multiRig, policy, context) is { } domain)
                 {
-                    ids.AddRange(new[] { shared.MountId, shared.GuiderId }.OfType<DeviceId>());
+                    ids.AddRange(new[] { domain.Mount, domain.Guider }.OfType<DeviceId>());
                 }
             }
             else
             {
                 ids.AddRange(step.DeviceIds);
-
-                // An autofocus of a rig needs the camera and the focuser of that rig.
-                foreach (var autofocus in step is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [step])
-                {
-                    if (autofocus is SlewAndCenterStepDraft { RigId: { } centerRigId } && TryGetRig(context, centerRigId, out var centerRig)) ids.Add(centerRig.CameraId);
-                    if (autofocus is RotateToAngleStepDraft { RigId: { } rotateRigId } && TryGetRig(context, rotateRigId, out var rotateRig)) ids.AddRange(new[] { rotateRig.CameraId, rotateRig.RotatorId }.OfType<DeviceId>());
-                    if (autofocus is RotateAndVerifyStepDraft { RigId: { } verifyRigId } && TryGetRig(context, verifyRigId, out var verifyRig)) ids.AddRange(new[] { verifyRig.CameraId, verifyRig.RotatorId }.OfType<DeviceId>());
-                    if (autofocus is CenterAndRotateStepDraft { RigId: { } crRigId } && TryGetRig(context, crRigId, out var crRig)) ids.AddRange(new[] { crRig.CameraId, crRig.RotatorId }.OfType<DeviceId>());
-                    if (autofocus is PlateSolveStepDraft { RigId: { } solveRigId } && TryGetRig(context, solveRigId, out var solveRig)) ids.Add(solveRig.CameraId);
-                    if (autofocus is AutofocusStepDraft { RigId: { } rigId } && TryGetRig(context, rigId, out var rig))
-                    {
-                        ids.Add(rig.CameraId);
-                        ids.AddRange(new[] { rig.FocuserId }.OfType<DeviceId>());
-                    }
-                }
+                ids.AddRange(StepScopes.Resolve(step, context).Select(d => d.Device));
             }
         }
 
         return ids.Distinct().ToList();
+    }
+
+    /// <summary>
+    /// What a Multi-Rig dither policy moves and uses: the mount and the guider of its trigger rig (for a rig that names none, the session's shared ones), and the tracks whose rigs sit on that
+    /// mount. Rigs on another mount are not disturbed by it and are not asked to wait for it. <c>null</c> when the policy has no usable trigger rig.
+    /// </summary>
+    public static DitherDomain? DitherDomain(MultiRigStepDraft multiRig, MultiRigDitherPolicyDraft policy, SequenceDraftContext? context)
+    {
+        if (policy.TriggerRigId is not { } trigger || !TryGetRig(context, trigger, out var triggerRig))
+        {
+            return null;
+        }
+
+        var mount = StepScopes.EffectiveMount(triggerRig, null, context?.Shared);
+        var guider = StepScopes.EffectiveGuider(triggerRig, null, context?.Shared);
+        var affected = multiRig.Tracks
+            .Where(track => track.RigId is { } id && TryGetRig(context, id, out var rig)
+                && (id == trigger || (mount is not null && StepScopes.EffectiveMount(rig, null, context?.Shared) == mount)))
+            .Select(track => track.Id)
+            .ToList();
+        return new DitherDomain(mount, guider, affected);
     }
 
     /// <summary>Checks the whole draft, containers and tracks included, without building anything.</summary>
@@ -438,7 +438,8 @@ public static class SequenceDraftBuilder
         MultiRigDitherPolicyDraft Policy,
         DeviceId Mount,
         DeviceId Guider,
-        IReadOnlyList<DeviceId> Cameras
+        IReadOnlyList<DeviceId> Cameras,
+        IReadOnlySet<Guid> Participants
     );
 
     // rig: the rig of the track the step is in; null outside a track. orchestration: that of the block
@@ -458,12 +459,32 @@ public static class SequenceDraftBuilder
             case MultiRigStepDraft multiRig:
             {
                 var orchestrated = Orchestrate(multiRig, context);
-                var tracks = multiRig.Tracks.Select(track => BuildTrack(registry, track, context, orchestrated)).ToList();
 
-                // With a policy the tracks are the participants of a coordination group, so that a dither of the
-                // shared mount can wait for every one of them. Without one they have nothing to wait for.
-                var parallel = new ParallelStep(MultiRigName, tracks.Select(t => t.Step), orchestrated?.Group);
-                return new BuiltStep(step.Id, description, parallel, tracks);
+                // Only the tracks on the mount that the policy dithers are orchestrated: they hold safe points and wait for the dither. A rig on another mount is not disturbed by it and runs on
+                // as if the policy were not there.
+                var tracks = multiRig.Tracks
+                    .Select(track => BuildTrack(registry, track, context, orchestrated is { } o && o.Participants.Contains(track.Id) ? orchestrated : null))
+                    .ToList();
+
+                // With a policy the tracks of the dithered mount are the participants of a coordination group, so that a dither can wait for every one of them. Without one they have nothing to wait for.
+                if (orchestrated is null || tracks.Count(t => orchestrated.Participants.Contains(t.DraftId)) == tracks.Count)
+                {
+                    var parallel = new ParallelStep(MultiRigName, tracks.Select(t => t.Step), orchestrated?.Group);
+                    return new BuiltStep(step.Id, description, parallel, tracks);
+                }
+
+                var members = tracks.Where(t => orchestrated.Participants.Contains(t.DraftId)).ToList();
+                var others = tracks.Where(t => !orchestrated.Participants.Contains(t.DraftId)).ToList();
+                if (members.Count < 2)
+                {
+                    // The trigger rig is alone on its mount: nobody else has to wait for its dither.
+                    return new BuiltStep(step.Id, description, new ParallelStep(MultiRigName, tracks.Select(t => t.Step)), tracks);
+                }
+
+                var group = new ParallelStep(MultiRigName + " (dithered mount)", members.Select(t => t.Step), orchestrated.Group);
+                var branches = new List<BuiltStep> { Generated(group, members) };
+                branches.AddRange(others);
+                return new BuiltStep(step.Id, description, new ParallelStep(MultiRigName, branches.Select(b => b.Step)), branches);
             }
             case RepeatStepDraft repeat:
             {
@@ -549,14 +570,16 @@ public static class SequenceDraftBuilder
             return null;
         }
 
+        // Validated before: the trigger rig has a mount and a guider. The cameras that wait for a dither, and the tracks that take part in it, are those on the same mount.
+        var domain = DitherDomain(multiRig, policy, context)!;
         var cameras = multiRig.Tracks
+            .Where(track => domain.Tracks.Contains(track.Id))
             .Select(track => TryGetRig(context, track.RigId!.Value, out var rig) ? rig.CameraId : (DeviceId?)null)
             .OfType<DeviceId>()
             .Distinct()
             .ToList();
         return new Orchestration(
-            new CoordinationGroupId($"multirig.{multiRig.Id:N}"), policy, context!.Shared!.MountId!.Value,
-            context.Shared.GuiderId!.Value, cameras);
+            new CoordinationGroupId($"multirig.{multiRig.Id:N}"), policy, domain.Mount!.Value, domain.Guider!.Value, cameras, domain.Tracks.ToHashSet());
     }
 
     private static BuiltStep BuildTrack(
@@ -583,20 +606,20 @@ public static class SequenceDraftBuilder
     {
         // Validated before: the rig is there and has a focuser, and the context has something to measure focus with.
         SlewAndCenterStepDraft c => new SlewAndCenterAction(context!.PlateSolving!,
-            TryGetRig(context, c.RigId!.Value, out var centerRig) ? centerRig : null!, c.MountId!.Value,
+            TryGetRig(context, c.RigId!.Value, out var centerRig) ? centerRig : null!, StepScopes.EffectiveMount(centerRig, c.MountId, context.Shared)!.Value,
             new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees), c.ToleranceArcseconds, c.MaxAttempts,
             TimeSpan.FromSeconds(c.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
         RotateToAngleStepDraft r => new RotateToAngleAction(context!.Rotation!, TryGetRig(context, r.RigId!.Value, out var rotateRig) ? rotateRig : null!, r.SkyRotationDegrees),
         RotateAndVerifyStepDraft r => new RotateAndVerifyAction(context!.Rotation!,
-            TryGetRig(context, r.RigId!.Value, out var verifyRig) ? verifyRig : null!, context.Shared?.MountId, r.SkyRotationDegrees, r.ToleranceDegrees, r.MaxAttempts,
+            TryGetRig(context, r.RigId!.Value, out var verifyRig) ? verifyRig : null!, StepScopes.EffectiveMount(verifyRig, null, context.Shared), r.SkyRotationDegrees, r.ToleranceDegrees, r.MaxAttempts,
             TimeSpan.FromSeconds(r.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
         CenterAndRotateStepDraft c => new CenterAndRotateAction(context!.Rotation!,
-            TryGetRig(context, c.RigId!.Value, out var crRig) ? crRig : null!, c.MountId!.Value, new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees),
+            TryGetRig(context, c.RigId!.Value, out var crRig) ? crRig : null!, StepScopes.EffectiveMount(crRig, c.MountId, context.Shared)!.Value, new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees),
             c.SkyRotationDegrees, c.ToleranceArcseconds, c.RotationToleranceDegrees, c.MaxCenteringAttempts, c.MaxRotationAttempts, c.MaxRounds,
             TimeSpan.FromSeconds(c.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
         SyncMountStepDraft m => new SyncMountToSolvedPositionAction(context!.PlateSolving!, m.MountId!.Value),
         PlateSolveStepDraft p => new PlateSolveAction(context!.PlateSolving!,
-            TryGetRig(context, p.RigId!.Value, out var solveRig) ? solveRig : null!, context.Shared?.MountId,
+            TryGetRig(context, p.RigId!.Value, out var solveRig) ? solveRig : null!, StepScopes.EffectiveMount(solveRig, null, context.Shared),
             TimeSpan.FromSeconds(p.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
         AutofocusStepDraft a => AutofocusAction.ForRig(
             registry, TryGetRig(context, a.RigId!.Value, out var autofocusRig) ? autofocusRig : null!,
@@ -801,16 +824,19 @@ public static class SequenceDraftBuilder
 
             var problems = new List<string>();
 
-            if (_shared?.MountId is null)
+            // A dither moves the mount of the trigger rig and uses its guider; a rig without its own uses the session's shared ones.
+            var domain = DitherDomain(multiRig, policy, context);
+            var triggerName = policy.TriggerRigId is { } triggerId && TryGetRig(context, triggerId, out var triggerRig) ? $"the rig '{triggerRig.Name}'" : "the trigger rig";
+            if (policy.TriggerRigId is not null && domain is not null && domain.Mount is null)
             {
-                problems.Add("Dither needs a shared mount: select one in the shared equipment.");
+                problems.Add($"Dither needs a mount: {triggerName} has none. Give the rig a mount on the Equipment page.");
             }
 
-            if (_shared?.GuiderId is not { } guiderId)
+            if (policy.TriggerRigId is not null && domain is not null && domain.Guider is null)
             {
-                problems.Add("Dither needs a shared guider: select one in the shared equipment.");
+                problems.Add($"Dither needs a guider: {triggerName} has none. Give the rig a guider on the Equipment page.");
             }
-            else if (registry.TryGet(guiderId, out var guider) && guider is IGuider)
+            else if (domain?.Guider is { } guiderId && registry.TryGet(guiderId, out var guider) && guider is IGuider)
             {
                 if (guider is not IDitherGuider)
                 {
@@ -855,10 +881,10 @@ public static class SequenceDraftBuilder
 
             // The dither is as much a dither of the shared guider as a Dither step: it needs guiding, which an earlier
             // Stop Guiding of the sequence has ended.
-            if (_shared?.GuiderId is { } guiding)
+            if (domain?.Guider is { } guiding)
             {
                 ValidateGuidingOrder(
-                    new DitherStepDraft(multiRig.Id, guiding, _shared.MountId, null, 1, 1, 1, 2),
+                    new DitherStepDraft(multiRig.Id, guiding, domain.Mount, null, 1, 1, 1, 2),
                     label, -1, 0, p => Report(multiRig.Id, p));
             }
         }
@@ -982,7 +1008,7 @@ public static class SequenceDraftBuilder
             switch (step)
             {
                 case SlewAndCenterStepDraft c:
-                    CheckDevice<IMount>(c.MountId, "mount", problems);
+                    CheckRigMount(c.RigId, c.MountId, problems);
                     CheckDuration(c.ExposureSeconds, "Solve exposure", problems);
                     if (!double.IsFinite(c.ToleranceArcseconds) || c.ToleranceArcseconds <= 0) problems.Add("The tolerance must be greater than zero.");
                     if (c.MaxAttempts is < 1 or > 100) problems.Add("The attempts must be from 1 to 100.");
@@ -1012,7 +1038,7 @@ public static class SequenceDraftBuilder
                     if (context?.Rotation is null) problems.Add("No plate solver configured.");
                     break;
                 case CenterAndRotateStepDraft c:
-                    CheckDevice<IMount>(c.MountId, "mount", problems);
+                    CheckRigMount(c.RigId, c.MountId, problems);
                     CheckAngle(c.SkyRotationDegrees, problems);
                     CheckRotationTolerance(c.RotationToleranceDegrees, c.MaxRotationAttempts, problems);
                     CheckDuration(c.ExposureSeconds, "Solve exposure", problems);
@@ -1306,12 +1332,6 @@ public static class SequenceDraftBuilder
                 case SlewStepDraft s:
                     Mismatch(s.MountId, _shared.MountId, "mount");
                     break;
-                case SlewAndCenterStepDraft c:
-                    Mismatch(c.MountId, _shared.MountId, "mount");
-                    break;
-                case CenterAndRotateStepDraft c:
-                    Mismatch(c.MountId, _shared.MountId, "mount");
-                    break;
                 case SyncMountStepDraft m:
                     Mismatch(m.MountId, _shared.MountId, "mount");
                     break;
@@ -1420,6 +1440,31 @@ public static class SequenceDraftBuilder
         }
 
         // A positive duration that a TimeSpan can hold.
+        // The mount of a rig-local step is the mount of its rig. A step of an older file that names one is kept when the rig has none; naming another one than the rig's is a mistake that is reported.
+        private void CheckRigMount(RigId? rigId, DeviceId? named, List<string> problems)
+        {
+            Rig? rig = null;
+            if (rigId is { } id)
+            {
+                TryGetRig(context, id, out rig);
+            }
+
+            if (rig?.MountId is { } rigMount && named is { } other && other != rigMount)
+            {
+                problems.Add($"The step names the mount '{other}', but the rig '{rig.Name}' is on '{rigMount}'.");
+                return;
+            }
+
+            var mount = StepScopes.EffectiveMount(rig, named, _shared);
+            if (mount is null)
+            {
+                problems.Add(rig is null ? "No mount selected." : $"The rig '{rig.Name}' has no mount. Give the rig a mount on the Equipment page.");
+                return;
+            }
+
+            CheckDevice<IMount>(mount, "mount", problems);
+        }
+
         private static void CheckAngle(double degrees, List<string> problems)
         {
             if (!double.IsFinite(degrees)) problems.Add("The sky rotation must be a number of degrees.");
@@ -1545,3 +1590,6 @@ public static class SequenceDraftBuilder
         _ => kind.ToString(),
     };
 }
+
+/// <summary>What a Multi-Rig dither moves and uses, and the tracks (by id) that sit on that mount.</summary>
+public sealed record DitherDomain(DeviceId? Mount, DeviceId? Guider, IReadOnlyList<Guid> Tracks);

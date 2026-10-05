@@ -56,7 +56,10 @@ public sealed class RotationService
     private readonly RigRegistry _rigs;
     private readonly ResourceManager _resources;
     private readonly ILogger _logger;
-    private int _busy;
+    // The rotators (and mounts, for centering and rotating) that running operations use, with how many. It only says what is going on and never refuses an operation: the resource leases decide
+    // whether two overlap (two rigs with their own rotator, mount and camera run side by side, two on the same one queue).
+    private readonly Dictionary<string, int> _claims = [];
+    private readonly object _claimGate = new();
 
     public RotationService(PlateSolveService solver, DeviceRegistry devices, RigRegistry rigs, ResourceManager resources, ILogger<RotationService>? logger = null)
     {
@@ -67,7 +70,7 @@ public sealed class RotationService
         _logger = logger ?? NullLogger<RotationService>.Instance;
     }
 
-    public bool IsBusy => Volatile.Read(ref _busy) != 0;
+    public bool IsBusy { get { lock (_claimGate) { return _claims.Count > 0; } } }
 
     public string? LastFailure { get; private set; }
 
@@ -98,7 +101,7 @@ public sealed class RotationService
 
             _logger.LogInformation(new EventId(5400, "RotateToAngle"), "RotateToAngle sky {Target} at position {Position}", targetSkyRotationDegrees, rotator.Position);
             return new RotationResult(true, 1, rotator.Position, null, null, null);
-        });
+        }, RotatorClaim(rotator.Id));
     }
 
     /// <summary>
@@ -116,7 +119,7 @@ public sealed class RotationService
         {
             using var lease = await _resources.AcquireAsync(RotatorResources(rig, rotator.Id), cancellationToken);
             return await VerifyCoreAsync(rig, rotator, model!, mountId, SkyMath.NormalizeRotationDegrees(targetSkyRotationDegrees), toleranceDegrees, maxAttempts, exposure, defaults, intent, progress, cancellationToken);
-        });
+        }, RotatorClaim(rotator.Id));
     }
 
     /// <summary>
@@ -176,7 +179,7 @@ public sealed class RotationService
 
             return CenterAndRotateFailure(maxRounds, centering, rotation, pointing, rotation?.ErrorDegrees,
                 "Turning the camera kept moving the field out of the centering tolerance; the maximum number of rounds was reached.");
-        });
+        }, RotatorClaim(rotator.Id), "mount:" + mountId.Value);
     }
 
     /// <summary>
@@ -201,7 +204,7 @@ public sealed class RotationService
             var model = (existing ?? new RotatorSkyModel(0)).Calibrated(position, solved, DateTimeOffset.UtcNow);
             _logger.LogInformation(new EventId(5430, "RotatorCalibrated"), "RotatorCalibrated at position {Position}: sky {Solved}, offset {Offset}, reversed {Reversed}", position, solved, model.OffsetDegrees, model.Reversed);
             return new RotatorCalibrationResult(true, model, position, solved, null);
-        });
+        }, RotatorClaim(rotator.Id));
     }
 
     private async Task<RotationResult> VerifyCoreAsync(Rig rig, IRotator rotator, RotatorSkyModel model, DeviceId? mountId, double target, double tolerance, int maxAttempts,
@@ -314,6 +317,16 @@ public sealed class RotationService
         return (rotator, rig.RotatorModel);
     }
 
+    private static string RotatorClaim(DeviceId id) => "rotator:" + id.Value;
+
+    /// <summary>What a rotation of this rig holds while it runs: the rotator and every camera that sits on it (none of them may expose while it turns).</summary>
+    public IReadOnlyCollection<ResourceId> ResourcesOfRotation(Rig rig) =>
+        rig.RotatorId is { } rotatorId ? RotatorResources(rig, rotatorId) : [];
+
+    /// <summary>What centering and rotating of this rig holds while it runs: the mount, the rotator and the cameras on it.</summary>
+    public IReadOnlyCollection<ResourceId> ResourcesOfCenterAndRotate(Rig rig, DeviceId mountId) =>
+        [ResourceId.ForDevice(mountId), .. ResourcesOfRotation(rig)];
+
     // The rotator and every camera that sits on it: none of them may expose while it turns.
     private ResourceId[] RotatorResources(Rig rig, DeviceId rotatorId) =>
     [
@@ -340,11 +353,14 @@ public sealed class RotationService
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maxAttempts, 20);
     }
 
-    private async Task<T> RunAsync<T>(Func<Task<T>> body)
+    private async Task<T> RunAsync<T>(Func<Task<T>> body, params string[] claims)
     {
-        if (_solver.IsSolving || Interlocked.CompareExchange(ref _busy, 1, 0) != 0)
+        lock (_claimGate)
         {
-            throw new InvalidOperationException("A rotation, plate solve or centering operation is already running.");
+            foreach (var claim in claims)
+            {
+                _claims[claim] = _claims.GetValueOrDefault(claim) + 1;
+            }
         }
 
         LastFailure = null;
@@ -365,7 +381,17 @@ public sealed class RotationService
         }
         finally
         {
-            Interlocked.Exchange(ref _busy, 0);
+            lock (_claimGate)
+            {
+                foreach (var claim in claims)
+                {
+                    if (--_claims[claim] == 0)
+                    {
+                        _claims.Remove(claim);
+                    }
+                }
+            }
+
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }

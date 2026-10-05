@@ -107,12 +107,12 @@ public sealed record SequenceDraftDefaults
             SequenceStepKind.ChangeFilter => new ChangeFilterStepDraft(id, FilterWheelId, FilterSlotIndex),
             SequenceStepKind.RigMoveFocuser => new RigMoveFocuserStepDraft(id, FocuserPosition),
             SequenceStepKind.RigChangeFilter => new RigChangeFilterStepDraft(id, FilterSlotIndex),
-            SequenceStepKind.SlewAndCenter => new SlewAndCenterStepDraft(id, MountId, AutofocusRigId, TargetRightAscensionHours, TargetDeclinationDegrees, 60, 5, 5),
+            SequenceStepKind.SlewAndCenter => new SlewAndCenterStepDraft(id, null, AutofocusRigId, TargetRightAscensionHours, TargetDeclinationDegrees, 60, 5, 5),
             SequenceStepKind.RotateToAngle => new RotateToAngleStepDraft(id, AutofocusRigId, 0),
             SequenceStepKind.RotateAndVerify => new RotateAndVerifyStepDraft(
                 id, AutofocusRigId, 0, Sidera.Runtime.Astrometry.RotationService.DefaultToleranceDegrees, Sidera.Runtime.Astrometry.RotationService.DefaultMaxAttempts, 5),
             SequenceStepKind.CenterAndRotate => new CenterAndRotateStepDraft(
-                id, MountId, AutofocusRigId, TargetRightAscensionHours, TargetDeclinationDegrees, 60, 5, 0,
+                id, null, AutofocusRigId, TargetRightAscensionHours, TargetDeclinationDegrees, 60, 5, 0,
                 Sidera.Runtime.Astrometry.RotationService.DefaultToleranceDegrees, Sidera.Runtime.Astrometry.RotationService.DefaultMaxAttempts,
                 Sidera.Runtime.Astrometry.RotationService.DefaultMaxRounds, 5),
             SequenceStepKind.SyncMountToSolved => new SyncMountStepDraft(id, MountId),
