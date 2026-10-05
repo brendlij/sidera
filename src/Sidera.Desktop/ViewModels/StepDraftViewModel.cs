@@ -291,6 +291,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     public MultiRigStepDraftViewModel(MultiRigStepDraft draft, IEnumerable<StepDraftViewModel> tracks, RigPickerViewModel triggerRig)
         : base(draft.Id, tracks)
     {
+        SingleTrack = draft.SingleTrack;
         var policy = draft.DitherPolicy ?? MultiRigDitherPolicyDraft.Default;
         DitherEnabled = policy.Enabled;
         DitherEveryText = policy.EveryNFrames.ToString(CultureInfo.InvariantCulture);
@@ -307,6 +308,9 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     }
 
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
+
+    /// <summary>The block may have a single track (it is the imaging of a workflow); kept as it was read.</summary>
+    public bool SingleTrack { get; }
 
     /// <summary>The Rig Tracks as lanes: what each rig does, one summary for each, for the overview of the block.</summary>
     public IReadOnlyList<LaneSummary> Lanes => Children.OfType<RigTrackDraftViewModel>().Select(track => track.Lane).ToList();
@@ -420,7 +424,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     }
 
     // Without its tracks: the draft view model reads those.
-    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors));
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors), SingleTrack);
 }
 
 /// <summary>
@@ -444,6 +448,7 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
         AutofocusExposureText = Format(policy.ExposureSeconds);
         AutofocusStepSizeText = policy.StepSize.ToString(CultureInfo.InvariantCulture);
         AutofocusSamplesText = policy.SampleCount.ToString(CultureInfo.InvariantCulture);
+        AutofocusIntervalText = Format(policy.IntervalMinutes);
         _constructed = true;
     }
 
@@ -458,6 +463,10 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
     /// <summary>Focus after every Change Filter step of the track.</summary>
     [ObservableProperty]
     public partial bool AutofocusAfterFilterChange { get; set; }
+
+    /// <summary>Focus again after this many minutes since the last autofocus of the rig; 0 is off.</summary>
+    [ObservableProperty]
+    public partial string AutofocusIntervalText { get; set; } = "0";
 
     /// <summary>The exposure at each sample position, in seconds.</summary>
     [ObservableProperty]
@@ -501,7 +510,8 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
             AutofocusAfterFilterChange,
             ParseNumber(AutofocusExposureText, "Autofocus exposure", "a number of seconds", errors, on ? 1 : defaults.ExposureSeconds),
             ParseWhole(AutofocusStepSizeText, "Autofocus step size", errors, on ? 1 : defaults.StepSize),
-            ParseWhole(AutofocusSamplesText, "Autofocus samples", errors, on ? AutofocusOptions.MinimumSampleCount : defaults.SampleCount));
+            ParseWhole(AutofocusSamplesText, "Autofocus samples", errors, on ? AutofocusOptions.MinimumSampleCount : defaults.SampleCount),
+            ParseNumber(AutofocusIntervalText, "Autofocus interval", "a number of minutes", errors, on ? 0 : 0));
     }
 
     public override SequenceStepKind Kind => SequenceStepKind.RigTrack;
@@ -529,10 +539,10 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
 
     /// <summary>"Autofocus: track start + filter change", or <c>null</c> when the rig of the track does not focus by itself.</summary>
     public string? AutofocusPolicySummary => !AutofocusEnabled ? null
-        : "Autofocus: " + (AutofocusAtStart && AutofocusAfterFilterChange ? "track start + filter change"
-            : AutofocusAtStart ? "track start"
-            : AutofocusAfterFilterChange ? "filter change"
-            : "no trigger");
+        : "Autofocus: " + (BuilderText.AutofocusWhen(AutofocusAtStart, AutofocusAfterFilterChange, AutofocusIntervalMinutes()));
+
+    private double AutofocusIntervalMinutes() =>
+        double.TryParse(AutofocusIntervalText, NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes) && double.IsFinite(minutes) ? minutes : 0;
 
     private static string Describe(StepDraftViewModel step) =>
         string.IsNullOrWhiteSpace(step.Summary) ? step.Title : $"{step.Title} · {step.Summary}";

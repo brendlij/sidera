@@ -187,7 +187,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 7,
+              "version": 8,
               "steps": [
                 {
                   "type": "multiRig",
@@ -468,7 +468,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
         var text = await File.ReadAllTextAsync(PathOf("Policy.astraseq"));
         Assert.Contains("\"ditherPolicy\"", text, StringComparison.Ordinal);
         Assert.Contains("\"triggerRigId\": \"rig.wide\"", text, StringComparison.Ordinal);
-        Assert.Contains("\"version\": 7", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
         await app.Open(PathOf("Policy.astraseq"));

@@ -44,7 +44,8 @@ public sealed record SequenceDraftContext(
     IAcquisitionDefaultsSource? AcquisitionDefaults = null,
     Sidera.Runtime.Astrometry.PlateSolveService? PlateSolving = null,
     Func<Sidera.Core.Astrometry.PlateSolveDefaults>? PlateSolveDefaults = null,
-    Sidera.Runtime.Astrometry.RotationService? Rotation = null
+    Sidera.Runtime.Astrometry.RotationService? Rotation = null,
+    TimeProvider? Time = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -195,11 +196,7 @@ public static class SequenceDraftBuilder
         var summary = DeviceName(registry, rig.CameraId, "no camera");
         if (track.AutofocusPolicy is { Enabled: true } policy)
         {
-            var when = policy is { AtTrackStart: true, AfterFilterChange: true } ? "track start + filter change"
-                : policy.AtTrackStart ? "track start"
-                : policy.AfterFilterChange ? "filter change"
-                : "no trigger";
-            summary += $"\nAutofocus: {when}";
+            summary += $"\nAutofocus: {BuilderText.AutofocusWhen(policy.AtTrackStart, policy.AfterFilterChange, policy.IntervalMinutes)}";
         }
 
         return new(rig.Name, summary);
@@ -398,15 +395,19 @@ public static class SequenceDraftBuilder
     }
 
     // What the autofocus policy of a Rig Track asks for, once it is known to be enabled with a trigger and the rig is known.
-    private sealed record AutofocusPlan(Rig Rig, AutofocusOptions Options, bool AtTrackStart, bool AfterFilterChange);
+    private sealed record AutofocusPlan(
+        Rig Rig, AutofocusOptions Options, bool AtTrackStart, bool AfterFilterChange, TimeSpan? Interval = null, AutofocusClock? Clock = null, TimeProvider? Time = null);
 
-    private static AutofocusPlan? PlanOf(RigTrackDraft track, Rig? rig) =>
+    private static AutofocusPlan? PlanOf(RigTrackDraft track, Rig? rig, SequenceDraftContext? context) =>
         rig is not null && track.AutofocusPolicy is { IsActive: true } policy
             ? new AutofocusPlan(
                 rig,
                 new AutofocusOptions(TimeSpan.FromSeconds(policy.ExposureSeconds), policy.StepSize, policy.SampleCount),
                 policy.AtTrackStart,
-                policy.AfterFilterChange)
+                policy.AfterFilterChange,
+                policy.HasInterval ? TimeSpan.FromMinutes(policy.IntervalMinutes) : null,
+                policy.HasInterval ? new AutofocusClock() : null,
+                context?.Time ?? TimeProvider.System)
             : null;
 
     // The first step of the track that does something, in the order it runs: the first step, or the first one in the
@@ -422,8 +423,35 @@ public static class SequenceDraftBuilder
         var action = AutofocusAction.ForRig(
             registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults);
         var description = new StepDescription(
-            "Autofocus", origin == AutofocusOrigin.TrackStart ? "automatic · track start" : "automatic · after filter change");
+            "Autofocus", origin switch
+            {
+                AutofocusOrigin.TrackStart => "automatic · track start",
+                AutofocusOrigin.Interval => "automatic · interval",
+                _ => "automatic · after filter change",
+            });
         var built = new List<BuiltStep> { new(Guid.Empty, description, action, null, IsGenerated: true, AutofocusOrigin: origin) };
+        if (plan.Clock is not null)
+        {
+            built.Add(Generated(new AutofocusStampStep(plan.Clock, plan.Time!)));
+        }
+
+        if (orchestration is not null)
+        {
+            built.Add(Generated(new SafePointStep()));
+        }
+
+        return built;
+    }
+
+    // The interval check, with the autofocus it runs when it is due, and the safe point after it.
+    private static List<BuiltStep> IntervalAutofocus(DeviceRegistry registry, AutofocusPlan plan, SequenceDraftContext? context, Orchestration? orchestration)
+    {
+        var action = AutofocusAction.ForRig(
+            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults);
+        var step = new IntervalAutofocusStep(action, plan.Clock!, plan.Interval!.Value, plan.Time!);
+        var child = new BuiltStep(
+            Guid.Empty, new StepDescription("Autofocus", "automatic · interval"), action, null, IsGenerated: true, AutofocusOrigin: AutofocusOrigin.Interval);
+        var built = new List<BuiltStep> { Generated(step, [child]) };
         if (orchestration is not null)
         {
             built.Add(Generated(new SafePointStep()));
@@ -465,6 +493,12 @@ public static class SequenceDraftBuilder
                 var tracks = multiRig.Tracks
                     .Select(track => BuildTrack(registry, track, context, orchestrated is { } o && o.Participants.Contains(track.Id) ? orchestrated : null))
                     .ToList();
+
+                // A block of one track (the imaging of a single setup) has nothing to run next to: it is its track, in a group so that the block keeps its place in the tree.
+                if (tracks.Count == 1)
+                {
+                    return new BuiltStep(step.Id, description, new SequenceGroup(MultiRigName, tracks.Select(t => t.Step)), tracks);
+                }
 
                 // With a policy the tracks of the dithered mount are the participants of a coordination group, so that a dither can wait for every one of them. Without one they have nothing to wait for.
                 if (orchestrated is null || tracks.Count(t => orchestrated.Participants.Contains(t.DraftId)) == tracks.Count)
@@ -516,7 +550,20 @@ public static class SequenceDraftBuilder
         for (var i = 0; i < steps.Count; i++)
         {
             var step = steps[i];
+
+            // The interval policy looks at the clock before each exposure of the track: the policy says "focus again when it is time", and the place between two exposures is where that is safe.
+            // A pending dither of another track is served at the safe point before this, and one that becomes pending meanwhile waits for the autofocus like for any step.
+            if (step is RigExposureStepDraft && autofocus is { Interval: not null, Clock: not null })
+            {
+                built.AddRange(IntervalAutofocus(registry, autofocus, context, orchestration));
+            }
+
             built.Add(BuildStep(registry, step, context, rig, orchestration, counter, autofocus));
+
+            if (step is RigAutofocusStepDraft && autofocus is { Clock: not null })
+            {
+                built.Add(Generated(new AutofocusStampStep(autofocus.Clock, autofocus.Time!)));
+            }
 
             if (orchestration is not null)
             {
@@ -588,7 +635,7 @@ public static class SequenceDraftBuilder
         // Validated before: the rig is selected and there.
         TryGetRig(context, track.RigId!.Value, out var rig);
         var counter = orchestration is not null && orchestration.Policy.TriggerRigId == track.RigId ? new FrameCounter() : null;
-        var plan = PlanOf(track, rig);
+        var plan = PlanOf(track, rig, context);
         var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter, plan);
 
         // At the start of the track, once: before the first step that does something, unless that is an autofocus.
@@ -797,9 +844,9 @@ public static class SequenceDraftBuilder
 
         private void MultiRig(MultiRigStepDraft multiRig, string label)
         {
-            if (multiRig.Tracks.Count < 2)
+            if (multiRig.Tracks.Count < (multiRig.SingleTrack ? 1 : 2))
             {
-                Report(multiRig.Id, "Multi-Rig Imaging needs at least two Rig Tracks.");
+                Report(multiRig.Id, multiRig.SingleTrack ? "Imaging needs at least one imaging setup." : "Multi-Rig Imaging needs at least two Rig Tracks.");
             }
 
             DitherPolicy(multiRig, label);
@@ -1149,9 +1196,14 @@ public static class SequenceDraftBuilder
             }
 
             var problems = new List<string>();
-            if (!policy.AtTrackStart && !policy.AfterFilterChange)
+            if (!policy.AtTrackStart && !policy.AfterFilterChange && !policy.HasInterval)
             {
                 problems.Add("Enable at least one Autofocus trigger.");
+            }
+
+            if (!double.IsFinite(policy.IntervalMinutes) || policy.IntervalMinutes < 0)
+            {
+                problems.Add("The Autofocus interval must be a number of minutes, or 0 for none.");
             }
 
             CheckAutofocus(_trackRig, policy.ExposureSeconds, policy.StepSize, policy.SampleCount, problems);

@@ -337,6 +337,13 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
                 node.Children.Add(group);
                 return node;
             }
+            case { Step: SequenceGroup single, Children: { } onlyTrack } when onlyTrack.Count == 1 && onlyTrack[0].Step is RigTrackStep:
+            {
+                // The imaging of one setup: a block of a single track, shown like any block.
+                var node = new SequenceNode(single, SequenceNodeKind.Parallel, description.Title, description.Summary, null, depth, step.DraftId, numberLabel);
+                AddChildren(node, onlyTrack, depth + 1);
+                return node;
+            }
             case { Step: ParallelStep parallel, Children: { } tracks }:
             {
                 var node = new SequenceNode(

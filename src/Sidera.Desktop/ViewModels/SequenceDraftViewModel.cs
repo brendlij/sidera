@@ -942,7 +942,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                 draft = new MultiRigStepDraft(
                     multiRig.Id,
                     multiRig.Children.Select(track => (RigTrackDraft)ReadStep(track, parseErrors)).ToList(),
-                    multiRig.ReadPolicy(errors));
+                    multiRig.ReadPolicy(errors),
+                    multiRig.SingleTrack);
                 break;
             default:
                 draft = step.Read(errors);

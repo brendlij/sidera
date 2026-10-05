@@ -280,21 +280,31 @@ public sealed record RigAutofocusPolicyDraft(
     bool AfterFilterChange,
     double ExposureSeconds,
     int StepSize,
-    int SampleCount
+    int SampleCount,
+    double IntervalMinutes = 0
 )
 {
     /// <summary>No automatic autofocus, with the values a user starts from when switching it on.</summary>
     public static RigAutofocusPolicyDraft Default { get; } = new(false, false, false, 1, 400, 7);
 
     /// <summary>The policy has something to do: it is enabled and at least one trigger is selected.</summary>
-    public bool IsActive => Enabled && (AtTrackStart || AfterFilterChange);
+    public bool IsActive => Enabled && (AtTrackStart || AfterFilterChange || IntervalMinutes > 0);
+
+    /// <summary>
+    /// Focus again when this many minutes have passed since the rig last focused (by any trigger or by an explicit step); 0 is off. The check is made before each exposure of the track, which
+    /// is a safe point, so an exposure that is running is never interrupted. Added in version 8.
+    /// </summary>
+    public bool HasInterval => IntervalMinutes > 0;
 }
 
 /// <summary>Why an autofocus that nobody wrote into the sequence runs.</summary>
 public enum AutofocusOrigin
 {
     TrackStart,
-    AfterFilterChange
+    AfterFilterChange,
+
+    /// <summary>The interval since the last autofocus of the rig has passed.</summary>
+    Interval
 }
 
 /// <summary>
@@ -343,10 +353,15 @@ public sealed record MultiRigDitherPolicyDraft(
 /// are shared by the session and are not part of the tracks. A Multi-Rig block is only found at the top level, and
 /// is finished when all of its tracks are. A <see cref="DitherPolicy"/> of <c>null</c> is the default one: no dithering.
 /// </summary>
+/// <param name="SingleTrack">
+/// The block may have one track: it is then the imaging of one setup with its policies (a workflow makes such a block for a single imaging setup). The editor of Multi-Rig Imaging still
+/// asks for two tracks when it is false, which is what a block that somebody builds by hand is. Added in version 8.
+/// </param>
 public sealed record MultiRigStepDraft(
     Guid Id,
     IReadOnlyList<RigTrackDraft> Tracks,
-    MultiRigDitherPolicyDraft? DitherPolicy = null
+    MultiRigDitherPolicyDraft? DitherPolicy = null,
+    bool SingleTrack = false
 ) : SequenceStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
