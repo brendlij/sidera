@@ -353,6 +353,26 @@ public sealed record MultiRigDitherPolicyDraft(
 /// are shared by the session and are not part of the tracks. A Multi-Rig block is only found at the top level, and
 /// is finished when all of its tracks are. A <see cref="DitherPolicy"/> of <c>null</c> is the default one: no dithering.
 /// </summary>
+/// <summary>
+/// The meridian flip of a Multi-Rig block: the settings, and what the flip needs to know of the session: the target it slews back to and keeps centered, the rotation it wants, the setup whose
+/// camera solves for a mount (<c>null</c>: the first track on the mount, in the order of the block), and how a settled guider is recognized after it started again. The flip happens once for
+/// each mount of the block, for every setup on it together; a disabled policy changes nothing. Added in version 8.
+/// </summary>
+public sealed record MeridianFlipPolicyDraft(
+    Sidera.Core.Mounts.MeridianFlipSettings Settings,
+    double RightAscensionHours,
+    double DeclinationDegrees,
+    string? TargetName = null,
+    double? DesiredRotationDegrees = null,
+    RigId? PointingRigId = null,
+    double DitherAmplitudePixels = 1.5,
+    double SettleThresholdPixels = 0.5,
+    double SettleStableSeconds = 1,
+    double SettleTimeoutSeconds = 60)
+{
+    public bool IsEnabled => Settings.Enabled;
+}
+
 /// <param name="SingleTrack">
 /// The block may have one track: it is then the imaging of one setup with its policies (a workflow makes such a block for a single imaging setup). The editor of Multi-Rig Imaging still
 /// asks for two tracks when it is false, which is what a block that somebody builds by hand is. Added in version 8.
@@ -361,7 +381,8 @@ public sealed record MultiRigStepDraft(
     Guid Id,
     IReadOnlyList<RigTrackDraft> Tracks,
     MultiRigDitherPolicyDraft? DitherPolicy = null,
-    bool SingleTrack = false
+    bool SingleTrack = false,
+    MeridianFlipPolicyDraft? MeridianFlip = null
 ) : SequenceStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;
