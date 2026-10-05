@@ -41,6 +41,7 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(DisplayHeight))]
     [NotifyPropertyChangedFor(nameof(FrameWidth))]
     [NotifyPropertyChangedFor(nameof(FrameHeight))]
+    [NotifyCanExecuteChangedFor(nameof(SaveFitsCommand), nameof(SavePngCommand))]
     public partial CameraFrame? LatestFrame { get; private set; }
 
     /// <summary>Where the frame came from, for example "Main Camera (manual)" or "Demo sequence".</summary>
@@ -94,7 +95,20 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(ScrollVisibility))]
     public partial bool IsActualSize { get; set; }
 
-    public bool IsFitToView => !IsActualSize;
+    /// <summary>The user zoomed or panned freely: neither Fit nor 1:1 describes the view. Set by the viewer; Fit and 1:1 clear it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFitToView))]
+    public partial bool IsCustomView { get; set; }
+
+    /// <summary>The zoom of the viewer as a percentage; written by the viewer.</summary>
+    [ObservableProperty]
+    public partial string ZoomText { get; set; } = string.Empty;
+
+    /// <summary>Show the frame with the automatic stretch (default) or linear. Only what is shown changes: the frame and the file that is saved do not.</summary>
+    [ObservableProperty]
+    public partial bool AutoStretch { get; set; } = true;
+
+    public bool IsFitToView => !IsActualSize && !IsCustomView;
 
     /// <summary>The width of the latest frame in pixels, 0 without one.</summary>
     public double FrameWidth => LatestFrame?.Width ?? 0;
@@ -112,13 +126,122 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
         : Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
 
     [RelayCommand]
-    private void Fit() => IsActualSize = false;
+    private void Fit()
+    {
+        IsActualSize = false;
+        IsCustomView = false;
+    }
 
     [RelayCommand]
-    private void ActualSize() => IsActualSize = true;
+    private void ActualSize()
+    {
+        IsActualSize = true;
+        IsCustomView = false;
+    }
 
     /// <summary>The analysis of the latest frame; completed when it is done (or was dropped). For callers that wait.</summary>
     public Task AnalysisCompletion { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Manual capture with the camera of a rig, shown on this page; set by the application (a page without a host has none).</summary>
+    public ImagingCaptureViewModel? Capture { get; set; }
+
+    /// <summary>Starting the autofocus of a rig by hand; set by the application.</summary>
+    public ManualAutofocusViewModel? Autofocus { get; set; }
+
+    public bool HasCapture => Capture is not null;
+
+    public bool HasAutofocus => Autofocus is not null;
+
+    // ---- Saving what is shown
+
+    /// <summary>Asks the person where to save: the suggested file name and the kind ("fits" or "png") in, the path out, <c>null</c> when they cancel. Set by the view.</summary>
+    public Func<string, string, Task<string?>>? PickSavePath { get; set; }
+
+    /// <summary>What the host knows about the equipment and the site, for the header of a FITS file. Set by the application.</summary>
+    public Sidera.Runtime.SideraRuntimeHost? ExportHost { get; set; }
+
+    public Func<Sidera.Core.Location.ObservingSite?>? ExportSite { get; set; }
+
+    /// <summary>What the last save did, in a sentence; empty before one.</summary>
+    [ObservableProperty]
+    public partial string SaveStatusText { get; private set; } = string.Empty;
+
+    /// <summary>Saves the frame as it was taken (never stretched) with what is known about how it was taken.</summary>
+    [RelayCommand(CanExecute = nameof(HasFrame))]
+    private async Task SaveFitsAsync()
+    {
+        if (LatestFrame is not { } frame || PickSavePath is null)
+        {
+            return;
+        }
+
+        var path = await PickSavePath(Imaging.FrameExporter.SuggestName(frame, "fits"), "fits");
+        if (path is not null)
+        {
+            SaveFits(path);
+        }
+    }
+
+    /// <summary>Saves the picture as it is shown, stretched or linear; the name of the file says which.</summary>
+    [RelayCommand(CanExecute = nameof(HasFrame))]
+    private async Task SavePngAsync()
+    {
+        if (LatestFrame is not { } frame || PickSavePath is null)
+        {
+            return;
+        }
+
+        var path = await PickSavePath(Imaging.FrameExporter.SuggestName(frame, "png", autoStretch: AutoStretch), "png");
+        if (path is not null)
+        {
+            SavePng(path);
+        }
+    }
+
+    /// <summary>Writes the latest frame as FITS to the path; the outcome is in <see cref="SaveStatusText"/>.</summary>
+    public bool SaveFits(string path)
+    {
+        if (LatestFrame is not { } frame)
+        {
+            SaveStatusText = "There is no frame to save.";
+            return false;
+        }
+
+        try
+        {
+            var metadata = Imaging.FrameExporter.MetadataFor(frame, ExportHost, LatestCameraId, ExportSite?.Invoke(), LatestCapture);
+            Imaging.FrameExporter.SaveFits(frame, path, metadata);
+            SaveStatusText = $"Saved the frame as FITS (the data as it was taken, not stretched): {System.IO.Path.GetFileName(path)}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SaveStatusText = "The frame could not be saved: " + ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>Writes the picture as it is shown (see <see cref="AutoStretch"/>) as PNG to the path.</summary>
+    public bool SavePng(string path)
+    {
+        if (LatestFrame is not { } frame)
+        {
+            SaveStatusText = "There is no frame to save.";
+            return false;
+        }
+
+        try
+        {
+            Imaging.FrameExporter.SavePng(frame, path, AutoStretch);
+            SaveStatusText = $"Saved the picture as PNG, {(AutoStretch ? "auto stretched" : "linear")} as shown (not the data): {System.IO.Path.GetFileName(path)}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SaveStatusText = "The picture could not be saved: " + ex.Message;
+            return false;
+        }
+    }
 
     public bool CanAnalyze => _analyzer is not null;
 
@@ -174,12 +297,16 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     /// <summary>Makes <paramref name="frame"/> the latest one. Call on the UI thread.</summary>
     public DeviceId? LatestCameraId { get; private set; }
 
-    public void Publish(CameraFrame frame, string source, DeviceId? cameraId = null)
+    /// <summary>What was known when the latest frame was taken and could not be asked for later (where the mount pointed): kept with the frame for the file that is saved.</summary>
+    public Sidera.Core.Imaging.FitsMetadata? LatestCapture { get; private set; }
+
+    public void Publish(CameraFrame frame, string source, DeviceId? cameraId = null, Sidera.Core.Imaging.FitsMetadata? capture = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
         LatestFrame = frame;
         LatestCameraId = cameraId;
+        LatestCapture = capture;
         SourceText = source;
         CapturedText = DateTime.Now.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
         FrameCount++;

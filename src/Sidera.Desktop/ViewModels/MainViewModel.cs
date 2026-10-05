@@ -63,6 +63,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults,
             plateSolving: host.PlateSolving, solveDefaults: () => (equipmentManagement?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()).Defaults(),
             rotation: host.Rotation);
+        Imaging.Capture = new ImagingCaptureViewModel(host, Imaging);
+        Imaging.Autofocus = new ManualAutofocusViewModel(host, defaults, postToUi);
+        Imaging.ExportHost = host;
+        Imaging.ExportSite = () => equipmentManagement?.Site?.Site;
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
         Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site);
         PlateSolve = new PlateSolveViewModel(host, Imaging, equipmentManagement?.Site, postToUi);
@@ -98,6 +102,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         {
             Runtime.Refresh();
             Sequencer.RefreshReadiness();
+            Imaging.Capture?.RefreshCapabilities();
+            Imaging.Autofocus?.Refresh();
         }
 
         foreach (var device in Equipment.Devices)
@@ -107,7 +113,11 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         // Devices that are added while Sidera runs are followed too; the draft is told about devices that came or went.
         Equipment.DeviceViewModelAdded += (_, device) => device.Refreshed += OnDeviceRefreshed;
-        Equipment.DevicesChanged += (_, _) => OnDeviceRefreshed(this, EventArgs.Empty);
+        Equipment.DevicesChanged += (_, _) =>
+        {
+            Imaging.Capture?.Refresh();
+            OnDeviceRefreshed(this, EventArgs.Empty);
+        };
 
         // The demo is a quick start: when it is added to an installation whose session is still empty and untouched, the
         // session gets the demo sequence that a first start with equipment always had.
