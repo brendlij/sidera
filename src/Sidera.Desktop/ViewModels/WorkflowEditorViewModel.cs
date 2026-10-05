@@ -138,7 +138,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     public bool HasProblems => Problems.Count > 0;
 
     /// <summary>Why the workflow cannot run yet, or what it will do.</summary>
-    public string CanRunText => HasProblems ? Problems[0] : IsEmpty ? "Add an imaging block to start." : ImagingRows.Count == 0 ? "Add an imaging block: the workflow images nothing yet." : "Ready.";
+    public string CanRunText => HasProblems ? Problems[0] : IsEmpty ? "Add an imaging block to start." : ImagingRows.Count == 0 ? "Add an imaging block: the workflow images nothing yet." : "The workflow is complete.";
 
     // ---- the target
 
