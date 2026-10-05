@@ -399,7 +399,7 @@ public class MultiRigAutofocusRunTests
         var built = fixture.Build(Block(
             null,
             Track(Main, Autofocus(), Exposure(0.1)),
-            Track(Wide, Repeat(40, Exposure(0.1)))));
+            Track(Wide, Repeat(120, Exposure(0.1)))));
         var runner = fixture.NewRunner();
         var probe = new Probe();
         probe.Attach(runner, fixture.Host);
@@ -407,7 +407,9 @@ public class MultiRigAutofocusRunTests
 
         var run = runner.RunAsync(built.Sequence);
         await probe.AutofocusRunning.Task.WaitAsync(Bound);
-        await Task.Delay(300); // somewhere in the middle of the curve
+        // Somewhere in the middle of the curve: when the focuser has moved to its first sample. Waiting on that, and not on a fixed time, keeps the pause inside the autofocus whatever the load is.
+        var startPosition = focuser.Position;
+        await WaitFor(() => focuser.Position != startPosition, "the first sample of the curve");
         runner.RequestPause();
         await WaitFor(() => runner.State == SequenceState.Paused, "paused");
 
