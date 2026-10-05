@@ -40,6 +40,13 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 - **Imaging:** manual capture with the selected rig's camera through the same acquisition pipeline as the sequence (exposure, frame type, gain, offset, binning),
   with a viewer: wheel to zoom around the pointer, drag to pan, Fit, 1:1 and Auto Stretch (display only, the data is never changed). Save FITS writes the data as taken with its
   metadata; Save PNG writes what you see, and says so. A manual Autofocus runs the sequence's autofocus on the selected rig and shows its samples, curve and result.
+- **Session (workflow):** a session is a target, Prepare, Imaging and Finish, as tables with an inspector. Prepare and Finish hold actions that happen once (Slew & Center, Autofocus,
+  Start/Stop Guiding, Wait); Imaging holds blocks (setup, filter, exposure, frames). Blocks of different setups run at the same time, blocks of one setup one after another. Dither and
+  autofocus are policies, not steps: dither every N frames (counted on one setup; every setup on that mount waits at a safe point, and the guider is the one of the setup), autofocus at the
+  start, every N minutes, and after a filter change (reasons that fall together are one autofocus, and it runs between exposures, never inside one; if a dither is due too it runs first).
+  Devices come from the imaging setup (the rig): nothing asks for a camera, focuser, mount or guider again. Setups on one mount are centered once for the target; setups on different mounts
+  are centered one after the other. A workflow is saved in the `.astraseq` (document version 8) next to the steps it compiles to. **Advanced** is the explicit editor (Parallel, Repeat and
+  every action): older files open there as they were, and a workflow can be converted to it (the steps stay, the workflow is not kept).
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files. Rig steps choose a rig, not a camera and a focuser; each step
   uses the mount and guider of its rig. With more than one rig the session can be seen as Overview, one tab per rig, or Shared: the same steps, filtered. Rigs on different
