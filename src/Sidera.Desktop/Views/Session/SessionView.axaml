@@ -9,7 +9,7 @@
     <!--
         The Session page: an imaging session as a workflow. The document (its name, whether it has unsaved changes, new,
         open, save) is on the left of the header; the run (its state and its controls) is on the right, apart from it.
-        Below: what the session shares, the workflow, and the inspector of the selected step.
+        Below: the workflow and the inspector of the selected step.
     -->
     <Grid RowDefinitions="Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16" MaxWidth="1760"
           HorizontalAlignment="Stretch">
@@ -70,21 +70,6 @@
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="16" Margin="0,0,12,0">
 
-                    <!-- What the whole session shares: one mount, usually one guider -->
-                    <Border Classes="panel compact" IsEnabled="{Binding Draft.IsEditable}">
-                        <WrapPanel ItemSpacing="24" LineSpacing="12" DataContext="{Binding Shared}" x:DataType="vm:SharedEquipmentViewModel">
-                            <Grid ColumnDefinitions="64,240" RowDefinitions="Auto,Auto" RowSpacing="2">
-                                <TextBlock Classes="eyebrow" Text="MOUNT" VerticalAlignment="Center" />
-                                <ContentControl Grid.Column="1" Content="{Binding Mount}" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Classes="meta" Text="{Binding MountText}" />
-                            </Grid>
-                            <Grid ColumnDefinitions="64,240" RowDefinitions="Auto,Auto" RowSpacing="2">
-                                <TextBlock Classes="eyebrow" Text="GUIDER" VerticalAlignment="Center" />
-                                <ContentControl Grid.Column="1" Content="{Binding Guider}" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Classes="meta" Text="{Binding GuiderText}" />
-                            </Grid>
-                        </WrapPanel>
-                    </Border>
                     <ItemsControl ItemsSource="{Binding Draft.SharedProblems}" IsVisible="{Binding Draft.HasSharedProblems}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
