@@ -10,8 +10,18 @@ public sealed class SessionPageViewModel(
     SequenceDraftViewModel draft,
     SequencerViewModel sequencer,
     SharedEquipmentViewModel shared,
-    ExecutionOverviewViewModel execution) : ViewModelBase
+    ExecutionOverviewViewModel execution,
+    WorkflowEditorViewModel? workflow = null) : ViewModelBase
 {
+    /// <summary>
+    /// The default editor of the session: a workflow of a target, Prepare, Imaging and Finish. <c>null</c> where the session has none (tests of other pages). The draft is what the workflow
+    /// compiles to and what the Advanced editor shows.
+    /// </summary>
+    public WorkflowEditorViewModel? Workflow { get; } = workflow;
+
+    /// <summary>The Advanced editor (the tree of explicit steps) is shown: the session is not a workflow, or it was converted.</summary>
+    public bool ShowsAdvanced => Workflow is null || Workflow.IsAdvancedMode;
+
     public SequenceDocumentViewModel Document { get; } = document;
 
     /// <summary>The mount and the guider the whole session shares, with their state.</summary>

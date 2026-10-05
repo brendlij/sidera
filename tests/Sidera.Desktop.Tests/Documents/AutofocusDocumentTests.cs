@@ -202,7 +202,6 @@ public sealed class AutofocusDocumentTests : IDisposable
 
     [Theory]
     [InlineData(9)]
-    [InlineData(9)]
     public async Task ANewerVersionThanFive_IsRejectedClearly(int version)
     {
         var ex = await Rejects(Doc(version, Autofocus(A)));

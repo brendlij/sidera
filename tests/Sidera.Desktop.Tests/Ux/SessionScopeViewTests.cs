@@ -134,4 +134,31 @@ public class SessionScopeViewTests
         Assert.Equal("rig.main", draft.SelectedScopeKey);
         Assert.Equal(["Main Rig"], draft.ScopeTabs.Where(t => t.IsSelected).Select(t => t.Title));
     }
+
+    [Fact]
+    public async Task InAFilteredView_StepsCannotBeReordered_AndTheReasonIsSaid_WhileTheOverviewCan()
+    {
+        await using var app = await UxApp.Create(UxSetup.Demo);
+        var draft = app.Vm.SessionPage.Draft;
+        var block = Build(draft);
+        draft.SelectedStep = draft.Steps[0];
+        Assert.True(draft.CanMoveDown); // the overview: as always
+
+        draft.SelectScope("rig.main");
+
+        Assert.True(draft.IsScopeFiltered);
+        draft.SelectedStep = draft.Steps[1];
+        Assert.False(draft.CanMoveUp);
+        Assert.False(draft.CanMoveDown);
+        var first = draft.Steps[0];
+        Assert.False(draft.MoveStep(first.Id, null, 2)); // dragging among the rows that are visible would put it among hidden ones
+        Assert.Contains("filtered view", draft.WhyNotMoveStep(first.Id, null, 2), StringComparison.Ordinal);
+        Assert.Same(first, draft.Steps[0]);
+        Assert.NotNull(block);
+
+        draft.SelectScope("overview");
+
+        Assert.False(draft.IsScopeFiltered);
+        Assert.True(draft.MoveStep(first.Id, null, 2));
+    }
 }

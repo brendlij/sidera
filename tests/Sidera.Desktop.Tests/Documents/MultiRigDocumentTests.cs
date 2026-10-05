@@ -252,7 +252,6 @@ public sealed class MultiRigDocumentTests : IDisposable
 
     [Theory]
     [InlineData("9")]
-    [InlineData("9")]
     [InlineData("100")]
     public async Task ANewerVersionThanFive_IsRejectedAsBefore(string version)
     {
