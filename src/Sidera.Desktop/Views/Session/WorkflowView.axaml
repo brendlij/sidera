@@ -133,7 +133,7 @@
                                                IsVisible="{Binding IsMultiRig}" />
                                     <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsMultiRig}">
                                         <TextBlock Classes="card-title" Text="{Binding Title}" />
-                                        <TextBlock Classes="meta accent" Text="{Binding ScopeText}" VerticalAlignment="Center" IsVisible="{Binding HasScopeText}"
+                                        <TextBlock Classes="meta accent" Text="{Binding ScopeLabel}" VerticalAlignment="Center" IsVisible="{Binding HasScopeLabel}"
                                                    AutomationProperties.Name="Scope" />
                                     </StackPanel>
                                     <TextBlock Classes="secondary" Text="{Binding Summary}" TextWrapping="Wrap" IsVisible="{Binding !HasProblems}" />
