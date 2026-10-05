@@ -50,11 +50,20 @@ public sealed partial class RotateAndVerifyStepDraftViewModel : StepDraftViewMod
 
 public sealed partial class CenterAndRotateStepDraftViewModel : StepDraftViewModel
 {
-    public CenterAndRotateStepDraftViewModel(Sidera.Runtime.Devices.DeviceRegistry registry, CenterAndRotateStepDraft draft, RigPickerViewModel rig) : base(draft.Id)
+    public CenterAndRotateStepDraftViewModel(
+        Sidera.Runtime.Devices.DeviceRegistry registry, CenterAndRotateStepDraft draft, RigPickerViewModel rig, Sidera.Runtime.Rigs.RigRegistry? rigs = null, Func<SharedEquipmentDraft?>? shared = null)
+        : base(draft.Id)
     {
-        Mount = Picker(registry, IsMount, draft.MountId);
+        _registry = registry;
+        _rigs = rigs;
+        _shared = shared;
+        _mountId = draft.MountId;
         Rig = rig;
-        rig.Changed += (_, _) => NotifyEdited();
+        rig.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(MountText));
+            NotifyEdited();
+        };
         RightAscensionText = Precise(draft.RightAscensionHours);
         DeclinationText = Precise(draft.DeclinationDegrees);
         ToleranceText = Format(draft.ToleranceArcseconds);
@@ -70,12 +79,18 @@ public sealed partial class CenterAndRotateStepDraftViewModel : StepDraftViewMod
     private static string Precise(double value) => value.ToString("0.#######", System.Globalization.CultureInfo.InvariantCulture);
 
     private readonly string? _targetName;
+    private readonly Sidera.Runtime.Devices.DeviceRegistry _registry;
+    private readonly Sidera.Runtime.Rigs.RigRegistry? _rigs;
+    private readonly Func<SharedEquipmentDraft?>? _shared;
+    private readonly Sidera.Core.Devices.DeviceId? _mountId;
+
+    /// <summary>The mount the step works with: the one of its rig. Not chosen here; a step of an older file that names one keeps it while the rig has none.</summary>
+    public string MountText => RigMountText.Of(_rigs, _registry, Rig.SelectedId, _mountId, _shared?.Invoke());
 
     /// <summary>The framing target the step came from, as one line; empty for a step that was made by hand.</summary>
     public string FramingText => _targetName is null ? string.Empty : "Framing: " + _targetName;
 
     public override SequenceStepKind Kind => SequenceStepKind.CenterAndRotate;
-    public DevicePickerViewModel Mount { get; }
     public RigPickerViewModel Rig { get; }
     [ObservableProperty] public partial string RightAscensionText { get; set; } = string.Empty;
     [ObservableProperty] public partial string DeclinationText { get; set; } = string.Empty;
@@ -86,10 +101,9 @@ public sealed partial class CenterAndRotateStepDraftViewModel : StepDraftViewMod
     [ObservableProperty] public partial string MaxRotationAttemptsText { get; set; } = "4";
     [ObservableProperty] public partial string MaxRoundsText { get; set; } = "3";
     [ObservableProperty] public partial string ExposureText { get; set; } = "5";
-    internal override IEnumerable<DevicePickerViewModel> Pickers => [Mount];
     internal override IEnumerable<RigPickerViewModel> RigPickers => [Rig];
     internal override SequenceStepDraft Read(List<string> parseErrors) => new CenterAndRotateStepDraft(
-        Id, Mount.SelectedId, Rig.SelectedId,
+        Id, _mountId, Rig.SelectedId,
         ParseNumber(RightAscensionText, "Right ascension", "a number of hours", parseErrors, 0),
         ParseNumber(DeclinationText, "Declination", "a number of degrees", parseErrors, 0),
         ParseNumber(ToleranceText, "Tolerance", "a number of arcseconds", parseErrors, 60),

@@ -16,8 +16,11 @@ namespace Sidera.Runtime.Sequencing;
 /// </summary>
 public sealed class SlewAndCenterAction(
     PlateSolveService service, Rig rig, DeviceId mountId, CelestialCoordinates target, double toleranceArcseconds, int maxAttempts,
-    TimeSpan exposure, PlateSolveDefaults defaults, AcquisitionIntent? intent = null) : ISequenceStep
+    TimeSpan exposure, PlateSolveDefaults defaults, AcquisitionIntent? intent = null) : ISequenceStep, IServiceLeasedStep
 {
+    public IReadOnlyCollection<Sidera.Core.Resources.ResourceId> ServiceResources =>
+        [Sidera.Core.Resources.ResourceId.ForDevice(mountId), Sidera.Core.Resources.ResourceId.ForDevice(rig.CameraId)];
+
     public CelestialCoordinates Target => target;
 
     public DeviceId MountId => mountId;
@@ -45,8 +48,10 @@ public sealed class SlewAndCenterAction(
 /// (put a Plate Solve before it), and it is never added by another step. It fails when there is no successful solve, when the latest solve failed, when the
 /// mount cannot sync, or when the sync fails.
 /// </summary>
-public sealed class SyncMountToSolvedPositionAction(PlateSolveService service, DeviceId mountId) : ISequenceStep
+public sealed class SyncMountToSolvedPositionAction(PlateSolveService service, DeviceId mountId) : ISequenceStep, IServiceLeasedStep
 {
+    public IReadOnlyCollection<Sidera.Core.Resources.ResourceId> ServiceResources => [Sidera.Core.Resources.ResourceId.ForDevice(mountId)];
+
     public DeviceId MountId => mountId;
 
     public string Name => "Sync Mount to Solved Position";

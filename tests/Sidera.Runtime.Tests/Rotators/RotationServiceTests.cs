@@ -491,24 +491,30 @@ public sealed class RotationServiceTests
     }
 
     [Fact]
-    public async Task TwoOperationsAtOnce_AreRefused_NotQueuedBehindEachOther()
+    public async Task TwoOperationsOnTheSameRig_AreQueuedByTheLeases_NotRefused_AndNotRunTogether()
     {
         await using var h = await CreateAsync();
         var started = new TaskCompletionSource();
-        h.Solver.Gate = async (_, token) =>
+        var release = new TaskCompletionSource();
+        h.Solver.Gate = async (call, token) =>
         {
-            started.TrySetResult();
-            await Task.Delay(Timeout.Infinite, token);
+            if (call == 1)
+            {
+                started.TrySetResult();
+                await release.Task.WaitAsync(token);
+            }
         };
-        using var cts = new CancellationTokenSource();
-        var first = VerifyAsync(h, 30, token: cts.Token);
+        var first = VerifyAsync(h, 30);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Service.RotateToAngleAsync(h.Rig, 10));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CenterAndRotateAsync(h));
+        var second = h.Service.RotateToAngleAsync(h.Rig, 10);
+        await Task.Delay(100);
+        Assert.False(second.IsCompleted); // it waits for the rotator and the camera that the first one holds
+        Assert.True(h.Service.IsBusy);
 
-        cts.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        release.SetResult();
+        Assert.True((await first.WaitAsync(TimeSpan.FromSeconds(5))).Success);
+        Assert.True((await second.WaitAsync(TimeSpan.FromSeconds(5))).Success);
         await AssertResourcesFreeAsync(h);
     }
 

@@ -222,17 +222,20 @@ public class MultiRigDitherBuilderTests
     }
 
     [Fact]
-    public async Task WithoutASharedMountOrGuider_TheyAreReportedBothWays()
+    public async Task WithoutAMountOrGuiderOfTheTriggerRig_OrAShared_TheyAreReportedBothWays()
     {
         await using var host = CreateHost();
+        // The trigger rig sits on no mount and has no guider of its own, and the session shares none either.
+        host.RigRegistry.Unregister(Wide);
+        host.AddRig(new Rig(Wide, "Wide Rig", new DeviceId("camera.wide"), null, new DeviceId("focuser.wide")));
 
         var none = Problems(host, [Session()], new SharedEquipmentDraft(null, null));
         var noMount = Problems(host, [Session()], new SharedEquipmentDraft(null, new DeviceId("guider.main")));
 
-        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a shared mount: select one in the shared equipment.", none);
-        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a shared guider: select one in the shared equipment.", none);
-        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a shared mount: select one in the shared equipment.", noMount);
-        Assert.DoesNotContain(noMount, p => p.Contains("shared guider", StringComparison.Ordinal));
+        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a mount: the rig 'Wide Rig' has none. Give the rig a mount on the Equipment page.", none);
+        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a guider: the rig 'Wide Rig' has none. Give the rig a guider on the Equipment page.", none);
+        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a mount: the rig 'Wide Rig' has none. Give the rig a mount on the Equipment page.", noMount);
+        Assert.DoesNotContain(noMount, p => p.Contains("needs a guider", StringComparison.Ordinal));
     }
 
     [Fact]

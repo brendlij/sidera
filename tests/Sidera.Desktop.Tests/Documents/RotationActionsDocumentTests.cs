@@ -36,7 +36,7 @@ public sealed class RotationActionsDocumentTests
         var rotator = host.AddSimulatedRotator(new("rotator"), "Rotator", 0, 3600, trueOffset);
         var rig = new Rig(
             new("rig"), "Rig", camera.Id, new OpticalTrain(500, pixelSizeXMicrons: 3.76, pixelSizeYMicrons: 3.76),
-            rotatorId: withRotator ? rotator.Id : null, rotatorModel: withRotator && calibrated ? new RotatorSkyModel(trueOffset) : null);
+            rotatorId: withRotator ? rotator.Id : null, rotatorModel: withRotator && calibrated ? new RotatorSkyModel(trueOffset) : null, mountId: mount.Id);
         host.AddRig(rig);
         host.ConfigurePlateSolver(new Solver(mount, rotator));
         await camera.ConnectAsync();
@@ -247,16 +247,17 @@ public sealed class RotationActionsDocumentTests
     }
 
     [Fact]
-    public async Task ACenterAndRotateWithAnotherMountThanTheSessions_IsReported()
+    public async Task ACenterAndRotateThatNamesAnotherMountThanItsRig_IsReported()
     {
         var s = await CreateAsync();
         await using var host = s.Host;
         host.AddSimulatedMount(new("mount.other"), "Other", TimeSpan.FromMilliseconds(1));
-        var context = s.Context with { Shared = new SharedEquipmentDraft(new DeviceId("mount.other"), null) };
+        var step = CenterRotate with { Id = Guid.NewGuid(), MountId = new DeviceId("mount.other") };
 
-        var result = SequenceDraftBuilder.Validate(host.DeviceRegistry, [CenterRotate], context);
+        var result = SequenceDraftBuilder.Validate(host.DeviceRegistry, [step], s.Context);
 
         Assert.False(result.IsValid);
+        Assert.Contains(result.StepProblems[step.Id], p => p.Contains("mount.other") && p.Contains("mount"));
     }
 
     // ---- Building and running
@@ -344,7 +345,7 @@ public sealed class RotationActionsDocumentTests
         ((RotateAndVerifyStepDraftViewModel)editor.Steps[1]).Rig.Selected = ((RotateAndVerifyStepDraftViewModel)editor.Steps[1]).Rig.Options.First(o => o.Id == s.Rig.Id);
         var center = (CenterAndRotateStepDraftViewModel)editor.Steps[2];
         center.Rig.Selected = center.Rig.Options.First(o => o.Id == s.Rig.Id);
-        center.Mount.Selected = center.Mount.Options.First(o => o.Id == new DeviceId("mount"));
+        Assert.Contains("mount", center.MountText, StringComparison.OrdinalIgnoreCase); // the mount is the one of the rig
         Assert.True(editor.IsValid, string.Join(" ", editor.ValidationErrors));
     }
 

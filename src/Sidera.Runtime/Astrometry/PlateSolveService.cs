@@ -21,7 +21,10 @@ public sealed class PlateSolveService
     private readonly ResourceManager _resources;
     private readonly IAcquisitionDefaultsSource _acquisition;
     private readonly ILogger _logger;
-    private int _busy;
+    // What the running operations use, by device (a camera exposing for a solve, a mount slewing for centering), with how many. It only says what is going on: it never refuses an operation.
+    // Whether two operations may overlap is decided by the resource leases they take: two rigs on different cameras and mounts run side by side, two on the same one queue.
+    private readonly Dictionary<string, int> _claims = [];
+    private readonly object _claimGate = new();
     public PlateSolveService(IPlateSolver solver, DeviceRegistry devices, ResourceManager resources,
         IAcquisitionDefaultsSource acquisition, ILogger<PlateSolveService>? logger = null)
     {
@@ -33,7 +36,13 @@ public sealed class PlateSolveService
     }
 
     public IPlateSolver Solver { get; }
-    public bool IsSolving => Volatile.Read(ref _busy) != 0;
+    public bool IsSolving { get { lock (_claimGate) { return _claims.Count > 0; } } }
+
+    /// <summary>The mount that the latest result was made for (the one of its rig); <c>null</c> when the solve had no mount.</summary>
+    public DeviceId? LastResultMountId { get; private set; }
+
+    private static string CameraClaim(DeviceId id) => "camera:" + id.Value;
+    private static string MountClaim(DeviceId id) => "mount:" + id.Value;
     public PlateSolveResult? LastResult { get; private set; }
     public string? LastFailure { get; private set; }
     public TimeSpan? LastDuration { get; private set; }
@@ -58,7 +67,7 @@ public sealed class PlateSolveService
 
     public Task<PlateSolveResult> SolveAsync(CameraFrame frame, Rig rig, DeviceId? mountId,
         PlateSolveDefaults defaults, PlateSolveOverrides? overrides = null, CancellationToken cancellationToken = default) =>
-        RunAsync(() => SolveCoreAsync(Resolve(frame, rig, mountId, defaults, overrides), rig, cancellationToken));
+        RunAsync(() => SolveCoreAsync(Resolve(frame, rig, mountId, defaults, overrides), rig, cancellationToken), mountId, CameraClaim(rig.CameraId));
 
     public Task<PlateSolveResult> CaptureAndSolveAsync(Rig rig, DeviceId? mountId, TimeSpan exposure,
         PlateSolveDefaults defaults, AcquisitionIntent? intent = null, PlateSolveOverrides? overrides = null,
@@ -66,13 +75,13 @@ public sealed class PlateSolveService
     {
         using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(rig.CameraId)], cancellationToken);
         return await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, overrides, cancellationToken);
-    });
+    }, mountId, CameraClaim(rig.CameraId));
 
     /// <summary>For a sequence whose runner already holds the camera lease; never acquires it twice.</summary>
     public Task<PlateSolveResult> CaptureAndSolveWithLeaseAsync(Rig rig, DeviceId? mountId, TimeSpan exposure,
         PlateSolveDefaults defaults, AcquisitionIntent? intent = null, PlateSolveOverrides? overrides = null,
         CancellationToken cancellationToken = default) => RunAsync(() =>
-            CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, overrides, cancellationToken));
+            CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, overrides, cancellationToken), mountId, CameraClaim(rig.CameraId));
 
     /// <summary>
     /// A capture and a solve inside an operation that already holds the camera lease and the busy state of its own (a rotation, a centering and rotating): it neither
@@ -83,13 +92,14 @@ public sealed class PlateSolveService
         CancellationToken cancellationToken = default)
     {
         var result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, overrides, cancellationToken);
-        Record(result);
+        Record(result, mountId);
         return result;
     }
 
-    private void Record(PlateSolveResult result)
+    private void Record(PlateSolveResult result, DeviceId? mountId)
     {
         LastResult = result;
+        LastResultMountId = mountId;
         LastFailure = result.Message;
         LastDuration = result.Duration;
         Changed?.Invoke(this, EventArgs.Empty);
@@ -144,7 +154,7 @@ public sealed class PlateSolveService
         {
             using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(mountId), ResourceId.ForDevice(rig.CameraId)], cancellationToken);
             return await CenterTargetInLeaseAsync(target, rig, mountId, toleranceArcseconds, maxAttempts, exposure, defaults, intent, progress, cancellationToken);
-        });
+        }, mountId, MountClaim(mountId), CameraClaim(rig.CameraId));
     }
 
     private static void ValidateCentering(double toleranceArcseconds, int maxAttempts)
@@ -179,7 +189,7 @@ public sealed class PlateSolveService
             catch (Exception ex) { return CenterFailure(attempt, error, $"Mount slew failed: {ex.Message}"); }
             progress?.Report(new("Solve", attempt));
             var result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, null, cancellationToken);
-            Record(result);
+            Record(result, mountId);
             if (!result.Success || result.Center is null) return CenterFailure(attempt, error, result.Message ?? "Plate solving failed.");
             error = SkyMath.DegreesToArcseconds(SkyMath.AngularSeparationDegrees(target, result.Center));
             progress?.Report(new("Pointing error", attempt, error));
@@ -219,6 +229,12 @@ public sealed class PlateSolveService
             throw new InvalidOperationException($"{mount.Name} does not support sync.");
         }
 
+        // With several rigs the latest solve may be one of a rig on another mount: that position says nothing about this mount.
+        if (LastResultMountId is { } solvedFor && solvedFor != mountId)
+        {
+            throw new InvalidOperationException($"The latest plate solve was made for the mount '{solvedFor}', not for '{mountId}'. Solve with a rig of this mount first.");
+        }
+
         using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken);
         _logger.LogInformation(new EventId(5300, "MountSyncStarted"), "MountSyncStarted {MountId} to {Solved}", mountId.Value, solved);
         try
@@ -233,7 +249,7 @@ public sealed class PlateSolveService
 
         _logger.LogInformation(new EventId(5301, "MountSyncCompleted"), "MountSyncCompleted {MountId}", mountId.Value);
         return true;
-    });
+    }, null, MountClaim(mountId));
 
     private CenteringResult CenterFailure(int attempt, double? error, string message)
     {
@@ -245,19 +261,40 @@ public sealed class PlateSolveService
     private ICamera Camera(DeviceId id) => _devices.TryGet(id, out var device) && device is ICamera camera
         ? camera : throw new InvalidOperationException($"Camera '{id}' is unavailable.");
 
-    private async Task<T> RunAsync<T>(Func<Task<T>> body)
+    private async Task<T> RunAsync<T>(Func<Task<T>> body, DeviceId? mountForResult = null, params string[] claims)
     {
-        if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) throw new InvalidOperationException("A plate solve or centering operation is already running.");
+        lock (_claimGate)
+        {
+            foreach (var claim in claims)
+            {
+                _claims[claim] = _claims.GetValueOrDefault(claim) + 1;
+            }
+        }
+
         LastFailure = null;
         Changed?.Invoke(this, EventArgs.Empty);
         try
         {
             var result = await body();
-            if (result is PlateSolveResult solve) { LastResult = solve; LastFailure = solve.Message; LastDuration = solve.Duration; }
+            if (result is PlateSolveResult solve) { LastResult = solve; LastResultMountId = mountForResult; LastFailure = solve.Message; LastDuration = solve.Duration; }
             return result;
         }
         catch (OperationCanceledException) { LastFailure = "Operation cancelled."; throw; }
         catch (Exception ex) { LastFailure = ex.Message; throw; }
-        finally { Interlocked.Exchange(ref _busy, 0); Changed?.Invoke(this, EventArgs.Empty); }
+        finally
+        {
+            lock (_claimGate)
+            {
+                foreach (var claim in claims)
+                {
+                    if (--_claims[claim] == 0)
+                    {
+                        _claims.Remove(claim);
+                    }
+                }
+            }
+
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

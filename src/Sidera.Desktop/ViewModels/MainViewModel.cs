@@ -58,7 +58,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 || !withDemoSequence ? [] : defaults.InitialSteps(),
-            rigs: host.RigRegistry, shared: new SharedEquipmentDraft(defaults.MountId, defaults.GuiderId),
+            rigs: host.RigRegistry, shared: SharedEquipmentDraft.FromRigs(host.RigRegistry.GetAll(), defaults.MountId, defaults.GuiderId, host.RigRegistry.GetAll().Count == 0),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults,
             plateSolving: host.PlateSolving, solveDefaults: () => (equipmentManagement?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()).Defaults(),

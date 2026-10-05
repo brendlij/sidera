@@ -167,8 +167,8 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Slew &amp; Center" />
                 </StackPanel>
-                <ctl:LabeledField Label="Mount"><ContentControl Content="{Binding Mount}" /></ctl:LabeledField>
                 <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:InfoRow Label="Mount" Value="{Binding MountText}" />
                 <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding RightAscensionText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding DeclinationText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Tolerance" Unit="arcsec"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>
@@ -215,8 +215,8 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Center &amp; Rotate" />
                 </StackPanel>
-                <ctl:LabeledField Label="Mount"><ContentControl Content="{Binding Mount}" /></ctl:LabeledField>
                 <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:InfoRow Label="Mount" Value="{Binding MountText}" />
                 <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding RightAscensionText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding DeclinationText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Position tolerance" Unit="arcsec"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>

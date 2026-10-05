@@ -12,8 +12,10 @@ namespace Sidera.Runtime.Sequencing;
 /// Turns the camera so that the sky has the given rotation in the image, by the calibration of the rig, and does not solve. A rig without a rotator or without a calibration fails the
 /// step with a sentence that says so. The service takes the rotator and the cameras on it itself and gives them back, so the step declares no resources (it would wait for its own).
 /// </summary>
-public sealed class RotateToAngleAction(RotationService service, Rig rig, double skyRotationDegrees) : ISequenceStep
+public sealed class RotateToAngleAction(RotationService service, Rig rig, double skyRotationDegrees) : ISequenceStep, IServiceLeasedStep
 {
+    public IReadOnlyCollection<Sidera.Core.Resources.ResourceId> ServiceResources => service.ResourcesOfRotation(rig);
+
     public Rig Rig => rig;
 
     public double SkyRotationDegrees => skyRotationDegrees;
@@ -38,8 +40,10 @@ public sealed class RotateToAngleAction(RotationService service, Rig rig, double
 /// </summary>
 public sealed class RotateAndVerifyAction(
     RotationService service, Rig rig, DeviceId? mountId, double skyRotationDegrees, double toleranceDegrees, int maxAttempts,
-    TimeSpan exposure, PlateSolveDefaults defaults, AcquisitionIntent? intent = null) : ISequenceStep
+    TimeSpan exposure, PlateSolveDefaults defaults, AcquisitionIntent? intent = null) : ISequenceStep, IServiceLeasedStep
 {
+    public IReadOnlyCollection<Sidera.Core.Resources.ResourceId> ServiceResources => service.ResourcesOfRotation(rig);
+
     public Rig Rig => rig;
 
     public double SkyRotationDegrees => skyRotationDegrees;
@@ -65,8 +69,10 @@ public sealed class RotateAndVerifyAction(
 public sealed class CenterAndRotateAction(
     RotationService service, Rig rig, DeviceId mountId, CelestialCoordinates target, double skyRotationDegrees, double toleranceArcseconds,
     double rotationToleranceDegrees, int maxCenteringAttempts, int maxRotationAttempts, int maxRounds, TimeSpan exposure, PlateSolveDefaults defaults,
-    AcquisitionIntent? intent = null) : ISequenceStep
+    AcquisitionIntent? intent = null) : ISequenceStep, IServiceLeasedStep
 {
+    public IReadOnlyCollection<Sidera.Core.Resources.ResourceId> ServiceResources => service.ResourcesOfCenterAndRotate(rig, mountId);
+
     public Rig Rig => rig;
 
     public DeviceId MountId => mountId;
