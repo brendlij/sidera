@@ -118,7 +118,7 @@ public sealed class WorkflowEditorTests : IAsyncLifetime
         Assert.False(editor.HasProblems, string.Join(" ", editor.Problems));
         Assert.True(vm.SequenceDraft.IsValid, string.Join(" ", vm.SequenceDraft.ValidationErrors));
         Assert.Equal(5, vm.SequenceDraft.Steps.Count); // slew, autofocus, start guiding, imaging, stop guiding
-        Assert.Equal("Ready.", editor.CanRunText);
+        Assert.Equal("The workflow is complete.", editor.CanRunText);
     }
 
     [Fact]

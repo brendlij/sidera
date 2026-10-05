@@ -332,7 +332,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private string DescribeSetup(Rig rig)
     {
-        var camera = _registry.TryGet(rig.CameraId, out var device) ? device.Name : "no camera";
+        var camera = _registry.TryGet(rig.CameraId, out var device) ? device!.Name : "no camera";
         var optics = rig.Optics is { } o ? $" · {o.FocalLengthMm:0.#} mm" : string.Empty;
         return camera + optics;
     }
@@ -962,7 +962,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private string GuiderNames(IReadOnlyList<Rig> scope) => string.Join(
         ", ",
-        scope.Select(r => r.GuiderId).OfType<DeviceId>().Distinct().Select(id => _registry.TryGet(id, out var device) ? device.Name : id.Value));
+        scope.Select(r => r.GuiderId).OfType<DeviceId>().Distinct().Select(id => _registry.TryGet(id, out var device) ? device!.Name : id.Value));
 
     private static string AutofocusWhen(SetupAutofocus policy)
     {
