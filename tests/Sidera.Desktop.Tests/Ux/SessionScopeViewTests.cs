@@ -72,11 +72,11 @@ public class SessionScopeViewTests
 
         var guiding = draft.Rows.First(r => r.Kind == SequenceStepKind.StartGuiding);
         Assert.True(guiding.IsInScopeView);
-        Assert.Equal("Shared", guiding.ScopeText);
+        Assert.Equal("Shared", guiding.ScopeLabel);
         Assert.False(block.Children[0].IsInScopeView);
-        Assert.Equal("Main Rig", block.Children[0].ScopeText);
-        Assert.Equal("Main Rig", ((ContainerStepDraftViewModel)block.Children[0]).Children[0].ScopeText); // a step in a track is the rig of the track
-        Assert.Equal("Parallel", block.ScopeText);
+        Assert.Equal("Main Rig", block.Children[0].ScopeLabel);
+        Assert.Equal("Main Rig", ((ContainerStepDraftViewModel)block.Children[0]).Children[0].ScopeLabel); // a step in a track is the rig of the track
+        Assert.Equal("Parallel", block.ScopeLabel);
     }
 
     [Fact]

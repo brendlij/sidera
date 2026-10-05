@@ -92,7 +92,7 @@ public sealed partial class SequenceDraftViewModel
 
     private string? ScopeKeyOf(StepDraftViewModel step) => step.IsContainer ? RigKeyOf(step) : RigKeyOf(step) ?? SessionScopeTab.SharedKey;
 
-    private string ScopeTextOf(StepDraftViewModel step)
+    private string ScopeLabelOf(StepDraftViewModel step)
     {
         if (step.IsMultiRig)
         {
@@ -161,7 +161,7 @@ public sealed partial class SequenceDraftViewModel
             foreach (var row in Rows)
             {
                 row.IsInScopeView = Shown(row);
-                row.ScopeText = ScopeTextOf(row);
+                row.ScopeLabel = ScopeLabelOf(row);
             }
 
             OnPropertyChanged(nameof(SelectedScopeKey));
