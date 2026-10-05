@@ -432,7 +432,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         FlipStatuses.Clear();
         foreach (var group in _draft.FlipGroups)
         {
-            var name = _registry.TryGet(group.MountId, out var device) ? device.Name : group.MountId.Value;
+            var name = _registry.TryGet(group.MountId, out var device) ? device!.Name : group.MountId.Value;
             FlipStatuses.Add(new MeridianFlipStatusViewModel(group, name));
         }
 
