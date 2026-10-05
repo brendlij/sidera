@@ -1,0 +1,24 @@
+{
+  "format": "sidera-camera-database",
+  "version": 1,
+  "cameras": [
+    { "manufacturer": "ZWO", "model": "ASI2600MC Pro", "aliases": ["ASI2600MC"], "sensor": "Sony IMX571", "widthPixels": 6248, "heightPixels": 4176, "pixelSizeXMicrometers": 3.76, "pixelSizeYMicrometers": 3.76, "color": "Bayer", "bayerPattern": "RGGB" },
+    { "manufacturer": "ZWO", "model": "ASI2600MM Pro", "aliases": ["ASI2600MM"], "sensor": "Sony IMX571", "widthPixels": 6248, "heightPixels": 4176, "pixelSizeXMicrometers": 3.76, "pixelSizeYMicrometers": 3.76, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI6200MC Pro", "aliases": ["ASI6200MC"], "sensor": "Sony IMX455", "widthPixels": 9576, "heightPixels": 6388, "pixelSizeXMicrometers": 3.76, "pixelSizeYMicrometers": 3.76, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI6200MM Pro", "aliases": ["ASI6200MM"], "sensor": "Sony IMX455", "widthPixels": 9576, "heightPixels": 6388, "pixelSizeXMicrometers": 3.76, "pixelSizeYMicrometers": 3.76, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI533MC Pro", "aliases": ["ASI533MC"], "sensor": "Sony IMX533", "widthPixels": 3008, "heightPixels": 3008, "pixelSizeXMicrometers": 3.76, "pixelSizeYMicrometers": 3.76, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI533MM Pro", "aliases": ["ASI533MM"], "sensor": "Sony IMX533", "widthPixels": 3008, "heightPixels": 3008, "pixelSizeXMicrometers": 3.76, "pixelSizeYMicrometers": 3.76, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI294MC Pro", "aliases": ["ASI294MC"], "sensor": "Sony IMX294", "widthPixels": 4144, "heightPixels": 2822, "pixelSizeXMicrometers": 4.63, "pixelSizeYMicrometers": 4.63, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI294MM Pro", "aliases": ["ASI294MM"], "sensor": "Sony IMX294", "widthPixels": 4144, "heightPixels": 2822, "pixelSizeXMicrometers": 4.63, "pixelSizeYMicrometers": 4.63, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI183MC Pro", "aliases": ["ASI183MC"], "sensor": "Sony IMX183", "widthPixels": 5496, "heightPixels": 3672, "pixelSizeXMicrometers": 2.4, "pixelSizeYMicrometers": 2.4, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI183MM Pro", "aliases": ["ASI183MM"], "sensor": "Sony IMX183", "widthPixels": 5496, "heightPixels": 3672, "pixelSizeXMicrometers": 2.4, "pixelSizeYMicrometers": 2.4, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI071MC Pro", "aliases": ["ASI071MC"], "sensor": "Sony IMX071", "widthPixels": 4944, "heightPixels": 3284, "pixelSizeXMicrometers": 4.78, "pixelSizeYMicrometers": 4.78, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI1600MC Pro", "aliases": ["ASI1600MC"], "sensor": "Panasonic MN34230", "widthPixels": 4656, "heightPixels": 3520, "pixelSizeXMicrometers": 3.8, "pixelSizeYMicrometers": 3.8, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI1600MM Pro", "aliases": ["ASI1600MM"], "sensor": "Panasonic MN34230", "widthPixels": 4656, "heightPixels": 3520, "pixelSizeXMicrometers": 3.8, "pixelSizeYMicrometers": 3.8, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI178MC", "sensor": "Sony IMX178", "widthPixels": 3096, "heightPixels": 2080, "pixelSizeXMicrometers": 2.4, "pixelSizeYMicrometers": 2.4, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI178MM", "sensor": "Sony IMX178", "widthPixels": 3096, "heightPixels": 2080, "pixelSizeXMicrometers": 2.4, "pixelSizeYMicrometers": 2.4, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI290MM", "sensor": "Sony IMX290", "widthPixels": 1936, "heightPixels": 1096, "pixelSizeXMicrometers": 2.9, "pixelSizeYMicrometers": 2.9, "color": "Mono" },
+    { "manufacturer": "ZWO", "model": "ASI462MC", "sensor": "Sony IMX462", "widthPixels": 1936, "heightPixels": 1096, "pixelSizeXMicrometers": 2.9, "pixelSizeYMicrometers": 2.9, "color": "Bayer" },
+    { "manufacturer": "ZWO", "model": "ASI585MC", "sensor": "Sony IMX585", "widthPixels": 3840, "heightPixels": 2160, "pixelSizeXMicrometers": 2.9, "pixelSizeYMicrometers": 2.9, "color": "Bayer" }
+  ]
+}

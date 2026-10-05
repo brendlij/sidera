@@ -75,8 +75,20 @@
                         <ctl:InfoRow Label="Field of view" Value="{Binding FieldOfViewText}" AutomationProperties.AutomationId="OpticsFieldOfView" />
                         <ctl:InfoRow Label="Sensor size" Value="{Binding SensorSizeText}" />
                     </StackPanel>
-                    <TextBlock Classes="meta" Text="{Binding SourceText}" TextWrapping="Wrap" />
+                    <StackPanel Spacing="2" AutomationProperties.AutomationId="OpticsResolved">
+                        <ctl:InfoRow Label="Camera" Value="{Binding CameraIdentityText}" IsVisible="{Binding CameraIdentityText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <ctl:InfoRow Label="Sensor" Value="{Binding SensorNameText}" IsVisible="{Binding SensorNameText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <ctl:InfoRow Label="Resolution" Value="{Binding ResolutionText}" AutomationProperties.AutomationId="OpticsResolution" />
+                        <TextBlock Classes="meta" Text="{Binding ResolutionSourceText}" AutomationProperties.AutomationId="OpticsResolutionSource" />
+                        <ctl:InfoRow Label="Pixel size" Value="{Binding PixelSizeText}" AutomationProperties.AutomationId="OpticsPixelSize" />
+                        <TextBlock Classes="meta" Text="{Binding PixelSizeSourceText}" AutomationProperties.AutomationId="OpticsPixelSizeSource" />
+                    </StackPanel>
+                    <Border Classes="notice-danger" IsVisible="{Binding HasConflict}" AutomationProperties.AutomationId="OpticsConflict">
+                        <TextBlock Classes="danger" Text="{Binding ConflictText}" TextWrapping="Wrap" />
+                    </Border>
                     <TextBlock Classes="meta" Text="{Binding ReportedText}" TextWrapping="Wrap" />
+                    <Button Content="Revert to automatic" Command="{Binding RevertToAutomaticCommand}" HorizontalAlignment="Left"
+                            ToolTip.Tip="Forget the pixel size and the sensor size entered above; use the camera's values or the Sidera camera database" />
                 </StackPanel>
             </ctl:WorkspaceSection>
 

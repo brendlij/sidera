@@ -45,7 +45,7 @@ public sealed class PlateSolveService
         PlateSolveOverrides? overrides = null)
     {
         var camera = Camera(rig.CameraId);
-        var sensor = SensorGeometry.From((camera as ICameraControl)?.Capabilities.Value);
+        var sensor = SensorGeometry.For(camera);
         CelestialCoordinates? center = null;
         if (mountId is { } id && _devices.TryGet(id, out var device) && device is IMount mount
             && mount.ConnectionState == DeviceConnectionState.Connected)

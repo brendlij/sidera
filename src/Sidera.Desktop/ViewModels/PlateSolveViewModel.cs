@@ -61,7 +61,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     {
         if (SelectedRig is not { } rig) { HintText = "Select a rig."; return; }
         _host.DeviceRegistry.TryGet(rig.CameraId, out var camera);
-        var geometry = OpticalTrainGeometry.Resolve(rig.Optics, SensorGeometry.From((camera as ICameraControl)?.Capabilities.Value));
+        var geometry = OpticalTrainGeometry.Resolve(rig.Optics, SensorGeometry.For(camera));
         CelestialCoordinates? center = null;
         try { if (SelectedMount?.ConnectionState == DeviceConnectionState.Connected) center = SelectedMount.Coordinates; } catch { }
         HintText = $"Approximate RA/Dec: {(center is null ? "Unknown" : FormattableString.Invariant($"{center.RightAscensionHours:0.#####} h / {center.DeclinationDegrees:0.#####}°"))}\n" +

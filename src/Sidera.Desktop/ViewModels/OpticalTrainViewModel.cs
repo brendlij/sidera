@@ -132,12 +132,16 @@ public sealed partial class OpticalTrainViewModel : ViewModelBase, IDisposable
         if (!_loading)
         {
             Recompute();
+            OnPropertyChanged(nameof(HasOverride));
         }
     }
 
     private void OnCameraRefreshed(object? sender, EventArgs e) => Recompute();
 
+    // What the camera itself says (the "Camera reports" line), and what is known about the sensor altogether: that, completed from the camera database for a known camera.
     private SensorGeometry? Reported => SensorGeometry.From((_camera.DeviceModel as ICameraControl)?.Capabilities.Value);
+
+    private SensorGeometry? Known => SensorGeometry.For(_camera.DeviceModel);
 
     // The form as an optical train; false with the reason when a field is not a number that is allowed.
     private bool TryBuild(out OpticalTrain? train, out string? problem)
@@ -173,7 +177,7 @@ public sealed partial class OpticalTrainViewModel : ViewModelBase, IDisposable
 
         TryBuild(out var train, out _);
         // A form that is not valid (yet) still shows what the camera alone implies, never a stale answer.
-        var geometry = OpticalTrainGeometry.Resolve(train, reported);
+        var geometry = OpticalTrainGeometry.Resolve(train, Known);
         PixelScaleText = RigViewModel.PixelScaleOf(geometry);
         FieldOfViewText = RigViewModel.FieldOfViewOf(geometry);
         SensorSizeText = geometry is { SensorWidthMm: { } w, SensorHeightMm: { } h }
@@ -182,7 +186,123 @@ public sealed partial class OpticalTrainViewModel : ViewModelBase, IDisposable
         SourceText = string.Create(
             CultureInfo.InvariantCulture,
             $"Pixel size: {Source(geometry.PixelSizeSource)}. Sensor pixels: {Source(geometry.SensorPixelsSource)}.");
+        ShowResolved(geometry);
         SaveCommand.NotifyCanExecuteChanged();
+        RevertToAutomaticCommand.NotifyCanExecuteChanged();
+    }
+
+    // ---- The resolved sensor geometry, each value with its source
+
+    /// <summary>The camera as the camera database knows it ("ZWO ASI2600MC Pro"); empty for a camera that is not in it.</summary>
+    [ObservableProperty]
+    public partial string CameraIdentityText { get; private set; } = string.Empty;
+
+    /// <summary>The sensor ("Sony IMX571") as the driver or the database names it; empty when nobody does.</summary>
+    [ObservableProperty]
+    public partial string SensorNameText { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ResolutionText { get; private set; } = NotSet;
+
+    [ObservableProperty]
+    public partial string ResolutionSourceText { get; private set; } = NotSet;
+
+    [ObservableProperty]
+    public partial string PixelSizeText { get; private set; } = NotSet;
+
+    [ObservableProperty]
+    public partial string PixelSizeSourceText { get; private set; } = NotSet;
+
+    /// <summary>Where the camera and the camera database say different things, one sentence each; empty when they agree or there is nothing to compare.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasConflict))]
+    public partial string ConflictText { get; private set; } = string.Empty;
+
+    public bool HasConflict => ConflictText.Length > 0;
+
+    private const string NotSet = "Not set";
+
+    private void ShowResolved(OpticalTrainGeometry g)
+    {
+        CameraIdentityText = g.DatabaseEntry?.DisplayName ?? string.Empty;
+        SensorNameText = g.SensorName ?? string.Empty;
+        ResolutionText = g is { SensorWidthPixels: { } w, SensorHeightPixels: { } h } ? string.Create(CultureInfo.InvariantCulture, $"{w} × {h}") : NotSet;
+        ResolutionSourceText = SourceName(Stronger(g.SensorWidthSource, g.SensorHeightSource));
+        PixelSizeText = (g.PixelSizeXMicrons, g.PixelSizeYMicrons) switch
+        {
+            ({ } x, { } y) when Math.Abs(x - y) < 1e-9 => string.Create(CultureInfo.InvariantCulture, $"{x:0.##} µm"),
+            ({ } x, { } y) => string.Create(CultureInfo.InvariantCulture, $"{x:0.##} × {y:0.##} µm"),
+            ({ } x, null) => string.Create(CultureInfo.InvariantCulture, $"{x:0.##} µm (width only)"),
+            (null, { } y) => string.Create(CultureInfo.InvariantCulture, $"{y:0.##} µm (height only)"),
+            _ => NotSet,
+        };
+        PixelSizeSourceText = SourceName(Stronger(g.PixelSizeXSource, g.PixelSizeYSource));
+        ConflictText = ConflictsOf(g);
+    }
+
+    private static string ConflictsOf(OpticalTrainGeometry g)
+    {
+        var lines = new List<string>();
+        var database = g.DatabaseEntry?.DisplayName ?? "the camera database";
+        var size = g.Conflicts.Where(c => c.IsPixelSize).ToList();
+        if (size.Count > 0)
+        {
+            var device = string.Join(" × ", size.Select(c => string.Create(CultureInfo.InvariantCulture, $"{c.DeviceValue:0.##}")));
+            var db = string.Join(" × ", size.Select(c => string.Create(CultureInfo.InvariantCulture, $"{c.DatabaseValue:0.##}")));
+            lines.Add($"Pixel size: the camera reports {device} µm; the Sidera camera database says {db} µm for {database}.");
+        }
+
+        var width = g.Conflicts.FirstOrDefault(c => c.Field == GeometryField.WidthPixels);
+        var height = g.Conflicts.FirstOrDefault(c => c.Field == GeometryField.HeightPixels);
+        if (width is not null || height is not null)
+        {
+            var device = string.Create(CultureInfo.InvariantCulture, $"{width?.DeviceValue ?? g.SensorWidthPixels:0} × {height?.DeviceValue ?? g.SensorHeightPixels:0}");
+            var db = string.Create(CultureInfo.InvariantCulture, $"{width?.DatabaseValue ?? g.DatabaseEntry?.WidthPixels:0} × {height?.DatabaseValue ?? g.DatabaseEntry?.HeightPixels:0}");
+            lines.Add($"Resolution: the camera reports {device}; the Sidera camera database says {db} for {database}.");
+        }
+
+        return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines) + " The camera's values are used.";
+    }
+
+    private static GeometrySource Stronger(GeometrySource a, GeometrySource b)
+    {
+        static int Rank(GeometrySource s) => s switch { GeometrySource.Configured => 3, GeometrySource.DeviceReported => 2, GeometrySource.Database => 1, _ => 0 };
+        return Rank(a) >= Rank(b) ? a : b;
+    }
+
+    private static string SourceName(GeometrySource source) => source switch
+    {
+        GeometrySource.Configured => "Manual",
+        GeometrySource.DeviceReported => "Device",
+        GeometrySource.Database => "Sidera Camera Database",
+        _ => NotSet,
+    };
+
+    /// <summary>A pixel size or a sensor size is entered by hand, so the automatic values are overridden.</summary>
+    public bool HasOverride =>
+        PixelSizeXText.Trim().Length > 0 || PixelSizeYText.Trim().Length > 0 || SensorWidthText.Trim().Length > 0 || SensorHeightText.Trim().Length > 0;
+
+    private bool CanRevert() => CanEdit && HasOverride;
+
+    /// <summary>
+    /// Clears the pixel size and the sensor size that were entered, so that the camera's own values (and, for a known camera, the database's) are used again. The focal length and the aperture
+    /// stay. Saved at once when the rig already has optics.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRevert))]
+    private void RevertToAutomatic()
+    {
+        _loading = true;
+        PixelSizeXText = string.Empty;
+        PixelSizeYText = string.Empty;
+        SensorWidthText = string.Empty;
+        SensorHeightText = string.Empty;
+        _loading = false;
+        Recompute();
+        OnPropertyChanged(nameof(HasOverride));
+        if (HasConfiguration)
+        {
+            Save();
+        }
     }
 
     /// <summary>Saves what is entered; the first field that is not valid is named and nothing is saved.</summary>
@@ -273,6 +393,7 @@ public sealed partial class OpticalTrainViewModel : ViewModelBase, IDisposable
     {
         GeometrySource.Configured => "configured",
         GeometrySource.DeviceReported => "reported by the camera",
+        GeometrySource.Database => "from the Sidera camera database",
         _ => "unknown",
     };
 

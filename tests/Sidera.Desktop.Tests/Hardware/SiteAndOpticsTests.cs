@@ -634,4 +634,169 @@ public sealed class SiteAndOpticsTests : IAsyncLifetime
 
         Assert.Equal("33.8688° S, 122.4194° W, 16 m", control.InfoLines.Single(l => l.Label == "Site").Value);
     }
+
+    // ---- The camera database in the optics form
+
+    private const string KnownCameraName = "ZWO ASI2600MC Pro";
+
+    private App AppWithKnownCamera()
+    {
+        var app = Create();
+        app.Equipment.Add(DeviceConfiguration.Simulator("camera.main", KnownCameraName, DeviceType.Camera));
+        return app;
+    }
+
+    [Fact]
+    public void AKnownCamera_ShowsItsGeometryWithTheDatabaseAsSource_BeforeItIsConnected()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+
+        form.FocalLengthText = "750";
+
+        Assert.Equal(KnownCameraName, form.CameraIdentityText);
+        Assert.Equal("Sony IMX571", form.SensorNameText);
+        Assert.Equal("6248 × 4176", form.ResolutionText);
+        Assert.Equal("Sidera Camera Database", form.ResolutionSourceText);
+        Assert.Equal("3.76 µm", form.PixelSizeText);
+        Assert.Equal("Sidera Camera Database", form.PixelSizeSourceText);
+        Assert.Equal("1.03 \"/px", form.PixelScaleText);
+        Assert.Equal("1.79° × 1.20°", form.FieldOfViewText);
+        Assert.False(form.HasConflict);
+        Assert.Contains("Connect the camera", form.ReportedText); // what the camera itself says is still only what it says
+    }
+
+    [Fact]
+    public async Task OnceConnected_TheDeviceIsTheSource_AndADifferenceFromTheDatabaseIsShown()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+        form.FocalLengthText = "750";
+
+        await app.Host.DeviceOperations.ConnectAsync(new DeviceId("camera.main"));
+        await Wait(() => form.ResolutionSourceText == "Device");
+
+        Assert.Equal("Device", form.PixelSizeSourceText); // 3.76 µm reported, the same as the database's
+        Assert.True(form.HasConflict); // the simulated sensor is not an ASI2600
+        Assert.Contains("Resolution: the camera reports", form.ConflictText);
+        Assert.Contains("6248 × 4176", form.ConflictText);
+        Assert.DoesNotContain("Pixel size:", form.ConflictText);
+        Assert.Contains("camera's values are used", form.ConflictText);
+    }
+
+    [Fact]
+    public void ACameraThatIsNotInTheDatabase_ShowsNoIdentity_AndNothingIsInvented()
+    {
+        var app = Create();
+        app.Equipment.Add(DeviceConfiguration.Simulator("camera.main", "Main Camera", DeviceType.Camera));
+        var form = OpticsFormOf(app);
+
+        form.FocalLengthText = "750";
+
+        Assert.Equal(string.Empty, form.CameraIdentityText);
+        Assert.Equal("Not set", form.ResolutionText);
+        Assert.Equal("Not set", form.PixelSizeText);
+        Assert.Equal("Not set", form.PixelSizeSourceText);
+        Assert.Equal("Not set", form.PixelScaleText);
+    }
+
+    [Fact]
+    public void AManualOverride_WinsAndIsLabelledManual_AndRevertingGoesBackToTheDatabase()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+        form.FocalLengthText = "750";
+
+        form.PixelSizeXText = "4.5";
+        form.PixelSizeYText = "4.5";
+        form.SensorWidthText = "5000";
+        form.SensorHeightText = "3000";
+
+        Assert.Equal("4.5 µm", form.PixelSizeText);
+        Assert.Equal("Manual", form.PixelSizeSourceText);
+        Assert.Equal("5000 × 3000", form.ResolutionText);
+        Assert.Equal("Manual", form.ResolutionSourceText);
+        Assert.True(form.HasOverride);
+        Assert.Equal("1.24 \"/px", form.PixelScaleText);
+
+        form.RevertToAutomaticCommand.Execute(null);
+
+        Assert.False(form.HasOverride);
+        Assert.Equal(string.Empty, form.PixelSizeXText);
+        Assert.Equal("3.76 µm", form.PixelSizeText);
+        Assert.Equal("Sidera Camera Database", form.PixelSizeSourceText);
+        Assert.Equal("6248 × 4176", form.ResolutionText);
+        Assert.Equal("1.03 \"/px", form.PixelScaleText);
+        Assert.False(form.RevertToAutomaticCommand.CanExecute(null)); // nothing to revert
+    }
+
+    [Fact]
+    public void OneManualValue_OverridesOnlyThatValue()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+        form.FocalLengthText = "750";
+
+        form.PixelSizeXText = "3.9";
+
+        Assert.Equal("3.9 × 3.76 µm", form.PixelSizeText);
+        Assert.Equal("Manual", form.PixelSizeSourceText);
+        Assert.Equal("6248 × 4176", form.ResolutionText);
+        Assert.Equal("Sidera Camera Database", form.ResolutionSourceText);
+    }
+
+    [Fact]
+    public void RevertingASavedOverride_SavesTheRigWithoutIt()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+        form.FocalLengthText = "750";
+        form.PixelSizeXText = "4.5";
+        form.PixelSizeYText = "4.5";
+        form.SaveCommand.Execute(null);
+        Assert.Equal(4.5, app.Host.RigRegistry.GetAll().Single().Optics!.PixelSizeXMicrons);
+
+        OpticsFormOf(app).RevertToAutomaticCommand.Execute(null);
+
+        var rig = app.Host.RigRegistry.GetAll().Single();
+        Assert.Equal(750, rig.Optics!.FocalLengthMm);
+        Assert.Null(rig.Optics.PixelSizeXMicrons);
+        Assert.Null(rig.Optics.PixelSizeYMicrons);
+    }
+
+    [Fact]
+    public void TheDatabaseValues_AreNeverStored_OnlyTheUsersInputsAre()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+        form.FocalLengthText = "750";
+        form.SaveCommand.Execute(null);
+
+        var rig = app.Host.RigRegistry.GetAll().Single();
+        var text = File.ReadAllText(EquipmentFile);
+
+        Assert.Null(rig.Optics!.PixelSizeXMicrons);
+        Assert.Null(rig.Optics.SensorWidthPixels);
+        Assert.DoesNotContain("pixelSize", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("6248", text);
+        Assert.DoesNotContain("3.76", text);
+        Assert.DoesNotContain("IMX571", text);
+    }
+
+    [Fact]
+    public void TheRigAndTheFraming_GetTheDatabaseGeometry_WithoutAnyManualEntry()
+    {
+        var app = AppWithKnownCamera();
+        var form = OpticsFormOf(app);
+        form.FocalLengthText = "750";
+        form.SaveCommand.Execute(null);
+
+        var geometry = app.Vm.Equipment.Rigs.Single().Geometry;
+        app.Vm.Framing.RefreshEquipment();
+
+        Assert.Equal(1.034, geometry.PixelScaleXArcsecPerPixel!.Value, 3);
+        Assert.Equal(GeometrySource.Database, geometry.PixelSizeSource);
+        Assert.Equal(1.79, app.Vm.Framing.Field!.WidthDegrees, 2);
+        Assert.Equal(1.20, app.Vm.Framing.Field.HeightDegrees, 2);
+    }
 }
