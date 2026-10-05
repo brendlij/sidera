@@ -229,4 +229,77 @@ public sealed class WorkflowRunTests : IAsyncLifetime
 
         Assert.Equal(1, run.Count("Autofocus"));
     }
+
+    [Fact]
+    public async Task ASingleSetup_CanDither_WithoutAnyoneToWaitFor()
+    {
+        var host = await CreateAsync();
+        var workflow = WorkflowDefinition.Empty with
+        {
+            Prepare = [Step(WorkflowStepKind.StartGuiding)],
+            Imaging = [Block(Main, 6, 0.1)],
+            Finish = [Step(WorkflowStepKind.StopGuiding)],
+            Dither = new WorkflowDither(true, 2, Main, 0.6, 0.5, 0.1, 5),
+        };
+
+        var run = await RunAsync(host, workflow);
+
+        Assert.Equal(6, run.Count("Exposure"));
+        Assert.Equal(3, run.Count("Dither")); // after frames 2, 4 and 6
+        Assert.False(run.ExposedWhileDithering);
+    }
+
+    [Fact]
+    public async Task WhenADitherAndAnAutofocusAreDueTogether_TheDitherComesFirst_ThenTheAutofocus_AndEachOnlyOnce()
+    {
+        var host = await CreateAsync();
+        // Dither after every frame; the interval is short enough to be due at the first boundary.
+        var workflow = WorkflowDefinition.Empty with
+        {
+            Prepare = [Step(WorkflowStepKind.StartGuiding)],
+            Imaging = [Block(Main, 3, 0.7)],
+            Finish = [Step(WorkflowStepKind.StopGuiding)],
+            Dither = new WorkflowDither(true, 1, Main, 0.6, 0.5, 0.1, 5),
+            AutofocusPolicies = [Focus(Main, interval: 0.005)], // 0.3 s: due after the first 0.7 s frame
+        };
+        var compiled = WorkflowCompiler.Compile(workflow, host.RigRegistry);
+        var focus = SequenceDraftDefaults.From(Options, host.DeviceRegistry);
+        var context = new SequenceDraftContext(
+            host.RigRegistry, SharedEquipmentDraft.FromRigs(host.RigRegistry.GetAll(), focus.MountId, focus.GuiderId, false), host.FocusMetrics, host.EventBus, null, host.AcquisitionDefaults);
+        var built = SequenceDraftBuilder.Build(host.DeviceRegistry, compiled.Steps, context);
+        var runner = new SequenceRunner(host.ResourceManager, host.SafePointCoordinator);
+        var order = new List<string>();
+        runner.StepCompleted += (_, e) =>
+        {
+            lock (order)
+            {
+                if (e.StepName.StartsWith("Exposure", StringComparison.Ordinal))
+                {
+                    order.Add("E");
+                }
+                else if (e.StepName.StartsWith("Dither ", StringComparison.Ordinal) && e.StepName.EndsWith(" px", StringComparison.Ordinal))
+                {
+                    order.Add("D");
+                }
+                else if (e.StepName == "Autofocus")
+                {
+                    order.Add("A");
+                }
+            }
+        };
+
+        await runner.RunAsync(built.Sequence).WaitAsync(Bound);
+
+        Assert.Equal(SequenceState.Completed, runner.State);
+        string text;
+        lock (order)
+        {
+            text = string.Concat(order);
+        }
+
+        // Frame 1, then its dither (counted right after the exposure), then the autofocus that came due, then frame 2 ... The first boundary has both, in that order.
+        Assert.StartsWith("EDA", text, StringComparison.Ordinal);
+        Assert.Equal(3, text.Count(c => c == 'D'));
+        Assert.True(text.Count(c => c == 'A') >= 1);
+    }
 }

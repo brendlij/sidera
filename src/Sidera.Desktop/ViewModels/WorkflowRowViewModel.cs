@@ -82,10 +82,15 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
     // ---- what the table shows
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
     public partial string SetupLabel { get; internal set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutomationName))]
     public partial string Summary { get; internal set; } = string.Empty;
+
+    /// <summary>What a screen reader (and a UI test) calls the row: its title, setup and summary.</summary>
+    public string AutomationName => $"{Title}, {SetupLabel}, {Summary}";
 
     [ObservableProperty]
     public partial string FilterLabel { get; internal set; } = string.Empty;

@@ -87,7 +87,7 @@
                                     <MenuItem Header="Stop Guiding" Command="{Binding AddStopGuidingCommand}" />
                                     <MenuItem Header="Wait" Command="{Binding AddWaitToFinishCommand}" />
                                     <Separator />
-                                    <MenuItem Header="Plate Solve, Sync Mount, Dither Now, Move Focuser, Rotate, Repeat, Parallel: Convert to Advanced" IsEnabled="False" />
+                                    <MenuItem Header="More actions: Convert to Advanced" IsEnabled="False" />
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
@@ -120,7 +120,7 @@
                     <ItemsControl ItemsSource="{Binding PrepareRows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:WorkflowRowViewModel">
-                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" AutomationProperties.Name="{Binding AutomationName}"
                                         Command="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).SelectRowCommand}" CommandParameter="{Binding}">
                                     <Border Classes="workflow-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !Enabled}" Padding="12,10">
                                         <Grid ColumnDefinitions="40,190,160,*,Auto">
@@ -155,7 +155,7 @@
                     <ItemsControl ItemsSource="{Binding ImagingRows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:WorkflowRowViewModel">
-                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" AutomationProperties.Name="{Binding AutomationName}"
                                         Command="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).SelectRowCommand}" CommandParameter="{Binding}">
                                     <Border Classes="workflow-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !Enabled}" Padding="12,10">
                                         <StackPanel Spacing="6">
@@ -210,7 +210,7 @@
                     <ItemsControl ItemsSource="{Binding FinishRows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:WorkflowRowViewModel">
-                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" AutomationProperties.Name="{Binding AutomationName}"
                                         Command="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).SelectRowCommand}" CommandParameter="{Binding}">
                                     <Border Classes="workflow-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !Enabled}" Padding="12,10">
                                         <Grid ColumnDefinitions="40,190,160,*,Auto">
