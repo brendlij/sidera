@@ -61,7 +61,7 @@
         </ContentControl>
 
         <Panel Grid.Row="3">
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding ShowWorkspace}">
                 <ContentControl Content="{Binding Detail}" HorizontalContentAlignment="Stretch">
                     <ContentControl.ContentTemplate>
                         <equipment:DeviceWorkspaceTemplate />

@@ -1,0 +1,11 @@
+using Avalonia.Controls;
+
+namespace Sidera.Desktop.Views.Equipment;
+
+public partial class RigOverviewView : UserControl
+{
+    public RigOverviewView()
+    {
+        InitializeComponent();
+    }
+}

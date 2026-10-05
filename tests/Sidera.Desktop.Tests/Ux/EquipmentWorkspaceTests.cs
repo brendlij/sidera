@@ -24,11 +24,11 @@ public class EquipmentWorkspaceTests
         Assert.Null(equipment.SelectedContext);
         Assert.False(equipment.IsDeviceWorkspace);
         Assert.Null(equipment.SelectedDevice);
-        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig", "Standalone devices"], equipment.LandingGroups.Select(g => g.Title));
-        Assert.Equal(["Camera", "Focuser", "Filter Wheel"], equipment.LandingGroups[0].Rows.Select(r => r.Role));
-        Assert.Equal(["Camera", "Focuser"], equipment.LandingGroups[2].Rows.Select(r => r.Role)); // the wide rig has no filter wheel
-        Assert.Equal(["Mount", "Guider"], equipment.LandingGroups[3].Rows.Select(r => r.Role)); // shared equipment is not the rigs'
-        Assert.Equal("3 devices · 0 connected", equipment.LandingGroups[0].SummaryText);
+        // The demo rigs all sit on the one mount and the one guider: each rig names them, so they are the rigs' devices (shared), and no device is left over.
+        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig"], equipment.LandingGroups.Select(g => g.Title));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.LandingGroups[0].Rows.Select(r => r.Role));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Guider"], equipment.LandingGroups[2].Rows.Select(r => r.Role)); // the wide rig has no filter wheel
+        Assert.Equal("5 devices · 0 connected", equipment.LandingGroups[0].SummaryText);
         Assert.False(equipment.CanGoBack);
         Assert.Equal(["Equipment"], equipment.Breadcrumb.Select(b => b.Title));
     }
@@ -41,7 +41,7 @@ public class EquipmentWorkspaceTests
         var main = equipment.LandingGroups[0];
 
         await equipment.Cameras.Single(c => c.DeviceIdText == "camera.main").ConnectCommand.ExecuteAsync(null);
-        Assert.Equal("3 devices · 1 connected", main.SummaryText);
+        Assert.Equal("5 devices · 1 connected", main.SummaryText);
 
         main.Rows.Single(r => r.Role == "Focuser").OpenCommand.Execute(null);
 
@@ -50,10 +50,11 @@ public class EquipmentWorkspaceTests
         Assert.Equal("focuser.main", equipment.SelectedDevice!.DeviceIdText);
 
         equipment.ShowOverviewCommand.Execute(null);
-        equipment.LandingGroups[3].Rows.Single(r => r.Role == "Mount").OpenCommand.Execute(null);
+        equipment.LandingGroups[2].Rows.Single(r => r.Role == "Mount").OpenCommand.Execute(null); // the mount is shared: it opens in the rig that was clicked
 
-        Assert.Equal("Standalone", equipment.SelectedContext!.Title);
+        Assert.Equal("Wide Rig", equipment.SelectedContext!.Title);
         Assert.Equal(EquipmentPage.Mount, equipment.SelectedPage);
+        Assert.Equal("mount.eq6", equipment.SelectedDevice!.DeviceIdText);
         Assert.IsType<MountDetailViewModel>(equipment.SelectedDetail);
     }
 
@@ -67,7 +68,7 @@ public class EquipmentWorkspaceTests
 
         Context(equipment, "Standalone").SelectCommand.Execute(null);
 
-        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.Pages.Select(p => p.Title));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.Pages.Select(p => p.Title)); // no rotator is configured: no such page
         Assert.Equal(EquipmentPage.Camera, equipment.SelectedPage);
         Assert.True(equipment.IsDeviceWorkspace);
         Assert.Equal(["Camera"], equipment.Breadcrumb.Select(b => b.Title).Skip(1));
@@ -144,7 +145,7 @@ public class EquipmentWorkspaceTests
     // ---- Rigs
 
     [Fact]
-    public async Task ARigHasAnOverviewAndThePagesOfItsDevices_AndNeverTheSharedMountOrGuider()
+    public async Task ARigHasAnOverviewAndThePagesOfItsDevices_IncludingItsMountAndGuider()
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
@@ -152,7 +153,7 @@ public class EquipmentWorkspaceTests
         Context(equipment, "Main Rig").SelectCommand.Execute(null);
 
         Assert.True(equipment.IsRigOverview);
-        Assert.Equal(["Overview", "Camera", "Focuser", "Filter Wheel"], equipment.Pages.Select(p => p.Title));
+        Assert.Equal(["Overview", "Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.Pages.Select(p => p.Title));
         Assert.Equal("rig.main", equipment.SelectedRig!.RigIdText);
         Assert.Equal(["Equipment", "Main Rig"], equipment.Breadcrumb.Select(b => b.Title));
         Assert.Equal("Equipment", equipment.BackText);

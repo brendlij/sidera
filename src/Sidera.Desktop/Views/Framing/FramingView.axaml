@@ -74,7 +74,7 @@
                     <Slider Minimum="0" Maximum="1" Value="{Binding Brightness}" AutomationProperties.Name="Brightness" ToolTip.Tip="Lifts the dark parts of the sky picture" />
                 </ctl:LabeledField>
                 <TextBlock Classes="meta" Text="Ctrl + wheel turns the frame; drag the frame to move it; drag elsewhere to pan." TextWrapping="Wrap" />
-                <TextBlock Classes="meta" Text="{Binding CurrentText}" TextWrapping="Wrap" Foreground="#E85050" AutomationProperties.AutomationId="FramingCurrent" />
+                <TextBlock Classes="meta" Text="{Binding CurrentText}" TextWrapping="Wrap" Foreground="{DynamicResource SideraDanger}" AutomationProperties.AutomationId="FramingCurrent" />
                 <TextBlock Classes="meta" Text="Violet: the planned framing. Red: where the telescope points now (dashed while its rotation is unknown)." TextWrapping="Wrap" />
                 <Border Classes="notice-danger" IsVisible="{Binding ProblemText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />

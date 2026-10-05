@@ -128,8 +128,17 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         ApplyChoice(value);
     }
 
+    /// <summary>
+    /// The controls of the device are shown only while it is connected: a device that is not connected shows its name and state and nothing else (no stale values, no controls that cannot do anything).
+    /// The optics of a camera are the exception: they are settings, not controls, and are needed before the first connection.
+    /// </summary>
+    public bool ShowWorkspace => Detail is not null && (Detail is CameraDetailViewModel || Device is { IsConnected: true });
+
+    partial void OnDetailChanged(DeviceDetailViewModel? value) => OnPropertyChanged(nameof(ShowWorkspace));
+
     partial void OnDeviceChanged(DeviceViewModelBase? oldValue, DeviceViewModelBase? newValue)
     {
+        OnPropertyChanged(nameof(ShowWorkspace));
         if (oldValue is not null)
         {
             oldValue.PropertyChanged -= OnDevicePropertyChanged;
@@ -155,6 +164,7 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
 
     private void OnDeviceUseChanged()
     {
+        OnPropertyChanged(nameof(ShowWorkspace));
         OnPropertyChanged(nameof(CanChoose));
         SetupCommand.NotifyCanExecuteChanged();
         RescanCommand.NotifyCanExecuteChanged();
