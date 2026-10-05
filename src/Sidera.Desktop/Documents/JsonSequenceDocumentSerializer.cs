@@ -131,6 +131,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         w.WriteEndArray();
+        if (document.Workflow is { } workflow)
+        {
+            WorkflowJson.Write(w, workflow);
+        }
+
         w.WriteEndObject();
     }
 
@@ -295,6 +300,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                         w.WriteNumber("exposureSeconds", autofocus.ExposureSeconds);
                         w.WriteNumber("stepSize", autofocus.StepSize);
                         w.WriteNumber("samples", autofocus.SampleCount);
+                        if (autofocus.IntervalMinutes > 0)
+                        {
+                            w.WriteNumber("intervalMinutes", autofocus.IntervalMinutes);
+                        }
+
                         w.WriteEndObject();
                     }
 
@@ -302,6 +312,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 }
 
                 w.WriteEndArray();
+                if (m.SingleTrack)
+                {
+                    w.WriteBoolean("singleTrack", true);
+                }
+
                 if (m.DitherPolicy is { } policy)
                 {
                     w.WriteStartObject("ditherPolicy");
@@ -400,7 +415,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 or 2 or 3 or 4 or 5 or 6 or 7 => ReadBody(root, version),
+            1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Sidera version."),
         };
@@ -433,7 +448,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             steps.Add(ReadStep(element, Place.Top, version, ids));
         }
 
-        return new SequenceDocument(name, steps, shared);
+        return new SequenceDocument(name, steps, shared, version >= 8 ? WorkflowJson.Read(root) : null);
     }
 
     private static SharedEquipmentDocument? ReadSharedEquipment(JsonElement root)
@@ -604,7 +619,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             tracks.Add(new RigTrackDocument(trackId, rigId, steps, ReadAutofocusPolicy(track, version)));
         }
 
-        return new MultiRigDocumentStep(id, tracks, ReadDitherPolicy(element));
+        return new MultiRigDocumentStep(
+            id, tracks, ReadDitherPolicy(element), version >= 8 && element.TryGetProperty("singleTrack", out var single) && single.ValueKind == JsonValueKind.True);
     }
 
     // Optional, and only in version 5: a track without one does not focus by itself. When it is there, it is complete.
@@ -631,7 +647,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             Flag("afterFilterChange"),
             ReadNumber(policy, "autofocusPolicy", "exposureSeconds"),
             ReadWhole(policy, "autofocusPolicy", "stepSize"),
-            ReadWhole(policy, "autofocusPolicy", "samples"));
+            ReadWhole(policy, "autofocusPolicy", "samples"),
+            version >= 8 && policy.TryGetProperty("intervalMinutes", out _) ? ReadNumber(policy, "autofocusPolicy", "intervalMinutes") : 0);
     }
 
     // Optional: a block without one does not dither. When it is there, it is complete.

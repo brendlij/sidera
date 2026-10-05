@@ -16,13 +16,14 @@ namespace Sidera.Desktop.Documents;
 public static class SequenceDocumentMapper
 {
     public static SequenceDocument ToDocument(
-        IReadOnlyList<SequenceStepDraft> steps, string? name = null, SharedEquipmentDraft? shared = null)
+        IReadOnlyList<SequenceStepDraft> steps, string? name = null, SharedEquipmentDraft? shared = null, Sidera.Desktop.Workflows.WorkflowDefinition? workflow = null)
     {
         ArgumentNullException.ThrowIfNull(steps);
         return new SequenceDocument(
             name,
             steps.Select(ToDocumentStep).ToList(),
-            shared is null ? null : new SharedEquipmentDocument(shared.MountId?.Value, shared.GuiderId?.Value));
+            shared is null ? null : new SharedEquipmentDocument(shared.MountId?.Value, shared.GuiderId?.Value),
+            workflow);
     }
 
     /// <summary>The session's shared equipment as the document has it; <c>null</c> for a document that says nothing about it.</summary>
@@ -64,7 +65,8 @@ public static class SequenceDocumentMapper
             m.Tracks.Select(track => new RigTrackDocument(
                 track.Id, track.RigId?.Value, track.Steps.Select(ToDocumentStep).ToList(),
                 ToDocumentAutofocusPolicy(track.AutofocusPolicy))).ToList(),
-            ToDocumentPolicy(m.DitherPolicy)),
+            ToDocumentPolicy(m.DitherPolicy),
+            m.SingleTrack),
         RepeatStepDraft r => new RepeatDocumentStep(r.Id, r.Count, r.Children.Select(ToDocumentLeaf).ToList()),
         LeafStepDraft leaf => ToDocumentLeaf(leaf),
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
@@ -105,7 +107,8 @@ public static class SequenceDocumentMapper
             m.Tracks.Select(track => new RigTrackDraft(
                 track.Id, track.RigId is null ? null : new RigId(track.RigId), track.Steps.Select(ToDraftStep).ToList(),
                 ToDraftAutofocusPolicy(track.AutofocusPolicy))).ToList(),
-            ToDraftPolicy(m.DitherPolicy)),
+            ToDraftPolicy(m.DitherPolicy),
+            m.SingleTrack),
         RepeatDocumentStep r => new RepeatStepDraft(r.Id, r.Count, r.Children.Select(ToDraftLeaf).ToList()),
         DocumentLeafStep leaf => ToDraftLeaf(leaf),
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
@@ -155,13 +158,13 @@ public static class SequenceDocumentMapper
         policy is null || policy == RigAutofocusPolicyDraft.Default
             ? null
             : new AutofocusPolicyDocument(
-                policy.Enabled, policy.AtTrackStart, policy.AfterFilterChange, policy.ExposureSeconds, policy.StepSize, policy.SampleCount);
+                policy.Enabled, policy.AtTrackStart, policy.AfterFilterChange, policy.ExposureSeconds, policy.StepSize, policy.SampleCount, policy.IntervalMinutes);
 
     private static RigAutofocusPolicyDraft? ToDraftAutofocusPolicy(AutofocusPolicyDocument? policy) =>
         policy is null
             ? null
             : new RigAutofocusPolicyDraft(
-                policy.Enabled, policy.AtTrackStart, policy.AfterFilterChange, policy.ExposureSeconds, policy.StepSize, policy.SampleCount);
+                policy.Enabled, policy.AtTrackStart, policy.AfterFilterChange, policy.ExposureSeconds, policy.StepSize, policy.SampleCount, policy.IntervalMinutes);
 
     private static MultiRigDitherPolicyDraft? ToDraftPolicy(DitherPolicyDocument? policy) =>
         policy is null

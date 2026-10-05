@@ -14,7 +14,8 @@ namespace Sidera.Desktop.Documents;
 public sealed record SequenceDocument(
     string? Name,
     IReadOnlyList<DocumentStep> Steps,
-    SharedEquipmentDocument? SharedEquipment = null)
+    SharedEquipmentDocument? SharedEquipment = null,
+    Sidera.Desktop.Workflows.WorkflowDefinition? Workflow = null)
 {
     /// <summary>The value every Sidera sequence document carries to say what it is.</summary>
     public const string FormatId = "astra-sequence";
@@ -23,9 +24,12 @@ public sealed record SequenceDocument(
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
     /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps
     /// before 3, autofocus before 4, the autofocus policy of a track before 5, the acquisition settings of an exposure before 6,
-    /// plate solving before 7) is simply absent from a document read from it.
+    /// plate solving before 7, the autofocus interval of a track and the workflow before 8) is simply absent from a document read from it. A writer always writes the current version,
+    /// so an older Sidera refuses a file that a newer one saved as newer instead of opening it as if nothing had been added; every older version is still read, as it always was.
     /// </summary>
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
+
+
 
     public string Format => FormatId;
     public int Version => CurrentVersion;
@@ -102,7 +106,8 @@ public sealed record AutofocusPolicyDocument(
     bool AfterFilterChange,
     double ExposureSeconds,
     int StepSize,
-    int SampleCount
+    int SampleCount,
+    double IntervalMinutes = 0
 );
 
 /// <summary>One rig of a Multi-Rig block: the rig (an id, or <c>null</c>) and what runs on it, in order.</summary>
@@ -131,7 +136,8 @@ public sealed record DitherPolicyDocument(
 public sealed record MultiRigDocumentStep(
     Guid Id,
     IReadOnlyList<RigTrackDocument> Tracks,
-    DitherPolicyDocument? DitherPolicy = null
+    DitherPolicyDocument? DitherPolicy = null,
+    bool SingleTrack = false
 ) : DocumentStep(Id);
 
 public enum SequenceDocumentErrorKind

@@ -103,7 +103,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
         Assert.Equal("Test Session.astraseq", app.Document.DisplayName);
         var text = await File.ReadAllTextAsync(path);
         Assert.Contains("\"format\": \"astra-sequence\"", text, StringComparison.Ordinal);
-        Assert.Contains("\"version\": 7", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
         Assert.Contains("\"exposureSeconds\": 123", text, StringComparison.Ordinal);
 
         // Change things, then open the file again: the saved state comes back.
@@ -156,7 +156,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("not an sidera file")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":8,\"steps\":[]}")]
+    [InlineData("{\"format\":\"astra-sequence\",\"version\":9,\"steps\":[]}")]
     public async Task OpeningAFileThatIsNotUsable_LeavesTheDraftAndTheDocumentAsTheyWere(string content)
     {
         await using var app = Create();
@@ -178,7 +178,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     public async Task AFutureVersion_IsReportedAsSuch()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Future.astraseq"), "{\"format\":\"astra-sequence\",\"version\":8,\"steps\":[]}");
+        await File.WriteAllTextAsync(PathOf("Future.astraseq"), "{\"format\":\"astra-sequence\",\"version\":9,\"steps\":[]}");
         app.Picker.OpenPath = PathOf("Future.astraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);

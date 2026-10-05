@@ -49,7 +49,7 @@ public class SequenceDocumentBoundaryTests
             .Order()
             .ToList();
 
-        Assert.Equal(["EquipmentConfigurationSerializer.cs", "JsonSequenceDocumentSerializer.cs", "SideraSettings.cs"], users);
+        Assert.Equal(["EquipmentConfigurationSerializer.cs", "JsonSequenceDocumentSerializer.cs", "SideraSettings.cs", "WorkflowJson.cs"], users);
     }
 
     [Fact]

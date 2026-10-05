@@ -43,7 +43,8 @@ public static class SequenceStepDraftCloner
         MultiRigStepDraft multiRig => new MultiRigStepDraft(
             newId?.Invoke() ?? multiRig.Id,
             multiRig.Tracks.Select(track => (RigTrackDraft)Clone(track, newId)).ToList(),
-            multiRig.DitherPolicy), // refers to a rig, not to a track: nothing to map
+            multiRig.DitherPolicy, // refers to a rig, not to a track: nothing to map
+            multiRig.SingleTrack),
         RigTrackDraft track => new RigTrackDraft(
             newId?.Invoke() ?? track.Id, track.RigId, track.Steps.Select(inner => Clone(inner, newId)).ToList(),
             track.AutofocusPolicy), // values only: it belongs to the track, not to a step

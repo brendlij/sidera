@@ -178,7 +178,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 7,
+              "version": 8,
               "steps": [
                 {
                   "type": "changeFilter",
@@ -241,7 +241,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData(8)]
+    [InlineData(9)]
     [InlineData(9)]
     public async Task ANewerVersionThanFive_IsRejectedClearly(int version)
     {
@@ -465,7 +465,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Hardware.astraseq"));
-        Assert.Contains("\"version\": 7", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"rigMoveFocuser\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
@@ -505,7 +505,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Old2");
         app.Draft.Rows.OfType<RigExposureStepDraftViewModel>().First().ExposureText = "5";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 7", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 8", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
     }
 
     [Fact]

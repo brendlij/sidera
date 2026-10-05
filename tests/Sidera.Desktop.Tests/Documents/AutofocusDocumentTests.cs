@@ -154,7 +154,7 @@ public sealed class AutofocusDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 7,
+              "version": 8,
               "steps": [
                 {
                   "type": "autofocus",
@@ -201,7 +201,7 @@ public sealed class AutofocusDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData(8)]
+    [InlineData(9)]
     [InlineData(9)]
     public async Task ANewerVersionThanFive_IsRejectedClearly(int version)
     {
@@ -405,7 +405,7 @@ public sealed class AutofocusDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Focus.astraseq"));
-        Assert.Contains("\"version\": 7", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"rigAutofocus\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
@@ -434,7 +434,7 @@ public sealed class AutofocusDocumentTests : IDisposable
         Assert.False(app.Document.IsDirty);
         app.Draft.Rows.OfType<MoveFocuserStepDraftViewModel>().Single().PositionText = "19000";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 7", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 8", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
     }
 
     [Fact]
