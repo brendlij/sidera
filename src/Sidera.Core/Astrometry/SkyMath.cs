@@ -14,6 +14,25 @@ public static class SkyMath
     public const double ArcsecondsPerDegree = 3600.0;
     public const double ArcminutesPerDegree = 60.0;
 
+    /// <summary>
+    /// A rotation as Sidera states it everywhere (the plate solver's result, a framing's desired rotation): degrees in (-180, 180], where 180 and -180 are the same angle
+    /// and are written as 180.
+    /// </summary>
+    public static double NormalizeRotationDegrees(double degrees)
+    {
+        var wrapped = degrees % 360.0;
+        if (wrapped > 180.0)
+        {
+            wrapped -= 360.0;
+        }
+        else if (wrapped <= -180.0)
+        {
+            wrapped += 360.0;
+        }
+
+        return wrapped;
+    }
+
     public static double HoursToDegrees(double hours) => hours * DegreesPerHour;
 
     public static double DegreesToHours(double degrees) => degrees / DegreesPerHour;

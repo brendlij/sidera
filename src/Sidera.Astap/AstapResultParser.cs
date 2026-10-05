@@ -121,20 +121,7 @@ public static class AstapResultParser
     }
 
     /// <summary>An angle in degrees as (-180, 180].</summary>
-    public static double NormalizeRotation(double degrees)
-    {
-        var wrapped = degrees % 360.0;
-        if (wrapped > 180.0)
-        {
-            wrapped -= 360.0;
-        }
-        else if (wrapped <= -180.0)
-        {
-            wrapped += 360.0;
-        }
-
-        return wrapped;
-    }
+    public static double NormalizeRotation(double degrees) => SkyMath.NormalizeRotationDegrees(degrees);
 
     private static AstapOutcome Failure(int exitCode, Dictionary<string, string> values)
     {
