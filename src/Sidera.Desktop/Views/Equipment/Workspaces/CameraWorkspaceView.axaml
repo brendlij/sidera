@@ -13,7 +13,7 @@
     -->
     <StackPanel Spacing="8">
         <WrapPanel>
-            <ctl:WorkspaceSection Header="EXPOSURE">
+            <ctl:WorkspaceSection Header="EXPOSURE" IsVisible="{Binding Camera.IsConnected}">
                 <StackPanel Spacing="16">
                     <ctl:FieldRow Label="Exposure time" Unit="s"><TextBox Text="{Binding Camera.ExposureInput}" /></ctl:FieldRow>
                     <StackPanel Orientation="Horizontal" Spacing="8">

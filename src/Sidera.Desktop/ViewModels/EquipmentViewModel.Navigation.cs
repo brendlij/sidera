@@ -245,6 +245,23 @@ public sealed partial class EquipmentViewModel
 
     public bool HasMissingDevice => MissingDeviceText.Length > 0;
 
+    /// <summary>Managing the rig whose overview is shown (rename, remove, give it devices); <c>null</c> elsewhere and when the equipment cannot be changed here.</summary>
+    [ObservableProperty]
+    public partial RigSetupViewModel? RigSetup { get; private set; }
+
+    /// <summary>Adding a rig; <c>null</c> when the equipment cannot be changed here.</summary>
+    public AddRigViewModel? AddRig { get; private set; }
+
+    internal void Notify(string text) => NoticeText = text;
+
+    private void OpenRigNamed(string name)
+    {
+        if (_rigs.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) is { } rig)
+        {
+            OpenRig(rig);
+        }
+    }
+
     /// <summary>The way to where the workspace is: "Equipment › Main Rig › Camera".</summary>
     [ObservableProperty]
     public partial IReadOnlyList<BreadcrumbItem> Breadcrumb { get; private set; } = [];
@@ -372,6 +389,12 @@ public sealed partial class EquipmentViewModel
 
     private void BuildNavigation()
     {
+        if (AddRig is null && _management is not null)
+        {
+            AddRig = new AddRigViewModel(_management.Service, Notify, OpenRigNamed);
+            OnPropertyChanged(nameof(AddRig));
+        }
+
         Contexts =
         [
             new EquipmentContextViewModel("Standalone", StandaloneKey, null, new RelayCommand(() => SelectContext(StandaloneKey))),
@@ -403,8 +426,11 @@ public sealed partial class EquipmentViewModel
             }
 
             Add("Camera", rig.Camera, EquipmentPage.Camera);
+            Add("Mount", rig.Mount, EquipmentPage.Mount);
             Add("Focuser", rig.Focuser, EquipmentPage.Focuser);
             Add("Filter Wheel", rig.FilterWheel, EquipmentPage.FilterWheel);
+            Add("Guider", rig.Guider, EquipmentPage.Guider);
+            Add("Rotator", rig.Rotator, EquipmentPage.Rotator);
             groups.Add(new EquipmentLandingGroupViewModel(rig.Name, rig, rows, new RelayCommand(() => OpenRig(rig))));
         }
 
@@ -470,8 +496,11 @@ public sealed partial class EquipmentViewModel
                     device = kind switch
                     {
                         EquipmentPage.Camera => rig.Camera,
+                        EquipmentPage.Mount => rig.Mount,
                         EquipmentPage.Focuser => rig.Focuser,
                         EquipmentPage.FilterWheel => rig.FilterWheel,
+                        EquipmentPage.Guider => rig.Guider,
+                        EquipmentPage.Rotator => rig.Rotator,
                         _ => null,
                     };
                     if (device is null)
@@ -497,6 +526,13 @@ public sealed partial class EquipmentViewModel
             ShowDevice(device);
             OnPropertyChanged(nameof(ChosenDevice));
             BuildBreadcrumb(context, page);
+            RigSetup = IsRigOverview && _management is not null && context?.Rig is { } setupRig ? new RigSetupViewModel(setupRig, _management.Service, Notify) : null;
+            AddRig?.Refresh();
+
+            // The driver row, the connection and the page of the device are those of the slot of its kind.
+            var slot = IsDeviceWorkspace && page is { } shownPage ? Slots.FirstOrDefault(s => s.Page == shownPage) : null;
+            SelectedSlot = slot;
+            slot?.Refresh();
         }
         finally
         {
@@ -511,8 +547,14 @@ public sealed partial class EquipmentViewModel
 
         if (context.Rig is { } rig)
         {
+            // Only what the rig has: a page of a device that the rig does not have would be empty.
             Add(EquipmentPage.Overview);
             Add(EquipmentPage.Camera);
+            if (rig.HasMount)
+            {
+                Add(EquipmentPage.Mount);
+            }
+
             if (rig.HasFocuser)
             {
                 Add(EquipmentPage.Focuser);
@@ -522,10 +564,20 @@ public sealed partial class EquipmentViewModel
             {
                 Add(EquipmentPage.FilterWheel);
             }
+
+            if (rig.HasGuider)
+            {
+                Add(EquipmentPage.Guider);
+            }
+
+            if (rig.HasRotator)
+            {
+                Add(EquipmentPage.Rotator);
+            }
         }
         else
         {
-            foreach (var page in new[] { EquipmentPage.Camera, EquipmentPage.Mount, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Guider })
+            foreach (var page in new[] { EquipmentPage.Camera, EquipmentPage.Mount, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Guider, EquipmentPage.Rotator })
             {
                 if (DevicesOf(page).Any())
                 {

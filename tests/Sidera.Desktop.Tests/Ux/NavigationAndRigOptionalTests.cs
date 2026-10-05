@@ -160,22 +160,28 @@ public class NavigationAndRigOptionalTests
         equipment.Contexts.Single(c => c.Title == "Wide Rig").SelectCommand.Execute(null);
 
         Assert.True(equipment.IsRigOverview);
-        Assert.Equal(["Overview", "Camera", "Focuser"], equipment.Pages.Select(p => p.Title)); // no filter wheel: no such page
+        Assert.Equal(["Overview", "Camera", "Mount", "Focuser", "Guider"], equipment.Pages.Select(p => p.Title)); // no filter wheel and no rotator: no such page
         Assert.Equal(["Wide Rig"], equipment.Contexts.Where(c => c.IsSelected).Select(c => c.Title));
     }
 
     [Fact]
-    public async Task TheMountAndTheGuider_AreDevicesLikeTheOthers_NotSharedEquipment_AndNotTheRigs()
+    public async Task TheMountAndTheGuider_ArePagesOfTheRigsThatNameThem_AndOfTheStandaloneDevices()
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
 
-        // A rig names a camera, a focuser and a filter wheel; the mount and the guider belong to the session and are never a rig page.
+        // A rig that names a mount and a guider has their pages, and a mount that two rigs name is the same device on both.
+        var seen = new List<string>();
         foreach (var rig in equipment.Contexts.Where(c => c.Rig is not null))
         {
             rig.SelectCommand.Execute(null);
-            Assert.DoesNotContain(equipment.Pages, p => p.Page is EquipmentPage.Mount or EquipmentPage.Guider);
+            Assert.Contains(equipment.Pages, p => p.Page == EquipmentPage.Mount);
+            Assert.Contains(equipment.Pages, p => p.Page == EquipmentPage.Guider);
+            equipment.Pages.Single(p => p.Page == EquipmentPage.Mount).SelectCommand.Execute(null);
+            seen.Add(equipment.SelectedDevice!.DeviceIdText);
         }
+
+        Assert.Single(seen.Distinct());
 
         equipment.Contexts.Single(c => c.IsStandalone).SelectCommand.Execute(null);
         equipment.Pages.Single(p => p.Page == EquipmentPage.Mount).SelectCommand.Execute(null);

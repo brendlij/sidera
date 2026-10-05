@@ -172,7 +172,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         Assert.True(vm.Equipment.HasDevices);
         Assert.Same(cameras, vm.Equipment.Cameras);
         Assert.Equal(3, cameras.Count);
-        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig", "Standalone devices"], vm.Equipment.LandingGroups.Select(g => g.Title));
+        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.LandingGroups.Select(g => g.Title)); // the shared mount and guider are the rigs' devices
         Assert.True(vm.Equipment.HasRigs);
         Assert.Equal(3, vm.Equipment.Rigs.Count);
         Assert.Equal(8, vm.SequenceDraft.Steps.Count);
@@ -1029,5 +1029,65 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
 
         Assert.Equal("camera.main", Assert.Single(vm.Equipment.Cameras).DeviceIdText);
         Assert.Contains("\"version\": 1", File.ReadAllText(File_));
+    }
+
+    private EquipmentViewModel OpenMainRig()
+    {
+        var (vm, _, _) = CreateApp();
+        vm.Equipment.AddDemoEquipmentCommand.Execute(null);
+        vm.Equipment.Contexts.Single(c => c.Title == "Main Rig").SelectCommand.Execute(null);
+        return vm.Equipment;
+    }
+
+    [Fact]
+    public void TheRigOverview_ListsTheAssignedDevicesIncludingMountAndGuider_AndOffersTheSetup()
+    {
+        var equipment = OpenMainRig();
+
+        Assert.True(equipment.IsRigOverview);
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.SelectedRig!.Parts.Select(p => p.Role));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter wheel", "Guider", "Rotator"], equipment.RigSetup!.Assignments.Select(a => a.Title));
+    }
+
+    [Fact]
+    public void RenamingARig_ChangesItsContext()
+    {
+        var equipment = OpenMainRig();
+
+        equipment.RigSetup!.NameText = "Primary Rig";
+        equipment.RigSetup.RenameCommand.Execute(null);
+
+        Assert.Contains(equipment.Contexts, c => c.Title == "Primary Rig");
+        Assert.DoesNotContain(equipment.Contexts, c => c.Title == "Main Rig");
+    }
+
+    [Fact]
+    public void RemovingARig_NeedsASecondClick_AndKeepsItsDevices()
+    {
+        var equipment = OpenMainRig();
+        var devices = equipment.Cameras.Count;
+
+        equipment.RigSetup!.RemoveCommand.Execute(null);
+        Assert.True(equipment.RigSetup.IsConfirmingRemove);
+        Assert.Contains(equipment.Contexts, c => c.Title == "Main Rig");
+
+        equipment.RigSetup.RemoveCommand.Execute(null);
+
+        Assert.DoesNotContain(equipment.Contexts, c => c.Title == "Main Rig");
+        Assert.Equal(devices, equipment.Cameras.Count);
+    }
+
+    [Fact]
+    public void TheMountOfARig_CanBeTakenAway_AndGivenBack()
+    {
+        var equipment = OpenMainRig();
+        var mount = equipment.RigSetup!.Assignments.Single(a => a.Role == Sidera.Core.Rigs.RigRole.Mount);
+        var before = mount.Selected!;
+
+        mount.Selected = mount.Choices.Single(c => c.Id is null);
+        Assert.DoesNotContain(equipment.Pages, p => p.Page == EquipmentPage.Mount);
+
+        equipment.RigSetup!.Assignments.Single(a => a.Role == Sidera.Core.Rigs.RigRole.Mount).Selected = before;
+        Assert.Contains(equipment.Pages, p => p.Page == EquipmentPage.Mount);
     }
 }

@@ -173,7 +173,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         _rigs.Clear();
         foreach (var rig in _host.RigRegistry.GetAll().OrderBy(r => r.Id.Value, StringComparer.Ordinal))
         {
-            var vm = new RigViewModel(rig, _host, _cameras, _focusers, _filterWheels);
+            var vm = new RigViewModel(rig, _host, _cameras, _focusers, _filterWheels, _mounts, _guiders, _rotators);
             var captured = vm;
             vm.OpenCommand = new RelayCommand(() => OpenRig(captured));
             foreach (var member in vm.Members)

@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Equipment.RigOverviewView"
+             x:DataType="vm:EquipmentViewModel">
+
+    <!--
+        The overview of a rig: its optical train, its devices with their state (a row opens the page of the device; no manual controls here), and how the rig is put together. A mount or a
+        guider that another rig names too is the same device on both.
+    -->
+    <WrapPanel>
+        <ctl:WorkspaceSection Header="OPTICS">
+            <StackPanel Spacing="2">
+                <ctl:InfoRow Label="Focal length" Value="{Binding SelectedRig.FocalLengthText}" />
+                <ctl:InfoRow Label="Aperture" Value="{Binding SelectedRig.ApertureText}" />
+                <ctl:InfoRow Label="Pixel scale" Value="{Binding SelectedRig.PixelScaleText}" AutomationProperties.AutomationId="RigPixelScale" />
+                <ctl:InfoRow Label="Field of view" Value="{Binding SelectedRig.FieldOfViewText}" AutomationProperties.AutomationId="RigFieldOfView" />
+                <TextBlock Classes="meta" Margin="0,8,0,0" TextWrapping="Wrap" Text="The optical train is edited on the camera page. Pixel scale and field of view follow from it and from the camera." />
+            </StackPanel>
+        </ctl:WorkspaceSection>
+
+        <ctl:WorkspaceSection Header="DEVICES">
+            <ItemsControl ItemsSource="{Binding SelectedRig.Parts}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RigPartViewModel">
+                        <Button Classes="ghost" Command="{Binding OpenCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,6">
+                            <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                                <TextBlock Classes="secondary" Text="{Binding Role}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="value" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <ctl:StatusIndicator Kind="{Binding StatusKind}" Text="{Binding StatusText}" />
+                                    <TextBlock Classes="meta" Text="{Binding DetailText}" TextTrimming="CharacterEllipsis"
+                                               IsVisible="{Binding DetailText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ctl:WorkspaceSection>
+
+        <ctl:WorkspaceSection Header="RIG SETUP">
+            <StackPanel Spacing="10" Width="360" DataContext="{Binding RigSetup}" x:DataType="vm:RigSetupViewModel">
+                <ctl:LabeledField Label="Name">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Text="{Binding NameText}" AutomationProperties.AutomationId="RigName" />
+                        <Button Grid.Column="1" Content="Rename" Command="{Binding RenameCommand}" AutomationProperties.AutomationId="RigRename" />
+                    </Grid>
+                </ctl:LabeledField>
+                <ItemsControl ItemsSource="{Binding Assignments}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RigAssignmentViewModel">
+                            <ctl:LabeledField Label="{Binding Title}" Margin="0,0,0,8">
+                                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected, Mode=TwoWay}" HorizontalAlignment="Stretch"
+                                          AutomationProperties.AutomationId="{Binding Title, StringFormat=RigAssign{0}}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:AssignmentChoice"><TextBlock Text="{Binding Text}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </ctl:LabeledField>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="meta" TextWrapping="Wrap" Text="Changing a device changes the rig at once and saves it. A mount or guider can be shared with another rig; the other devices belong to one rig." />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Remove rig" Command="{Binding RemoveCommand}" IsVisible="{Binding !IsConfirmingRemove}" AutomationProperties.AutomationId="RigRemove" />
+                    <Button Classes="danger" Content="Confirm remove" Command="{Binding RemoveCommand}" IsVisible="{Binding IsConfirmingRemove}" AutomationProperties.AutomationId="RigRemoveConfirm" />
+                    <Button Content="Keep" Command="{Binding CancelRemoveCommand}" IsVisible="{Binding IsConfirmingRemove}" />
+                </StackPanel>
+            </StackPanel>
+        </ctl:WorkspaceSection>
+    </WrapPanel>
+</UserControl>

@@ -28,6 +28,59 @@ public sealed class RigMemberViewModel(string role, DeviceViewModelBase? device)
 }
 
 /// <summary>
+/// One device of a rig as the overview shows it: its role, its name, whether it is connected and one line of what it is doing. Follows the device; opens its page.
+/// </summary>
+public sealed partial class RigPartViewModel : ObservableObject
+{
+    public RigPartViewModel(string role, DeviceViewModelBase device)
+    {
+        Role = role;
+        Device = device;
+        device.Refreshed += (_, _) => Refresh();
+        Refresh();
+    }
+
+    public string Role { get; }
+
+    public DeviceViewModelBase Device { get; }
+
+    public string Name => Device.Name;
+
+    /// <summary>Opens the page of the device in the workspace of the rig.</summary>
+    public ICommand? OpenCommand { get; set; }
+
+    [ObservableProperty]
+    public partial string StatusText { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial StatusKind StatusKind { get; private set; }
+
+    /// <summary>What the device is doing, in one line ("Idle", "Position 18,540", "Guiding · 0.62 arcsec"); only while it is connected.</summary>
+    [ObservableProperty]
+    public partial string DetailText { get; private set; } = string.Empty;
+
+    private void Refresh()
+    {
+        StatusText = Device.StatusText;
+        StatusKind = Device.StatusKind;
+        DetailText = Device.IsConnected ? DetailOf(Device) : string.Empty;
+    }
+
+    private static string DetailOf(DeviceViewModelBase device) => device switch
+    {
+        CameraViewModel camera => camera.ActivityText,
+        FocuserViewModel focuser => focuser.PositionText,
+        FilterWheelViewModel wheel => wheel.CurrentFilterText,
+        RotatorViewModel rotator => rotator.PositionText,
+        MountViewModel mount => mount.IsPositionKnown
+            ? string.Create(CultureInfo.InvariantCulture, $"{mount.MotionState} · RA {mount.Coordinates.RightAscensionHours:0.###} h · Dec {mount.Coordinates.DeclinationDegrees:+0.##;-0.##;0}°")
+            : mount.MotionState.ToString(),
+        GuiderViewModel guider => guider.IsGuiding ? $"Guiding · {guider.RmsText}" : guider.StateText,
+        _ => string.Empty,
+    };
+}
+
+/// <summary>
 /// A logical imaging rig, read-only: which devices form it, the optical train it describes, and what its parts are
 /// doing. A rig is a grouping of equipment, never a replacement for it: its devices stay available on their own.
 /// The state is read from the device view models, so a rig can never disagree with the devices it names.
@@ -41,7 +94,10 @@ public sealed partial class RigViewModel : ViewModelBase
         SideraRuntimeHost host,
         IReadOnlyList<CameraViewModel> cameras,
         IReadOnlyList<FocuserViewModel>? focusers = null,
-        IReadOnlyList<FilterWheelViewModel>? filterWheels = null)
+        IReadOnlyList<FilterWheelViewModel>? filterWheels = null,
+        IReadOnlyList<MountViewModel>? mounts = null,
+        IReadOnlyList<GuiderViewModel>? guiders = null,
+        IReadOnlyList<RotatorViewModel>? rotators = null)
     {
         _rig = rig;
         Camera = cameras.FirstOrDefault(c => c.CameraId == rig.CameraId);
@@ -51,6 +107,13 @@ public sealed partial class RigViewModel : ViewModelBase
         FocuserText = rig.FocuserId is { } focuser ? Describe(host, focuser) : NotConfigured;
         FilterWheelText = rig.FilterWheelId is { } wheel ? Describe(host, wheel) : NotConfigured;
 
+        Mount = rig.MountId is { } mountId ? mounts?.FirstOrDefault(m => m.DeviceIdText == mountId.Value) : null;
+        Guider = rig.GuiderId is { } guiderId ? guiders?.FirstOrDefault(g => g.DeviceIdText == guiderId.Value) : null;
+        Rotator = rig.RotatorId is { } rotatorId ? rotators?.FirstOrDefault(r => r.DeviceIdText == rotatorId.Value) : null;
+        Parts = [.. new (string Role, DeviceViewModelBase? Device)[]
+            {
+                ("Camera", Camera), ("Mount", Mount), ("Focuser", Focuser), ("Filter Wheel", FilterWheel), ("Guider", Guider), ("Rotator", Rotator),
+            }.Where(p => p.Device is not null).Select(p => new RigPartViewModel(p.Role, p.Device!))];
         Members = [new RigMemberViewModel("Camera", Camera), new RigMemberViewModel("Focuser", Focuser), new RigMemberViewModel("Filter Wheel", FilterWheel)];
         foreach (var device in Members.Select(m => m.Device).OfType<DeviceViewModelBase>())
         {
@@ -77,6 +140,28 @@ public sealed partial class RigViewModel : ViewModelBase
 
     /// <summary>The rig's filter wheel, if it has one and the equipment lists it.</summary>
     public FilterWheelViewModel? FilterWheel { get; }
+
+    /// <summary>The mount that carries the rig, if it has one and the equipment lists it. Another rig may name the same mount.</summary>
+    public MountViewModel? Mount { get; }
+
+    /// <summary>The guider of the rig, if it has one and the equipment lists it. Another rig may name the same guider.</summary>
+    public GuiderViewModel? Guider { get; }
+
+    /// <summary>The rotator of the rig, if it has one and the equipment lists it.</summary>
+    public RotatorViewModel? Rotator { get; }
+
+    public DeviceId? MountId => _rig.MountId;
+
+    public DeviceId? GuiderId => _rig.GuiderId;
+
+    public bool HasMount => _rig.MountId is not null;
+
+    public bool HasGuider => _rig.GuiderId is not null;
+
+    public bool HasRotator => _rig.RotatorId is not null;
+
+    /// <summary>The devices the rig has, in the order they are shown (camera, mount, focuser, filter wheel, guider, rotator): the rows of its overview.</summary>
+    public IReadOnlyList<RigPartViewModel> Parts { get; }
 
     /// <summary>The camera, the focuser and the filter wheel, in this order, with the ones the rig does not have marked as such.</summary>
     public IReadOnlyList<RigMemberViewModel> Members { get; }

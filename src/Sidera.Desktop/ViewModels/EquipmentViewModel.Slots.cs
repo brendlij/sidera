@@ -59,8 +59,20 @@ public sealed partial class EquipmentViewModel
         }
     }
 
-    /// <summary>The device a slot controls: the first of its kind.</summary>
-    internal DeviceViewModelBase? DeviceOfKind(DeviceType type) => type switch
+    /// <summary>The device a slot controls: the one the workspace shows when it is of the kind of the slot (the rig's, or the one chosen among the standalone devices), else the first of its kind.</summary>
+    internal DeviceViewModelBase? DeviceOfKind(DeviceType type) => SelectedDevice is { } shown && KindOf(shown) == type ? shown : FirstOfKind(type);
+
+    private static DeviceType KindOf(DeviceViewModelBase device) => device switch
+    {
+        CameraViewModel => DeviceType.Camera,
+        MountViewModel => DeviceType.Mount,
+        FocuserViewModel => DeviceType.Focuser,
+        FilterWheelViewModel => DeviceType.FilterWheel,
+        RotatorViewModel => DeviceType.Rotator,
+        _ => DeviceType.Guider,
+    };
+
+    private DeviceViewModelBase? FirstOfKind(DeviceType type) => type switch
     {
         DeviceType.Camera => _cameras.FirstOrDefault(),
         DeviceType.Mount => _mounts.FirstOrDefault(),
