@@ -12,8 +12,11 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 
 ## What it does today
 
-- **Equipment:** one page with a tab per device kind (camera, mount, focuser, filter wheel, guider, rotator). Choose a driver (none, simulator,
-  or an installed ASCOM driver), open its setup dialog, connect. Camera settings apply as you change them.
+- **Equipment:** one page, in contexts: the devices on their own (Standalone) and each rig. A rig page shows an overview (its optical train and its devices with their
+  state) and one page for each device the rig has. Rigs are managed there: add a rig (a name and a camera), rename it, give it a mount, guider, focuser, filter wheel or
+  rotator, remove it (its devices stay). A rig owns its camera, focuser, filter wheel and rotator; its mount and guider are optional, and two rigs that name the same mount
+  or guider share that one device. Choose a driver (none, simulator, or an installed ASCOM driver), open its setup dialog (also while the device is disconnected), connect.
+  A disconnected device shows its name, its state and Connect, nothing stale. Camera settings apply as you change them.
 - **Camera:** exposures with gain, offset, binning, subframe and readout mode where the camera supports them; stop and abort;
   cooling controls; frames shown on the Imaging page.
 - **Mount:** slew, tracking, sync, park, hold-to-move pad, and a Stop that is always there. A large slew asks for confirmation.
@@ -33,9 +36,15 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   camera and the database is shown as a warning, not replaced.
 - **Framing:** search an object (M31, NGC 7000, IC 434), see the field of the selected rig on a sky survey (HiPS tiles from the CDS, cached on your disk),
   drag and turn the frame, then Slew & Center on it or add it to the session. With a rotator in the rig the page offers Center & Rotate instead, and a rig without one
-  compares the rotation of a plate solve with the plan and says by how many degrees to change it (Solve Again after you turned the camera). The mount is never synchronized. No survey is bundled; the rights of each survey are shown with it.
+  compares the rotation of a plate solve with the plan and says by how many degrees to change it (Solve Again after you turned the camera). The mount is never synchronized. The field of the current scope is drawn in red: the position of the mount, live, or the solved position and rotation while they are current; a rotation that is not known is drawn unrotated and dashed. No survey is bundled; the rights of each survey are shown with it.
+- **Imaging:** manual capture with the selected rig's camera through the same acquisition pipeline as the sequence (exposure, frame type, gain, offset, binning),
+  with a viewer: wheel to zoom around the pointer, drag to pan, Fit, 1:1 and Auto Stretch (display only, the data is never changed). Save FITS writes the data as taken with its
+  metadata; Save PNG writes what you see, and says so. A manual Autofocus runs the sequence's autofocus on the selected rig and shows its samples, curve and result.
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
-  with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
+  with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files. Rig steps choose a rig, not a camera and a focuser; each step
+  uses the mount and guider of its rig. With more than one rig the session can be seen as Overview, one tab per rig, or Shared: the same steps, filtered. Rigs on different
+  mounts work at the same time; rigs on one mount or one guider take turns for it (a plate solve or a rotation holds only the devices it uses).
+- **Settings:** tabs for General, Observatory, Plate solving and Framing. Each editable tab is saved with its own Save button; nothing is applied while you type.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
 
 ## Requirements
