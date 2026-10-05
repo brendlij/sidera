@@ -167,4 +167,36 @@ public sealed class PlateSolveServiceTests
         Assert.True(result.Success); Assert.Equal(1, result.Attempts);
         Assert.InRange(result.PointingErrorArcseconds!.Value, .99, 1.01);
     }
+
+    [Fact]
+    public async Task NeitherSolvingNorCenteringSynchronizesTheMount_ButAnExplicitSyncDoes()
+    {
+        var h = await Harness(); await using var host = h.Host;
+        var mount = (Sidera.Runtime.Devices.SimulatedMount)host.DeviceRegistry.GetAll().OfType<Sidera.Runtime.Devices.SimulatedMount>().Single();
+        var offset = SkyMath.FromTangentOffset(Target, .02, .02);
+        h.Solver.Success(offset); h.Solver.Success(Target);
+
+        var result = await host.PlateSolving!.CenterTargetAsync(Target, h.Rig, h.Mount, 5, 3, TimeSpan.FromMilliseconds(1), Defaults);
+
+        // A sync would have set the mount to the solved position; the mount is where the last slew put it.
+        Assert.True(result.Success);
+        var seenByMount = mount.Coordinates;
+        Assert.True(SkyMath.AngularSeparationDegrees(seenByMount, h.Solver.Requests[1].ApproximateCenter!) < 1e-6 || SkyMath.AngularSeparationDegrees(seenByMount, Target) < 0.05);
+
+        h.Solver.Success(offset);
+        await host.PlateSolving.CaptureAndSolveAsync(h.Rig, h.Mount, TimeSpan.FromMilliseconds(1), Defaults);
+        Assert.True(SkyMath.AngularSeparationDegrees(mount.Coordinates, offset) > 0.01, "a plain solve moved or synced the mount");
+
+        await host.PlateSolving.SyncMountToSolvedPositionAsync(h.Mount);
+
+        Assert.True(SkyMath.AngularSeparationDegrees(mount.Coordinates, offset) < 1e-9);
+    }
+
+    [Fact]
+    public async Task AnExplicitSync_NeedsASuccessfulSolve()
+    {
+        var h = await Harness(); await using var host = h.Host;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.PlateSolving!.SyncMountToSolvedPositionAsync(h.Mount));
+    }
 }
