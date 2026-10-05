@@ -292,6 +292,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
         : base(draft.Id, tracks)
     {
         SingleTrack = draft.SingleTrack;
+        MeridianFlip = draft.MeridianFlip;
         var policy = draft.DitherPolicy ?? MultiRigDitherPolicyDraft.Default;
         DitherEnabled = policy.Enabled;
         DitherEveryText = policy.EveryNFrames.ToString(CultureInfo.InvariantCulture);
@@ -311,6 +312,9 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
 
     /// <summary>The block may have a single track (it is the imaging of a workflow); kept as it was read.</summary>
     public bool SingleTrack { get; }
+
+    /// <summary>The meridian flip of the block, kept as it was read: a workflow sets it, the Advanced editor shows it in the summary and keeps it.</summary>
+    public MeridianFlipPolicyDraft? MeridianFlip { get; }
 
     /// <summary>The Rig Tracks as lanes: what each rig does, one summary for each, for the overview of the block.</summary>
     public IReadOnlyList<LaneSummary> Lanes => Children.OfType<RigTrackDraftViewModel>().Select(track => track.Lane).ToList();
@@ -424,7 +428,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     }
 
     // Without its tracks: the draft view model reads those.
-    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors), SingleTrack);
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors), SingleTrack, MeridianFlip);
 }
 
 /// <summary>

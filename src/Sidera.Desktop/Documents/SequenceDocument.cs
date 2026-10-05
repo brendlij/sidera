@@ -137,7 +137,8 @@ public sealed record MultiRigDocumentStep(
     Guid Id,
     IReadOnlyList<RigTrackDocument> Tracks,
     DitherPolicyDocument? DitherPolicy = null,
-    bool SingleTrack = false
+    bool SingleTrack = false,
+    MeridianFlipPolicyDraft? MeridianFlip = null
 ) : DocumentStep(Id);
 
 public enum SequenceDocumentErrorKind

@@ -317,6 +317,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                     w.WriteBoolean("singleTrack", true);
                 }
 
+                if (m.MeridianFlip is { } meridianFlip)
+                {
+                    WorkflowJson.WriteMeridianFlip(w, meridianFlip);
+                }
+
                 if (m.DitherPolicy is { } policy)
                 {
                     w.WriteStartObject("ditherPolicy");
@@ -620,7 +625,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         return new MultiRigDocumentStep(
-            id, tracks, ReadDitherPolicy(element), version >= 8 && element.TryGetProperty("singleTrack", out var single) && single.ValueKind == JsonValueKind.True);
+            id, tracks, ReadDitherPolicy(element), version >= 8 && element.TryGetProperty("singleTrack", out var single) && single.ValueKind == JsonValueKind.True,
+            version >= 8 ? WorkflowJson.ReadMeridianFlip(element) : null);
     }
 
     // Optional, and only in version 5: a track without one does not focus by itself. When it is there, it is complete.

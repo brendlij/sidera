@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
+using Sidera.Core.Mounts;
 using Sidera.Core.Rigs;
 using Sidera.Desktop.Workflows;
 
@@ -87,6 +88,13 @@ internal static class WorkflowJson
         w.WriteNumber("settleTimeoutSeconds", dither.SettleTimeoutSeconds);
         w.WriteEndObject();
 
+        if (workflow.MeridianFlip is { } flip)
+        {
+            w.WriteStartObject("meridianFlip");
+            WriteSettingsBody(w, flip);
+            w.WriteEndObject();
+        }
+
         w.WriteStartArray("autofocus");
         foreach (var policy in workflow.AutofocusPolicies)
         {
@@ -140,6 +148,120 @@ internal static class WorkflowJson
         }
 
         w.WriteEndArray();
+    }
+
+    // ---- the meridian flip: its settings, and as a policy of a Multi-Rig block with the target it keeps pointing at
+
+    private static void WriteSettingsBody(Utf8JsonWriter w, MeridianFlipSettings s)
+    {
+        w.WriteBoolean("enabled", s.Enabled);
+        w.WriteNumber("pauseBeforeMeridianMinutes", s.PauseBeforeMeridianMinutes);
+        w.WriteNumber("flipAfterMeridianMinutes", s.FlipAfterMeridianMinutes);
+        w.WriteNumber("latestAllowedFlipMinutes", s.LatestAllowedFlipMinutes);
+        w.WriteBoolean("finishCurrentExposure", s.FinishCurrentExposure);
+        w.WriteBoolean("stopGuidingBeforeFlip", s.StopGuidingBeforeFlip);
+        w.WriteBoolean("recenterAfterFlip", s.RecenterAfterFlip);
+        w.WriteBoolean("verifyRotationAfterFlip", s.VerifyRotationAfterFlip);
+        w.WriteBoolean("autofocusAfterFlip", s.AutofocusAfterFlip);
+        w.WriteBoolean("restartGuidingAfterFlip", s.RestartGuidingAfterFlip);
+        w.WriteBoolean("ditherAfterFlip", s.DitherAfterFlip);
+        w.WriteNumber("pauseAfterFlipMinutes", s.PauseAfterFlipMinutes);
+        w.WriteNumber("maxFlipAttempts", s.MaxFlipAttempts);
+        w.WriteString("failureBehavior", s.FailureBehavior == MeridianFlipFailureBehavior.AbortSession ? "abortSession" : "pauseSession");
+        w.WriteNumber("centeringToleranceArcseconds", s.CenteringToleranceArcseconds);
+        w.WriteNumber("maxCenteringAttempts", s.MaxCenteringAttempts);
+        w.WriteNumber("solveExposureSeconds", s.SolveExposureSeconds);
+    }
+
+    // A setting that the file does not have is the default of the setting; one that has the wrong kind of value is an error.
+    private static MeridianFlipSettings ReadSettingsBody(JsonElement e)
+    {
+        var d = new MeridianFlipSettings();
+        bool Flag(string name, bool fallback) =>
+            !e.TryGetProperty(name, out var v) ? fallback : v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : throw Structure($"'{name}' must be true or false.");
+        double Num(string name, double fallback) =>
+            !e.TryGetProperty(name, out var v) ? fallback : v.ValueKind == JsonValueKind.Number && v.TryGetDouble(out var n) && double.IsFinite(n) ? n : throw Structure($"'{name}' must be a number.");
+        int Int(string name, int fallback) =>
+            !e.TryGetProperty(name, out var v) ? fallback : v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : throw Structure($"'{name}' must be a whole number.");
+
+        var behavior = e.TryGetProperty("failureBehavior", out var b) && b.ValueKind == JsonValueKind.String ? b.GetString() : null;
+        if (e.TryGetProperty("failureBehavior", out _) && behavior is not ("pauseSession" or "abortSession"))
+        {
+            throw Structure("'failureBehavior' must be 'pauseSession' or 'abortSession'.");
+        }
+
+        return new MeridianFlipSettings
+        {
+            Enabled = Flag("enabled", d.Enabled),
+            PauseBeforeMeridianMinutes = Num("pauseBeforeMeridianMinutes", d.PauseBeforeMeridianMinutes),
+            FlipAfterMeridianMinutes = Num("flipAfterMeridianMinutes", d.FlipAfterMeridianMinutes),
+            LatestAllowedFlipMinutes = Num("latestAllowedFlipMinutes", d.LatestAllowedFlipMinutes),
+            FinishCurrentExposure = Flag("finishCurrentExposure", d.FinishCurrentExposure),
+            StopGuidingBeforeFlip = Flag("stopGuidingBeforeFlip", d.StopGuidingBeforeFlip),
+            RecenterAfterFlip = Flag("recenterAfterFlip", d.RecenterAfterFlip),
+            VerifyRotationAfterFlip = Flag("verifyRotationAfterFlip", d.VerifyRotationAfterFlip),
+            AutofocusAfterFlip = Flag("autofocusAfterFlip", d.AutofocusAfterFlip),
+            RestartGuidingAfterFlip = Flag("restartGuidingAfterFlip", d.RestartGuidingAfterFlip),
+            DitherAfterFlip = Flag("ditherAfterFlip", d.DitherAfterFlip),
+            PauseAfterFlipMinutes = Num("pauseAfterFlipMinutes", d.PauseAfterFlipMinutes),
+            MaxFlipAttempts = Int("maxFlipAttempts", d.MaxFlipAttempts),
+            FailureBehavior = behavior == "abortSession" ? MeridianFlipFailureBehavior.AbortSession : MeridianFlipFailureBehavior.PauseSession,
+            CenteringToleranceArcseconds = Num("centeringToleranceArcseconds", d.CenteringToleranceArcseconds),
+            MaxCenteringAttempts = Int("maxCenteringAttempts", d.MaxCenteringAttempts),
+            SolveExposureSeconds = Num("solveExposureSeconds", d.SolveExposureSeconds),
+        };
+    }
+
+    /// <summary>The <c>meridianFlip</c> of a Multi-Rig block: the settings, and the target the flip slews back to.</summary>
+    public static void WriteMeridianFlip(Utf8JsonWriter w, MeridianFlipPolicyDraft policy)
+    {
+        w.WriteStartObject("meridianFlip");
+        WriteSettingsBody(w, policy.Settings);
+        w.WriteNumber("raHours", policy.RightAscensionHours);
+        w.WriteNumber("decDegrees", policy.DeclinationDegrees);
+        if (policy.TargetName is { } name)
+        {
+            w.WriteString("targetName", name);
+        }
+
+        if (policy.DesiredRotationDegrees is { } rotation)
+        {
+            w.WriteNumber("rotationDegrees", rotation);
+        }
+
+        if (policy.PointingRigId is { } pointing)
+        {
+            w.WriteString("pointingRigId", pointing.Value);
+        }
+
+        w.WriteNumber("ditherAmplitudePixels", policy.DitherAmplitudePixels);
+        w.WriteNumber("settleThresholdPixels", policy.SettleThresholdPixels);
+        w.WriteNumber("settleStableSeconds", policy.SettleStableSeconds);
+        w.WriteNumber("settleTimeoutSeconds", policy.SettleTimeoutSeconds);
+        w.WriteEndObject();
+    }
+
+    public static MeridianFlipPolicyDraft? ReadMeridianFlip(JsonElement block)
+    {
+        if (!block.TryGetProperty("meridianFlip", out var e) || e.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (e.ValueKind != JsonValueKind.Object)
+        {
+            throw Structure("'meridianFlip' must be an object.");
+        }
+
+        return new MeridianFlipPolicyDraft(
+            ReadSettingsBody(e), Number(e, "raHours"), Number(e, "decDegrees"),
+            e.TryGetProperty("targetName", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() : null,
+            e.TryGetProperty("rotationDegrees", out _) ? Number(e, "rotationDegrees") : null,
+            OptionalRig(e, "pointingRigId"),
+            e.TryGetProperty("ditherAmplitudePixels", out _) ? Number(e, "ditherAmplitudePixels") : 1.5,
+            e.TryGetProperty("settleThresholdPixels", out _) ? Number(e, "settleThresholdPixels") : 0.5,
+            e.TryGetProperty("settleStableSeconds", out _) ? Number(e, "settleStableSeconds") : 1,
+            e.TryGetProperty("settleTimeoutSeconds", out _) ? Number(e, "settleTimeoutSeconds") : 60);
     }
 
     /// <summary>The workflow of a document, or <c>null</c> for one that has none (every document before version 8, and a sequence made in the Advanced editor).</summary>
@@ -202,7 +324,13 @@ internal static class WorkflowJson
                 new RigId(Text(policy, "setup")), Flag(policy, "enabled"), Flag(policy, "atStart"), Number(policy, "intervalMinutes"), Flag(policy, "afterFilterChange"), Settings(policy)));
         }
 
-        return new WorkflowDefinition(workflowTarget, prepare, blocks, finish, workflowDither, policies);
+        MeridianFlipSettings? meridianFlip = null;
+        if (element.TryGetProperty("meridianFlip", out var flipElement) && flipElement.ValueKind == JsonValueKind.Object)
+        {
+            meridianFlip = ReadSettingsBody(flipElement);
+        }
+
+        return new WorkflowDefinition(workflowTarget, prepare, blocks, finish, workflowDither, policies, meridianFlip);
     }
 
     private static List<WorkflowStep> ReadSteps(JsonElement parent, string name)

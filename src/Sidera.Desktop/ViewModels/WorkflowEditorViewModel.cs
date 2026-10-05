@@ -8,7 +8,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidera.Core.Devices;
 using Sidera.Core.FilterWheels;
+using Sidera.Core.Mounts;
 using Sidera.Core.Rigs;
+using Sidera.Runtime.Sequencing;
 using Sidera.Desktop.Workflows;
 using Sidera.Runtime.Devices;
 using Sidera.Runtime.Rigs;
@@ -47,6 +49,12 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     private readonly DeviceRegistry _registry;
     private readonly SequenceDraftDefaults _defaults;
     private readonly ExecutionOverviewViewModel? _execution;
+    private readonly Sidera.Runtime.Events.EventBus? _events;
+    private readonly Action<Action> _post;
+    private readonly Func<Sidera.Core.Location.ObservingSite?>? _site;
+    private IDisposable? _flipSubscription;
+    private MeridianFlipSettings _flip = new();
+    private List<string> _flipProblems = [];
     private readonly List<TrackLaneViewModel> _wiredLanes = [];
     private bool _loading;
     private WorkflowTarget _target = WorkflowTarget.Default;
@@ -54,8 +62,18 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     private List<SetupAutofocus> _policies = [];
 
     public WorkflowEditorViewModel(
-        SequenceDraftViewModel draft, RigRegistry? rigs, DeviceRegistry registry, SequenceDraftDefaults defaults, ExecutionOverviewViewModel? execution = null)
+        SequenceDraftViewModel draft, RigRegistry? rigs, DeviceRegistry registry, SequenceDraftDefaults defaults, ExecutionOverviewViewModel? execution = null,
+        Sidera.Runtime.Events.EventBus? events = null, Action<Action>? postToUi = null, Func<Sidera.Core.Location.ObservingSite?>? site = null)
     {
+        _events = events;
+        _post = postToUi ?? (action => action());
+        _site = site;
+        draft.FlipGroupsChanged += OnFlipGroupsChanged;
+        _flipSubscription = events?.Subscribe<MeridianFlipStateChanged>((_, _) =>
+        {
+            _post(RefreshFlipStatus);
+            return System.Threading.Tasks.Task.CompletedTask;
+        });
         _draft = draft;
         _rigs = rigs;
         _registry = registry;
@@ -74,6 +92,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     {
         _draft.PropertyChanged -= OnDraftPropertyChanged;
         _draft.Modified -= OnDraftModified;
+        _draft.FlipGroupsChanged -= OnFlipGroupsChanged;
+        _flipSubscription?.Dispose();
         if (_execution is not null)
         {
             _execution.PropertyChanged -= OnExecutionChanged;
@@ -241,6 +261,192 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     public bool IsRunning => !_draft.IsEditable;
 
+    // ---- the meridian flip: a policy of the imaging section, set once for the workflow
+
+    [ObservableProperty]
+    public partial bool FlipEnabled { get; set; }
+
+    [ObservableProperty]
+    public partial string FlipPauseBeforeText { get; set; } = "5";
+
+    [ObservableProperty]
+    public partial string FlipAfterText { get; set; } = "2";
+
+    [ObservableProperty]
+    public partial string FlipLatestText { get; set; } = "15";
+
+    /// <summary>An exposure that is running when the flip comes due is let to finish. It is always on in this version; the box is shown, not changeable.</summary>
+    public bool FlipFinishCurrentExposure => true;
+
+    [ObservableProperty]
+    public partial bool FlipStopGuiding { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool FlipRecenter { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool FlipRotation { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool FlipAutofocus { get; set; }
+
+    [ObservableProperty]
+    public partial bool FlipRestartGuiding { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool FlipDither { get; set; }
+
+    [ObservableProperty]
+    public partial string FlipPauseAfterText { get; set; } = "0";
+
+    [ObservableProperty]
+    public partial string FlipAttemptsText { get; set; } = "2";
+
+    /// <summary>A failed flip holds the setups of its mount until the user retries or aborts (on), or ends the session (off).</summary>
+    [ObservableProperty]
+    public partial bool FlipPauseOnFailure { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string FlipToleranceText { get; set; } = "60";
+
+    [ObservableProperty]
+    public partial string FlipCenterAttemptsText { get; set; } = "5";
+
+    /// <summary>The flip in a sentence: "Hold new exposures 5 min before the meridian, flip 2 min after it, at the latest 15 min after."</summary>
+    public string FlipSummary => FlipEnabled
+        ? string.Create(CultureInfo.InvariantCulture, $"Hold new exposures {_flip.PauseBeforeMeridianMinutes:0.#} min before the meridian, flip {_flip.FlipAfterMeridianMinutes:0.#} min after it, at the latest {_flip.LatestAllowedFlipMinutes:0.#} min after.")
+        : "Off";
+
+    /// <summary>Where the target is relative to the meridian, when the site is known: the countdown the session shows next to its target.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMeridianInfo))]
+    public partial string MeridianInfoText { get; private set; } = string.Empty;
+
+    public bool HasMeridianInfo => MeridianInfoText.Length > 0;
+
+    /// <summary>What the flips of the run are doing, one for each mount; empty while there is no run or no flip.</summary>
+    public ObservableCollection<MeridianFlipStatusViewModel> FlipStatuses { get; } = [];
+
+    public bool HasFlipStatus => FlipStatuses.Count > 0;
+
+    partial void OnFlipEnabledChanged(bool value) => FlipEdited();
+    partial void OnFlipPauseBeforeTextChanged(string value) => FlipEdited();
+    partial void OnFlipAfterTextChanged(string value) => FlipEdited();
+    partial void OnFlipLatestTextChanged(string value) => FlipEdited();
+    partial void OnFlipStopGuidingChanged(bool value) => FlipEdited();
+    partial void OnFlipRecenterChanged(bool value) => FlipEdited();
+    partial void OnFlipRotationChanged(bool value) => FlipEdited();
+    partial void OnFlipAutofocusChanged(bool value) => FlipEdited();
+    partial void OnFlipRestartGuidingChanged(bool value) => FlipEdited();
+    partial void OnFlipDitherChanged(bool value) => FlipEdited();
+    partial void OnFlipPauseAfterTextChanged(string value) => FlipEdited();
+    partial void OnFlipAttemptsTextChanged(string value) => FlipEdited();
+    partial void OnFlipPauseOnFailureChanged(bool value) => FlipEdited();
+    partial void OnFlipToleranceTextChanged(string value) => FlipEdited();
+    partial void OnFlipCenterAttemptsTextChanged(string value) => FlipEdited();
+
+    private void ReadFlipFields()
+    {
+        FlipEnabled = _flip.Enabled;
+        FlipPauseBeforeText = _flip.PauseBeforeMeridianMinutes.ToString("0.##", CultureInfo.InvariantCulture);
+        FlipAfterText = _flip.FlipAfterMeridianMinutes.ToString("0.##", CultureInfo.InvariantCulture);
+        FlipLatestText = _flip.LatestAllowedFlipMinutes.ToString("0.##", CultureInfo.InvariantCulture);
+        FlipStopGuiding = _flip.StopGuidingBeforeFlip;
+        FlipRecenter = _flip.RecenterAfterFlip;
+        FlipRotation = _flip.VerifyRotationAfterFlip;
+        FlipAutofocus = _flip.AutofocusAfterFlip;
+        FlipRestartGuiding = _flip.RestartGuidingAfterFlip;
+        FlipDither = _flip.DitherAfterFlip;
+        FlipPauseAfterText = _flip.PauseAfterFlipMinutes.ToString("0.##", CultureInfo.InvariantCulture);
+        FlipAttemptsText = _flip.MaxFlipAttempts.ToString(CultureInfo.InvariantCulture);
+        FlipPauseOnFailure = _flip.FailureBehavior == MeridianFlipFailureBehavior.PauseSession;
+        FlipToleranceText = _flip.CenteringToleranceArcseconds.ToString("0.##", CultureInfo.InvariantCulture);
+        FlipCenterAttemptsText = _flip.MaxCenteringAttempts.ToString(CultureInfo.InvariantCulture);
+        OnPropertyChanged(nameof(FlipSummary));
+    }
+
+    private void FlipEdited()
+    {
+        OnPropertyChanged(nameof(FlipSummary));
+        if (_loading)
+        {
+            return;
+        }
+
+        var problems = new List<string>();
+        _flip = _flip with
+        {
+            Enabled = FlipEnabled,
+            PauseBeforeMeridianMinutes = Number(FlipPauseBeforeText, "The pause before the meridian", "a number of minutes", problems, _flip.PauseBeforeMeridianMinutes),
+            FlipAfterMeridianMinutes = Number(FlipAfterText, "The flip after the meridian", "a number of minutes", problems, _flip.FlipAfterMeridianMinutes),
+            LatestAllowedFlipMinutes = Number(FlipLatestText, "The latest allowed flip", "a number of minutes", problems, _flip.LatestAllowedFlipMinutes),
+            StopGuidingBeforeFlip = FlipStopGuiding,
+            RecenterAfterFlip = FlipRecenter,
+            VerifyRotationAfterFlip = FlipRotation,
+            AutofocusAfterFlip = FlipAutofocus,
+            RestartGuidingAfterFlip = FlipRestartGuiding,
+            DitherAfterFlip = FlipDither,
+            PauseAfterFlipMinutes = Number(FlipPauseAfterText, "The pause after the flip", "a number of minutes", problems, _flip.PauseAfterFlipMinutes),
+            MaxFlipAttempts = Whole(FlipAttemptsText, "The flip attempts", problems, _flip.MaxFlipAttempts),
+            FailureBehavior = FlipPauseOnFailure ? MeridianFlipFailureBehavior.PauseSession : MeridianFlipFailureBehavior.AbortSession,
+            CenteringToleranceArcseconds = Number(FlipToleranceText, "The centering tolerance", "a number of arcseconds", problems, _flip.CenteringToleranceArcseconds),
+            MaxCenteringAttempts = Whole(FlipCenterAttemptsText, "The centering attempts", problems, _flip.MaxCenteringAttempts),
+        };
+        _flipProblems = problems;
+        RefreshMeridian();
+        Recompile(true);
+    }
+
+    /// <summary>Reads the sky again for the countdown of the target; called about once a second while the page is shown.</summary>
+    public void RefreshMeridian()
+    {
+        if (!FlipEnabled || Definition is null)
+        {
+            MeridianInfoText = string.Empty;
+            return;
+        }
+
+        var site = (_draft.SiteProvider ?? _site)?.Invoke();
+        if (site is null)
+        {
+            MeridianInfoText = "Set the observing site (Settings) to follow the meridian.";
+            return;
+        }
+
+        var minutes = MeridianFlipTiming.HourAngleHours(_target.RightAscensionHours, (_draft.Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, site.LongitudeDegrees) * 60;
+        MeridianInfoText = MeridianFlipTiming.PhaseOf(_flip, minutes) switch
+        {
+            MeridianFlipPhase.Monitoring => $"Meridian: {MeridianFormat(-minutes - _flip.PauseBeforeMeridianMinutes)} until the hold · {MeridianFormat(-minutes)} until the crossing",
+            MeridianFlipPhase.Approaching when minutes < 0 => $"Meridian: new exposures are held when they do not fit · {MeridianFormat(-minutes)} until the crossing",
+            MeridianFlipPhase.Approaching => $"Meridian: crossed {MeridianFormat(minutes)} ago · the flip is due in {MeridianFormat(_flip.FlipAfterMeridianMinutes - minutes)}",
+            MeridianFlipPhase.FlipDue => $"Meridian: crossed {MeridianFormat(minutes)} ago · the flip is due",
+            _ => $"Meridian: crossed {MeridianFormat(minutes)} ago · the latest allowed flip has passed",
+        };
+    }
+
+    private static string MeridianFormat(double minutes) => MeridianFlipGroup.FormatMinutes(minutes);
+
+    // The flips of the sequence that is running: one status for each mount.
+    private void OnFlipGroupsChanged(object? sender, EventArgs e)
+    {
+        FlipStatuses.Clear();
+        foreach (var group in _draft.FlipGroups)
+        {
+            var name = _registry.TryGet(group.MountId, out var device) ? device.Name : group.MountId.Value;
+            FlipStatuses.Add(new MeridianFlipStatusViewModel(group, name));
+        }
+
+        OnPropertyChanged(nameof(HasFlipStatus));
+    }
+
+    private void RefreshFlipStatus()
+    {
+        foreach (var status in FlipStatuses)
+        {
+            status.Refresh();
+        }
+    }
+
     // ---- loading
 
     public void StartNew()
@@ -280,6 +486,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             _target = definition.Target;
             _dither = definition.Dither;
             _policies = [.. definition.AutofocusPolicies];
+            _flip = definition.FlipSettings;
+            _flipProblems = [];
             foreach (var step in definition.Prepare)
             {
                 PrepareRows.Add(new WorkflowRowViewModel(this, WorkflowSection.Prepare, step, null));
@@ -299,6 +507,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             ReadSetups();
             ReadTargetFields();
             ReadDitherFields();
+            ReadFlipFields();
         }
         finally
         {
@@ -837,7 +1046,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         ImagingRows.Select(r => r.Block!).ToList(),
         FinishRows.Select(r => r.Step!).ToList(),
         _dither,
-        _policies.Where(p => ImagingRows.Any(r => ResolvedSetup(r.Block!.Setup)?.Id == p.Setup)).ToList());
+        _policies.Where(p => ImagingRows.Any(r => ResolvedSetup(r.Block!.Setup)?.Id == p.Setup)).ToList(),
+        _flip == new MeridianFlipSettings() ? null : _flip);
 
     private string LabelOf(Guid id)
     {
@@ -864,8 +1074,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         Definition = definition;
         var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults);
 
-        var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).ToList();
-        _unreadable = _targetProblems.Count > 0 || _ditherProblems.Count > 0 || _policyProblems.Count > 0;
+        var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).ToList();
+        _unreadable = _targetProblems.Count > 0 || _ditherProblems.Count > 0 || _policyProblems.Count > 0 || _flipProblems.Count > 0;
         var compile = compilation.Problems.Select(p => p.ElementId is { } id ? $"{LabelOf(id)}: {p.Message}" : p.Message).ToList();
         _draft.ExternalProblems = [.. parse, .. compile];
         _draft.ReplaceSteps(compilation.Steps);

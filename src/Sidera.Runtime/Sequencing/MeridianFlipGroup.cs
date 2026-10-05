@@ -516,7 +516,7 @@ public sealed class MeridianFlipGroup
 
     private void Log(string name, string template, params object?[] args) => _logger.Log(LogLevel.Information, new EventId(0, name), template, args);
 
-    internal static string FormatMinutes(double minutes)
+    public static string FormatMinutes(double minutes)
     {
         var total = (int)Math.Round(Math.Abs(minutes) * 60);
         return string.Create(CultureInfo.InvariantCulture, $"{total / 60:00}:{total % 60:00}");

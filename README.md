@@ -47,6 +47,14 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   Devices come from the imaging setup (the rig): nothing asks for a camera, focuser, mount or guider again. Setups on one mount are centered once for the target; setups on different mounts
   are centered one after the other. A workflow is saved in the `.astraseq` (document version 8) next to the steps it compiles to. **Advanced** is the explicit editor (Parallel, Repeat and
   every action): older files open there as they were, and a workflow can be converted to it (the steps stay, the workflow is not kept).
+- **Meridian flip:** a policy of the workflow, set once (Imaging → Meridian flip), not steps. Times are minutes from the moment the target is on the meridian, from its hour angle
+  (target, observing site, clock), not from the pier side the driver reports. From *hold new exposures before* an exposure only starts when it ends before the flip is due; before that only
+  when it ends before the *latest allowed flip*. An exposure that runs is never interrupted. When the flip is due (*flip after*) and every setup on the mount is at a safe point, the mount
+  flips once for all of them, in this order: stop guiding, slew to the same target (the driver chooses the pier side), check the slew, plate solve and center, verify the rotation,
+  autofocus, restart guiding and wait until it settles, dither, pause. Every step after the flip is switchable; the settle is the guider's own, never a fixed delay, and the pause is
+  additional. The mount is never synchronized. Setups on other mounts keep imaging and flip on their own. A failed flip (after its attempts) holds the setups of that mount until you retry
+  or abort, or ends the session, as chosen. A target that is already past the meridian when imaging starts needs no flip. The status shows the countdown and, during the flip, what it
+  is doing. A real flip is only tested by hand with `SIDERA_MERIDIAN_FLIP_OK=1` (see `MeridianFlipHardwareTests`).
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files. Rig steps choose a rig, not a camera and a focuser; each step
   uses the mount and guider of its rig. With more than one rig the session can be seen as Overview, one tab per rig, or Shared: the same steps, filtered. Rigs on different
