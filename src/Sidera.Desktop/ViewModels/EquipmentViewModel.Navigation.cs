@@ -140,6 +140,11 @@ public sealed partial class EquipmentLandingGroupViewModel : ObservableObject
 
     public bool IsRig => Rig is not null;
 
+    /// <summary>What a rig could still be given from the devices that are in no rig ("Mount, Focuser"); empty for other groups and when there is nothing to add.</summary>
+    public string HintText { get; internal set; } = string.Empty;
+
+    public bool HasHint => HintText.Length > 0;
+
     /// <summary>"3 devices · 2 connected".</summary>
     [ObservableProperty]
     public partial string SummaryText { get; private set; } = string.Empty;
@@ -439,6 +444,19 @@ public sealed partial class EquipmentViewModel
         if (standalone.Count > 0)
         {
             groups.Add(new EquipmentLandingGroupViewModel(_rigs.Count > 0 ? "Standalone devices" : "Devices", null, standalone, null));
+        }
+
+        // A rig is told what it could be given: the kinds of device it lacks and that exist outside every rig.
+        var free = standalone.Select(r => r.Role).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var shareable in Devices.Where(d => d.KindTitle is "Mount" or "Guider")) // another rig may have these, and they can be shared
+        {
+            free.Add(shareable.KindTitle);
+        }
+        foreach (var group in groups.Where(g => g.Rig is not null))
+        {
+            var have = group.Rows.Select(r => r.Role).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missing = new[] { "Mount", "Focuser", "Filter Wheel", "Guider", "Rotator" }.Where(role => !have.Contains(role) && free.Contains(role)).ToList();
+            group.HintText = missing.Count == 0 ? string.Empty : $"Can still get: {string.Join(", ", missing)}. Open the rig and choose them under Rig setup.";
         }
 
         LandingGroups = groups;

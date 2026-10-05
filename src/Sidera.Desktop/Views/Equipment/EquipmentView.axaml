@@ -31,7 +31,8 @@
 
         <!-- The contexts: everything, the devices on their own, and each rig -->
         <WrapPanel Grid.Row="2" ItemSpacing="20" LineSpacing="6" IsVisible="{Binding HasDevices}">
-            <Button Classes="ghost" Content="All equipment" Command="{Binding ShowOverviewCommand}" IsVisible="{Binding IsContextShown}" AutomationProperties.AutomationId="EquipmentAll" />
+            <Button Classes="ghost" Content="Overview" Command="{Binding ShowOverviewCommand}" IsEnabled="{Binding IsContextShown}" AutomationProperties.AutomationId="EquipmentAll"
+                    ToolTip.Tip="All devices and rigs at a glance" />
             <ItemsControl ItemsSource="{Binding Contexts}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
@@ -43,8 +44,8 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Content="Add Rig" Command="{Binding AddRig.BeginCommand}" IsVisible="{Binding AddRig, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    AutomationProperties.AutomationId="EquipmentAddRig" />
+            <Button Content="+ Add rig" Classes="ghost" Command="{Binding AddRig.BeginCommand}" IsVisible="{Binding AddRig, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    AutomationProperties.AutomationId="EquipmentAddRig" ToolTip.Tip="{Binding AddRig.DisabledText}" />
         </WrapPanel>
 
         <Border Grid.Row="3" Classes="panel compact" IsVisible="{Binding AddRig.IsAdding, FallbackValue=False}">
@@ -68,7 +69,7 @@
         </Border>
 
         <!-- The pages of the context -->
-        <ItemsControl Grid.Row="4" ItemsSource="{Binding Pages}" IsVisible="{Binding IsContextShown}">
+        <ItemsControl Grid.Row="4" ItemsSource="{Binding Pages}" MinHeight="34">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -85,6 +86,14 @@
         <!-- Everything -->
         <ScrollViewer Grid.Row="6" IsVisible="{Binding IsLanding}" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="16">
+                <Border Classes="notice-info" IsVisible="{Binding HasDevices}" MaxWidth="880" HorizontalAlignment="Left">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="card-title" Text="How this page is organised" />
+                        <TextBlock Classes="secondary" TextWrapping="Wrap"
+                                   Text="A device is one piece of hardware. A rig is one imaging setup: a camera on its telescope, plus the focuser, filter wheel, rotator, mount and guider that belong with it. Imaging, autofocus and the session always work on a rig. Rigs can share a mount or a guider; every other device belongs to one rig. Devices that are in no rig are listed as standalone." />
+                        <TextBlock Classes="secondary" TextWrapping="Wrap" Text="Click a rig to see and change what it is made of; click a device to set it up and connect it." />
+                    </StackPanel>
+                </Border>
                 <ctl:EmptyState Icon="{StaticResource IconEquipment}" Title="No equipment yet" Margin="0,64"
                                 Message="Add the demo equipment to try Sidera with simulators, or add a device on its page." IsVisible="{Binding !HasDevices}" />
                 <ItemsControl ItemsSource="{Binding LandingGroups}">
@@ -101,6 +110,7 @@
                                         </Button>
                                         <TextBlock Grid.Column="1" Classes="meta" Text="{Binding SummaryText}" VerticalAlignment="Center" />
                                     </Grid>
+                                    <TextBlock Classes="secondary accent" Text="{Binding HintText}" TextWrapping="Wrap" IsVisible="{Binding HasHint}" />
                                     <ItemsControl ItemsSource="{Binding Rows}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:EquipmentLandingRow">
