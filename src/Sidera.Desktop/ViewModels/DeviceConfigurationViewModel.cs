@@ -93,6 +93,8 @@ public sealed partial class DeviceConfigurationViewModel : ViewModelBase
         var edit = _manager.WhyCannotEdit(_device);
         var remove = _manager.WhyCannotRemove(_device);
         CanEdit = edit is null;
+        SetupDriverCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(SetupBlockText));
         CanRemove = remove is null;
         EditBlockText = edit ?? string.Empty;
         RemoveBlockText = edit is null ? remove ?? string.Empty : string.Empty;
@@ -111,7 +113,7 @@ public sealed partial class DeviceConfigurationViewModel : ViewModelBase
         _manager.BeginEdit(_device);
     }
 
-    [RelayCommand(CanExecute = nameof(CanEditAndIdle))]
+    [RelayCommand(CanExecute = nameof(CanSetupDriver))]
     private async Task SetupDriverAsync()
     {
         MessageText = string.Empty;
@@ -126,7 +128,19 @@ public sealed partial class DeviceConfigurationViewModel : ViewModelBase
         }
     }
 
-    private bool CanEditAndIdle() => CanEdit && IsAscom && !IsSettingUp;
+    /// <summary>
+    /// The setup dialog of the driver is available whenever the device is not connected (or connecting) and has an ASCOM driver, which is when it is needed: before the first connection, and after
+    /// a failed one. It does not depend on anything else about the device (a simulator has no driver, and a connected device would have its configuration changed under it).
+    /// </summary>
+    private bool CanSetupDriver() =>
+        IsAscom && !IsSettingUp && _device.DeviceModel.ConnectionState is Sidera.Core.Devices.DeviceConnectionState.Disconnected or Sidera.Core.Devices.DeviceConnectionState.Faulted;
+
+    /// <summary>Why the driver cannot be set up now, in a sentence; empty when it can, and for a device that has no driver.</summary>
+    public string SetupBlockText =>
+        !IsAscom ? string.Empty
+        : IsSettingUp ? "The setup dialog is open."
+        : CanSetupDriver() ? string.Empty
+        : "Disconnect the device to open the setup of its driver.";
 
     [RelayCommand(CanExecute = nameof(CanRemove))]
     private void Remove()

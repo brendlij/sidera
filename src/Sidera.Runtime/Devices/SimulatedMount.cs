@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Sidera.Core.Devices;
 using Sidera.Core.Events;
 using Sidera.Core.Mounts;
@@ -54,9 +55,30 @@ public sealed partial class SimulatedMount : IMountSiteControl
         get { lock (_gate) { return _motionState; } }
     }
 
+    // While it slews, the mount is somewhere on the way (a straight line in right ascension and declination, at a constant speed): what a real mount reports, and what lets a view follow it.
+    private CelestialCoordinates? _slewFrom;
+    private CelestialCoordinates? _slewTo;
+    private long _slewBeganAt;
+
     public CelestialCoordinates Coordinates
     {
-        get { lock (_gate) { return _coordinates; } }
+        get
+        {
+            lock (_gate)
+            {
+                if (_motionState == MountMotionState.Slewing && _slewFrom is { } from && _slewTo is { } to && _slewDuration > TimeSpan.Zero)
+                {
+                    var fraction = Math.Clamp(Stopwatch.GetElapsedTime(_slewBeganAt).TotalSeconds / _slewDuration.TotalSeconds, 0, 1);
+                    var deltaRa = to.RightAscensionHours - from.RightAscensionHours;
+                    if (deltaRa > 12) deltaRa -= 24;
+                    if (deltaRa < -12) deltaRa += 24;
+                    var ra = (from.RightAscensionHours + deltaRa * fraction + 24) % 24;
+                    return new CelestialCoordinates(ra, from.DeclinationDegrees + (to.DeclinationDegrees - from.DeclinationDegrees) * fraction);
+                }
+
+                return _coordinates;
+            }
+        }
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -143,6 +165,9 @@ public sealed partial class SimulatedMount : IMountSiteControl
             wasTracking = _motionState == MountMotionState.Tracking;
             _motionState = MountMotionState.Slewing;
             startedAt = _coordinates;
+            _slewFrom = startedAt;
+            _slewTo = target;
+            _slewBeganAt = Stopwatch.GetTimestamp();
             _motionStop = motion;
         }
 

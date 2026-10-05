@@ -28,11 +28,12 @@
   <Separator />
   <TextBlock Classes="eyebrow" Text="SLEW &amp; CENTER" />
   <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
-   <ctl:LabeledField Label="RA (h)"><NumericUpDown Value="{Binding RaHours}" Minimum="0" Maximum="23.999999" /></ctl:LabeledField>
-   <ctl:LabeledField Grid.Column="1" Label="Dec (°)"><NumericUpDown Value="{Binding DecDegrees}" Minimum="-90" Maximum="90" /></ctl:LabeledField>
+   <ctl:LabeledField Label="RA (h)"><TextBox Text="{Binding RaText}" PlaceholderText="not set" AutomationProperties.AutomationId="CenterRa" /></ctl:LabeledField>
+   <ctl:LabeledField Grid.Column="1" Label="Dec (°)"><TextBox Text="{Binding DecText}" PlaceholderText="not set" AutomationProperties.AutomationId="CenterDec" /></ctl:LabeledField>
    <ctl:LabeledField Grid.Column="2" Label="Tolerance (arcsec)"><NumericUpDown Value="{Binding ToleranceArcseconds}" Minimum="0.01" Maximum="3600" /></ctl:LabeledField>
    <ctl:LabeledField Grid.Column="3" Label="Max attempts"><NumericUpDown Value="{Binding MaxAttempts}" Minimum="1" Maximum="100" /></ctl:LabeledField>
   </Grid>
-  <Button Content="Slew &amp; Center" Command="{Binding SlewAndCenterCommand}" IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Left" />
+  <Button Content="Slew &amp; Center" Command="{Binding SlewAndCenterCommand}" HorizontalAlignment="Left" AutomationProperties.AutomationId="CenterButton" />
+  <TextBlock Classes="meta" Text="{Binding CenterDisabledText}" TextWrapping="Wrap" IsVisible="{Binding CenterDisabledText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
  </StackPanel></ScrollViewer>
 </UserControl>

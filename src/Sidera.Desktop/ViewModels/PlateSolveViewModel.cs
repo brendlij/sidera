@@ -35,11 +35,83 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial Rig? SelectedRig { get; set; }
     [ObservableProperty] public partial IMount? SelectedMount { get; set; }
     [ObservableProperty] public partial double ExposureSeconds { get; set; }
-    [ObservableProperty] public partial double RaHours { get; set; }
-    [ObservableProperty] public partial double DecDegrees { get; set; }
+    // The target of Slew & Center is never 0 h / 0 deg by default: it starts empty, or as the position of the mount when that is connected and the person has not typed anything. A target that
+    // is typed is kept; a target that is not valid or not there disables the command and says why.
+    private bool _targetEdited;
+    private bool _fillingTarget;
+
+    [ObservableProperty] public partial string RaText { get; set; } = string.Empty;
+    [ObservableProperty] public partial string DecText { get; set; } = string.Empty;
+
+    partial void OnRaTextChanged(string value) => TargetTyped();
+    partial void OnDecTextChanged(string value) => TargetTyped();
+
+    private void TargetTyped()
+    {
+        if (!_fillingTarget)
+        {
+            _targetEdited = true;
+        }
+
+        OnPropertyChanged(nameof(CenterDisabledText));
+        SlewAndCenterCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>The target as entered; <c>null</c> when it is empty or not a position.</summary>
+    public CelestialCoordinates? Target
+    {
+        get
+        {
+            if (!TryNumber(RaText, out var ra) || !TryNumber(DecText, out var dec) || ra < 0 || ra >= 24 || dec is < -90 or > 90)
+            {
+                return null;
+            }
+
+            return new CelestialCoordinates(ra, dec);
+        }
+    }
+
+    private static bool TryNumber(string text, out double value) =>
+        double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) && double.IsFinite(value);
+
+    /// <summary>Why Slew &amp; Center cannot be used now, in a sentence; empty when it can.</summary>
+    public string CenterDisabledText =>
+        _host.PlateSolving is null ? "No plate solver is configured."
+        : SelectedRig is null ? "Select a rig."
+        : SelectedMount is null ? "No mount is available."
+        : SelectedMount.ConnectionState != DeviceConnectionState.Connected ? "Connect the mount to slew."
+        : RaText.Trim().Length == 0 || DecText.Trim().Length == 0 ? "Enter the target (RA in hours, Dec in degrees); nothing is assumed."
+        : Target is null ? "The target is not a position: RA is 0 to 24 h, Dec is -90 to 90 degrees."
+        : string.Empty;
+
+    // The target the mount is at, for a target that nobody has typed.
+    private void FillTargetFromMount()
+    {
+        if (_targetEdited || SelectedMount is not { ConnectionState: DeviceConnectionState.Connected } mount)
+        {
+            return;
+        }
+
+        try
+        {
+            var at = mount.Coordinates;
+            _fillingTarget = true;
+            RaText = at.RightAscensionHours.ToString("0.#####", CultureInfo.InvariantCulture);
+            DecText = at.DeclinationDegrees.ToString("0.#####", CultureInfo.InvariantCulture);
+        }
+        catch (Exception)
+        {
+            // A mount that does not say where it points: the target stays empty.
+        }
+        finally
+        {
+            _fillingTarget = false;
+        }
+    }
     [ObservableProperty] public partial double ToleranceArcseconds { get; set; }
     [ObservableProperty] public partial int MaxAttempts { get; set; }
     [ObservableProperty] public partial bool IsBusy { get; private set; }
+    partial void OnIsBusyChanged(bool value) => SlewAndCenterCommand.NotifyCanExecuteChanged();
     [ObservableProperty] public partial string StatusText { get; private set; } = "Ready";
     [ObservableProperty] public partial string ResultText { get; private set; } = "No solve yet.";
     [ObservableProperty] public partial string HintText { get; private set; } = "Select a rig.";
@@ -64,6 +136,9 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
         var geometry = OpticalTrainGeometry.Resolve(rig.Optics, SensorGeometry.For(camera));
         CelestialCoordinates? center = null;
         try { if (SelectedMount?.ConnectionState == DeviceConnectionState.Connected) center = SelectedMount.Coordinates; } catch { }
+        FillTargetFromMount();
+        OnPropertyChanged(nameof(CenterDisabledText));
+        SlewAndCenterCommand.NotifyCanExecuteChanged();
         HintText = $"Approximate RA/Dec: {(center is null ? "Unknown" : FormattableString.Invariant($"{center.RightAscensionHours:0.#####} h / {center.DeclinationDegrees:0.#####}°"))}\n" +
             FormattableString.Invariant($"Scale: {geometry.PixelScaleXArcsecPerPixel:0.###} × {geometry.PixelScaleYArcsecPerPixel:0.###} arcsec/px · FOV: {geometry.FieldOfViewXDegrees:0.###} × {geometry.FieldOfViewYDegrees:0.###}° · Focal length: {geometry.FocalLengthMm:0.##} mm");
     }
@@ -80,11 +155,14 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
             throw new InvalidOperationException("Select the rig whose camera captured the last frame.");
         ShowResult(service, await service.SolveAsync(frame, rig, SelectedMount?.Id, Defaults, cancellationToken: token));
     });
-    [RelayCommand] private Task SlewAndCenterAsync() => RunAsync(async (service, rig, token) =>
+    private bool CanSlewAndCenter() => !IsBusy && CenterDisabledText.Length == 0;
+
+    [RelayCommand(CanExecute = nameof(CanSlewAndCenter))] private Task SlewAndCenterAsync() => RunAsync(async (service, rig, token) =>
     {
         var mount = SelectedMount ?? throw new InvalidOperationException("Select a mount.");
+        var target = Target ?? throw new InvalidOperationException(CenterDisabledText);
         var progress = new Progress<CenteringProgress>(p => _post(() => StatusText = FormattableString.Invariant($"{p.Stage} · attempt {p.Attempt} · error {p.PointingErrorArcseconds:0.##} arcsec")));
-        var result = await service.CenterTargetAsync(new(RaHours, DecDegrees), rig, mount.Id, ToleranceArcseconds, MaxAttempts,
+        var result = await service.CenterTargetAsync(target, rig, mount.Id, ToleranceArcseconds, MaxAttempts,
             TimeSpan.FromSeconds(ExposureSeconds), Defaults, progress: progress, cancellationToken: token);
         if (service.LastResult is { } solve) ShowResult(service, solve);
         StatusText = result.Success ? "Centered" : result.Message ?? "Centering failed.";
@@ -109,7 +187,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException) { StatusText = "Cancelled"; }
         catch (Exception ex) { StatusText = ex.Message; }
-        finally { _cancel.Dispose(); _cancel = null; IsBusy = false; RefreshHints(); }
+        finally { _cancel.Dispose(); _cancel = null; IsBusy = false; RefreshHints(); SlewAndCenterCommand.NotifyCanExecuteChanged(); }
     }
     private void ShowResult(PlateSolveService service, PlateSolveResult result)
     {

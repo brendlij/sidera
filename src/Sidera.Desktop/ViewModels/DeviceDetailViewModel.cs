@@ -75,6 +75,11 @@ public sealed class CameraDetailViewModel : DeviceDetailViewModel
     {
         Camera = camera;
         Rig = rig;
+        camera.Refreshed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ReportedIdentityText));
+            OnPropertyChanged(nameof(HasReportedIdentity));
+        };
         Optics = new OpticalTrainViewModel(camera, rig?.Optics, equipment);
         if (camera.DeviceModel is ICameraControl control)
         {
@@ -87,6 +92,27 @@ public sealed class CameraDetailViewModel : DeviceDetailViewModel
     public CameraSettingsViewModel? Settings { get; }
 
     public CameraViewModel Camera { get; }
+
+    /// <summary>The device as it is configured in Sidera: its name and, for an ASCOM camera, the driver. A driver that serves several cameras (for example "ASI Camera (1)" and "(2)") is a slot, not a model.</summary>
+    public string ConfiguredDeviceText => string.IsNullOrEmpty(Camera.DriverIdText) ? Camera.Name : $"{Camera.Name} · {Camera.DriverIdText}";
+
+    /// <summary>What the connected camera says about itself (the description of its driver and its sensor), as it reports it; empty when it is not connected or says nothing. The slot name of a driver is never presented as the model.</summary>
+    public string ReportedIdentityText
+    {
+        get
+        {
+            if ((Camera.DeviceModel as ICameraControl)?.Capabilities.Value is not { } capabilities)
+            {
+                return string.Empty;
+            }
+
+            var parts = new[] { capabilities.Driver.Description, capabilities.SensorName is { } sensor ? "sensor " + sensor : null }
+                .Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            return string.Join(" · ", parts);
+        }
+    }
+
+    public bool HasReportedIdentity => ReportedIdentityText.Length > 0;
 
     /// <summary>The optical train of the rig of the camera: what is configured, what the camera reports, what follows from both.</summary>
     public OpticalTrainViewModel Optics { get; }

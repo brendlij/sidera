@@ -269,7 +269,7 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSetup))]
     private async Task SetupAsync()
     {
-        if (_management is null || AscomKind is not { } kind || SelectedChoice is not { IsAscom: true, ProgId: { } progId })
+        if (_management is null || AscomKind is not { } kind || SetupProgId() is not { } progId)
         {
             return;
         }
@@ -282,7 +282,14 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         }
     }
 
-    public bool CanSetup() => _management is not null && !IsDeviceInUse && SelectedChoice is { IsAscom: true };
+    // The driver whose setup is opened: the one that is chosen in the list, else the one of the configured ASCOM device (which may be missing from the list of installed drivers, and
+    // is then the very case where its setup is needed). Not the connection of the device: setup is for a device that is not connected.
+    private string? SetupProgId() =>
+        SelectedChoice is { IsAscom: true, ProgId: { } chosen } ? chosen
+        : Device is { } device && _management?.Service.ConfigurationOf(device.DeviceIdText) is { Backend: DeviceBackend.Ascom, ProgId: { } configured } ? configured
+        : null;
+
+    public bool CanSetup() => _management is not null && !IsDeviceInUse && AscomKind is not null && SetupProgId() is not null;
 
     // Makes the device of the slot match the choice: removes it, or replaces it with the one of the driver, with the same id.
     private void ApplyChoice(DriverChoice choice)
