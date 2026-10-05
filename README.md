@@ -25,6 +25,9 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   asks what to do (use the mount's location, send Sidera's to the mount, or keep both). Nothing is written to a mount by itself.
 - **Optical train:** the focal length (and optionally aperture, pixel size, sensor pixels) of a camera's rig, on the camera page. Pixel scale,
   sensor size and field of view are derived from it and from what the camera reports, never stored.
+- **Framing:** search an object (M31, NGC 7000, IC 434), see the field of the selected rig on a sky survey (HiPS tiles from the CDS, cached on your disk),
+  drag and turn the frame, then Slew & Center on it or add it to the session. The desired rotation is a plan, compared with the rotation of a plate solve; nothing
+  is rotated and the mount is never synchronized. No survey is bundled; the rights of each survey are shown with it.
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
@@ -52,6 +55,7 @@ The tests need no hardware: devices are simulators or fakes of the ASCOM drivers
 | `src/Sidera.Core` | Device abstractions, capability model, acquisition model |
 | `src/Sidera.Runtime` | Runtime host, simulators, sequencing, autofocus |
 | `src/Sidera.Ascom` | ASCOM adapters: discovery, one STA thread per device, camera, mount, focuser |
+| `src/Sidera.Sky` | Sky surveys (HiPS), their disk cache and the object catalogs of the framing workspace |
 | `src/Sidera.Phd2` | PHD2 as a guider: the TCP event server protocol, `Phd2Guider`; nothing of the protocol leaves this project |
 | `src/Sidera.Desktop` | The Avalonia application |
 | `tests/` | Unit tests for each project, and opt-in integration tests against ASCOM |

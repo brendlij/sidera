@@ -90,9 +90,23 @@ public partial class App : Application
 
             var filePicker = new AvaloniaSequenceFilePicker();
             var clipboard = new AvaloniaClipboardService();
+            // The sky atlas of the framing workspace: surveys over HTTP into a bounded cache on disk, and a catalog of objects that works without the network where it can.
+            var atlas = site.SkyAtlas;
+            var skyHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(atlas.NetworkTimeoutSeconds + 5) };
+            skyHttp.DefaultRequestHeaders.UserAgent.ParseAdd("Sidera");
+            var skyCache = new Sidera.Sky.SkyTileCache(string.IsNullOrWhiteSpace(atlas.CacheDirectory) ? Sidera.Sky.SkyTileCache.DefaultRoot() : atlas.CacheDirectory, atlas.MaxCacheBytes);
+            var skyDecoder = new Imaging.SkiaTileDecoder();
+            var hipsOptions = new Sidera.Sky.HiPSOptions { RequestTimeout = TimeSpan.FromSeconds(atlas.NetworkTimeoutSeconds) };
+            var astapFolder = Sidera.Astap.AstapLocator.Locate(new Sidera.Astap.AstapConfiguration { ExecutablePath = site.PlateSolving.ExecutablePath }, new Sidera.Astap.SystemAstapFileSystem()).ExecutablePath is { } astapExe
+                ? System.IO.Path.GetDirectoryName(astapExe) : null;
+            var objectCatalog = new Sidera.Sky.CompositeObjectCatalog(
+                new Sidera.Sky.DeepSkyCsvCatalog(System.IO.Path.Combine(astapFolder ?? string.Empty, "deep_sky.csv")),
+                new Sidera.Sky.SesameCatalog(skyHttp, TimeSpan.FromSeconds(atlas.NetworkTimeoutSeconds)));
+
             var viewModel = new MainViewModel(
                 host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard,
-                equipmentManagement: management, withDemoSequence: false);
+                equipmentManagement: management, withDemoSequence: false, objectCatalog: objectCatalog,
+                skyProviders: survey => new Sidera.Sky.HiPSSurveyProvider(survey, skyHttp, skyCache, skyDecoder, hipsOptions, host.LoggerFactory.CreateLogger<Sidera.Sky.HiPSSurveyProvider>()));
 
             var window = new MainWindow { DataContext = viewModel };
             if (viewModel.Settings.PlateSolving is { } solverSettings)

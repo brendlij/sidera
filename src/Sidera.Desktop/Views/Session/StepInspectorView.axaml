@@ -174,6 +174,7 @@
                 <ctl:FieldRow Label="Tolerance" Unit="arcsec"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Attempts"><TextBox Text="{Binding MaxAttemptsText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Solve exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                <TextBlock Classes="meta" Text="{Binding FramingText}" IsVisible="{Binding FramingText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <TextBlock Classes="secondary" Text="Slews, solves, and corrects the slew until the target is within the tolerance. The mount is never synchronized." TextWrapping="Wrap" />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
             </StackPanel>

@@ -18,6 +18,7 @@ public enum AppPage
     Dashboard,
     Session,
     Imaging,
+    Framing,
     PlateSolve,
     Equipment,
     Diagnostics,
@@ -44,7 +45,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         IFolderOpener? folderOpener = null,
         IClipboardService? clipboard = null,
         EquipmentManagement? equipmentManagement = null,
-        bool withDemoSequence = true)
+        bool withDemoSequence = true,
+        Sidera.Sky.ICelestialObjectCatalog? objectCatalog = null,
+        System.Func<Sidera.Sky.SkySurveyDescriptor, Sidera.Sky.ISkySurveyProvider>? skyProviders = null)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -62,6 +65,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
         Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site);
         PlateSolve = new PlateSolveViewModel(host, Imaging, equipmentManagement?.Site, postToUi);
+        Framing = new FramingViewModel(host, equipmentManagement?.Site, SequenceDraft, objectCatalog, skyProviders, postToUi);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(
@@ -77,6 +81,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             Item(AppPage.Dashboard, "Dashboard", "IconDashboard"),
             Item(AppPage.Session, "Session", "IconSession"),
             Item(AppPage.Imaging, "Imaging", "IconImaging"),
+            Item(AppPage.Framing, "Framing", "IconImaging"),
             Item(AppPage.PlateSolve, "Plate Solve", "IconImaging"),
             Item(AppPage.Equipment, "Equipment", "IconEquipment"),
         ];
@@ -137,6 +142,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public DiagnosticsViewModel Diagnostics { get; }
     public SettingsViewModel Settings { get; }
     public PlateSolveViewModel PlateSolve { get; }
+    public FramingViewModel Framing { get; }
 
     /// <summary>The sidebar entries of the work: dashboard, session, imaging, equipment.</summary>
     public IReadOnlyList<NavItemViewModel> PrimaryNavigation { get; }
@@ -153,6 +159,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     {
         AppPage.Session => SessionPage,
         AppPage.Imaging => Imaging,
+        AppPage.Framing => Framing,
         AppPage.PlateSolve => PlateSolve,
         AppPage.Equipment => Equipment,
         AppPage.Diagnostics => Diagnostics,
@@ -166,6 +173,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnSelectedPageChanged(AppPage value)
     {
         if (value == AppPage.PlateSolve) PlateSolve.RefreshEquipment();
+        if (value == AppPage.Framing) Framing.RefreshEquipment();
         UpdateNavigation();
     }
 
@@ -227,6 +235,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         PlateSolve.Dispose();
+        Framing.Dispose();
         Dashboard.Dispose();
         Execution.Dispose();
         Diagnostics.Dispose();

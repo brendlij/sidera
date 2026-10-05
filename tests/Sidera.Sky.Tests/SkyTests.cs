@@ -597,7 +597,7 @@ public sealed class CelestialCatalogTests : IDisposable
         var online = await composite.SearchAsync("Barnard 33 xyz");
 
         Assert.Equal("M31", local[0].Name);
-        Assert.Equal(1, server.Requests.Count); // one question went to the network: the one the list could not answer
+        Assert.Single(server.Requests); // one question went to the network: the one the list could not answer
         Assert.Empty(online);
     }
 }

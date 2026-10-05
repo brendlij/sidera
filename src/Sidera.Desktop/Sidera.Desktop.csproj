@@ -37,5 +37,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Sidera.Astap\Sidera.Astap.csproj" />
+    <ProjectReference Include="..\Sidera.Sky\Sidera.Sky.csproj" />
   </ItemGroup>
 </Project>

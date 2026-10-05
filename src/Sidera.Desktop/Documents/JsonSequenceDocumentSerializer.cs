@@ -201,6 +201,17 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 w.WriteNumber("toleranceArcseconds", c.ToleranceArcseconds);
                 w.WriteNumber("maxAttempts", c.MaxAttempts);
                 w.WriteNumber("exposureSeconds", c.ExposureSeconds);
+                // The framing target this step belongs to: only what was chosen (a name and the rotation); never a field of view and never imagery.
+                if (c.TargetName is { } targetName)
+                {
+                    w.WriteString("targetName", targetName);
+                }
+
+                if (c.DesiredRotationDegrees is { } desiredRotation)
+                {
+                    w.WriteNumber("desiredRotationDegrees", desiredRotation);
+                }
+
                 break;
             case SyncMountDocumentStep m:
                 Header(w, "syncMountToSolved", m.Id);
@@ -478,7 +489,10 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         {
             "slewAndCenter" => new SlewAndCenterDocumentStep(
                 id, ReadDevice(element, type, "mountId"), ReadDevice(element, type, "rigId"), ReadNumber(element, type, "raHours"), ReadNumber(element, type, "decDegrees"),
-                ReadNumber(element, type, "toleranceArcseconds"), ReadWholeNumber(element, type, "maxAttempts"), ReadNumber(element, type, "exposureSeconds")),
+                ReadNumber(element, type, "toleranceArcseconds"), ReadWholeNumber(element, type, "maxAttempts"), ReadNumber(element, type, "exposureSeconds"),
+                element.TryGetProperty("targetName", out var targetNameElement) && targetNameElement.ValueKind == JsonValueKind.String ? targetNameElement.GetString() : null,
+                element.TryGetProperty("desiredRotationDegrees", out var rotationElement) && rotationElement.ValueKind == JsonValueKind.Number && rotationElement.TryGetDouble(out var desiredRotation)
+                    ? desiredRotation : null),
             "syncMountToSolved" => new SyncMountDocumentStep(id, ReadDevice(element, type, "mountId")),
             "plateSolve" => new PlateSolveDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds")),
             ExposureType => new ExposureDocumentStep(

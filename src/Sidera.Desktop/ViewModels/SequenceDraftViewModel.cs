@@ -167,6 +167,19 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         Install(created);
     }
 
+    /// <summary>Adds a ready step to the end of the sequence (for example the Slew &amp; Center of a framing); refused while a sequence runs.</summary>
+    public bool AddStepDraft(SequenceStepDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (!IsEditable)
+        {
+            return false;
+        }
+
+        InsertAt(null, Steps.Count, draft);
+        return true;
+    }
+
     /// <summary>Replaces the steps and keeps the shared equipment as it is.</summary>
     public void ReplaceSteps(IEnumerable<SequenceStepDraft> steps)
     {

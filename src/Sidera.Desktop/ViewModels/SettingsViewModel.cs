@@ -26,6 +26,7 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         Site = site is null ? null : new SiteSettingsViewModel(site);
         PlateSolving = site is null ? null : new PlateSolvingSettingsViewModel(site);
+        SkyAtlas = site is null ? null : new SkyAtlasSettingsViewModel(site);
         Groups =
         [
             new SettingsGroup(
@@ -59,6 +60,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public bool HasSite => Site is not null;
     public PlateSolvingSettingsViewModel? PlateSolving { get; }
+    public SkyAtlasSettingsViewModel? SkyAtlas { get; }
 
     public IReadOnlyList<SettingsGroup> Groups { get; }
 
