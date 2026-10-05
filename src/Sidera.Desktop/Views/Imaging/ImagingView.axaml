@@ -1,50 +1,144 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Sidera.Desktop.ViewModels"
-             xmlns:conv="using:Sidera.Desktop.Converters"
              xmlns:ctl="using:Sidera.Desktop.Controls"
              xmlns:imaging="using:Sidera.Desktop.Views.Imaging"
+             xmlns:rigs="using:Sidera.Core.Rigs"
              x:Class="Sidera.Desktop.Views.Imaging.ImagingView"
              x:DataType="vm:ImagingViewModel">
 
-    <!-- The imaging workspace: the image takes the room, the analysis of the frame is beside it, the view controls below it -->
-    <Grid RowDefinitions="Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="24">
+    <!--
+        The imaging workspace: manual capture on top (the camera of a rig, through the same acquisition pipeline as a sequence), the image taking the room with its view controls below,
+        the analysis of the frame and the manual autofocus beside it. What a camera does not support is not offered; what cannot be done now says why in one line.
+    -->
+    <Grid RowDefinitions="Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16">
         <ctl:PageHeader Title="Imaging" Subtitle="{Binding SourceText}" />
 
-        <Grid Grid.Row="1" ColumnDefinitions="*,300" ColumnSpacing="24">
-            <Grid RowDefinitions="*,Auto" RowSpacing="12">
+        <Border Grid.Row="1" Classes="panel compact" IsVisible="{Binding HasCapture}">
+            <StackPanel Spacing="10" DataContext="{Binding Capture}" x:DataType="vm:ImagingCaptureViewModel">
+                <WrapPanel ItemSpacing="16" LineSpacing="10">
+                    <ctl:LabeledField Label="Rig">
+                        <ComboBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" MinWidth="170" AutomationProperties.AutomationId="CaptureRig">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CaptureTarget"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Exposure (s)">
+                        <TextBox Text="{Binding ExposureText}" Width="80" AutomationProperties.AutomationId="CaptureExposure" />
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Frame">
+                        <ComboBox ItemsSource="{Binding FrameTypes}" SelectedItem="{Binding SelectedFrameType}" Width="96">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FrameTypeChoice"><TextBlock Text="{Binding Text}" /></DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Gain" IsVisible="{Binding ShowGain}">
+                        <TextBox Text="{Binding GainText}" Width="72" PlaceholderText="camera" AutomationProperties.AutomationId="CaptureGain" />
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Offset" IsVisible="{Binding ShowOffset}">
+                        <TextBox Text="{Binding OffsetText}" Width="72" PlaceholderText="camera" AutomationProperties.AutomationId="CaptureOffset" />
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Binning" IsVisible="{Binding ShowBinning}">
+                        <ComboBox ItemsSource="{Binding Binnings}" SelectedItem="{Binding SelectedBinning}" Width="88">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BinningChoice"><TextBlock Text="{Binding Text}" /></DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
+                        <Button Classes="primary" Content="Capture" Command="{Binding CaptureCommand}" AutomationProperties.AutomationId="CaptureButton" />
+                        <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                    </StackPanel>
+                </WrapPanel>
+                <TextBlock Classes="meta" Text="{Binding DisabledText}" TextWrapping="Wrap" IsVisible="{Binding DisabledText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Classes="secondary" Text="{Binding StatusText}" TextWrapping="Wrap" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Classes="danger" Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,320" ColumnSpacing="24">
+            <Grid RowDefinitions="*,Auto,Auto" RowSpacing="12">
                 <Border Classes="preview" MinHeight="260">
                     <Grid>
-                        <ScrollViewer HorizontalScrollBarVisibility="{Binding ScrollVisibility}"
-                                      VerticalScrollBarVisibility="{Binding ScrollVisibility}"
-                                      IsVisible="{Binding HasFrame}">
-                            <Panel Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{Binding LatestFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}"
-                                       Stretch="Uniform" />
-                                <ctl:StarOverlay Stars="{Binding Stars}" FrameWidth="{Binding FrameWidth}"
-                                                 FrameHeight="{Binding FrameHeight}" IsVisible="{Binding ShowStars}" />
-                            </Panel>
-                        </ScrollViewer>
+                        <ctl:ImageViewer Frame="{Binding LatestFrame}" AutoStretch="{Binding AutoStretch}" Stars="{Binding Stars}" ShowStars="{Binding ShowStars}"
+                                         IsActualSize="{Binding IsActualSize, Mode=TwoWay}" IsCustomView="{Binding IsCustomView, Mode=TwoWay}"
+                                         ZoomText="{Binding ZoomText, Mode=OneWayToSource}" IsVisible="{Binding HasFrame}"
+                                         AutomationProperties.AutomationId="ImagingViewer" />
                         <ctl:EmptyState Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}"
                                         Title="No frame yet"
                                         Message="Capture an exposure to preview and analyze it." />
                     </Grid>
                 </Border>
 
-                <!-- The view of the image -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4">
+                <!-- The view of the image: fit, 1:1, the stretch, and the stars; the wheel zooms around the pointer and dragging pans -->
+                <WrapPanel Grid.Row="1" ItemSpacing="4" LineSpacing="6">
                     <RadioButton Classes="segment" GroupName="ImagingZoom" Content="Fit" Command="{Binding FitCommand}"
-                                 IsChecked="{Binding IsFitToView, Mode=OneWay}" />
+                                 IsChecked="{Binding IsFitToView, Mode=OneWay}" AutomationProperties.AutomationId="ImagingFit" />
                     <RadioButton Classes="segment" GroupName="ImagingZoom" Content="1:1" Command="{Binding ActualSizeCommand}"
-                                 IsChecked="{Binding IsActualSize, Mode=OneWay}" />
-                    <Border Classes="vdivider" Margin="12,6" />
+                                 IsChecked="{Binding IsActualSize, Mode=OneWay}" AutomationProperties.AutomationId="ImagingActualSize" />
+                    <TextBlock Classes="meta" Text="{Binding ZoomText}" VerticalAlignment="Center" Margin="8,0" MinWidth="44" />
+                    <Border Classes="vdivider" Margin="8,6" />
+                    <CheckBox Content="Auto stretch" IsChecked="{Binding AutoStretch}" AutomationProperties.AutomationId="ImagingAutoStretch" VerticalAlignment="Center"
+                              ToolTip.Tip="Only changes what is shown: the frame and the FITS file are not stretched" />
                     <CheckBox Content="Show stars" IsChecked="{Binding ShowStars}" IsEnabled="{Binding HasMetrics}"
                               AutomationProperties.AutomationId="ImagingShowStars" VerticalAlignment="Center" />
-                </StackPanel>
+                    <Border Classes="vdivider" Margin="8,6" />
+                    <Button Content="Save FITS" Command="{Binding SaveFitsCommand}" AutomationProperties.AutomationId="ImagingSaveFits"
+                            ToolTip.Tip="The frame as it was taken, not stretched, with what is known about how it was taken" />
+                    <Button Content="Save PNG" Command="{Binding SavePngCommand}" AutomationProperties.AutomationId="ImagingSavePng"
+                            ToolTip.Tip="A picture of the display, stretched or linear as shown; not the data" />
+                </WrapPanel>
+                <TextBlock Grid.Row="2" Classes="meta" Text="{Binding SaveStatusText}" TextWrapping="Wrap" IsVisible="{Binding SaveStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </Grid>
 
-            <imaging:FrameMetricsView Grid.Column="1" />
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+                    <imaging:FrameMetricsView />
+
+                    <Border Classes="panel compact" IsVisible="{Binding HasAutofocus}">
+                        <StackPanel Spacing="10" DataContext="{Binding Autofocus}" x:DataType="vm:ManualAutofocusViewModel">
+                            <TextBlock Classes="eyebrow" Text="AUTOFOCUS" />
+                            <ctl:LabeledField Label="Rig">
+                                <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="AutofocusRig">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="rigs:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </ctl:LabeledField>
+                            <ctl:InfoRow Label="Focuser position" Value="{Binding PositionText}" AutomationProperties.AutomationId="AutofocusPosition" />
+                            <ctl:FieldRow Label="Exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                            <ctl:FieldRow Label="Step size" Unit="steps"><TextBox Text="{Binding StepSizeText}" /></ctl:FieldRow>
+                            <ctl:FieldRow Label="Samples"><TextBox Text="{Binding SamplesText}" /></ctl:FieldRow>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Content="Start Autofocus" Command="{Binding StartCommand}" AutomationProperties.AutomationId="AutofocusStart" />
+                                <Button Content="Cancel" Command="{Binding CancelCommand}" AutomationProperties.AutomationId="AutofocusCancel" />
+                            </StackPanel>
+                            <TextBlock Classes="meta" Text="{Binding DisabledText}" TextWrapping="Wrap" IsVisible="{Binding DisabledText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Classes="secondary" Text="{Binding StatusText}" TextWrapping="Wrap" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       AutomationProperties.AutomationId="AutofocusStatus" />
+                            <TextBlock Classes="danger" Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                            <ctl:FocusCurveView Samples="{Binding Samples}" BestPosition="{Binding BestPosition}" Height="110" IsVisible="{Binding HasSamples}" />
+                            <ItemsControl ItemsSource="{Binding Samples}" IsVisible="{Binding HasSamples}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:FocusSampleRow">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Classes="secondary" Text="{Binding PositionText}" />
+                                            <TextBlock Grid.Column="1" Classes="value" Text="{Binding HfrText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Spacing="2" IsVisible="{Binding HasResult}">
+                                <ctl:InfoRow Label="Best focus" Value="{Binding BestFocusText}" AutomationProperties.AutomationId="AutofocusBest" />
+                                <ctl:InfoRow Label="HFR" Value="{Binding BestHfrText}" />
+                                <TextBlock Classes="meta" Text="{Binding FitText}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

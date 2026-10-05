@@ -29,6 +29,18 @@ public sealed record FitsMetadata
     public int? Gain { get; init; }
     public int? Offset { get; init; }
     public string? Instrument { get; init; }
+
+    /// <summary>What the frame is for (light, dark, flat, bias), as <c>IMAGETYP</c>; the frame's own acquisition says it when this is not set.</summary>
+    public FrameType? FrameType { get; init; }
+
+    /// <summary>The observing site, as <c>SITELAT</c>, <c>SITELONG</c> and <c>SITEELEV</c>; only what is configured.</summary>
+    public double? SiteLatitudeDegrees { get; init; }
+
+    public double? SiteLongitudeDegrees { get; init; }
+    public double? SiteElevationMeters { get; init; }
+
+    /// <summary>The name of the optical train (the rig) the frame was taken with, as <c>TELESCOP</c>.</summary>
+    public string? Telescope { get; init; }
 }
 
 /// <summary>
@@ -149,6 +161,26 @@ public static class FitsImageWriter
         {
             cards.Add(Text("INSTRUME", m.Instrument, "camera"));
         }
+
+        if (!string.IsNullOrWhiteSpace(m.Telescope))
+        {
+            cards.Add(Text("TELESCOP", m.Telescope, "optical train"));
+        }
+
+        if ((m.FrameType ?? frame.Acquisition?.FrameType) is { } frameType)
+        {
+            cards.Add(Text("IMAGETYP", frameType switch
+            {
+                FrameType.Dark => "Dark Frame",
+                FrameType.Flat => "Flat Field",
+                FrameType.Bias => "Bias Frame",
+                _ => "Light Frame",
+            }, "type of frame"));
+        }
+
+        AddReal(cards, "SITELAT", m.SiteLatitudeDegrees, "[deg] observing site latitude, north positive");
+        AddReal(cards, "SITELONG", m.SiteLongitudeDegrees, "[deg] observing site longitude, east positive");
+        AddReal(cards, "SITEELEV", m.SiteElevationMeters, "[m] observing site elevation");
 
         cards.Add(Text("CREATOR", "Sidera", "software that wrote this file"));
         return cards;
