@@ -1090,4 +1090,31 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         equipment.RigSetup!.Assignments.Single(a => a.Role == Sidera.Core.Rigs.RigRole.Mount).Selected = before;
         Assert.Contains(equipment.Pages, p => p.Page == EquipmentPage.Mount);
     }
+
+    [Fact]
+    public void AddRig_IsOffered_OnlyWhileACameraIsInNoRig_AndSaysWhyNot()
+    {
+        var equipment = OpenMainRig(); // the demo: every camera is in a rig
+
+        Assert.False(equipment.AddRig!.BeginCommand.CanExecute(null));
+        Assert.Contains("add another camera", equipment.AddRig.DisabledText);
+
+        equipment.RigSetup!.RemoveCommand.Execute(null);
+        equipment.RigSetup!.RemoveCommand.Execute(null);
+
+        Assert.True(equipment.AddRig.BeginCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void ARigOnTheLanding_SaysWhatItCouldStillGet_AndEveryRoleSaysWhatItIsFor()
+    {
+        var equipment = OpenMainRig();
+        var mount = equipment.RigSetup!.Assignments.Single(a => a.Role == Sidera.Core.Rigs.RigRole.Mount);
+        mount.Selected = mount.Choices.Single(c => c.Id is null);
+        equipment.ShowOverviewCommand.Execute(null);
+
+        Assert.Contains("Mount", equipment.LandingGroups.Single(g => g.Title == "Main Rig").HintText);
+        equipment.Contexts.Single(c => c.Title == "Main Rig").SelectCommand.Execute(null);
+        Assert.All(equipment.RigSetup!.Assignments, a => Assert.NotEmpty(a.Hint));
+    }
 }

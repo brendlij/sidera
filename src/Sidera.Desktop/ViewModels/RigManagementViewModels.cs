@@ -26,6 +26,15 @@ public sealed partial class RigAssignmentViewModel : ObservableObject
     {
         Role = role;
         Title = title;
+        Hint = role switch
+        {
+            RigRole.Camera => "The camera on this telescope. Every rig has one.",
+            RigRole.Mount => "Optional. Points the telescope. Rigs on one telescope mount can share it.",
+            RigRole.Focuser => "Optional. Needed for autofocus.",
+            RigRole.FilterWheel => "Optional. Needed to change filters.",
+            RigRole.Guider => "Optional. Keeps the telescope on target. Rigs can share a guider.",
+            _ => "Optional. Turns the camera to frame the target.",
+        };
         Choices = choices;
         _apply = apply;
         _syncing = true;
@@ -36,6 +45,9 @@ public sealed partial class RigAssignmentViewModel : ObservableObject
     public RigRole Role { get; }
 
     public string Title { get; }
+
+    /// <summary>One line on what the role is for, shown under the choice.</summary>
+    public string Hint { get; }
 
     public IReadOnlyList<AssignmentChoice> Choices { get; }
 
@@ -196,7 +208,7 @@ public sealed partial class AddRigViewModel : ObservableObject
     public partial AssignmentChoice? SelectedCamera { get; set; }
 
     /// <summary>Why a rig cannot be added now; empty when it can.</summary>
-    public string DisabledText => FreeCameras.Count == 0 ? "Every camera is in a rig already. Add a camera to the equipment first." : string.Empty;
+    public string DisabledText => FreeCameras.Count == 0 ? "Every camera is in a rig already, and a rig needs a camera of its own. To make another rig, add another camera first." : string.Empty;
 
     /// <summary>Reads which cameras are free.</summary>
     public void Refresh()
@@ -216,11 +228,19 @@ public sealed partial class AddRigViewModel : ObservableObject
         SelectedCamera = FreeCameras.FirstOrDefault(c => c.Id == SelectedCamera?.Id) ?? FreeCameras.FirstOrDefault();
         OnPropertyChanged(nameof(DisabledText));
         AddCommand.NotifyCanExecuteChanged();
+        BeginCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand]
+    private bool CanBegin() => _service.Configuration.Devices.Any(d => d.Type == DeviceType.Camera && !_service.Configuration.Rigs.Any(r => string.Equals(r.CameraId, d.Id, StringComparison.OrdinalIgnoreCase)));
+
+    [RelayCommand(CanExecute = nameof(CanBegin))]
     private void Begin()
     {
+        if (!CanBegin())
+        {
+            return;
+        }
+
         Refresh();
         NameText = string.Empty;
         IsAdding = true;

@@ -9,8 +9,15 @@
         The overview of a rig: its optical train, its devices with their state (a row opens the page of the device; no manual controls here), and how the rig is put together. A mount or a
         guider that another rig names too is the same device on both.
     -->
+    <StackPanel Spacing="12">
+    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
+        <TextBlock Classes="value" Text="{Binding SelectedRig.Name}" />
+        <TextBlock Classes="secondary" Text="is one imaging setup." />
+    </StackPanel>
+    <TextBlock Classes="secondary" TextWrapping="Wrap" MaxWidth="880" HorizontalAlignment="Left"
+               Text="Below: what it is made of, and how to change that. Click a device to open its page, set it up and connect it." />
     <WrapPanel>
-        <ctl:WorkspaceSection Header="OPTICS">
+        <ctl:WorkspaceSection Header="OPTICS" Width="420">
             <StackPanel Spacing="2">
                 <ctl:InfoRow Label="Focal length" Value="{Binding SelectedRig.FocalLengthText}" />
                 <ctl:InfoRow Label="Aperture" Value="{Binding SelectedRig.ApertureText}" />
@@ -20,7 +27,7 @@
             </StackPanel>
         </ctl:WorkspaceSection>
 
-        <ctl:WorkspaceSection Header="DEVICES">
+        <ctl:WorkspaceSection Header="DEVICES" Width="420">
             <ItemsControl ItemsSource="{Binding SelectedRig.Parts}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:RigPartViewModel">
@@ -40,8 +47,8 @@
             </ItemsControl>
         </ctl:WorkspaceSection>
 
-        <ctl:WorkspaceSection Header="RIG SETUP">
-            <StackPanel Spacing="10" Width="360" DataContext="{Binding RigSetup}" x:DataType="vm:RigSetupViewModel">
+        <ctl:WorkspaceSection Header="RIG SETUP: WHAT IS IN THIS RIG" Width="420">
+            <StackPanel Spacing="10" DataContext="{Binding RigSetup}" x:DataType="vm:RigSetupViewModel">
                 <ctl:LabeledField Label="Name">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <TextBox Text="{Binding NameText}" AutomationProperties.AutomationId="RigName" />
@@ -52,10 +59,13 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:RigAssignmentViewModel">
                             <ctl:LabeledField Label="{Binding Title}" Margin="0,0,0,8">
+                                <StackPanel Spacing="2">
                                 <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected, Mode=TwoWay}" HorizontalAlignment="Stretch"
                                           AutomationProperties.AutomationId="{Binding Title, StringFormat=RigAssign{0}}">
                                     <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:AssignmentChoice"><TextBlock Text="{Binding Text}" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
+                                <TextBlock Classes="meta" Text="{Binding Hint}" TextWrapping="Wrap" />
+                                </StackPanel>
                             </ctl:LabeledField>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -69,4 +79,5 @@
             </StackPanel>
         </ctl:WorkspaceSection>
     </WrapPanel>
+    </StackPanel>
 </UserControl>
