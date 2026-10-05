@@ -105,6 +105,32 @@ public sealed class RigRegistry
             }
         }
 
+        if (rig.MountId is { } mountId)
+        {
+            if (!_devices.TryGet(mountId, out var mount) || mount is null)
+            {
+                throw new InvalidOperationException($"Mount device '{mountId}' is not registered.");
+            }
+
+            if (mount is not Sidera.Core.Mounts.IMount)
+            {
+                throw new InvalidOperationException($"Device '{mountId}' assigned as mount does not implement IMount.");
+            }
+        }
+
+        if (rig.GuiderId is { } guiderId)
+        {
+            if (!_devices.TryGet(guiderId, out var guider) || guider is null)
+            {
+                throw new InvalidOperationException($"Guider device '{guiderId}' is not registered.");
+            }
+
+            if (guider is not Sidera.Core.Guiding.IGuider)
+            {
+                throw new InvalidOperationException($"Device '{guiderId}' assigned as guider does not implement IGuider.");
+            }
+        }
+
         if (rig.FilterWheelId is { } filterWheelId)
         {
             if (!_devices.TryGet(filterWheelId, out var wheel) || wheel is null)

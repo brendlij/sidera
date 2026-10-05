@@ -157,7 +157,7 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
             throw new InvalidOperationException($"Device '{id}' is {device.ConnectionState.ToString().ToLowerInvariant()}; disconnect it before removing it.");
         }
 
-        if (RigRegistry.GetAll().FirstOrDefault(r => r.CameraId == id || r.FocuserId == id || r.FilterWheelId == id || r.RotatorId == id) is { } rig)
+        if (RigRegistry.GetAll().FirstOrDefault(r => r.CameraId == id || r.FocuserId == id || r.FilterWheelId == id || r.RotatorId == id || r.MountId == id || r.GuiderId == id) is { } rig)
         {
             throw new InvalidOperationException($"Device '{id}' is part of the rig '{rig.Id}'.");
         }
