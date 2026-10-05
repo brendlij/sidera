@@ -1,0 +1,334 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Session.WorkflowEditorView"
+             x:DataType="vm:WorkflowEditorViewModel">
+
+    <!--
+        The workflow of a session: the target, then Prepare, Imaging and Finish as tables, with an inspector for the selected row. Imaging blocks of different setups run at the same time; dither and
+        autofocus are policies, set once for the section and for each setup, not steps that are placed. The sequence the runner runs is what this compiles to. Rows are moved within their section only.
+    -->
+    <UserControl.Styles>
+        <Style Selector="Border.workflow-row">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SideraLine}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style Selector="Border.workflow-row.selected">
+            <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+        </Style>
+        <Style Selector="Border.workflow-row.off">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Alt+Up" Command="{Binding MoveUpCommand}" />
+        <KeyBinding Gesture="Alt+Down" Command="{Binding MoveDownCommand}" />
+        <KeyBinding Gesture="Delete" Command="{Binding RemoveSelectedCommand}" />
+    </UserControl.KeyBindings>
+
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="20" Margin="0,0,12,0">
+
+                <!-- Why it cannot run, or that it can -->
+                <Border Classes="notice-danger" IsVisible="{Binding HasProblems}">
+                    <ItemsControl ItemsSource="{Binding Problems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="danger" Text="{Binding}" TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <!-- The target -->
+                <Border Classes="panel" Padding="20,16">
+                    <StackPanel Spacing="12">
+                        <TextBlock Classes="eyebrow" Text="TARGET" />
+                        <WrapPanel ItemSpacing="16" LineSpacing="10">
+                            <ctl:LabeledField Label="Name"><TextBox Text="{Binding TargetNameText}" Width="200" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowTargetName" /></ctl:LabeledField>
+                            <ctl:LabeledField Label="Right ascension (h)"><TextBox Text="{Binding TargetRaText}" Width="120" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowTargetRa" /></ctl:LabeledField>
+                            <ctl:LabeledField Label="Declination (°)"><TextBox Text="{Binding TargetDecText}" Width="120" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowTargetDec" /></ctl:LabeledField>
+                            <ctl:LabeledField Label="Rotation (°, optional)"><TextBox Text="{Binding TargetRotationText}" Width="130" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                            <ctl:LabeledField Label="Pointing setup">
+                                <ComboBox ItemsSource="{Binding PointingChoices}" SelectedItem="{Binding SelectedPointing}" Width="180" IsEnabled="{Binding IsEditable}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:SetupChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </ctl:LabeledField>
+                        </WrapPanel>
+                        <TextBlock Classes="meta" TextWrapping="Wrap"
+                                   Text="Setups on one mount are centered once for the target; the pointing setup is the one whose camera plate-solves for that mount." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Toolbar -->
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Classes="secondary" AutomationProperties.Name="Add step" IsEnabled="{Binding IsEditable}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="{StaticResource IconAdd}" />
+                                <TextBlock Text="Add" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                    <MenuItem Header="Prepare" IsEnabled="False" />
+                                    <MenuItem Header="Slew &amp; Center" Command="{Binding AddSlewAndCenterCommand}" />
+                                    <MenuItem Header="Autofocus" Command="{Binding AddAutofocusStepCommand}" />
+                                    <MenuItem Header="Start Guiding" Command="{Binding AddStartGuidingCommand}" />
+                                    <MenuItem Header="Wait" Command="{Binding AddWaitToPrepareCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Imaging" IsEnabled="False" />
+                                    <MenuItem Header="Imaging Block" Command="{Binding AddImagingBlockCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Finish" IsEnabled="False" />
+                                    <MenuItem Header="Stop Guiding" Command="{Binding AddStopGuidingCommand}" />
+                                    <MenuItem Header="Wait" Command="{Binding AddWaitToFinishCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Plate Solve, Sync Mount, Dither Now, Move Focuser, Rotate, Repeat, Parallel: Convert to Advanced" IsEnabled="False" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button Classes="ghost" Content="Move up" Command="{Binding MoveUpCommand}" ToolTip.Tip="Alt+Up. Rows stay in their section." />
+                        <Button Classes="ghost" Content="Move down" Command="{Binding MoveDownCommand}" ToolTip.Tip="Alt+Down. Rows stay in their section." />
+                        <Button Classes="ghost" Content="Duplicate" Command="{Binding DuplicateSelectedCommand}" />
+                        <Button Classes="ghost" Content="On / off" Command="{Binding ToggleEnabledCommand}" ToolTip.Tip="An off row stays here and is left out of the sequence." />
+                        <Button Classes="ghost" Content="Remove" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Delete" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding CanRunText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="WorkflowStatus" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <Button Classes="ghost" Content="Convert to Advanced" Command="{Binding ConvertToAdvancedCommand}" IsVisible="{Binding !IsConfirmingAdvanced}"
+                                ToolTip.Tip="Keep the steps as they are, in the explicit editor with Parallel, Repeat and every action. The workflow is not kept." />
+                        <Button Classes="danger" Content="Convert: the workflow is not kept" Command="{Binding ConvertToAdvancedCommand}" IsVisible="{Binding IsConfirmingAdvanced}" />
+                        <Button Content="Keep workflow" Command="{Binding CancelConvertToAdvancedCommand}" IsVisible="{Binding IsConfirmingAdvanced}" />
+                    </StackPanel>
+                </Grid>
+
+                <ctl:EmptyState Icon="{StaticResource IconSession}" Title="An empty workflow" Margin="0,40" IsVisible="{Binding IsEmpty}"
+                                Message="Start from a template for your first imaging setup, or add the steps yourself with Add.">
+                    <Button Classes="primary" Content="Start from a template" Command="{Binding StartFromTemplateCommand}" HorizontalAlignment="Center" />
+                </ctl:EmptyState>
+
+                <!-- Prepare -->
+                <StackPanel Spacing="6" IsVisible="{Binding HasPrepareRows}">
+                    <TextBlock Classes="eyebrow" Text="PREPARE" />
+                    <Grid ColumnDefinitions="40,190,160,*" Margin="12,0">
+                        <TextBlock Classes="meta" Text="#" /><TextBlock Grid.Column="1" Classes="meta" Text="Step" /><TextBlock Grid.Column="2" Classes="meta" Text="Setup" /><TextBlock Grid.Column="3" Classes="meta" Text="Configuration" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding PrepareRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkflowRowViewModel">
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                                        Command="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).SelectRowCommand}" CommandParameter="{Binding}">
+                                    <Border Classes="workflow-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !Enabled}" Padding="12,10">
+                                        <Grid ColumnDefinitions="40,190,160,*,Auto">
+                                            <TextBlock Classes="meta" Text="{Binding Number}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Classes="card-title" Text="{Binding Title}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Classes="value" Text="{Binding SetupLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="secondary" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" />
+                                            </StackPanel>
+                                            <PathIcon Grid.Column="4" Data="{StaticResource IconWarning}" Width="16" Height="16" Foreground="{DynamicResource SideraDanger}" IsVisible="{Binding HasProblem}" />
+                                        </Grid>
+                                    </Border>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Imaging -->
+                <StackPanel Spacing="6" IsVisible="{Binding HasImagingRows}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="eyebrow" Text="IMAGING" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Classes="secondary accent" Text="{Binding SharedActivityText}" IsVisible="{Binding HasSharedActivity}" />
+                    </Grid>
+                    <TextBlock Classes="meta" Text="Setups run at the same time. Blocks of one setup run one after another." />
+                    <Grid ColumnDefinitions="40,150,90,100,70,130,*" Margin="12,0">
+                        <TextBlock Classes="meta" Text="#" /><TextBlock Grid.Column="1" Classes="meta" Text="Setup" /><TextBlock Grid.Column="2" Classes="meta" Text="Filter" />
+                        <TextBlock Grid.Column="3" Classes="meta" Text="Exposure" /><TextBlock Grid.Column="4" Classes="meta" Text="Frames" /><TextBlock Grid.Column="5" Classes="meta" Text="Dither" />
+                        <TextBlock Grid.Column="6" Classes="meta" Text="Autofocus" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding ImagingRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkflowRowViewModel">
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                                        Command="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).SelectRowCommand}" CommandParameter="{Binding}">
+                                    <Border Classes="workflow-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !Enabled}" Padding="12,10">
+                                        <StackPanel Spacing="6">
+                                            <Grid ColumnDefinitions="40,150,90,100,70,130,*">
+                                                <TextBlock Classes="meta" Text="{Binding Number}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Classes="card-title" Text="{Binding SetupLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="2" Classes="value" Text="{Binding FilterLabel}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Classes="value" Text="{Binding ExposureLabel}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4" Classes="value" Text="{Binding FramesLabel}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="5" Classes="secondary" Text="{Binding DitherLabel}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="6" Classes="secondary" Text="{Binding AutofocusLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                            <!-- While it runs: frames, what the setup is at, an autofocus it runs -->
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" IsVisible="{Binding HasProgress}" Margin="40,0,0,0">
+                                                <TextBlock Classes="value" Text="{Binding ProgressText}" VerticalAlignment="Center" />
+                                                <ProgressBar Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding ProgressFraction}" Height="4" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Classes="secondary accent" Text="{Binding ActivityText}" IsVisible="{Binding HasActivity}" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                                            </Grid>
+                                            <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" Margin="40,0,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- The policies of the section -->
+                    <Border Classes="panel" Padding="20,16" Margin="0,8,0,0">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="eyebrow" Text="DITHER" />
+                            <WrapPanel ItemSpacing="16" LineSpacing="8">
+                                <CheckBox Content="Dither" IsChecked="{Binding DitherEnabled}" IsEnabled="{Binding IsEditable}" VerticalAlignment="Bottom" AutomationProperties.AutomationId="WorkflowDitherEnabled" />
+                                <ctl:LabeledField Label="Every N frames"><TextBox Text="{Binding DitherEveryText}" Width="70" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowDitherEvery" /></ctl:LabeledField>
+                                <ctl:LabeledField Label="Frames counted on">
+                                    <ComboBox ItemsSource="{Binding CountedChoices}" SelectedItem="{Binding SelectedCounted}" Width="170" IsEnabled="{Binding IsEditable}">
+                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:SetupChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </ctl:LabeledField>
+                                <ctl:LabeledField Label="Amplitude (px)"><TextBox Text="{Binding DitherAmplitudeText}" Width="90" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                                <ctl:LabeledField Label="Settle ≤ (px)"><TextBox Text="{Binding DitherThresholdText}" Width="90" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                                <ctl:LabeledField Label="for (s)"><TextBox Text="{Binding DitherStableText}" Width="70" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                                <ctl:LabeledField Label="timeout (s)"><TextBox Text="{Binding DitherTimeoutText}" Width="80" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                            </WrapPanel>
+                            <TextBlock Classes="secondary" Text="{Binding DitherSummary}" TextWrapping="Wrap" AutomationProperties.AutomationId="WorkflowDitherSummary" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Finish -->
+                <StackPanel Spacing="6" IsVisible="{Binding HasFinishRows}">
+                    <TextBlock Classes="eyebrow" Text="FINISH" />
+                    <ItemsControl ItemsSource="{Binding FinishRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkflowRowViewModel">
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0"
+                                        Command="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).SelectRowCommand}" CommandParameter="{Binding}">
+                                    <Border Classes="workflow-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !Enabled}" Padding="12,10">
+                                        <Grid ColumnDefinitions="40,190,160,*,Auto">
+                                            <TextBlock Classes="meta" Text="{Binding Number}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Classes="card-title" Text="{Binding Title}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Classes="value" Text="{Binding SetupLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="secondary" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" />
+                                            </StackPanel>
+                                            <PathIcon Grid.Column="4" Data="{StaticResource IconWarning}" Width="16" Height="16" Foreground="{DynamicResource SideraDanger}" IsVisible="{Binding HasProblem}" />
+                                        </Grid>
+                                    </Border>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- The inspector of the selected row -->
+        <Border Grid.Column="1" Classes="panel" Width="380" IsVisible="{Binding HasSelection}">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="14" DataContext="{Binding SelectedRow}" x:DataType="vm:WorkflowRowViewModel">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="eyebrow" Text="{Binding Number, StringFormat={}ROW {0}}" />
+                        <TextBlock Classes="section-title" Text="{Binding Title}" />
+                    </StackPanel>
+                    <CheckBox Content="On" IsChecked="{Binding Enabled}" />
+
+                    <ctl:LabeledField Label="Setup">
+                        <ComboBox ItemsSource="{Binding SetupChoices}" SelectedItem="{Binding SelectedSetup}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="WorkflowRowSetup">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SetupChoice">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Classes="meta" Text="{Binding Detail}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+
+                    <!-- An imaging block -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsImaging}">
+                        <ctl:LabeledField Label="Filter">
+                            <ComboBox ItemsSource="{Binding FilterChoices}" SelectedItem="{Binding SelectedFilter}" HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:FilterChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </ctl:LabeledField>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                            <ctl:LabeledField Label="Exposure (s)"><TextBox Text="{Binding ExposureText}" AutomationProperties.AutomationId="WorkflowRowExposure" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="1" Label="Frames"><TextBox Text="{Binding FramesInputText}" AutomationProperties.AutomationId="WorkflowRowFrames" /></ctl:LabeledField>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Slew & Center -->
+                    <StackPanel Spacing="12" IsVisible="{Binding ShowsSlew}">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                            <ctl:LabeledField Label="Tolerance (&quot;)"><TextBox Text="{Binding ToleranceInputText}" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="1" Label="Attempts"><TextBox Text="{Binding AttemptsInputText}" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="2" Label="Solve (s)"><TextBox Text="{Binding SolveExposureInputText}" /></ctl:LabeledField>
+                        </Grid>
+                        <TextBlock Classes="meta" TextWrapping="Wrap" Text="The mount and the camera that solves are those of the setup. No sync is ever added." />
+                    </StackPanel>
+
+                    <!-- Autofocus now -->
+                    <StackPanel Spacing="12" IsVisible="{Binding ShowsAutofocus}">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                            <ctl:LabeledField Label="Exposure (s)"><TextBox Text="{Binding AutofocusExposureInputText}" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding AutofocusStepInputText}" /></ctl:LabeledField>
+                            <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding AutofocusSamplesInputText}" /></ctl:LabeledField>
+                        </Grid>
+                        <TextBlock Classes="meta" TextWrapping="Wrap" Text="Focuses once, here. With Auto, every imaged setup that has a focuser focuses in turn." />
+                    </StackPanel>
+
+                    <!-- Guiding -->
+                    <TextBlock Classes="meta" TextWrapping="Wrap" IsVisible="{Binding ShowsGuiding}"
+                               Text="Uses the guider of the setup. With Auto, every guider of the imaged setups is used, each once, even when several setups share it." />
+
+                    <!-- Wait -->
+                    <ctl:LabeledField Label="Wait (s)" IsVisible="{Binding ShowsWait}"><TextBox Text="{Binding SecondsInputText}" /></ctl:LabeledField>
+
+                    <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+                        <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+                    </Border>
+
+                    <!-- The autofocus policy of the setup of an imaging block -->
+                    <StackPanel Spacing="10" IsVisible="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).HasPolicy}"
+                                DataContext="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext)}" x:DataType="vm:WorkflowEditorViewModel">
+                        <Border Classes="divider" />
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="eyebrow" Text="AUTOFOCUS" />
+                            <TextBlock Classes="meta" TextWrapping="Wrap" Text="{Binding PolicySetupName, StringFormat={}For every block of {0}}" />
+                        </StackPanel>
+                        <CheckBox Content="Focus by itself" IsChecked="{Binding PolicyEnabled}" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowAutofocusEnabled" />
+                        <StackPanel Spacing="8" IsEnabled="{Binding PolicyEnabled}">
+                            <CheckBox Content="At the start" IsChecked="{Binding PolicyAtStart}" />
+                            <Grid ColumnDefinitions="Auto,90,Auto" ColumnSpacing="8">
+                                <TextBlock Text="Every" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="1" Text="{Binding PolicyIntervalText}" AutomationProperties.AutomationId="WorkflowAutofocusInterval" />
+                                <TextBlock Grid.Column="2" Classes="secondary" Text="min (0: not by time)" VerticalAlignment="Center" />
+                            </Grid>
+                            <CheckBox Content="After a filter change" IsChecked="{Binding PolicyAfterFilterChange}" />
+                            <CheckBox Content="On a temperature change (later)" IsEnabled="False" />
+                            <CheckBox Content="After a Meridian Flip (later)" IsEnabled="False" />
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                                <ctl:LabeledField Label="Exposure (s)"><TextBox Text="{Binding PolicyExposureText}" /></ctl:LabeledField>
+                                <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding PolicyStepText}" /></ctl:LabeledField>
+                                <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding PolicySamplesText}" /></ctl:LabeledField>
+                            </Grid>
+                            <TextBlock Classes="meta" TextWrapping="Wrap"
+                                       Text="It focuses between exposures, never inside one. Reasons that fall together are one autofocus, and the interval starts again after every autofocus." />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

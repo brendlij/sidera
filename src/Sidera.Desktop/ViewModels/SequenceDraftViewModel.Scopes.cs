@@ -52,6 +52,9 @@ public sealed partial class SequenceDraftViewModel
 
     public bool HasScopeTabs => ScopeTabs.Count > 0;
 
+    /// <summary>A view other than the Overview is shown: some rows are hidden, and steps cannot be moved (see <c>JudgeMove</c>).</summary>
+    public bool IsScopeFiltered => _scopeKey != SessionScopeTab.OverviewKey;
+
     /// <summary>The key of the view that is shown: "overview", "shared" or a rig id.</summary>
     public string SelectedScopeKey => _scopeKey;
 
@@ -165,10 +168,13 @@ public sealed partial class SequenceDraftViewModel
             }
 
             OnPropertyChanged(nameof(SelectedScopeKey));
+            OnPropertyChanged(nameof(IsScopeFiltered));
         }
         finally
         {
             _refreshingScopes = false;
         }
+
+        NotifyCommands();
     }
 }

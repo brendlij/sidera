@@ -20,6 +20,8 @@
                     <TextBlock Classes="page-title" Text="{Binding Document.DisplayName}" VerticalAlignment="Center"
                                AutomationProperties.AutomationId="SessionTitle" />
                     <ctl:StatusIndicator Kind="Warning" Text="Modified" IsVisible="{Binding Document.IsDirty}" />
+                    <TextBlock Classes="meta" Text="Advanced · explicit steps" VerticalAlignment="Center" IsVisible="{Binding Workflow.IsAdvancedMode, FallbackValue=False}"
+                               ToolTip.Tip="This session is a sequence of explicit steps. New creates a workflow." />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="0" Margin="-10,0,0,0">
                     <Button Classes="ghost" Content="New" Command="{Binding Document.NewCommand}" />
@@ -61,7 +63,13 @@
                        IsVisible="{Binding Sequencer.HasReadinessHint}" />
         </StackPanel>
 
-        <Grid Grid.Row="2" ColumnSpacing="24">
+        <!-- The workflow: the default editor of a session -->
+        <Panel Grid.Row="2" IsVisible="{Binding Workflow.IsWorkflowMode, FallbackValue=False}">
+            <session:WorkflowEditorView DataContext="{Binding Workflow}" />
+        </Panel>
+
+        <!-- Advanced: the explicit steps, with Parallel, Repeat and every action -->
+        <Grid Grid.Row="2" ColumnSpacing="24" IsVisible="{Binding Workflow.IsAdvancedMode, FallbackValue=True}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

@@ -1,4 +1,5 @@
 using System;
+using Sidera.Desktop.Workflows;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -152,6 +153,18 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     /// (equipment came or went), nor by <see cref="ReplaceSteps"/>, nor by anything about running the sequence.
     /// </summary>
     public event EventHandler? Modified;
+
+    /// <summary>
+    /// Problems that the draft cannot see itself: those of the workflow it was compiled from (a setup that has no focuser, a block without a setup). They are listed first among the validation
+    /// errors and keep the draft from being built, so that a workflow with a problem is not run with the part that compiled.
+    /// </summary>
+    public IReadOnlyList<string> ExternalProblems { get; set; } = [];
+
+    /// <summary>Says that the draft was changed, for a change that is made outside it (the workflow editor): the document is then modified.</summary>
+    public void MarkModified() => Modified?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Takes a target of the framing into the session as a workflow; <c>null</c> when it does not (the draft then adds the steps itself). Set by the workflow editor.</summary>
+    public Func<WorkflowTargetRequest, string?>? TargetSink { get; set; }
 
     /// <summary>Some field holds text that is not a number. The draft can still be shown, but not saved faithfully.</summary>
     public bool HasUnreadableFields { get; private set; }
@@ -313,6 +326,11 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         for (var i = 0; i < Steps.Count; i++)
         {
             Present(Steps[i], drafts[i], [i], i + 1, null);
+        }
+
+        if (ExternalProblems.Count > 0)
+        {
+            sentences = [.. ExternalProblems, .. sentences];
         }
 
         if (!sentences.SequenceEqual(ValidationErrors))
@@ -510,9 +528,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Autofocus;
 
     public bool CanRemove => IsEditable && SelectedStep is not null;
-    public bool CanMoveUp => IsEditable && SelectedStep is not null && SiblingsOf(SelectedStep).IndexOf(SelectedStep) > 0;
+    public bool CanMoveUp => IsEditable && !IsScopeFiltered && SelectedStep is not null && SiblingsOf(SelectedStep).IndexOf(SelectedStep) > 0;
 
-    public bool CanMoveDown => IsEditable && SelectedStep is not null
+    public bool CanMoveDown => IsEditable && !IsScopeFiltered && SelectedStep is not null
         && SiblingsOf(SelectedStep) is var siblings && siblings.IndexOf(SelectedStep) is var i && i >= 0 && i < siblings.Count - 1;
 
     // A step whose fields do not all read as numbers cannot be copied faithfully; it has to be fixed first.
@@ -697,6 +715,12 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         if (!IsEditable)
         {
             return Refuse("The sequence cannot be changed while it runs.");
+        }
+
+        // A filtered view hides rows: moving a step among the visible ones would put it at a place among the hidden ones that nobody chose.
+        if (IsScopeFiltered)
+        {
+            return Refuse("Reordering is off in a filtered view. Show the Overview to move steps.");
         }
 
         if (Rows.FirstOrDefault(row => row.Id == sourceId) is not { } step)

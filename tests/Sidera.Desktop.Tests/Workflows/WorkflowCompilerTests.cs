@@ -263,7 +263,7 @@ public sealed class WorkflowCompilerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void AWorkflow_IsSavedInTheDocument_AndComesBackAsTheSameWorkflow()
+    public async Task AWorkflow_IsSavedInTheDocument_AndComesBackAsTheSameWorkflow()
     {
         var workflow = Workflow(
             [Step(WorkflowStepKind.SlewAndCenter), new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.Wait, null, true, 12.5)],
@@ -277,11 +277,11 @@ public sealed class WorkflowCompilerTests : IAsyncLifetime
         var serializer = new JsonSequenceDocumentSerializer();
 
         using var stream = new MemoryStream();
-        serializer.SaveAsync(stream, new SequenceDocument("Test", [], null, workflow), CancellationToken.None).GetAwaiter().GetResult();
+        await serializer.SaveAsync(stream, new SequenceDocument("Test", [], null, workflow), CancellationToken.None);
         stream.Position = 0;
         var text = new StreamReader(stream).ReadToEnd();
         stream.Position = 0;
-        var back = serializer.LoadAsync(stream, CancellationToken.None).GetAwaiter().GetResult().Workflow!;
+        var back = (await serializer.LoadAsync(stream, CancellationToken.None)).Workflow!;
 
         Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
         Assert.Equal(workflow.Target, back.Target);
@@ -293,33 +293,33 @@ public sealed class WorkflowCompilerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void AVersion7Document_StillLoads_WithoutAWorkflow()
+    public async Task AVersion7Document_StillLoads_WithoutAWorkflow()
     {
         var text = "{\"format\":\"astra-sequence\",\"version\":7,\"steps\":[{\"type\":\"delay\",\"id\":\"11111111-1111-4111-8111-111111111111\",\"durationSeconds\":3}]}";
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
 
-        var document = new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None).GetAwaiter().GetResult();
+        var document = await new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None);
 
         Assert.Null(document.Workflow);
         Assert.IsType<DelayDocumentStep>(Assert.Single(document.Steps));
     }
 
     [Fact]
-    public void AWorkflowInAVersion7Document_IsIgnored_ItDoesNotBelongThere()
+    public async Task AWorkflowInAVersion7Document_IsIgnored_ItDoesNotBelongThere()
     {
         var text = "{\"format\":\"astra-sequence\",\"version\":7,\"steps\":[],\"workflow\":{\"target\":{}}}";
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
 
-        Assert.Null(new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None).GetAwaiter().GetResult().Workflow);
+        Assert.Null((await new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None)).Workflow);
     }
 
     [Fact]
-    public void ABrokenWorkflow_IsRefusedWithASentence_NotACrash()
+    public async Task ABrokenWorkflow_IsRefusedWithASentence_NotACrash()
     {
         var text = "{\"format\":\"astra-sequence\",\"version\":8,\"steps\":[],\"workflow\":{\"target\":{\"name\":\"x\"}}}";
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
 
-        var ex = Assert.Throws<SequenceDocumentException>(() => new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None).GetAwaiter().GetResult());
+        var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None));
 
         Assert.StartsWith("Invalid workflow", ex.Message, StringComparison.Ordinal);
     }
@@ -336,5 +336,24 @@ public sealed class WorkflowCompilerTests : IAsyncLifetime
         Assert.Equal([WorkflowStepKind.StopGuiding], template.Finish.Select(s => s.Kind));
         Assert.Single(template.Imaging);
         Assert.True(WorkflowCompiler.Compile(template, host.RigRegistry).IsValid);
+    }
+
+    [Fact]
+    public void AnAutofocusInterval_SurvivesTheDocumentAndTheAdvancedEditor()
+    {
+        var steps = new List<SequenceStepDraft>
+        {
+            new MultiRigStepDraft(
+                Guid.NewGuid(),
+                [new RigTrackDraft(Guid.NewGuid(), A, [new RigExposureStepDraft(Guid.NewGuid(), 1)], new RigAutofocusPolicyDraft(true, false, false, 1, 400, 7, 30))],
+                null, true),
+        };
+
+        var document = SequenceDocumentMapper.ToDocument(steps);
+        var back = SequenceDocumentMapper.ToDrafts(document);
+
+        var track = ((MultiRigStepDraft)back[0]).Tracks[0];
+        Assert.Equal(30, track.AutofocusPolicy!.IntervalMinutes);
+        Assert.True(((MultiRigStepDraft)back[0]).SingleTrack);
     }
 }

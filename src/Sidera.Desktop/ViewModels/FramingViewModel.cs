@@ -791,6 +791,14 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // A session that is a workflow takes the target as its target; a session of explicit steps gets the steps below.
+        if (_session.TargetSink?.Invoke(new Sidera.Desktop.ViewModels.WorkflowTargetRequest(
+                target.Name, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, target.DesiredRotationDegrees, SelectedRig?.Id)) is { } handled)
+        {
+            StatusText = handled;
+            return;
+        }
+
         var solve = SolveSettings;
         // A rig with a rotator gets the step that rotates; one without gets the position and the rotation as metadata. Neither adds a Sync step.
         SequenceStepDraft step = HasRotator

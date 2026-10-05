@@ -77,7 +77,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             SequenceDraft, store ?? SequenceDocumentStore.CreateDefault(), filePicker ?? new NoSequenceFilePicker());
         var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
-        SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution);
+        Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution);
+        SequenceDocument.Workflow = Workflow;
+        SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, Workflow);
         Dashboard = new DashboardViewModel(
             Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, postToUi, page => SelectedPage = page);
 
@@ -142,6 +144,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
                 {
                     Imaging.Capture?.Refresh();
                     OnDeviceRefreshed(this, EventArgs.Empty);
+                    Workflow.RefreshSetups();
                     PlateSolve.RefreshEquipment();
                     Framing.RefreshEquipment();
                 }
@@ -162,6 +165,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public SequenceDocumentViewModel SequenceDocument { get; }
     public SequencerViewModel Sequencer { get; }
     public SessionPageViewModel SessionPage { get; }
+    public WorkflowEditorViewModel Workflow { get; }
     public ExecutionOverviewViewModel Execution { get; }
     public ImagingViewModel Imaging { get; }
     public RuntimeStatusViewModel Runtime { get; }

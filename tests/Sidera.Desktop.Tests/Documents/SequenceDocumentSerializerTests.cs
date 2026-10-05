@@ -357,7 +357,6 @@ public class SequenceDocumentSerializerTests
 
     [Theory]
     [InlineData("9")]
-    [InlineData("9")]
     [InlineData("999")]
     public async Task ANewerVersion_IsRejectedWithItsOwnMessage_WhateverElseIsInIt(string version)
     {
