@@ -133,6 +133,21 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             };
         }
 
+        // A rig that is added, renamed, changed or removed is followed by the pages that choose a rig: without this the Imaging page and the others would offer the rigs of the start.
+        if (equipmentManagement is not null)
+        {
+            equipmentManagement.Service.Changed += (_, change) =>
+            {
+                if (change.Kind is Sidera.Desktop.Hardware.EquipmentChangeKind.RigsAdded or Sidera.Desktop.Hardware.EquipmentChangeKind.RigsChanged)
+                {
+                    Imaging.Capture?.Refresh();
+                    OnDeviceRefreshed(this, EventArgs.Empty);
+                    PlateSolve.RefreshEquipment();
+                    Framing.RefreshEquipment();
+                }
+            };
+        }
+
         Equipment.RemovalGuard = id => SequenceDraft.RequiredDeviceIds().Any(d => d.Value == id)
             ? "It is used by a step of the current sequence."
             : null;
