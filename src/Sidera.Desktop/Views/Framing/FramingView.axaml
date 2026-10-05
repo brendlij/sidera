@@ -12,12 +12,27 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="2*,*,*" ColumnSpacing="12">
             <ctl:LabeledField Label="Search an object (M31, NGC 7000, IC 434)">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <TextBox Text="{Binding SearchText}" PlaceholderText="NGC 7000" AutomationProperties.Name="Search object">
-                        <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" /></TextBox.KeyBindings>
-                    </TextBox>
-                    <Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" IsEnabled="{Binding CanSearch}" />
-                </Grid>
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <AutoCompleteBox Text="{Binding SearchText, Mode=TwoWay}" SelectedItem="{Binding SelectedResult, Mode=TwoWay}"
+                                         AsyncPopulator="{Binding Suggest}" MinimumPrefixLength="2" MinimumPopulateDelay="0:0:0.25" MaxDropDownHeight="320"
+                                         FilterMode="None" ValueMemberBinding="{Binding Name, DataType=sky:CelestialObject}" PlaceholderText="NGC 7000" AutomationProperties.Name="Search object">
+                            <AutoCompleteBox.ItemTemplate>
+                                <DataTemplate x:DataType="sky:CelestialObject">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <StackPanel Spacing="0">
+                                            <TextBlock Text="{Binding Name}" />
+                                            <TextBlock Classes="meta" Text="{Binding Subtitle}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Classes="meta" Text="{Binding Type}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </AutoCompleteBox.ItemTemplate>
+                        </AutoCompleteBox>
+                        <Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" IsEnabled="{Binding CanSearch}" />
+                    </Grid>
+                    <ProgressBar IsIndeterminate="True" Height="3" IsVisible="{Binding IsSearching}" />
+                </StackPanel>
             </ctl:LabeledField>
             <ctl:LabeledField Grid.Column="1" Label="Rig">
                 <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.Name="Rig">
@@ -35,20 +50,14 @@
             <Border Classes="panel" Padding="0" ClipToBounds="True">
                 <Grid>
                     <ctl:SkyView Image="{Binding Image}" ImageViewport="{Binding ImageViewport}" ImageVersion="{Binding ImageVersion}"
-                                 Viewport="{Binding Viewport}" Field="{Binding Field}" Target="{Binding Target}" Note="{Binding ImageNote}"
+                                 Viewport="{Binding Viewport}" Field="{Binding Field}" Target="{Binding Target}" Note="{Binding ImageNote}" Brightness="{Binding Brightness}"
                                  PanCommand="{Binding PanCommand}" ZoomCommand="{Binding ZoomCommand}" MoveTargetCommand="{Binding MoveTargetToCommand}"
                                  RotateCommand="{Binding RotateByCommand}" AutomationProperties.Name="Sky" />
                     <TextBlock Classes="secondary" Text="Search for an object to begin." HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !HasTarget}" />
-                    <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12" MaxHeight="220">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="sky:CelestialObject">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Classes="meta" Text="{Binding Type}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <StackPanel VerticalAlignment="Top" Spacing="6" IsVisible="{Binding IsLoadingImage}">
+                        <ProgressBar IsIndeterminate="True" Height="3" />
+                        <TextBlock Classes="meta" Text="Loading imagery…" HorizontalAlignment="Center" />
+                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -60,6 +69,9 @@
                 </StackPanel>
                 <ctl:LabeledField Label="Rotation (°)">
                     <TextBox Text="{Binding RotationText}" AutomationProperties.Name="Rotation" IsEnabled="{Binding HasTarget}" />
+                </ctl:LabeledField>
+                <ctl:LabeledField Label="Brightness">
+                    <Slider Minimum="0" Maximum="1" Value="{Binding Brightness}" AutomationProperties.Name="Brightness" ToolTip.Tip="Lifts the dark parts of the sky picture" />
                 </ctl:LabeledField>
                 <TextBlock Classes="meta" Text="Ctrl + wheel turns the frame; drag the frame to move it; drag elsewhere to pan." TextWrapping="Wrap" />
                 <Border Classes="notice-danger" IsVisible="{Binding ProblemText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">

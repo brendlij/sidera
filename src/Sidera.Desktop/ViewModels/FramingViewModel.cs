@@ -85,6 +85,36 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty] public partial string SearchStatus { get; private set; } = string.Empty;
 
+    /// <summary>A search is running (shows a small progress bar by the search box).</summary>
+    [ObservableProperty] public partial bool IsSearching { get; private set; }
+
+    /// <summary>How much the sky picture is lifted, 0 to 1; the survey's pixels stay as they are.</summary>
+    [ObservableProperty] public partial double Brightness { get; set; }
+
+    /// <summary>
+    /// The suggestions while typing, for the drop-down of the search box: the objects whose names match what is typed so far. Called off the UI thread, after a pause in the typing, and
+    /// cancelled by the next keystroke; a catalog that cannot answer gives an empty list.
+    /// </summary>
+    public async Task<IEnumerable<object>> SuggestAsync(string? text, CancellationToken cancellationToken)
+    {
+        var query = (text ?? string.Empty).Trim();
+        if (_catalog is null || query.Length < 2 || cancellationToken.IsCancellationRequested)
+        {
+            return [];
+        }
+
+        try
+        {
+            return [.. await _catalog.SearchAsync(query, 8, cancellationToken)];
+        }
+        catch (OperationCanceledException)
+        {
+            return [];
+        }
+    }
+
+    public Func<string?, CancellationToken, Task<IEnumerable<object>>> Suggest => SuggestAsync;
+
     // ---- The plan and the view
 
     /// <summary>The framing being planned; <c>null</c> until an object or a place was chosen.</summary>
@@ -246,6 +276,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
         var source = _search = new CancellationTokenSource();
         SearchStatus = "Searching…";
+        IsSearching = true;
         try
         {
             var found = await _catalog.SearchAsync(query, 8, source.Token);
@@ -268,6 +299,13 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
             // A newer search replaced this one.
+        }
+        finally
+        {
+            if (ReferenceEquals(_search, source))
+            {
+                IsSearching = false;
+            }
         }
     }
 
