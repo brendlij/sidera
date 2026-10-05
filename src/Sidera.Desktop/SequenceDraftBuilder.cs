@@ -127,6 +127,10 @@ public static class SequenceDraftBuilder
 
         return step switch
         {
+            SlewAndCenterStepDraft c => new("Slew & Center", string.Create(
+                CultureInfo.InvariantCulture,
+                $"RA {c.RightAscensionHours:0.###} h · Dec {c.DeclinationDegrees:+0.##;-0.##;0}° · within {c.ToleranceArcseconds:0.##} arcsec · {c.MaxAttempts} attempts")),
+            SyncMountStepDraft m => new("Sync Mount to Solved Position", $"{DeviceName(registry, m.MountId, "no mount")} · uses the last successful plate solve"),
             PlateSolveStepDraft p => new("Plate Solve", $"{p.RigId?.Value ?? "no rig"} · {Seconds(p.ExposureSeconds)}"),
             ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, e.CameraId)}"),
             RigExposureStepDraft e => new("Exposure", $"{Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, rig?.CameraId)}"),
@@ -293,6 +297,7 @@ public static class SequenceDraftBuilder
                 // An autofocus of a rig needs the camera and the focuser of that rig.
                 foreach (var autofocus in step is RepeatStepDraft repeat ? repeat.Children.Cast<SequenceStepDraft>() : [step])
                 {
+                    if (autofocus is SlewAndCenterStepDraft { RigId: { } centerRigId } && TryGetRig(context, centerRigId, out var centerRig)) ids.Add(centerRig.CameraId);
                     if (autofocus is PlateSolveStepDraft { RigId: { } solveRigId } && TryGetRig(context, solveRigId, out var solveRig)) ids.Add(solveRig.CameraId);
                     if (autofocus is AutofocusStepDraft { RigId: { } rigId } && TryGetRig(context, rigId, out var rig))
                     {
@@ -566,6 +571,11 @@ public static class SequenceDraftBuilder
     private static ISequenceStep CreateLeaf(DeviceRegistry registry, SequenceStepDraft step, Rig? rig, SequenceDraftContext? context) => step switch
     {
         // Validated before: the rig is there and has a focuser, and the context has something to measure focus with.
+        SlewAndCenterStepDraft c => new SlewAndCenterAction(context!.PlateSolving!,
+            TryGetRig(context, c.RigId!.Value, out var centerRig) ? centerRig : null!, c.MountId!.Value,
+            new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees), c.ToleranceArcseconds, c.MaxAttempts,
+            TimeSpan.FromSeconds(c.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
+        SyncMountStepDraft m => new SyncMountToSolvedPositionAction(context!.PlateSolving!, m.MountId!.Value),
         PlateSolveStepDraft p => new PlateSolveAction(context!.PlateSolving!,
             TryGetRig(context, p.RigId!.Value, out var solveRig) ? solveRig : null!, context.Shared?.MountId,
             TimeSpan.FromSeconds(p.ExposureSeconds), context.PlateSolveDefaults?.Invoke() ?? new()),
@@ -906,8 +916,8 @@ public static class SequenceDraftBuilder
                 case AutofocusStepDraft:
                     problems.Add("Use Autofocus of the track here: its rig is the rig of the track.");
                     break;
-                case PlateSolveStepDraft:
-                    problems.Add("Plate Solve must be outside a Rig Track.");
+                case PlateSolveStepDraft or SlewAndCenterStepDraft or SyncMountStepDraft:
+                    problems.Add("Plate solving steps move or synchronize the shared mount and must be outside a Rig Track.");
                     break;
                 case MoveFocuserStepDraft:
                     problems.Add("Use Move Focuser of the track here: its focuser is the focuser of the rig.");
@@ -952,6 +962,28 @@ public static class SequenceDraftBuilder
         {
             switch (step)
             {
+                case SlewAndCenterStepDraft c:
+                    CheckDevice<IMount>(c.MountId, "mount", problems);
+                    CheckDuration(c.ExposureSeconds, "Solve exposure", problems);
+                    if (!double.IsFinite(c.ToleranceArcseconds) || c.ToleranceArcseconds <= 0) problems.Add("The tolerance must be greater than zero.");
+                    if (c.MaxAttempts is < 1 or > 100) problems.Add("The attempts must be from 1 to 100.");
+                    try
+                    {
+                        _ = new CelestialCoordinates(c.RightAscensionHours, c.DeclinationDegrees);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        problems.Add(UserFacingError.Describe(ex));
+                    }
+
+                    if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
+                    if (c.RigId is not { } centerRigId || !TryGetRig(context, centerRigId, out var centerRig)) problems.Add("Select an available rig.");
+                    else CheckDevice<ICamera>(centerRig.CameraId, "camera", problems);
+                    break;
+                case SyncMountStepDraft m:
+                    CheckDevice<IMount>(m.MountId, "mount", problems);
+                    if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
+                    break;
                 case PlateSolveStepDraft p:
                     CheckDuration(p.ExposureSeconds, "Solve exposure", problems);
                     if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
@@ -1223,6 +1255,12 @@ public static class SequenceDraftBuilder
                 case SlewStepDraft s:
                     Mismatch(s.MountId, _shared.MountId, "mount");
                     break;
+                case SlewAndCenterStepDraft c:
+                    Mismatch(c.MountId, _shared.MountId, "mount");
+                    break;
+                case SyncMountStepDraft m:
+                    Mismatch(m.MountId, _shared.MountId, "mount");
+                    break;
                 case StartGuidingStepDraft g:
                     Mismatch(g.GuiderId, _shared.GuiderId, "guider");
                     break;
@@ -1409,6 +1447,8 @@ public static class SequenceDraftBuilder
         SequenceStepKind.MoveFocuser or SequenceStepKind.RigMoveFocuser => "Move Focuser",
         SequenceStepKind.ChangeFilter or SequenceStepKind.RigChangeFilter => "Change Filter",
         SequenceStepKind.PlateSolve => "Plate Solve",
+        SequenceStepKind.SlewAndCenter => "Slew & Center",
+        SequenceStepKind.SyncMountToSolved => "Sync Mount to Solved Position",
         SequenceStepKind.Autofocus or SequenceStepKind.RigAutofocus => "Autofocus",
         SequenceStepKind.Repeat => "Repeat",
         SequenceStepKind.MultiRig => MultiRigName,
