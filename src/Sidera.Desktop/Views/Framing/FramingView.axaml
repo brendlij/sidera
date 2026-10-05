@@ -50,7 +50,7 @@
             <Border Classes="panel" Padding="0" ClipToBounds="True">
                 <Grid>
                     <ctl:SkyView Image="{Binding Image}" ImageViewport="{Binding ImageViewport}" ImageVersion="{Binding ImageVersion}"
-                                 Viewport="{Binding Viewport}" Field="{Binding Field}" Target="{Binding Target}" Note="{Binding ImageNote}" Brightness="{Binding Brightness}"
+                                 Viewport="{Binding Viewport}" Field="{Binding Field}" Target="{Binding Target}" Current="{Binding Current}" Note="{Binding ImageNote}" Brightness="{Binding Brightness}"
                                  PanCommand="{Binding PanCommand}" ZoomCommand="{Binding ZoomCommand}" MoveTargetCommand="{Binding MoveTargetToCommand}"
                                  RotateCommand="{Binding RotateByCommand}" AutomationProperties.Name="Sky" />
                     <TextBlock Classes="secondary" Text="Search for an object to begin." HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !HasTarget}" />
@@ -74,6 +74,8 @@
                     <Slider Minimum="0" Maximum="1" Value="{Binding Brightness}" AutomationProperties.Name="Brightness" ToolTip.Tip="Lifts the dark parts of the sky picture" />
                 </ctl:LabeledField>
                 <TextBlock Classes="meta" Text="Ctrl + wheel turns the frame; drag the frame to move it; drag elsewhere to pan." TextWrapping="Wrap" />
+                <TextBlock Classes="meta" Text="{Binding CurrentText}" TextWrapping="Wrap" Foreground="#E85050" AutomationProperties.AutomationId="FramingCurrent" />
+                <TextBlock Classes="meta" Text="Violet: the planned framing. Red: where the telescope points now (dashed while its rotation is unknown)." TextWrapping="Wrap" />
                 <Border Classes="notice-danger" IsVisible="{Binding ProblemText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
                 </Border>

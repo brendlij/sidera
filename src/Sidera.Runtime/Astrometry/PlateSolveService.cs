@@ -41,6 +41,9 @@ public sealed class PlateSolveService
     /// <summary>The mount that the latest result was made for (the one of its rig); <c>null</c> when the solve had no mount.</summary>
     public DeviceId? LastResultMountId { get; private set; }
 
+    /// <summary>The rig whose camera made the latest solve (so that a view of one rig does not take the solve of another for its own).</summary>
+    public RigId? LastRigId { get; private set; }
+
     private static string CameraClaim(DeviceId id) => "camera:" + id.Value;
     private static string MountClaim(DeviceId id) => "mount:" + id.Value;
     public PlateSolveResult? LastResult { get; private set; }
@@ -124,6 +127,7 @@ public sealed class PlateSolveService
     {
         LastRequest = request;
         LastFrame = request.Image.Frame;
+        LastRigId = rig.Id;
         using var scope = _logger.BeginScope(new Dictionary<string, object?> { ["RigId"] = rig.Id.Value, ["CameraId"] = rig.CameraId.Value, ["Backend"] = Solver.Name });
         _logger.LogInformation(new EventId(5100, "PlateSolveStarted"), "PlateSolveStarted with hint {Center}", request.ApproximateCenter);
         var clock = Stopwatch.StartNew();

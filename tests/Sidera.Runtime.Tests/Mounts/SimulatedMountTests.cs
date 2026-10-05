@@ -109,7 +109,9 @@ public class SimulatedMountTests
         var slew = mount.SlewToAsync(Target, cts.Token);
 
         Assert.Equal(MountMotionState.Slewing, mount.MotionState);
-        Assert.Equal(SimulatedMount.DefaultCoordinates, mount.Coordinates); // not there yet
+        // Not there yet: it is on its way, still at the start after a moment of a ten second slew (it reports where it is, not where it is going).
+        Assert.True(Sidera.Core.Astrometry.SkyMath.AngularSeparationDegrees(mount.Coordinates, SimulatedMount.DefaultCoordinates) < 1);
+        Assert.NotEqual(Target, mount.Coordinates);
         await cts.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => slew);
 

@@ -27,6 +27,8 @@
                     <StackPanel Spacing="2">
                         <ctl:InfoRow Label="Camera" Value="{Binding Camera.ActivityText}" IsVisible="{Binding Camera.IsConnected}" />
                         <ctl:InfoRow Label="Camera" Value="Not connected" IsVisible="{Binding Camera.IsDisconnected}" />
+                        <ctl:InfoRow Label="Configured device" Value="{Binding ConfiguredDeviceText}" />
+                        <ctl:InfoRow Label="Driver reports" Value="{Binding ReportedIdentityText}" IsVisible="{Binding HasReportedIdentity}" AutomationProperties.AutomationId="CameraReportedIdentity" />
                         <ctl:InfoRow Label="Last frame" Value="{Binding Camera.LastFrameText}" />
                         <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
                     </StackPanel>

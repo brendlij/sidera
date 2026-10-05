@@ -584,6 +584,53 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheDriversSetup_IsOfferedBeforeTheFirstConnection_NotWhileConnected_AndAgainAfterDisconnecting()
+    {
+        var (vm, service, host) = CreateApp();
+        service.Add(DeviceConfiguration.Ascom("camera.main", "Camera", DeviceType.Camera, "ASCOM.Simulator.Camera"));
+        var configuration = vm.Equipment.SelectedDetail!.Configuration!;
+
+        Assert.True(configuration.SetupDriverCommand.CanExecute(null)); // never connected: this is when it is needed
+        Assert.Equal(string.Empty, configuration.SetupBlockText);
+
+        await host.DeviceOperations.ConnectAsync(new DeviceId("camera.main"));
+        Assert.False(configuration.SetupDriverCommand.CanExecute(null));
+        Assert.Contains("Disconnect the device", configuration.SetupBlockText);
+
+        await host.DeviceOperations.DisconnectAsync(new DeviceId("camera.main"));
+        Assert.True(configuration.SetupDriverCommand.CanExecute(null));
+        Assert.Equal(string.Empty, configuration.SetupBlockText);
+    }
+
+    [Fact]
+    public async Task TheSlotsSetup_IsOfferedForAConfiguredAscomDevice_EvenWhenItsDriverIsNotInTheList()
+    {
+        var stored = new EquipmentConfiguration([DeviceConfiguration.Ascom("camera.asi", "Gone Camera", DeviceType.Camera, "ASCOM.Gone.Camera", "Gone Camera")], []);
+        var (vm, _, _) = CreateApp(stored);
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+        await UxWait(() => slot.Choices.Any(c => c.IsAscom));
+        slot.SelectedChoice = null; // nothing is chosen in the list
+
+        Assert.True(slot.CanSetup());
+        await slot.SetupCommand.ExecuteAsync(null);
+
+        Assert.Equal([(AscomDeviceKind.Camera, "ASCOM.Gone.Camera")], _setup.Shown); // the driver of the configured device
+    }
+
+    [Fact]
+    public async Task TheSlotsSetup_IsNotOfferedWhileTheDeviceIsConnected()
+    {
+        var (vm, service, host) = CreateApp();
+        service.Add(DeviceConfiguration.Ascom("camera.main", "Camera", DeviceType.Camera, "ASCOM.Simulator.Camera"));
+        var slot = Slot(vm.Equipment, DeviceType.Camera);
+        Assert.True(slot.CanSetup());
+
+        await host.DeviceOperations.ConnectAsync(new DeviceId("camera.main"));
+
+        Assert.False(slot.CanSetup());
+    }
+
+    [Fact]
     public void ASimulatorHasNoDriverSetup_ButCanBeEditedAndRemoved()
     {
         var (vm, service, _) = CreateApp();

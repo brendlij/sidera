@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -29,6 +30,7 @@ public sealed class SkyView : Control
     public static readonly StyledProperty<long> ImageVersionProperty = AvaloniaProperty.Register<SkyView, long>(nameof(ImageVersion));
     public static readonly StyledProperty<SkyViewport?> ViewportProperty = AvaloniaProperty.Register<SkyView, SkyViewport?>(nameof(Viewport));
     public static readonly StyledProperty<RigField?> FieldProperty = AvaloniaProperty.Register<SkyView, RigField?>(nameof(Field));
+    public static readonly StyledProperty<CurrentView?> CurrentProperty = AvaloniaProperty.Register<SkyView, CurrentView?>(nameof(Current));
     public static readonly StyledProperty<FramingTarget?> TargetProperty = AvaloniaProperty.Register<SkyView, FramingTarget?>(nameof(Target));
     public static readonly StyledProperty<double> BrightnessProperty = AvaloniaProperty.Register<SkyView, double>(nameof(Brightness));
     public static readonly StyledProperty<string?> NoteProperty = AvaloniaProperty.Register<SkyView, string?>(nameof(Note));
@@ -48,7 +50,7 @@ public sealed class SkyView : Control
 
     static SkyView()
     {
-        AffectsRender<SkyView>(ImageProperty, ImageViewportProperty, ImageVersionProperty, ViewportProperty, FieldProperty, TargetProperty, NoteProperty, BrightnessProperty);
+        AffectsRender<SkyView>(ImageProperty, ImageViewportProperty, ImageVersionProperty, ViewportProperty, FieldProperty, TargetProperty, NoteProperty, BrightnessProperty, CurrentProperty);
         FocusableProperty.OverrideDefaultValue<SkyView>(true);
     }
 
@@ -64,6 +66,9 @@ public sealed class SkyView : Control
     public RigField? Field { get => GetValue(FieldProperty); set => SetValue(FieldProperty, value); }
 
     public FramingTarget? Target { get => GetValue(TargetProperty); set => SetValue(TargetProperty, value); }
+
+    /// <summary>Where the rig points now, drawn in red next to the planned framing: a rotated field when the rotation is known, an unrotated dashed one when it is not.</summary>
+    public CurrentView? Current { get => GetValue(CurrentProperty); set => SetValue(CurrentProperty, value); }
 
     /// <summary>How much the picture is lifted, from 0 (as the survey is) to 1.</summary>
     public double Brightness { get => GetValue(BrightnessProperty); set => SetValue(BrightnessProperty, value); }
@@ -109,6 +114,7 @@ public sealed class SkyView : Control
         {
             DrawImage(context, view, layout);
             DrawField(context, view, layout);
+            DrawCurrent(context, view, layout);
             DrawNote(context);
         }
     }
@@ -232,6 +238,54 @@ public sealed class SkyView : Control
             var unit = outward / outward.Length;
             context.DrawLine(new Pen(accent, 2), topMiddle, topMiddle + unit * 14);
             Text(context, FramingLabels.Top(target.DesiredRotationDegrees), accent, topMiddle + unit * 28, centered: true, backdrop: true);
+        }
+    }
+
+    // The current field: red, so that it is never taken for the plan. It is drawn whether or not there is a target: this is where the telescope is.
+    private void DrawCurrent(DrawingContext context, SkyViewport view, (double Scale, double OffsetX, double OffsetY) layout)
+    {
+        if (Current is not { } current)
+        {
+            return;
+        }
+
+        var red = new SolidColorBrush(Color.FromRgb(232, 80, 80));
+        if (view.ToPixel(current.Center) is { } middle)
+        {
+            var c = ToControl(middle, layout);
+            var pen = new Pen(red, 1.5);
+            context.DrawLine(pen, new Point(c.X - 10, c.Y), new Point(c.X + 10, c.Y));
+            context.DrawLine(pen, new Point(c.X, c.Y - 10), new Point(c.X, c.Y + 10));
+        }
+
+        if (Field is not { } field || view.Outline(current.Center, field, current.RotationDegrees ?? 0) is not { Count: 4 } outline)
+        {
+            return;
+        }
+
+        var points = outline.Select(corner => ToControl(corner, layout)).ToList();
+        var geometry = new StreamGeometry();
+        using (var g = geometry.Open())
+        {
+            g.BeginFigure(points[0], true);
+            for (var i = 1; i < 4; i++)
+            {
+                g.LineTo(points[i]);
+            }
+
+            g.EndFigure(true);
+        }
+
+        // Dashed when the rotation is not known: the frame is where it points, but its turn is not claimed.
+        var known = current.RotationDegrees is not null;
+        context.DrawGeometry(null, new Pen(red, 2, known ? null : DashStyle.Dash), geometry);
+        var label = known ? FramingLabels.Top(current.RotationDegrees!.Value) : "rotation unknown";
+        var topMiddle = new Point((points[0].X + points[1].X) / 2, (points[0].Y + points[1].Y) / 2);
+        var frameMiddle = new Point((points[0].X + points[2].X) / 2, (points[0].Y + points[2].Y) / 2);
+        var outward = new Vector(topMiddle.X - frameMiddle.X, topMiddle.Y - frameMiddle.Y);
+        if (outward.Length > 1)
+        {
+            Text(context, label, red, topMiddle + outward / outward.Length * 14, centered: true, backdrop: true);
         }
     }
 

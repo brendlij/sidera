@@ -236,6 +236,12 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedRigChanged(Rig? value)
     {
+        // The rig is on a mount of its own, or on one that it shares: that is the mount of the framing, unless the person chose another one.
+        if (value?.MountId is { } mountId && Mounts.FirstOrDefault(m => m.Id == mountId) is { } rigMount)
+        {
+            SelectedMount = rigMount;
+        }
+
         // The field follows the rig at once: nothing of it is kept in the plan.
         RefreshField();
         if (Target is { } target)
@@ -552,9 +558,56 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         CenterAndRotateCommand.NotifyCanExecuteChanged();
         SolveAgainCommand.NotifyCanExecuteChanged();
         AddToSessionCommand.NotifyCanExecuteChanged();
+        RefreshCurrent();
     }
 
     private bool CanSlew() => !IsBusy && SlewDisabledText.Length == 0;
+
+    // ---- Where the rig points now
+
+    /// <summary>
+    /// The field of the rig as it is now, drawn next to the planned framing: centered where the mount of the rig says it points (live: it follows a slew), or where the latest plate solve
+    /// found the camera while the mount has not moved since, with the rotation of that solve. <c>null</c> without a connected mount and without a solve. Read by <see cref="RefreshCurrent"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCurrent), nameof(CurrentText))]
+    public partial CurrentView? Current { get; private set; }
+
+    public bool HasCurrent => Current is not null;
+
+    /// <summary>One line for the legend: where the rig points, where that comes from, and the rotation or that it is unknown.</summary>
+    public string CurrentText => Current is not { } c
+        ? "Current field: unknown (connect the mount or solve)"
+        : Format($"Current field: RA {c.Center.RightAscensionHours:0.###} h · Dec {c.Center.DeclinationDegrees:+0.##;-0.##;0}° · {(c.Source == CurrentViewSource.Solved ? "solved position" : "mount position")} · {(c.RotationDegrees is { } r ? "rotation " + r.ToString("0.#", CultureInfo.InvariantCulture) + "° (last solve)" : "rotation unknown")}");
+
+    /// <summary>Reads where the rig points now. Called often (while the page is open) and cheap: it only reads the mount and the last solve, and moves nothing.</summary>
+    public void RefreshCurrent()
+    {
+        var rig = CurrentRig;
+        var mount = rig?.MountId is { } id && Mounts.FirstOrDefault(m => m.Id == id) is { } own ? own : SelectedMount;
+        CelestialCoordinates? now = null;
+        if (mount is { ConnectionState: DeviceConnectionState.Connected })
+        {
+            try
+            {
+                now = mount.Coordinates;
+            }
+            catch (Exception)
+            {
+                // A mount that does not say where it points: only the solve can tell.
+            }
+        }
+
+        (CelestialCoordinates Center, double? RotationDegrees)? solved = null;
+        CelestialCoordinates? atSolve = null;
+        if (_host.PlateSolving is { LastResult: { Success: true, Center: { } center } result } service && rig is not null && service.LastRigId == rig.Id)
+        {
+            solved = (center, result.RotationDegrees);
+            atSolve = service.LastRequest?.ApproximateCenter;
+        }
+
+        Current = CurrentViewResolver.Resolve(now, solved, atSolve);
+    }
 
     /// <summary>
     /// Slews to the center of the framing and centers it: the existing centering of the plate solver. Position only: nothing is synchronized and nothing is rotated. After it
