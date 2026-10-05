@@ -72,6 +72,17 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     /// <summary>The step is inside a Rig Track, however deep: it belongs to a lane.</summary>
     public bool InTrack => Parent is { } parent && (parent.IsTrack || parent.InTrack);
 
+    /// <summary>The row is shown by the view of the session that is selected (all rows are in the overview). Set by the draft.</summary>
+    [ObservableProperty]
+    public partial bool IsInScopeView { get; internal set; } = true;
+
+    /// <summary>Whose step it is, as the list says: the name of the rig, "Shared" (mount, guider, delay), "Device" (a step that names its device) or "Parallel".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasScopeText))]
+    public partial string ScopeText { get; internal set; } = string.Empty;
+
+    public bool HasScopeText => ScopeText.Length > 0;
+
     /// <summary>How far the row is indented in the list.</summary>
     public double IndentWidth => Depth * 28;
 

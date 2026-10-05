@@ -16,6 +16,23 @@
     -->
     <StackPanel Spacing="12">
 
+        <!-- The session by rig: the same steps, seen as everything, as one rig, or as what is shared. Only with more than one rig. -->
+        <ItemsControl ItemsSource="{Binding Draft.ScopeTabs}" IsVisible="{Binding Draft.HasScopeTabs}" AutomationProperties.AutomationId="SessionScopeTabs">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SessionScopeTab">
+                    <RadioButton Classes="tab" GroupName="SessionScope" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Title}" />
+                            <TextBlock Classes="meta" Text="{Binding CountText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <!-- Toolbar: add, duplicate, remove, and the rest behind the dots -->
         <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !Sequencer.IsRunning}">
             <Button Classes="secondary" AutomationProperties.Name="Add step" IsEnabled="{Binding Draft.IsEditable}">
@@ -94,7 +111,7 @@
                      ScrollViewer.VerticalScrollBarVisibility="Disabled" DragDrop.AllowDrop="True">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:StepDraftViewModel">
-                        <Panel Classes="step-row" Classes.dragging="{Binding IsDragSource}">
+                        <Panel Classes="step-row" Classes.dragging="{Binding IsDragSource}" IsVisible="{Binding IsInScopeView}">
                             <!-- Refused as a place for the dragged step -->
                             <Border Classes="step-reject" Classes.rejected="{Binding IsDropRejected}" />
                             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" MinHeight="48">
@@ -114,7 +131,11 @@
                                 <StackPanel Grid.Column="3" Spacing="2" Margin="12,8,8,8" VerticalAlignment="Center">
                                     <TextBlock Classes="eyebrow accent" Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}"
                                                IsVisible="{Binding IsMultiRig}" />
-                                    <TextBlock Classes="card-title" Text="{Binding Title}" IsVisible="{Binding !IsMultiRig}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsMultiRig}">
+                                        <TextBlock Classes="card-title" Text="{Binding Title}" />
+                                        <TextBlock Classes="meta accent" Text="{Binding ScopeText}" VerticalAlignment="Center" IsVisible="{Binding HasScopeText}"
+                                                   AutomationProperties.Name="Scope" />
+                                    </StackPanel>
                                     <TextBlock Classes="secondary" Text="{Binding Summary}" TextWrapping="Wrap" IsVisible="{Binding !HasProblems}" />
                                     <TextBlock Classes="secondary danger" Text="{Binding FirstProblem}" TextWrapping="Wrap" IsVisible="{Binding HasProblems}" />
                                 </StackPanel>

@@ -321,6 +321,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         }
 
         NotifyCommands();
+        RefreshScopeView();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -876,6 +877,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         }
 
         SelectedStep = keep is not null && Rows.Contains(keep) ? keep : null;
+        RefreshScopeView();
         NotifyCommands();
     }
 
