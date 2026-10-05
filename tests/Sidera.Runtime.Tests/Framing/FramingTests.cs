@@ -105,7 +105,7 @@ public sealed class FramingGeometryTests
         var narrow = RigField.From(OpticalTrainGeometry.Resolve(new OpticalTrain(1200, null, 3.76, 3.76, 4656, 3520), null))!;
 
         Assert.True(wide.WidthDegrees > 5 * narrow.WidthDegrees);
-        Assert.Equal(wide.WidthDegrees / wide.HeightDegrees, 6248.0 / 4176, 2);
+        Assert.Equal(6248.0 / 4176, wide.WidthDegrees / wide.HeightDegrees, 2);
     }
 
     [Fact]

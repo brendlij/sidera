@@ -3,6 +3,7 @@
              xmlns:vm="using:Sidera.Desktop.ViewModels"
              xmlns:ctl="using:Sidera.Desktop.Controls"
              xmlns:conv="using:Sidera.Desktop.Converters"
+             xmlns:sky="using:Sidera.Sky"
              x:Class="Sidera.Desktop.Views.Settings.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
@@ -59,6 +60,20 @@
                     <ctl:LabeledField Grid.Column="2" Label="Max attempts"><NumericUpDown Value="{Binding MaxAttempts}" Minimum="1" Maximum="100" /></ctl:LabeledField>
                 </Grid>
                 <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Save plate solving" Command="{Binding SaveCommand}" /><Button Content="Refresh detection" Command="{Binding RefreshCommand}" /></StackPanel>
+                <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel DataContext="{Binding SkyAtlas}" x:DataType="vm:SkyAtlasSettingsViewModel" IsVisible="{Binding $parent[UserControl].DataContext.HasSite}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="SKY ATLAS (FRAMING)" />
+                <ctl:LabeledField Label="Default survey"><ComboBox ItemsSource="{Binding Surveys}" SelectedItem="{Binding SelectedSurvey}">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="sky:SkySurveyDescriptor"><TextBlock Text="{Binding Title}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox></ctl:LabeledField>
+                <ctl:LabeledField Label="Cache folder (empty for the default)"><TextBox Text="{Binding CacheDirectory}" /></ctl:LabeledField>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Cache size (MB)"><NumericUpDown Value="{Binding MaxCacheMegabytes}" Minimum="16" Maximum="100000" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Network timeout (s)"><NumericUpDown Value="{Binding NetworkTimeoutSeconds}" Minimum="1" Maximum="300" /></ctl:LabeledField>
+                </Grid>
+                <TextBlock Classes="meta" Text="The cache holds only the sky imagery you looked at, for your own use; it belongs to its source and is never shared." TextWrapping="Wrap" />
+                <Button Content="Save sky atlas" Command="{Binding SaveCommand}" HorizontalAlignment="Left" />
                 <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
             </StackPanel>
             <ItemsControl ItemsSource="{Binding Groups}">

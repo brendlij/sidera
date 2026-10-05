@@ -14,6 +14,7 @@ namespace Sidera.Desktop.Settings;
 public sealed record SideraSettings(ObservingSite? Site)
 {
     public PlateSolvingSettings PlateSolving { get; init; } = new();
+    public SkyAtlasSettings SkyAtlas { get; init; } = new();
     public const string FormatId = "sidera-settings";
     public const int CurrentVersion = 1;
 
@@ -35,6 +36,8 @@ public static class SideraSettingsSerializer
             w.WriteNumber("version", SideraSettings.CurrentVersion);
             w.WritePropertyName("plateSolving");
             JsonSerializer.Serialize(w, settings.PlateSolving);
+            w.WritePropertyName("skyAtlas");
+            JsonSerializer.Serialize(w, settings.SkyAtlas);
             if (settings.Site is { } site)
             {
                 w.WriteStartObject("site");
@@ -84,9 +87,16 @@ public static class SideraSettingsSerializer
                 catch (JsonException ex) { throw new SideraSettingsException("The plate solving settings are invalid.", ex); }
                 if (solving.Problem is { } solveProblem) throw new SideraSettingsException(solveProblem);
             }
+            var atlas = new SkyAtlasSettings();
+            if (root.TryGetProperty("skyAtlas", out var atlasElement))
+            {
+                try { atlas = atlasElement.Deserialize<SkyAtlasSettings>() ?? new(); }
+                catch (JsonException ex) { throw new SideraSettingsException("The sky atlas settings are invalid.", ex); }
+                if (atlas.Problem is { } atlasProblem) throw new SideraSettingsException(atlasProblem);
+            }
             if (!root.TryGetProperty("site", out var site) || site.ValueKind == JsonValueKind.Null)
             {
-                return SideraSettings.Empty with { PlateSolving = solving };
+                return SideraSettings.Empty with { PlateSolving = solving, SkyAtlas = atlas };
             }
 
             if (site.ValueKind != JsonValueKind.Object)
@@ -108,7 +118,7 @@ public static class SideraSettingsSerializer
             }
 
             var name = site.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String ? nameElement.GetString() : null;
-            return new SideraSettings(new ObservingSite(latitude, longitude, elevation, name)) { PlateSolving = solving };
+            return new SideraSettings(new ObservingSite(latitude, longitude, elevation, name)) { PlateSolving = solving, SkyAtlas = atlas };
         }
     }
 }
@@ -210,6 +220,11 @@ public sealed class SiteService
     /// <summary>The configured site; <c>null</c> when none was entered.</summary>
     public ObservingSite? Site => _settings.Site;
     public PlateSolvingSettings PlateSolving => _settings.PlateSolving;
+
+    public SkyAtlasSettings SkyAtlas => _settings.SkyAtlas;
+
+    public SiteResult SetSkyAtlas(SkyAtlasSettings settings) => settings.Problem is { } problem
+        ? SiteResult.Fail(problem) : Save(_settings with { SkyAtlas = settings });
 
     public SiteResult SetPlateSolving(PlateSolvingSettings settings) => settings.Problem is { } problem
         ? SiteResult.Fail(problem) : Save(_settings with { PlateSolving = settings });

@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels" xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:rig="using:Sidera.Core.Rigs" xmlns:mount="using:Sidera.Core.Mounts" xmlns:sky="using:Sidera.Sky"
+             x:Class="Sidera.Desktop.Views.Framing.FramingView" x:DataType="vm:FramingViewModel">
+
+    <!--
+        Framing: choose an object, a rig and a survey; the field of the rig is drawn on the sky and can be dragged and turned. The plan touches no hardware;
+        Slew and Center is the existing centering and never synchronizes the mount.
+    -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{StaticResource InsetPage}" RowSpacing="12" MaxWidth="1600" HorizontalAlignment="Stretch">
+        <ctl:PageHeader Title="Framing" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="2*,*,*" ColumnSpacing="12">
+            <ctl:LabeledField Label="Search an object (M31, NGC 7000, IC 434)">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Text="{Binding SearchText}" PlaceholderText="NGC 7000" AutomationProperties.Name="Search object">
+                        <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" /></TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" IsEnabled="{Binding CanSearch}" />
+                </Grid>
+            </ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="1" Label="Rig">
+                <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.Name="Rig">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="rig:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+            </ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="2" Label="Survey">
+                <ComboBox ItemsSource="{Binding Surveys}" SelectedItem="{Binding SelectedSurvey}" HorizontalAlignment="Stretch" AutomationProperties.Name="Survey">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="sky:SkySurveyDescriptor"><TextBlock Text="{Binding Title}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+            </ctl:LabeledField>
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,300" ColumnSpacing="16">
+            <Border Classes="panel" Padding="0" ClipToBounds="True">
+                <Grid>
+                    <ctl:SkyView Image="{Binding Image}" ImageViewport="{Binding ImageViewport}" ImageVersion="{Binding ImageVersion}"
+                                 Viewport="{Binding Viewport}" Field="{Binding Field}" Target="{Binding Target}" Note="{Binding ImageNote}"
+                                 PanCommand="{Binding PanCommand}" ZoomCommand="{Binding ZoomCommand}" MoveTargetCommand="{Binding MoveTargetToCommand}"
+                                 RotateCommand="{Binding RotateByCommand}" AutomationProperties.Name="Sky" />
+                    <TextBlock Classes="secondary" Text="Search for an object to begin." HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !HasTarget}" />
+                    <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12" MaxHeight="220">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="sky:CelestialObject">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Classes="meta" Text="{Binding Type}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1" Spacing="14">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="TARGET" />
+                    <TextBlock Classes="section-title" Text="{Binding TargetName}" TextWrapping="Wrap" />
+                    <TextBlock Classes="meta" Text="{Binding CenterText}" TextWrapping="Wrap" AutomationProperties.AutomationId="FramingCenter" />
+                </StackPanel>
+                <ctl:LabeledField Label="Rotation (°)">
+                    <TextBox Text="{Binding RotationText}" AutomationProperties.Name="Rotation" IsEnabled="{Binding HasTarget}" />
+                </ctl:LabeledField>
+                <TextBlock Classes="meta" Text="Ctrl + wheel turns the frame; drag the frame to move it; drag elsewhere to pan." TextWrapping="Wrap" />
+                <Border Classes="notice-danger" IsVisible="{Binding ProblemText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+                </Border>
+                <StackPanel Spacing="2">
+                    <ctl:InfoRow Label="Field of view" Value="{Binding FovText}" AutomationProperties.AutomationId="FramingFov" />
+                    <ctl:InfoRow Label="Pixel scale" Value="{Binding PixelScaleText}" />
+                </StackPanel>
+
+                <ctl:LabeledField Label="Mount">
+                    <ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate><DataTemplate x:DataType="mount:IMount"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                </ctl:LabeledField>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Slew &amp; Center" Command="{Binding SlewAndCenterCommand}" AutomationProperties.Name="Slew and Center" />
+                    <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding IsBusy}" />
+                </StackPanel>
+                <TextBlock Classes="meta" Text="{Binding SlewDisabledText}" TextWrapping="Wrap" />
+                <Button Content="Add to Session" Command="{Binding AddToSessionCommand}" HorizontalAlignment="Left" AutomationProperties.Name="Add to Session" />
+                <TextBlock Classes="secondary" Text="{Binding StatusText}" TextWrapping="Wrap" />
+
+                <StackPanel Spacing="2" IsVisible="{Binding PositionText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Classes="eyebrow" Text="POSITION" />
+                    <TextBlock Text="{Binding PositionText}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Spacing="2" IsVisible="{Binding RotationCompareText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Classes="eyebrow" Text="ROTATION" />
+                    <TextBlock Text="{Binding RotationCompareText}" TextWrapping="Wrap" />
+                    <TextBlock Classes="meta" Text="Measured by the plate solve; nothing is rotated." />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="3" Classes="meta" Text="{Binding AttributionText}" TextWrapping="Wrap" AutomationProperties.AutomationId="FramingAttribution" />
+    </Grid>
+</UserControl>

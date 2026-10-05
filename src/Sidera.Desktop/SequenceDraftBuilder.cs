@@ -127,7 +127,7 @@ public static class SequenceDraftBuilder
 
         return step switch
         {
-            SlewAndCenterStepDraft c => new("Slew & Center", string.Create(
+            SlewAndCenterStepDraft c => new(c.TargetName is { } framed ? $"Slew & Center · {framed}" : "Slew & Center", string.Create(
                 CultureInfo.InvariantCulture,
                 $"RA {c.RightAscensionHours:0.###} h · Dec {c.DeclinationDegrees:+0.##;-0.##;0}° · within {c.ToleranceArcseconds:0.##} arcsec · {c.MaxAttempts} attempts")),
             SyncMountStepDraft m => new("Sync Mount to Solved Position", $"{DeviceName(registry, m.MountId, "no mount")} · uses the last successful plate solve"),

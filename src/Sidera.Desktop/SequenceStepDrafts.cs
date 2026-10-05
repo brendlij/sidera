@@ -67,7 +67,8 @@ public abstract record SequenceStepDraft(Guid Id)
 public abstract record LeafStepDraft(Guid Id) : SequenceStepDraft(Id);
 
 public sealed record SlewAndCenterStepDraft(
-    Guid Id, DeviceId? MountId, RigId? RigId, double RightAscensionHours, double DeclinationDegrees, double ToleranceArcseconds, int MaxAttempts, double ExposureSeconds)
+    Guid Id, DeviceId? MountId, RigId? RigId, double RightAscensionHours, double DeclinationDegrees, double ToleranceArcseconds, int MaxAttempts, double ExposureSeconds,
+    string? TargetName = null, double? DesiredRotationDegrees = null)
     : LeafStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.SlewAndCenter;

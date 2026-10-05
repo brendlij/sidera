@@ -23,12 +23,24 @@ public sealed partial class SlewAndCenterStepDraftViewModel : StepDraftViewModel
         Mount = Picker(registry, IsMount, draft.MountId);
         Rig = rig;
         rig.Changed += (_, _) => NotifyEdited();
-        RightAscensionText = Format(draft.RightAscensionHours);
-        DeclinationText = Format(draft.DeclinationDegrees);
+        RightAscensionText = Precise(draft.RightAscensionHours);
+        DeclinationText = Precise(draft.DeclinationDegrees);
         ToleranceText = Format(draft.ToleranceArcseconds);
         MaxAttemptsText = Format(draft.MaxAttempts);
         ExposureText = Format(draft.ExposureSeconds);
+        _targetName = draft.TargetName;
+        _desiredRotation = draft.DesiredRotationDegrees;
     }
+
+    // A framing puts a position here: it is kept to the precision that a mount can use (about a tenth of an arcsecond), not rounded to a few decimals.
+    private static string Precise(double value) => value.ToString("0.#######", System.Globalization.CultureInfo.InvariantCulture);
+
+    private readonly string? _targetName;
+    private readonly double? _desiredRotation;
+
+    /// <summary>The framing target the step came from, as one line; empty for a step that was made by hand.</summary>
+    public string FramingText => _targetName is null && _desiredRotation is null ? string.Empty
+        : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Framing: {_targetName ?? "target"}{(_desiredRotation is { } r ? $" · desired rotation {r:0.#}°" : string.Empty)}");
 
     public override SequenceStepKind Kind => SequenceStepKind.SlewAndCenter;
     public DevicePickerViewModel Mount { get; }
@@ -46,7 +58,7 @@ public sealed partial class SlewAndCenterStepDraftViewModel : StepDraftViewModel
         ParseNumber(DeclinationText, "Declination", "a number of degrees", parseErrors, 0),
         ParseNumber(ToleranceText, "Tolerance", "a number of arcseconds", parseErrors, 60),
         (int)Math.Round(ParseNumber(MaxAttemptsText, "Attempts", "a whole number", parseErrors, 5)),
-        ParseNumber(ExposureText, "Solve exposure", "a number of seconds", parseErrors, 5));
+        ParseNumber(ExposureText, "Solve exposure", "a number of seconds", parseErrors, 5), _targetName, _desiredRotation);
 }
 
 public sealed class SyncMountStepDraftViewModel : StepDraftViewModel
