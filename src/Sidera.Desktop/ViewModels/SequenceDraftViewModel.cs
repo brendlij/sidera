@@ -1032,6 +1032,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         ChangeFilterStepDraft c => new ChangeFilterStepDraftViewModel(_registry, c),
         RigMoveFocuserStepDraft f => new RigMoveFocuserStepDraftViewModel(f),
         RigChangeFilterStepDraft c => RigFilterViewModel(c),
+        SlewAndCenterStepDraft c => new SlewAndCenterStepDraftViewModel(_registry, c, new RigPickerViewModel(_rigs, _registry, c.RigId)),
+        SyncMountStepDraft m => new SyncMountStepDraftViewModel(_registry, m),
         PlateSolveStepDraft p => new PlateSolveStepDraftViewModel(p, new RigPickerViewModel(_rigs, _registry, p.RigId)),
         AutofocusStepDraft a => new AutofocusStepDraftViewModel(a, new RigPickerViewModel(_rigs, _registry, a.RigId)),
         RigAutofocusStepDraft a => new RigAutofocusStepDraftViewModel(a),

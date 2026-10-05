@@ -89,6 +89,7 @@ public class SequenceDraftViewModelTests
                      SequenceStepKind.StartGuiding, SequenceStepKind.Slew, SequenceStepKind.Exposure,
                      SequenceStepKind.Dither, SequenceStepKind.Delay, SequenceStepKind.MoveFocuser,
                      SequenceStepKind.ChangeFilter, SequenceStepKind.Autofocus, SequenceStepKind.StopGuiding, SequenceStepKind.PlateSolve,
+                     SequenceStepKind.SlewAndCenter, SequenceStepKind.SyncMountToSolved,
                  })
         {
             draft.AddStepCommand.Execute(kind);
@@ -99,7 +100,7 @@ public class SequenceDraftViewModelTests
                 or SequenceStepKind.RigMoveFocuser or SequenceStepKind.RigChangeFilter or SequenceStepKind.RigAutofocus)).OrderBy(k => k),
             draft.Steps.Select(s => s.Kind).OrderBy(k => k));
         Assert.True(draft.IsValid, string.Join(" ", draft.ValidationErrors));
-        Assert.Equal(10, draft.Build().Sequence.Steps.Count);
+        Assert.Equal(12, draft.Build().Sequence.Steps.Count);
     }
 
     [Fact]

@@ -192,6 +192,20 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 Header(w, RigMoveFocuserType, f.Id);
                 w.WriteNumber("position", f.Position);
                 break;
+            case SlewAndCenterDocumentStep c:
+                Header(w, "slewAndCenter", c.Id);
+                Device(w, "mountId", c.MountId);
+                Device(w, "rigId", c.RigId);
+                w.WriteNumber("raHours", c.RaHours);
+                w.WriteNumber("decDegrees", c.DecDegrees);
+                w.WriteNumber("toleranceArcseconds", c.ToleranceArcseconds);
+                w.WriteNumber("maxAttempts", c.MaxAttempts);
+                w.WriteNumber("exposureSeconds", c.ExposureSeconds);
+                break;
+            case SyncMountDocumentStep m:
+                Header(w, "syncMountToSolved", m.Id);
+                Device(w, "mountId", m.MountId);
+                break;
             case PlateSolveDocumentStep p:
                 Header(w, "plateSolve", p.Id);
                 Device(w, "rigId", p.RigId);
@@ -423,7 +437,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             || (version >= 2 && type is MultiRigType or RigExposureType)
             || (version >= 3 && type is MoveFocuserType or ChangeFilterType or RigMoveFocuserType or RigChangeFilterType)
             || (version >= 4 && type is AutofocusType or RigAutofocusType)
-            || (version >= 7 && type == "plateSolve");
+            || (version >= 7 && type is "plateSolve" or "slewAndCenter" or "syncMountToSolved");
         if (!known)
         {
             throw Structure($"Unknown sequence step type '{type}'.");
@@ -448,7 +462,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType
-                or MoveFocuserType or ChangeFilterType or AutofocusType or "plateSolve")
+                or MoveFocuserType or ChangeFilterType or AutofocusType or "plateSolve" or "slewAndCenter" or "syncMountToSolved")
         {
             throw Structure($"A '{type}' step cannot be used inside a rig track.");
         }
@@ -462,6 +476,10 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return type switch
         {
+            "slewAndCenter" => new SlewAndCenterDocumentStep(
+                id, ReadDevice(element, type, "mountId"), ReadDevice(element, type, "rigId"), ReadNumber(element, type, "raHours"), ReadNumber(element, type, "decDegrees"),
+                ReadNumber(element, type, "toleranceArcseconds"), ReadWholeNumber(element, type, "maxAttempts"), ReadNumber(element, type, "exposureSeconds")),
+            "syncMountToSolved" => new SyncMountDocumentStep(id, ReadDevice(element, type, "mountId")),
             "plateSolve" => new PlateSolveDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds")),
             ExposureType => new ExposureDocumentStep(
                 id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
@@ -641,6 +659,17 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         return id;
+    }
+
+    private static int ReadWholeNumber(JsonElement element, string type, string name)
+    {
+        var number = ReadNumber(element, type, name);
+        if (number != Math.Floor(number) || number < int.MinValue || number > int.MaxValue)
+        {
+            throw Structure($"'{name}' of a '{type}' step must be a whole number.");
+        }
+
+        return (int)number;
     }
 
     private static double ReadNumber(JsonElement element, string type, string name)

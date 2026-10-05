@@ -9,6 +9,8 @@ namespace Sidera.Desktop;
 public enum SequenceStepKind
 {
     PlateSolve,
+    SlewAndCenter,
+    SyncMountToSolved,
     Exposure,
     Delay,
     Slew,
@@ -63,6 +65,20 @@ public abstract record SequenceStepDraft(Guid Id)
 
 /// <summary>A step that does one thing and has no children: everything a <see cref="RepeatStepDraft"/> may contain.</summary>
 public abstract record LeafStepDraft(Guid Id) : SequenceStepDraft(Id);
+
+public sealed record SlewAndCenterStepDraft(
+    Guid Id, DeviceId? MountId, RigId? RigId, double RightAscensionHours, double DeclinationDegrees, double ToleranceArcseconds, int MaxAttempts, double ExposureSeconds)
+    : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.SlewAndCenter;
+    public override IEnumerable<DeviceId> DeviceIds => Of(MountId);
+}
+
+public sealed record SyncMountStepDraft(Guid Id, DeviceId? MountId) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.SyncMountToSolved;
+    public override IEnumerable<DeviceId> DeviceIds => Of(MountId);
+}
 
 public sealed record PlateSolveStepDraft(Guid Id, RigId? RigId, double ExposureSeconds) : LeafStepDraft(Id)
 {

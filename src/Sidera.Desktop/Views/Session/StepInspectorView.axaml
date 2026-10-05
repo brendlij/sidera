@@ -161,6 +161,38 @@
             </StackPanel>
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:SlewAndCenterStepDraftViewModel}" x:DataType="vm:SlewAndCenterStepDraftViewModel">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
+                    <TextBlock Classes="section-title" Text="Slew &amp; Center" />
+                </StackPanel>
+                <ctl:LabeledField Label="Mount"><ContentControl Content="{Binding Mount}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding RightAscensionText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding DeclinationText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Tolerance" Unit="arcsec"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Attempts"><TextBox Text="{Binding MaxAttemptsText}" /></ctl:FieldRow>
+                <ctl:FieldRow Label="Solve exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
+                <TextBlock Classes="secondary" Text="Slews, solves, and corrects the slew until the target is within the tolerance. The mount is never synchronized." TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:SyncMountStepDraftViewModel}" x:DataType="vm:SyncMountStepDraftViewModel">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
+                    <TextBlock Classes="section-title" Text="Sync Mount to Solved Position" />
+                </StackPanel>
+                <ctl:LabeledField Label="Mount"><ContentControl Content="{Binding Mount}" /></ctl:LabeledField>
+                <Border Classes="notice-info">
+                    <TextBlock Classes="secondary" TextWrapping="Wrap" Text="Synchronizes the mount to the most recent successful plate-solved position. Advanced: it changes what the mount believes. It does not solve; put a Plate Solve before it." />
+                </Border>
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:PlateSolveStepDraftViewModel}" x:DataType="vm:PlateSolveStepDraftViewModel">
             <StackPanel Spacing="16">
                 <TextBlock Classes="section-title" Text="Plate Solve" />
