@@ -287,10 +287,25 @@ public sealed class EquipmentService : IDevicePreferenceStore
             return EquipmentResult.Fail(cannot);
         }
 
+        // A rotator that is removed leaves the rigs that had it (and the rig that held only it goes).
+        var rotatorRigs = _configuration.Rigs.Where(r => string.Equals(r.RotatorId, id, StringComparison.OrdinalIgnoreCase)).ToList();
+
         // The rig that holds only the optics of this camera goes with it.
         var optionsRigs = _configuration.Rigs
             .Where(r => string.Equals(r.CameraId, id, StringComparison.OrdinalIgnoreCase) && IsOpticsRig(r.Id, r.FocuserId, r.FilterWheelId)).ToList();
-        var next = _configuration.Without(id) with { Rigs = [.. _configuration.Rigs.Except(optionsRigs)] };
+        var nextRigs = _configuration.Rigs.Except(optionsRigs).Except(rotatorRigs).ToList();
+        var keptWithoutRotator = new List<RigConfiguration>();
+        foreach (var rig in rotatorRigs.Except(optionsRigs))
+        {
+            var without = rig with { RotatorId = null, RotatorModel = null };
+            if (!IsEmptyOpticsRig(without))
+            {
+                keptWithoutRotator.Add(without);
+            }
+        }
+
+        nextRigs.AddRange(keptWithoutRotator);
+        var next = _configuration.Without(id) with { Rigs = nextRigs };
         if (!TrySave(next, out var saveProblem))
         {
             return EquipmentResult.Fail(saveProblem!);
@@ -301,6 +316,18 @@ public sealed class EquipmentService : IDevicePreferenceStore
             _host.RigRegistry.Unregister(new RigId(opticsRig.Id));
         }
 
+        foreach (var rig in rotatorRigs.Except(optionsRigs))
+        {
+            _host.RigRegistry.Unregister(new RigId(rig.Id));
+        }
+
+        foreach (var rig in keptWithoutRotator)
+        {
+            _host.AddRig(new Rig(
+                new RigId(rig.Id), rig.Name, new DeviceId(rig.CameraId), rig.Optics,
+                rig.FocuserId is { } focuser ? new DeviceId(focuser) : null, rig.FilterWheelId is { } wheel ? new DeviceId(wheel) : null));
+        }
+
         _host.DeviceRegistry.TryGet(new DeviceId(id), out var device);
         _host.RemoveDevice(new DeviceId(id));
         _host.AcquisitionDefaults.Set(new DeviceId(id), null);
@@ -308,7 +335,7 @@ public sealed class EquipmentService : IDevicePreferenceStore
         _ = EndAsync(device);
         _logger.LogInformation("Device {DeviceId} removed", id);
         Changed?.Invoke(this, new EquipmentChange(EquipmentChangeKind.DeviceRemoved, id));
-        if (optionsRigs.Count > 0)
+        if (optionsRigs.Count > 0 || rotatorRigs.Count > 0)
         {
             Changed?.Invoke(this, new EquipmentChange(EquipmentChangeKind.RigsChanged));
         }
@@ -322,36 +349,78 @@ public sealed class EquipmentService : IDevicePreferenceStore
     private static bool IsOpticsRig(string id, object? focuser, object? filterWheel) =>
         id.StartsWith(OpticsRigPrefix, StringComparison.Ordinal) && focuser is null && filterWheel is null;
 
+    // A rig that Sidera made around a camera holds its optics and its rotator; when it holds neither, it is not needed.
+    private static bool IsEmptyOpticsRig(RigConfiguration rig) =>
+        IsOpticsRig(rig.Id, rig.FocuserId, rig.FilterWheelId) && rig.Optics is null && rig.RotatorId is null;
+
     /// <summary>
     /// Sets the optics of the rig of a camera, and saves them. A camera that is in no rig gets a rig that holds only these optics (and goes
     /// when the camera does); <c>null</c> optics remove them again. Refused while a sequence uses nothing here: optics are inputs of calculations,
     /// not of a running exposure.
     /// </summary>
-    public EquipmentResult SetCameraOptics(string cameraId, OpticalTrain? optics)
+    public EquipmentResult SetCameraOptics(string cameraId, OpticalTrain? optics) =>
+        ChangeRigOfCamera(cameraId, existing => existing is null
+            ? optics is null ? null : new RigConfiguration(OpticsRigPrefix + cameraId, _configuration.Find(cameraId)!.Name, cameraId, null, null, optics)
+            : existing with { Optics = optics },
+            optics is null ? "removed" : "set", createIfMissing: optics is not null);
+
+    /// <summary>
+    /// Gives the rig of a camera a rotator (<c>null</c> takes it away, with its calibration). Only the association is saved; nothing is moved and nothing connected. A camera in no
+    /// rig gets a rig that holds only the rotator, like for the optics.
+    /// </summary>
+    public EquipmentResult SetCameraRotator(string cameraId, string? rotatorId)
     {
-        if (_configuration.Find(cameraId) is not { Type: DeviceType.Camera } camera)
+        if (rotatorId is not null && _configuration.Find(rotatorId) is not { Type: DeviceType.Rotator })
+        {
+            return EquipmentResult.Fail("The rotator is not part of the equipment.");
+        }
+
+        return ChangeRigOfCamera(cameraId, existing => existing is null
+            ? rotatorId is null ? null : new RigConfiguration(OpticsRigPrefix + cameraId, _configuration.Find(cameraId)!.Name, cameraId, null, null, null, null, rotatorId)
+            : existing with { RotatorId = rotatorId, RotatorModel = rotatorId is null || existing.RotatorId != rotatorId ? null : existing.RotatorModel },
+            rotatorId is null ? "rotator removed" : "rotator set", createIfMissing: rotatorId is not null);
+    }
+
+    /// <summary>Keeps the calibration of the rotator of a rig (<c>null</c> forgets it). Only the relation of position and sky rotation is stored.</summary>
+    public EquipmentResult SetRotatorModel(string rigId, Sidera.Core.Rotators.RotatorSkyModel? model)
+    {
+        var rig = _configuration.Rigs.FirstOrDefault(r => string.Equals(r.Id, rigId, StringComparison.OrdinalIgnoreCase));
+        if (rig is null)
+        {
+            return EquipmentResult.Fail("The rig is not part of the equipment.");
+        }
+
+        if (rig.RotatorId is null)
+        {
+            return EquipmentResult.Fail("The rig has no rotator.");
+        }
+
+        return ChangeRigOfCamera(rig.CameraId, _ => rig with { RotatorModel = model }, model is null ? "calibration removed" : "calibration saved", createIfMissing: false);
+    }
+
+    // The one place that changes the rig of a camera in the configuration and in the runtime together: saved first, then the registry follows; all or nothing.
+    private EquipmentResult ChangeRigOfCamera(string cameraId, Func<RigConfiguration?, RigConfiguration?> change, string what, bool createIfMissing)
+    {
+        if (_configuration.Find(cameraId) is not { Type: DeviceType.Camera })
         {
             return EquipmentResult.Fail("The camera is not part of the equipment.");
         }
 
         var existing = _configuration.Rigs.FirstOrDefault(r => string.Equals(r.CameraId, cameraId, StringComparison.OrdinalIgnoreCase));
-        RigConfiguration? updated;
-        if (existing is null)
+        if (existing is null && !createIfMissing)
         {
-            if (optics is null)
-            {
-                return EquipmentResult.Ok();
-            }
-
-            updated = new RigConfiguration(OpticsRigPrefix + camera.Id, camera.Name, camera.Id, null, null, optics);
+            return EquipmentResult.Ok();
         }
-        else if (optics is null && IsOpticsRig(existing.Id, existing.FocuserId, existing.FilterWheelId))
+
+        var updated = change(existing);
+        if (updated is not null && IsEmptyOpticsRig(updated))
         {
             updated = null;
         }
-        else
+
+        if (existing is null && updated is null)
         {
-            updated = existing with { Optics = optics };
+            return EquipmentResult.Ok();
         }
 
         var rigs = _configuration.Rigs.Where(r => r != existing).ToList();
@@ -368,20 +437,20 @@ public sealed class EquipmentService : IDevicePreferenceStore
 
         if (existing is not null)
         {
-            _host.RigRegistry.TryGet(new RigId(existing.Id), out var live);
             _host.RigRegistry.Unregister(new RigId(existing.Id));
-            if (updated is not null && live is not null)
-            {
-                _host.AddRig(live.WithOptics(optics));
-            }
         }
-        else
+
+        if (updated is not null)
         {
-            _host.AddRig(new Rig(new RigId(updated!.Id), updated.Name, new DeviceId(updated.CameraId), updated.Optics));
+            _host.AddRig(new Rig(
+                new RigId(updated.Id), updated.Name, new DeviceId(updated.CameraId), updated.Optics,
+                updated.FocuserId is { } focuser ? new DeviceId(focuser) : null,
+                updated.FilterWheelId is { } wheel ? new DeviceId(wheel) : null,
+                updated.RotatorId is { } rotator ? new DeviceId(rotator) : null, updated.RotatorModel));
         }
 
         _configuration = next;
-        _logger.LogInformation("Optics of the rig of camera {CameraId} saved ({State})", cameraId, optics is null ? "removed" : "set");
+        _logger.LogInformation("The rig of camera {CameraId} was changed ({What})", cameraId, what);
         Changed?.Invoke(this, new EquipmentChange(EquipmentChangeKind.RigsChanged));
         return EquipmentResult.Ok();
     }
@@ -457,7 +526,9 @@ public sealed class EquipmentService : IDevicePreferenceStore
             new DeviceId(configuration.CameraId),
             configuration.Optics,
             configuration.FocuserId is { } focuser ? new DeviceId(focuser) : null,
-            configuration.FilterWheelId is { } wheel ? new DeviceId(wheel) : null);
+            configuration.FilterWheelId is { } wheel ? new DeviceId(wheel) : null,
+            configuration.RotatorId is { } rotator ? new DeviceId(rotator) : null,
+            configuration.RotatorModel);
         _host.AddRig(rig);
         if (configuration.SimulatedBestFocus is { } best)
         {

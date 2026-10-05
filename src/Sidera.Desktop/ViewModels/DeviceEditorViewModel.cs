@@ -34,6 +34,7 @@ public sealed partial class DeviceEditorViewModel : ViewModelBase
         new(DeviceType.Mount, "Mount"),
         new(DeviceType.FilterWheel, "Filter Wheel"),
         new(DeviceType.Guider, "Guider"),
+        new(DeviceType.Rotator, "Rotator"),
     ];
 
     private readonly IAscomDiscovery? _discovery;

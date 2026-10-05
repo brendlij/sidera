@@ -23,6 +23,8 @@ public sealed class ComAscomDriverFactory : IAscomDriverFactory
 
     public IAscomMountDriver CreateMount(string progId) => new ComMount(new Telescope(progId));
 
+    public IAscomRotatorDriver CreateRotator(string progId) => new ComRotator(new Rotator(progId));
+
     public IAscomCameraDriver CreateCamera(string progId) => new ComCamera(new Camera(progId));
 
     // What the driver says about itself; each member may be missing, which is no reason to fail.
@@ -79,6 +81,40 @@ public sealed class ComAscomDriverFactory : IAscomDriverFactory
         }
 
         public void Move(int positionOrSteps) => inner.Move(positionOrSteps);
+
+        public void Halt() => inner.Halt();
+
+        public void SetupDialog() => inner.SetupDialog();
+
+        public void Dispose() => inner.Dispose();
+    }
+
+    private sealed class ComRotator(Rotator inner) : IAscomRotatorDriver
+    {
+        public bool Connected
+        {
+            get => inner.Connected;
+            set => inner.Connected = value;
+        }
+
+        public DriverMetadata Identity => ComAscomDriverFactory.Identity(inner);
+        public double Position => inner.Position;
+        public double MechanicalPosition => inner.MechanicalPosition;
+        public double StepSize => inner.StepSize;
+        public bool IsMoving => inner.IsMoving;
+        public bool CanReverse => inner.CanReverse;
+
+        public bool Reverse
+        {
+            get => inner.Reverse;
+            set => inner.Reverse = value;
+        }
+
+        public void Move(double relativeDegrees) => inner.Move((float)relativeDegrees);
+
+        public void MoveAbsolute(double positionDegrees) => inner.MoveAbsolute((float)positionDegrees);
+
+        public void Sync(double positionDegrees) => inner.Sync((float)positionDegrees);
 
         public void Halt() => inner.Halt();
 

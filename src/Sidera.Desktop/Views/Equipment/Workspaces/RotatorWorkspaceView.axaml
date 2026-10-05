@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Equipment.Workspaces.RotatorWorkspaceView"
+             x:DataType="vm:RotatorDetailViewModel">
+
+    <!--
+        The rotator: where it is and a move, only what the rotator supports. The position is the position of the rotator, not the rotation of the sky in an image:
+        that is a calibration of the rig, shown below. Nothing here moves by itself; every move is a press of a button.
+    -->
+    <StackPanel Spacing="8">
+        <WrapPanel>
+            <ctl:WorkspaceSection Header="ROTATOR">
+                <StackPanel Spacing="2">
+                    <ctl:InfoRow Label="Position" Value="{Binding Rotator.PositionText}" AutomationProperties.AutomationId="RotatorPosition" />
+                    <ctl:InfoRow Label="Mechanical position" Value="{Binding Rotator.MechanicalText}" IsVisible="{Binding Rotator.ShowMechanical}" />
+                    <ctl:InfoRow Label="Motion" Value="{Binding Rotator.MotionText}" IsVisible="{Binding Rotator.IsConnected}" />
+                    <ctl:InfoRow Label="Part of" Value="{Binding RigText}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="MOVE TO POSITION" IsVisible="{Binding Rotator.ShowAbsolute}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Target" Unit="°"><TextBox Text="{Binding Rotator.TargetInput}" AutomationProperties.Name="Rotator target" /></ctl:FieldRow>
+                    <Button Classes="primary" Content="Move" Command="{Binding Rotator.MoveCommand}" HorizontalAlignment="Left" AutomationProperties.Name="Move rotator" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="MOVE BY AN ANGLE" IsVisible="{Binding Rotator.ShowRelative}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Angle" Unit="°"><TextBox Text="{Binding Rotator.RelativeInput}" AutomationProperties.Name="Rotator angle" /></ctl:FieldRow>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="−" Command="{Binding Rotator.MoveByCommand}" CommandParameter="-" AutomationProperties.Name="Rotate minus" />
+                        <Button Content="+" Command="{Binding Rotator.MoveByCommand}" CommandParameter="+" AutomationProperties.Name="Rotate plus" />
+                    </StackPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="STOP" IsVisible="{Binding Rotator.ShowHalt}">
+                <StackPanel Spacing="16">
+                    <Button Classes="danger" Content="Halt" Command="{Binding Rotator.HaltCommand}" HorizontalAlignment="Left" AutomationProperties.Name="Halt rotator"
+                            ToolTip.Tip="Asks the rotator to stop where it is" />
+                    <Border Classes="notice-danger" IsVisible="{Binding Rotator.HasError}">
+                        <TextBlock Classes="danger" Text="{Binding Rotator.ErrorMessage}" TextWrapping="Wrap" MaxWidth="360" />
+                    </Border>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SKY CALIBRATION" IsVisible="{Binding HasRig}">
+                <StackPanel Spacing="12" MaxWidth="420">
+                    <ctl:InfoRow Label="Sky rotation at position 0" Value="{Binding OffsetText}" AutomationProperties.AutomationId="RotatorOffset" />
+                    <ctl:InfoRow Label="Direction" Value="{Binding DirectionText}" />
+                    <ctl:InfoRow Label="Sky rotation now" Value="{Binding SkyNowText}" />
+                    <TextBlock Classes="meta" TextWrapping="Wrap" Text="{Binding CalibrationNote}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+        </WrapPanel>
+    </StackPanel>
+</UserControl>

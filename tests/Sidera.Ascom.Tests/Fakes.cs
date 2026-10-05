@@ -259,6 +259,150 @@ public sealed class FakeFocuserDriver(CallLog log) : FakeDriver(log), IAscomFocu
     }
 }
 
+public sealed class FakeRotatorDriver(CallLog log) : FakeDriver(log), IAscomRotatorDriver
+{
+    private readonly object _gate = new();
+    private double _target;
+    private double _start;
+    private int _polls;
+    private bool _moving;
+
+    public double PositionValue { get; set; } = 42;
+
+    /// <summary>The mechanical position; null means the driver has none (interface version 2 and older) and says not implemented.</summary>
+    public double? MechanicalValue { get; set; } = 12;
+
+    public bool CanReverseValue { get; set; } = true;
+    public bool ReverseValue { get; set; }
+    public double? StepSizeValue { get; set; } = 0.01;
+
+    /// <summary>How many times IsMoving is asked before the rotator has arrived.</summary>
+    public int MovePolls { get; set; } = 2;
+
+    /// <summary>The rotator keeps moving until <see cref="Arrive"/> is called.</summary>
+    public bool HoldMove { get; set; }
+
+    public Exception? MoveThrows { get; set; }
+    public Exception? HaltThrows { get; set; }
+    public Exception? SyncThrows { get; set; }
+    public bool HaltStops { get; set; } = true;
+
+    public double MechanicalPosition => MechanicalValue ?? throw new NotImplementedException("MechanicalPosition");
+    public double StepSize => StepSizeValue ?? throw new NotImplementedException("StepSize");
+    public bool CanReverse => CanReverseValue;
+
+    public bool Reverse
+    {
+        get => CanReverseValue ? ReverseValue : throw new NotImplementedException("Reverse");
+        set
+        {
+            Log.Add($"Reverse = {value}");
+            if (!CanReverseValue)
+            {
+                throw new NotImplementedException("Reverse");
+            }
+
+            ReverseValue = value;
+        }
+    }
+
+    public double Position
+    {
+        get
+        {
+            Log.Add("get Position");
+            lock (_gate)
+            {
+                return PositionValue;
+            }
+        }
+    }
+
+    public bool IsMoving
+    {
+        get
+        {
+            Log.Add("get IsMoving");
+            lock (_gate)
+            {
+                if (_moving && !HoldMove && ++_polls >= MovePolls)
+                {
+                    _moving = false;
+                    PositionValue = _target;
+                }
+
+                return _moving;
+            }
+        }
+    }
+
+    public void Move(double relativeDegrees)
+    {
+        Log.Add($"Move {relativeDegrees.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        Begin((PositionValue + relativeDegrees % 360 + 360) % 360);
+    }
+
+    public void MoveAbsolute(double positionDegrees)
+    {
+        Log.Add($"MoveAbsolute {positionDegrees.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        Begin(positionDegrees);
+    }
+
+    private void Begin(double target)
+    {
+        if (MoveThrows is not null)
+        {
+            throw MoveThrows;
+        }
+
+        lock (_gate)
+        {
+            (_start, _target, _polls, _moving) = (PositionValue, target, 0, true);
+        }
+    }
+
+    public void Sync(double positionDegrees)
+    {
+        Log.Add($"Sync {positionDegrees.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        if (SyncThrows is not null)
+        {
+            throw SyncThrows;
+        }
+
+        lock (_gate)
+        {
+            PositionValue = positionDegrees;
+        }
+    }
+
+    public void Halt()
+    {
+        Log.Add("Halt");
+        if (HaltThrows is not null)
+        {
+            throw HaltThrows;
+        }
+
+        lock (_gate)
+        {
+            if (HaltStops && _moving)
+            {
+                _moving = false;
+                PositionValue = (_start + _target) / 2;
+            }
+        }
+    }
+
+    public void Arrive()
+    {
+        lock (_gate)
+        {
+            _moving = false;
+            PositionValue = _target;
+        }
+    }
+}
+
 public sealed class FakeMountDriver(CallLog log) : FakeDriver(log), IAscomMountDriver
 {
     private readonly object _gate = new();
@@ -922,6 +1066,8 @@ public sealed class FakeDriverFactory(CallLog log) : IAscomDriverFactory
     public List<FakeFocuserDriver> Focusers { get; } = [];
     public List<FakeMountDriver> Mounts { get; } = [];
     public List<FakeCameraDriver> Cameras { get; } = [];
+    public List<FakeRotatorDriver> Rotators { get; } = [];
+    public Action<FakeRotatorDriver>? ConfigureRotator { get; set; }
     public Action<FakeFocuserDriver>? ConfigureFocuser { get; set; }
     public Action<FakeMountDriver>? ConfigureMount { get; set; }
     public Action<FakeCameraDriver>? ConfigureCamera { get; set; }
@@ -938,6 +1084,20 @@ public sealed class FakeDriverFactory(CallLog log) : IAscomDriverFactory
         var driver = new FakeFocuserDriver(Log);
         ConfigureFocuser?.Invoke(driver);
         Focusers.Add(driver);
+        return driver;
+    }
+
+    public IAscomRotatorDriver CreateRotator(string progId)
+    {
+        Log.Add($"create {progId}");
+        if (CreateThrows is not null)
+        {
+            throw CreateThrows;
+        }
+
+        var driver = new FakeRotatorDriver(Log);
+        ConfigureRotator?.Invoke(driver);
+        Rotators.Add(driver);
         return driver;
     }
 
@@ -981,6 +1141,8 @@ public static class FastTimings
             ReleaseTimeout = TimeSpan.FromSeconds(5),
             FocuserPollInterval = TimeSpan.FromMilliseconds(5),
             FocuserMoveTimeout = moveTimeout ?? TimeSpan.FromSeconds(10),
+            RotatorPollInterval = TimeSpan.FromMilliseconds(5),
+            RotatorMoveTimeout = moveTimeout ?? TimeSpan.FromSeconds(10),
             MountPollInterval = TimeSpan.FromMilliseconds(5),
             MountSlewTimeout = slewTimeout ?? TimeSpan.FromSeconds(10),
             CameraPollInterval = TimeSpan.FromMilliseconds(5),

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidera.Core.Devices;
@@ -14,6 +16,9 @@ namespace Sidera.Desktop.ViewModels;
 /// left empty is taken from the camera when it reports one; a value that is entered wins. The derived values are computed by
 /// <see cref="OpticalTrainGeometry"/> as the fields change and are never stored; only the entered values are.
 /// </summary>
+/// <summary>A rotator that can be chosen for a rig: its device id, and its name.</summary>
+public sealed record RotatorChoice(string? Id, string Text);
+
 public sealed partial class OpticalTrainViewModel : ViewModelBase, IDisposable
 {
     private readonly CameraViewModel _camera;
@@ -32,9 +37,37 @@ public sealed partial class OpticalTrainViewModel : ViewModelBase, IDisposable
         SensorWidthText = configured?.SensorWidthPixels?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         SensorHeightText = configured?.SensorHeightPixels?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         HasConfiguration = configured is not null;
+        RotatorChoices = [new RotatorChoice(null, "None"), .. (service?.Configuration.Devices ?? []).Where(d => d.Type == DeviceType.Rotator).Select(d => new RotatorChoice(d.Id, d.Name))];
+        var currentRotator = service?.Configuration.Rigs.FirstOrDefault(r => string.Equals(r.CameraId, camera.DeviceIdText, StringComparison.OrdinalIgnoreCase))?.RotatorId;
+        _selectedRotator = RotatorChoices.FirstOrDefault(c => string.Equals(c.Id, currentRotator, StringComparison.OrdinalIgnoreCase)) ?? RotatorChoices[0];
         _loading = false;
         _camera.Refreshed += OnCameraRefreshed;
         Recompute();
+    }
+
+    // ---- The rotator of the rig
+
+    /// <summary>The rotators that can be chosen, and "None": a rig without a rotator is complete as it is.</summary>
+    public IReadOnlyList<RotatorChoice> RotatorChoices { get; }
+
+    public bool HasRotatorChoices => RotatorChoices.Count > 1;
+
+    private RotatorChoice _selectedRotator;
+
+    /// <summary>The rotator of the rig of this camera. Choosing one only records the association; nothing is connected and nothing moves.</summary>
+    public RotatorChoice SelectedRotator
+    {
+        get => _selectedRotator;
+        set
+        {
+            if (value is null || ReferenceEquals(value, _selectedRotator) || !SetProperty(ref _selectedRotator, value) || _loading || _service is null)
+            {
+                return;
+            }
+
+            var result = _service.SetCameraRotator(_camera.DeviceIdText, value.Id);
+            ProblemText = result.Succeeded ? string.Empty : result.Problem ?? "The rotator could not be set.";
+        }
     }
 
     /// <summary>The optics can be saved: there is an equipment service to keep them.</summary>

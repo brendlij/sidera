@@ -92,6 +92,19 @@ public sealed class RigRegistry
             }
         }
 
+        if (rig.RotatorId is { } rotatorId)
+        {
+            if (!_devices.TryGet(rotatorId, out var rotator) || rotator is null)
+            {
+                throw new InvalidOperationException($"Rotator device '{rotatorId}' is not registered.");
+            }
+
+            if (rotator is not Sidera.Core.Rotators.IRotator)
+            {
+                throw new InvalidOperationException($"Device '{rotatorId}' assigned as rotator does not implement IRotator.");
+            }
+        }
+
         if (rig.FilterWheelId is { } filterWheelId)
         {
             if (!_devices.TryGet(filterWheelId, out var wheel) || wheel is null)

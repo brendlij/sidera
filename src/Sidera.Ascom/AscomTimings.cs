@@ -19,6 +19,10 @@ public sealed record AscomTimings
 
     public TimeSpan FocuserMoveTimeout { get; init; } = TimeSpan.FromSeconds(120);
 
+    public TimeSpan RotatorPollInterval { get; init; } = TimeSpan.FromMilliseconds(200);
+
+    public TimeSpan RotatorMoveTimeout { get; init; } = TimeSpan.FromSeconds(180);
+
     public TimeSpan MountPollInterval { get; init; } = TimeSpan.FromMilliseconds(500);
 
     /// <summary>How long Sidera waits for a mount to report the tracking state it was told to take.</summary>

@@ -63,6 +63,11 @@
                         <Button Classes="primary" Content="Save optics" Command="{Binding SaveCommand}" AutomationProperties.Name="Save optics" />
                         <Button Content="Remove" Command="{Binding RemoveCommand}" IsVisible="{Binding HasConfiguration}" AutomationProperties.Name="Remove optics" />
                     </StackPanel>
+                    <ctl:FieldRow Label="Rotator" IsVisible="{Binding HasRotatorChoices}">
+                        <ComboBox ItemsSource="{Binding RotatorChoices}" SelectedItem="{Binding SelectedRotator}" HorizontalAlignment="Stretch" AutomationProperties.Name="Rotator of the rig">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:RotatorChoice"><TextBlock Text="{Binding Text}" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:FieldRow>
                     <Border Classes="divider" />
                     <TextBlock Classes="eyebrow" Text="DERIVED" />
                     <StackPanel Spacing="2">

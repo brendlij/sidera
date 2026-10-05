@@ -86,6 +86,24 @@ public static class EquipmentConfigurationSerializer
                         w.WriteString("filterWheelId", rig.FilterWheelId);
                     }
 
+                    if (rig.RotatorId is not null)
+                    {
+                        w.WriteString("rotatorId", rig.RotatorId);
+                        if (rig.RotatorModel is { } model)
+                        {
+                            // The calibration of the rotator: how its position relates to the rotation of the sky in the image. The solved rotation itself is never stored.
+                            w.WriteStartObject("rotator");
+                            w.WriteNumber("skyOffsetDegrees", model.OffsetDegrees);
+                            w.WriteBoolean("reversed", model.Reversed);
+                            if (model.CalibratedAt is { } at)
+                            {
+                                w.WriteString("calibratedAt", at.UtcDateTime.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+                            }
+
+                            w.WriteEndObject();
+                        }
+                    }
+
                     if (rig.Optics is { } optics)
                     {
                         // Only the inputs: the pixel scale, the sensor size and the field of view are derived and never stored.
@@ -205,7 +223,7 @@ public static class EquipmentConfigurationSerializer
 
         var name = Required(element, "name", $"the device '{id}'");
         var typeName = Required(element, "type", $"the device '{id}'");
-        if (!Enum.TryParse<DeviceType>(typeName, ignoreCase: false, out var type) || type is DeviceType.Rotator or DeviceType.Weather)
+        if (!Enum.TryParse<DeviceType>(typeName, ignoreCase: false, out var type) || type is DeviceType.Weather)
         {
             throw new EquipmentConfigurationException($"The device '{id}' has the unknown type '{typeName}'.");
         }
@@ -270,6 +288,21 @@ public static class EquipmentConfigurationSerializer
         var cameraId = Required(element, "cameraId", $"the rig '{id}'");
         var focuserId = Optional(element, "focuserId");
         var wheelId = Optional(element, "filterWheelId");
+        var rotatorId = Optional(element, "rotatorId");
+        Sidera.Core.Rotators.RotatorSkyModel? rotatorModel = null;
+        if (rotatorId is not null && element.TryGetProperty("rotator", out var rotator) && rotator.ValueKind == JsonValueKind.Object)
+        {
+            var offset = OptionalNumber(rotator, "skyOffsetDegrees");
+            if (offset is { } skyOffset && double.IsFinite(skyOffset))
+            {
+                DateTimeOffset? calibratedAt = rotator.TryGetProperty("calibratedAt", out var at) && at.ValueKind == JsonValueKind.String
+                    && DateTimeOffset.TryParse(at.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed) ? parsed : null;
+                rotatorModel = new Sidera.Core.Rotators.RotatorSkyModel(
+                    Sidera.Core.Astrometry.SkyMath.NormalizeRotationDegrees(skyOffset),
+                    rotator.TryGetProperty("reversed", out var reversed) && reversed.ValueKind == JsonValueKind.True, calibratedAt);
+            }
+        }
+
 
         // A rig of an older file may have no optics, or the older names (one pixel size, the resolution); both still load.
         OpticalTrain? train = null;
@@ -296,7 +329,7 @@ public static class EquipmentConfigurationSerializer
         int? best = element.TryGetProperty("simulatedBestFocus", out var bestElement) && bestElement.ValueKind == JsonValueKind.Number && bestElement.TryGetInt32(out var value) ? value : null;
 
         // The rig refers to devices by id; a rig whose device is not in the file would only fail later.
-        foreach (var reference in new[] { cameraId, focuserId, wheelId }.OfType<string>())
+        foreach (var reference in new[] { cameraId, focuserId, wheelId, rotatorId }.OfType<string>())
         {
             if (!devices.Any(d => string.Equals(d.Id, reference, StringComparison.OrdinalIgnoreCase)))
             {
@@ -304,7 +337,7 @@ public static class EquipmentConfigurationSerializer
             }
         }
 
-        return new RigConfiguration(id, name, cameraId, focuserId, wheelId, train, best);
+        return new RigConfiguration(id, name, cameraId, focuserId, wheelId, train, best, rotatorId, rotatorModel);
     }
 
     private static string? String(JsonElement element, string name) =>

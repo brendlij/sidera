@@ -55,6 +55,7 @@ public sealed class SimulatorDeviceFactory(DemoOptions? options = null) : IDevic
                 minimumMoveDuration: _options.FocuserMinimumMoveDuration),
             DeviceType.FilterWheel => host.AddSimulatedFilterWheel(
                 id, name, Slots(configuration), moveDuration: _options.FilterWheelMoveDuration),
+            DeviceType.Rotator => host.AddSimulatedRotator(id, name),
             _ => throw new NotSupportedException($"There is no simulated {configuration.Type}."),
         };
     }

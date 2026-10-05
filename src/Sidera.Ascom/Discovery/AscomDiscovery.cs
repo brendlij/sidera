@@ -12,6 +12,7 @@ public enum AscomDeviceKind
     Camera,
     Mount,
     Focuser,
+    Rotator,
 }
 
 public static class AscomDeviceKinds
@@ -22,6 +23,7 @@ public static class AscomDeviceKinds
         DeviceType.Camera => AscomDeviceKind.Camera,
         DeviceType.Mount => AscomDeviceKind.Mount,
         DeviceType.Focuser => AscomDeviceKind.Focuser,
+        DeviceType.Rotator => AscomDeviceKind.Rotator,
         _ => null,
     };
 
@@ -29,6 +31,7 @@ public static class AscomDeviceKinds
     {
         AscomDeviceKind.Camera => DeviceType.Camera,
         AscomDeviceKind.Mount => DeviceType.Mount,
+        AscomDeviceKind.Rotator => DeviceType.Rotator,
         _ => DeviceType.Focuser,
     };
 }
@@ -75,6 +78,7 @@ public sealed class AscomDiscovery(ILogger? logger = null) : IAscomDiscovery
             {
                 AscomDeviceKind.Camera => DeviceTypes.Camera,
                 AscomDeviceKind.Mount => DeviceTypes.Telescope,
+                AscomDeviceKind.Rotator => DeviceTypes.Rotator,
                 _ => DeviceTypes.Focuser,
             };
 
