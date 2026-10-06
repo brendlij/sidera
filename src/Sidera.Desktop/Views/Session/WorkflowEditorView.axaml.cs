@@ -13,12 +13,21 @@ public partial class WorkflowEditorView : UserControl
         InitializeComponent();
 
         // The countdown to the meridian follows the clock while the editor is on screen; nothing else needs it.
-        _clock.Tick += (_, _) => (DataContext as WorkflowEditorViewModel)?.RefreshMeridian();
+        _clock.Tick += (_, _) => Refresh();
         AttachedToVisualTree += (_, _) =>
         {
-            (DataContext as WorkflowEditorViewModel)?.RefreshMeridian();
+            Refresh();
             _clock.Start();
         };
         DetachedFromVisualTree += (_, _) => _clock.Stop();
+    }
+
+    private void Refresh()
+    {
+        if (DataContext is WorkflowEditorViewModel editor)
+        {
+            editor.RefreshMeridian();
+            editor.RefreshConditions();
+        }
     }
 }

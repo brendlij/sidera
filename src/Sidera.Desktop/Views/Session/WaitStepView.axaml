@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Session.WaitStepView"
+             x:DataType="vm:WorkflowRowViewModel">
+
+    <StackPanel Spacing="10" IsVisible="{Binding ShowsWait}">
+        <ctl:LabeledField Label="Wait">
+            <ComboBox ItemsSource="{Binding WaitModes}" SelectedItem="{Binding SelectedWaitMode}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="WaitMode" />
+        </ctl:LabeledField>
+        <ctl:LabeledField Label="Duration (s)" IsVisible="{Binding WaitIsDuration}"><TextBox Text="{Binding SecondsInputText}" AutomationProperties.AutomationId="WaitSeconds" /></ctl:LabeledField>
+        <ContentControl IsVisible="{Binding WaitIsTime}"><StackPanel Spacing="4" DataContext="{Binding WaitConditions}" x:DataType="vm:ConditionTogglesViewModel">
+            <ctl:LabeledField Label="Until (hh:mm)"><TextBox Text="{Binding TimeText}" AutomationProperties.AutomationId="WaitUntilTime" /></ctl:LabeledField>
+            <TextBlock Classes="meta" Text="{Binding ZoneText, StringFormat={}The next time the clock reads it in {0}}" TextWrapping="Wrap" />
+        </StackPanel></ContentControl>
+        <ContentControl IsVisible="{Binding WaitIsCondition}"><StackPanel Spacing="6" DataContext="{Binding WaitConditions}" x:DataType="vm:ConditionTogglesViewModel">
+            <TextBlock Classes="meta" Text="Waits until all that are on hold." />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <CheckBox Content="Target altitude above" IsChecked="{Binding AltitudeAboveOn}" AutomationProperties.AutomationId="WaitAltitude" />
+                <TextBox Width="60" Text="{Binding AltitudeAboveText}" IsEnabled="{Binding AltitudeAboveOn}" />
+                <TextBlock Text="°" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <CheckBox IsChecked="{Binding DarknessOn}" AutomationProperties.AutomationId="WaitDarkness" />
+                <ComboBox ItemsSource="{x:Static vm:ConditionTogglesViewModel.TwilightNames}" SelectedItem="{Binding DarknessKind}" IsEnabled="{Binding DarknessOn}" Width="130" />
+                <TextBlock Text="darkness" VerticalAlignment="Center" />
+            </StackPanel>
+        </StackPanel></ContentControl>
+    </StackPanel>
+</UserControl>

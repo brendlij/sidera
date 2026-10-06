@@ -59,6 +59,17 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files. Rig steps choose a rig, not a camera and a focuser; each step
   uses the mount and guider of its rig. With more than one rig the session can be seen as Overview, one tab per rig, or Shared: the same steps, filtered. Rigs on different
   mounts work at the same time; rigs on one mount or one guider take turns for it (a plate solve or a rotation holds only the devices it uses).
+- **Conditions and Wait (workflow):** a workflow can wait for and stop at the sky and the clock. *Start when* (all must hold, before a block begins): target altitude above N°, astronomical
+  (or civil, nautical) darkness. *Stop when any* (a block, or the whole target): the block's frames, target altitude below N°, dawn, a time of day, a duration. *Wait* steps in Prepare or
+  Finish wait for a duration, until a time, or until the sky is right (all that are on). Altitudes are computed from the target's coordinates, the observing site (Settings, else the mount's) and
+  UTC, never read from a mount; the Sun uses the low-precision solar formula of the Astronomical Almanac (about 0.01°), twilight is the Sun's centre at -6°, -12° and -18°. Dusk means darkness
+  (the Sun at or below the altitude); dawn means the Sun coming up through it, the next time after the block starts, never "the Sun is above -18°". Where it never gets that dark within 48 h
+  there is no event: a Wait says so and stops, a stop at dawn simply does not trigger. A time of day is the next time the clock reads it in the named zone (the computer's, shown in the UI), and
+  is turned into a UTC instant once. A condition that is met stays met (no start/stop flicker around a threshold). A duration counts the wall-clock time of the block from when it began imaging
+  (pauses count; the time before it started and the wait for its start conditions do not). A stop never cuts an exposure: the running exposure finishes, then the block ends, and Finish follows
+  as after a normal end. When several things are due at once the order is: stop, then meridian flip, then autofocus, then dither, then the next exposure; so no flip, autofocus or dither starts
+  for imaging that is over. A block that reaches its frames does not stop other setups; the target's stop ends all of them. Conditions are saved in the version 8 workflow (nothing is written
+  where there are none) and stay in the explicit steps when a workflow is converted to Advanced. Not yet: weather, Moon, adaptive scheduling, nested AND/OR.
 - **Session mode:** a session is a Workflow unless you choose otherwise (Settings → Sequencer) or open a file that is not one. `[Workflow] [Advanced]` next to the title: Advanced shows
   the explicit action tree and asks first, because workflow policies are no longer editable afterwards. Back to Workflow is only offered where it is exact (an empty sequence, or the
   untouched steps of a workflow); otherwise it says "This sequence cannot be represented as a Workflow."

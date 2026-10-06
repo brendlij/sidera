@@ -35,8 +35,59 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
         Step = step;
         Block = block;
         Id = step?.Id ?? block!.Id;
+        Start = new ConditionTogglesViewModel(Edited);
+        Stop = new ConditionTogglesViewModel(Edited);
+        WaitConditions = new ConditionTogglesViewModel(Edited);
         Load();
     }
+
+    // ---- conditions: when a block may begin and when it stops, what a Wait waits for
+
+    /// <summary>The start conditions of an imaging block (all that are on must hold).</summary>
+    public ConditionTogglesViewModel Start { get; }
+
+    /// <summary>The stop conditions of an imaging block (any that is on stops it, besides its frames).</summary>
+    public ConditionTogglesViewModel Stop { get; }
+
+    /// <summary>What a Wait that is until a time or a condition waits for.</summary>
+    public ConditionTogglesViewModel WaitConditions { get; }
+
+    public IReadOnlyList<string> WaitModes { get; } = ["For a duration", "Until a time", "Until the sky is right"];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WaitIsDuration), nameof(WaitIsTime), nameof(WaitIsCondition))]
+    public partial string SelectedWaitMode { get; set; } = "For a duration";
+
+    public bool WaitIsDuration => SelectedWaitMode == WaitModes[0];
+    public bool WaitIsTime => SelectedWaitMode == WaitModes[1];
+    public bool WaitIsCondition => SelectedWaitMode == WaitModes[2];
+
+    /// <summary>"Start: altitude ≥ 30° and astronomical darkness"; empty when the block begins at once.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStartText), nameof(HasConditionText))]
+    public partial string StartText { get; internal set; } = string.Empty;
+
+    public bool HasStartText => StartText.Length > 0;
+
+    public bool HasConditionText => HasStartText || HasStopText;
+
+    /// <summary>"Stop: 40 frames or dawn or altitude &lt; 25°"; empty when only the frames end the block.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStopText), nameof(HasConditionText))]
+    public partial string StopText { get; internal set; } = string.Empty;
+
+    public bool HasStopText => StopText.Length > 0;
+
+    /// <summary>What the block or the wait is doing about its conditions while the workflow runs: "Waiting · Target altitude above 30°", "Stop condition reached · finishing current exposure".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasConditionStatus))]
+    public partial string ConditionStatusText { get; internal set; } = string.Empty;
+
+    /// <summary>The numbers behind it: "Target altitude 27.8° · needs ≥ 30°".</summary>
+    [ObservableProperty]
+    public partial string ConditionStatusDetail { get; internal set; } = string.Empty;
+
+    public bool HasConditionStatus => ConditionStatusText.Length > 0;
 
     public Guid Id { get; }
 
@@ -180,6 +231,8 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
             Enabled = Step?.Enabled ?? Block!.Enabled;
             if (Step is { } step)
             {
+                SelectedWaitMode = WaitModes[(int)step.WaitMode];
+                WaitConditions.Load(step.UntilAll);
                 SecondsInputText = Format(step.Seconds);
                 ToleranceInputText = Format(step.ToleranceArcseconds);
                 AttemptsInputText = step.MaxAttempts.ToString(CultureInfo.InvariantCulture);
@@ -192,6 +245,8 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
 
             if (Block is { } block)
             {
+                Start.Load(block.StartAll);
+                Stop.Load(block.StopAny);
                 ExposureText = Format(block.ExposureSeconds);
                 FramesInputText = block.Frames.ToString(CultureInfo.InvariantCulture);
             }
@@ -253,6 +308,7 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
     partial void OnAutofocusExposureInputTextChanged(string value) => Edited();
     partial void OnAutofocusStepInputTextChanged(string value) => Edited();
     partial void OnAutofocusSamplesInputTextChanged(string value) => Edited();
+    partial void OnSelectedWaitModeChanged(string value) => Edited();
 
     private void Edited()
     {
@@ -273,17 +329,40 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
                 ParseNumber(AutofocusExposureInputText, "The autofocus exposure", "a number of seconds", problems, af.ExposureSeconds),
                 ParseWhole(AutofocusStepInputText, "The autofocus step size", problems, af.StepSize),
                 ParseWhole(AutofocusSamplesInputText, "The autofocus samples", problems, af.SampleCount));
+            var mode = (WorkflowWaitMode)Math.Max(0, WaitModes.ToList().IndexOf(SelectedWaitMode));
+            IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition>? until = null;
+            if (step.Kind == WorkflowStepKind.Wait && mode == WorkflowWaitMode.UntilTime)
+            {
+                until = [WaitConditions.BuildTime()];
+                problems.AddRange(WaitConditions.Problems);
+            }
+            else if (step.Kind == WorkflowStepKind.Wait && mode == WorkflowWaitMode.UntilCondition)
+            {
+                until = WaitConditions.BuildStart();
+                problems.AddRange(WaitConditions.Problems);
+            }
+
             Step = step with
             {
                 Setup = SelectedSetup?.Id, Enabled = Enabled, Seconds = seconds, ToleranceArcseconds = tolerance, MaxAttempts = attempts, SolveExposureSeconds = solve,
                 Autofocus = step.Kind == WorkflowStepKind.Autofocus ? afSettings : step.Autofocus,
+                WaitMode = step.Kind == WorkflowStepKind.Wait ? mode : WorkflowWaitMode.Duration,
+                Until = until is { Count: > 0 } ? until : null,
             };
         }
         else if (Block is { } block)
         {
             var exposure = ParseNumber(ExposureText, "The exposure", "a number of seconds", problems, block.ExposureSeconds);
             var frames = ParseWhole(FramesInputText, "The number of frames", problems, block.Frames);
-            Block = block with { Setup = SelectedSetup?.Id, FilterSlot = SelectedFilter?.Slot, ExposureSeconds = exposure, Frames = frames, Enabled = Enabled };
+            var startWhen = Start.BuildStart();
+            problems.AddRange(Start.Problems);
+            var stopWhen = Stop.BuildStop();
+            problems.AddRange(Stop.Problems);
+            Block = block with
+            {
+                Setup = SelectedSetup?.Id, FilterSlot = SelectedFilter?.Slot, ExposureSeconds = exposure, Frames = frames, Enabled = Enabled,
+                StartWhen = startWhen.Count > 0 ? startWhen : null, StopWhen = stopWhen.Count > 0 ? stopWhen : null,
+            };
         }
 
         ParseProblems = problems;

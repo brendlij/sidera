@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Sidera.Desktop.ViewModels"
              xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
              x:Class="Sidera.Desktop.Views.Session.WorkflowEditorView"
              x:DataType="vm:WorkflowEditorViewModel">
 
@@ -121,6 +122,8 @@
                                             <TextBlock Grid.Column="2" Classes="value" Text="{Binding SetupLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center">
                                                 <TextBlock Classes="secondary" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="secondary accent" Text="{Binding ConditionStatusText}" TextWrapping="Wrap" IsVisible="{Binding HasConditionStatus}" />
+                                                <TextBlock Classes="meta" Text="{Binding ConditionStatusDetail}" TextWrapping="Wrap" IsVisible="{Binding HasConditionStatus}" />
                                                 <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" />
                                             </StackPanel>
                                             <PathIcon Grid.Column="4" Data="{StaticResource IconWarning}" Width="16" Height="16" Foreground="{DynamicResource SideraDanger}" IsVisible="{Binding HasProblem}" />
@@ -160,6 +163,14 @@
                                                 <TextBlock Grid.Column="5" Classes="secondary" Text="{Binding DitherLabel}" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="6" Classes="secondary" Text="{Binding AutofocusLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </Grid>
+                                            <StackPanel Margin="40,0,0,0" Spacing="2" IsVisible="{Binding HasConditionText}">
+                                                <TextBlock Classes="secondary" Text="{Binding StartText}" IsVisible="{Binding HasStartText}" AutomationProperties.AutomationId="BlockStartText" />
+                                                <TextBlock Classes="secondary" Text="{Binding StopText}" IsVisible="{Binding HasStopText}" AutomationProperties.AutomationId="BlockStopText" />
+                                            </StackPanel>
+                                            <StackPanel Margin="40,0,0,0" Spacing="1" IsVisible="{Binding HasConditionStatus}">
+                                                <TextBlock Classes="secondary accent" Text="{Binding ConditionStatusText}" TextWrapping="Wrap" AutomationProperties.AutomationId="BlockConditionStatus" />
+                                                <TextBlock Classes="meta" Text="{Binding ConditionStatusDetail}" TextWrapping="Wrap" />
+                                            </StackPanel>
                                             <!-- While it runs: frames, what the setup is at, an autofocus it runs -->
                                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" IsVisible="{Binding HasProgress}" Margin="40,0,0,0">
                                                 <TextBlock Classes="value" Text="{Binding ProgressText}" VerticalAlignment="Center" />
@@ -175,25 +186,9 @@
                     </ItemsControl>
 
                     <!-- The policies of the section -->
-                    <Border Classes="panel" Padding="20,16" Margin="0,8,0,0">
-                        <StackPanel Spacing="10">
-                            <TextBlock Classes="eyebrow" Text="DITHER" />
-                            <WrapPanel ItemSpacing="16" LineSpacing="8">
-                                <CheckBox Content="Dither" IsChecked="{Binding DitherEnabled}" IsEnabled="{Binding IsEditable}" VerticalAlignment="Bottom" AutomationProperties.AutomationId="WorkflowDitherEnabled" />
-                                <ctl:LabeledField Label="Every N frames"><TextBox Text="{Binding DitherEveryText}" Width="70" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowDitherEvery" /></ctl:LabeledField>
-                                <ctl:LabeledField Label="Frames counted on">
-                                    <ComboBox ItemsSource="{Binding CountedChoices}" SelectedItem="{Binding SelectedCounted}" Width="170" IsEnabled="{Binding IsEditable}">
-                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:SetupChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                </ctl:LabeledField>
-                                <ctl:LabeledField Label="Amplitude (px)"><TextBox Text="{Binding DitherAmplitudeText}" Width="90" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
-                                <ctl:LabeledField Label="Settle ≤ (px)"><TextBox Text="{Binding DitherThresholdText}" Width="90" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
-                                <ctl:LabeledField Label="for (s)"><TextBox Text="{Binding DitherStableText}" Width="70" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
-                                <ctl:LabeledField Label="timeout (s)"><TextBox Text="{Binding DitherTimeoutText}" Width="80" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
-                            </WrapPanel>
-                            <TextBlock Classes="secondary" Text="{Binding DitherSummary}" TextWrapping="Wrap" AutomationProperties.AutomationId="WorkflowDitherSummary" />
-                        </StackPanel>
-                    </Border>
+                    <session:DitherPolicyView />
+
+                    <session:TargetStopView />
 
                     <!-- The meridian flip: a policy, not steps. It holds new exposures that would not fit, and flips the mount once for every setup on it. -->
                     <Border Classes="panel" Padding="20,16" Margin="0,8,0,0">
@@ -280,6 +275,8 @@
                                             <TextBlock Grid.Column="2" Classes="value" Text="{Binding SetupLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center">
                                                 <TextBlock Classes="secondary" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="secondary accent" Text="{Binding ConditionStatusText}" TextWrapping="Wrap" IsVisible="{Binding HasConditionStatus}" />
+                                                <TextBlock Classes="meta" Text="{Binding ConditionStatusDetail}" TextWrapping="Wrap" IsVisible="{Binding HasConditionStatus}" />
                                                 <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" />
                                             </StackPanel>
                                             <PathIcon Grid.Column="4" Data="{StaticResource IconWarning}" Width="16" Height="16" Foreground="{DynamicResource SideraDanger}" IsVisible="{Binding HasProblem}" />
@@ -327,6 +324,8 @@
                             <ctl:LabeledField Label="Exposure (s)"><TextBox Text="{Binding ExposureText}" AutomationProperties.AutomationId="WorkflowRowExposure" /></ctl:LabeledField>
                             <ctl:LabeledField Grid.Column="1" Label="Frames"><TextBox Text="{Binding FramesInputText}" AutomationProperties.AutomationId="WorkflowRowFrames" /></ctl:LabeledField>
                         </Grid>
+
+                        <session:BlockConditionsView />
                     </StackPanel>
 
                     <!-- Slew & Center -->
@@ -354,7 +353,8 @@
                                Text="Uses the guider of the setup. With Auto, every guider of the imaged setups is used, each once, even when several setups share it." />
 
                     <!-- Wait -->
-                    <ctl:LabeledField Label="Wait (s)" IsVisible="{Binding ShowsWait}"><TextBox Text="{Binding SecondsInputText}" /></ctl:LabeledField>
+                    <session:WaitStepView IsVisible="{Binding ShowsWait}" />
+
 
                     <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
                         <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
