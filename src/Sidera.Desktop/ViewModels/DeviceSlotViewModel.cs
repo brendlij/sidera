@@ -114,7 +114,7 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
 
     public bool IsEmpty => Device is null;
 
-    public string EmptyText => $"No {Title.ToLowerInvariant()} chosen. Pick a driver above to use one.";
+    public string EmptyText => _owner.IsAddingDevice ? $"Choose the driver of the new {Title.ToLowerInvariant()} above." : $"No {Title.ToLowerInvariant()} chosen. Pick a driver above to use one.";
 
     partial void OnSelectedChoiceChanged(DriverChoice? value)
     {
@@ -352,7 +352,8 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         }
 
         var id = configuration?.Id ?? FreshId();
-        var added = service.Add(choice.ToConfiguration(id, Type, settings));
+        var wanted = choice.ToConfiguration(id, Type, settings);
+        var added = service.Add(configuration is null ? wanted with { Name = _owner.UniqueName(Type, wanted.Name) } : wanted);
         if (!added.Succeeded)
         {
             if (configuration is not null)

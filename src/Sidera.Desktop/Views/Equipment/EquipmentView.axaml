@@ -8,9 +8,9 @@
              x:DataType="vm:EquipmentViewModel">
 
     <!--
-        The equipment, in one hierarchy: the contexts (the devices on their own, and each rig), the pages of the context (the overview of a rig, or one page for each device it has),
-        and on a device page the choice of the driver with connect beside it, then the device. A rig page controls the device that the rig names, without a chooser; a standalone page
-        has a chooser when there are several devices of the kind. The overview of everything is where the workspace starts.
+        The equipment by kind of device: the overview, then one section for each kind (cameras, focusers, filter wheels, rotators, mounts, guiders), each with zero or more devices, and the
+        imaging setups when there are any. On the page of a kind: the choice of the device when there are several, its name, adding another one, and the choice of the driver with connect beside
+        it. With one device of a kind nothing is chosen: it is the device. The overview of everything is where the page starts.
     -->
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="14">
         <ctl:PageHeader Title="Equipment">
@@ -29,28 +29,22 @@
             </Border>
         </StackPanel>
 
-        <!-- The contexts: everything, the devices on their own, and each rig -->
-        <WrapPanel Grid.Row="2" ItemSpacing="20" LineSpacing="6" IsVisible="{Binding HasDevices}">
-            <Button Classes="ghost" Content="Overview" Command="{Binding ShowOverviewCommand}" IsEnabled="{Binding IsContextShown}" AutomationProperties.AutomationId="EquipmentAll"
-                    ToolTip.Tip="All devices and rigs at a glance" />
-            <ItemsControl ItemsSource="{Binding Contexts}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:EquipmentContextViewModel">
-                        <RadioButton Classes="tab" GroupName="EquipmentContext" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                     AutomationProperties.Name="{Binding Title}" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <Button Content="+ Add rig" Classes="ghost" Command="{Binding AddRig.BeginCommand}" IsVisible="{Binding AddRig, Converter={x:Static ObjectConverters.IsNotNull}}"
-                    AutomationProperties.AutomationId="EquipmentAddRig" ToolTip.Tip="{Binding AddRig.DisabledText}" />
-        </WrapPanel>
+        <!-- The sections: the overview, a kind of device each, and the imaging setups when there are any -->
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding Sections}" IsVisible="{Binding ShowSections}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:EquipmentSectionViewModel">
+                    <RadioButton Classes="tab" Margin="0,0,20,4" GroupName="EquipmentSection" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                 AutomationProperties.Name="{Binding Title}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
         <Border Grid.Row="3" Classes="panel compact" IsVisible="{Binding AddRig.IsAdding, FallbackValue=False}">
             <StackPanel Spacing="10" DataContext="{Binding AddRig}" x:DataType="vm:AddRigViewModel">
-                <TextBlock Classes="eyebrow" Text="NEW RIG" />
+                <TextBlock Classes="eyebrow" Text="NEW IMAGING SETUP" />
                 <WrapPanel ItemSpacing="16" LineSpacing="8">
                     <ctl:LabeledField Label="Name"><TextBox Text="{Binding NameText}" Width="200" AutomationProperties.AutomationId="NewRigName" /></ctl:LabeledField>
                     <ctl:LabeledField Label="Camera">
@@ -64,22 +58,25 @@
                     </StackPanel>
                 </WrapPanel>
                 <TextBlock Classes="meta" Text="{Binding DisabledText}" TextWrapping="Wrap" IsVisible="{Binding DisabledText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <TextBlock Classes="meta" Text="A rig starts with its camera. Give it a mount, a guider, a focuser and the rest on its overview; a mount or a guider can be shared with another rig." TextWrapping="Wrap" />
+                <TextBlock Classes="meta" Text="An imaging setup starts with its camera. Give it a focuser, a filter wheel, a mount and a guider on its overview; a mount or a guider can be shared with another setup." TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
-        <!-- The pages of the context -->
-        <ItemsControl Grid.Row="4" ItemsSource="{Binding Pages}" MinHeight="34">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:EquipmentPageViewModel">
-                    <RadioButton Classes="tab" GroupName="EquipmentPage" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                 AutomationProperties.Name="{Binding Title}" />
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <!-- In the section of the imaging setups: the setups as tabs, and adding one -->
+        <WrapPanel Grid.Row="4" ItemSpacing="20" LineSpacing="6" IsVisible="{Binding IsImagingSetupsSection}">
+            <ItemsControl ItemsSource="{Binding SetupContexts}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:EquipmentContextViewModel">
+                        <RadioButton Classes="tab" GroupName="EquipmentSetup" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="+ Add imaging setup" Classes="ghost" Command="{Binding AddRig.BeginCommand}" IsVisible="{Binding AddRig, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    AutomationProperties.AutomationId="EquipmentAddRig" ToolTip.Tip="{Binding AddRig.DisabledText}" />
+        </WrapPanel>
 
         <Border Grid.Row="5" Classes="divider" />
 
@@ -90,12 +87,20 @@
                     <StackPanel Spacing="4">
                         <TextBlock Classes="card-title" Text="How this page is organised" />
                         <TextBlock Classes="secondary" TextWrapping="Wrap"
-                                   Text="A device is one piece of hardware. A rig is one imaging setup: a camera on its telescope, plus the focuser, filter wheel, rotator, mount and guider that belong with it. Imaging, autofocus and the session always work on a rig. Rigs can share a mount or a guider; every other device belongs to one rig. Devices that are in no rig are listed as standalone." />
-                        <TextBlock Classes="secondary" TextWrapping="Wrap" Text="Click a rig to see and change what it is made of; click a device to set it up and connect it." />
+                                   Text="Every device is listed once, under its kind, and each kind can have several. With one camera there is nothing more to set up. An imaging setup is optional: it groups a camera with the focuser, filter wheel, rotator, mount and guider on its telescope, and tells Sidera which camera an instruction means when there are several. Setups can share a mount or a guider." />
+                        <TextBlock Classes="secondary" TextWrapping="Wrap" Text="Click a device to set it up and connect it." />
+                    </StackPanel>
+                </Border>
+                <Border Classes="notice-info" IsVisible="{Binding NeedsSetupHint}" MaxWidth="880" HorizontalAlignment="Left">
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="secondary" TextWrapping="Wrap"
+                                   Text="There is more than one camera. To image with them, make an imaging setup for each: Sidera does not guess which camera an instruction means." />
+                        <Button Content="+ Add imaging setup" Command="{Binding AddRig.BeginCommand}" HorizontalAlignment="Left" IsVisible="{Binding AddRig, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                AutomationProperties.AutomationId="EquipmentAddSetupHint" />
                     </StackPanel>
                 </Border>
                 <ctl:EmptyState Icon="{StaticResource IconEquipment}" Title="No equipment yet" Margin="0,64"
-                                Message="Add the demo equipment to try Sidera with simulators, or add a device on its page." IsVisible="{Binding !HasDevices}" />
+                                Message="Add the demo equipment to try Sidera with simulators, or add a device on the page of its kind: Cameras, Focusers, Filter Wheels, Rotators, Mounts, Guiders." IsVisible="{Binding !HasDevices}" />
                 <ItemsControl ItemsSource="{Binding LandingGroups}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -105,7 +110,7 @@
                             <Border Classes="panel" Width="420" Margin="0,0,20,20" Padding="22,20,22,22">
                                 <StackPanel Spacing="12">
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <Button Classes="ghost" Command="{Binding OpenCommand}" HorizontalAlignment="Left" Padding="0" IsEnabled="{Binding IsRig}">
+                                        <Button Classes="ghost" Command="{Binding OpenCommand}" HorizontalAlignment="Left" Padding="0">
                                             <TextBlock Classes="card-title" Text="{Binding Title}" />
                                         </Button>
                                         <TextBlock Grid.Column="1" Classes="meta" Text="{Binding SummaryText}" VerticalAlignment="Center" />
@@ -137,14 +142,25 @@
             <equipment:RigOverviewView />
         </ScrollViewer>
 
-        <!-- A device of a context -->
+        <!-- A kind of device: its device (chosen when there are several), its name, adding another one -->
         <Grid Grid.Row="6" RowDefinitions="Auto,*" RowSpacing="12" IsVisible="{Binding IsDeviceWorkspace}">
             <StackPanel Spacing="8">
-                <ctl:LabeledField Label="Device" IsVisible="{Binding HasDeviceChooser}" HorizontalAlignment="Left">
-                    <ComboBox ItemsSource="{Binding DeviceChoices}" SelectedItem="{Binding ChosenDevice, Mode=TwoWay}" MinWidth="260" AutomationProperties.AutomationId="EquipmentDeviceChooser">
-                        <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:DeviceViewModelBase"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-                    </ComboBox>
-                </ctl:LabeledField>
+                <WrapPanel ItemSpacing="12" LineSpacing="8">
+                    <ctl:LabeledField Label="{Binding KindLabel}" IsVisible="{Binding HasDeviceChooser}">
+                        <ComboBox ItemsSource="{Binding DeviceChoices}" SelectedItem="{Binding ChosenDevice, Mode=TwoWay}" MinWidth="260" AutomationProperties.AutomationId="EquipmentDeviceChooser">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:DeviceViewModelBase"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </ctl:LabeledField>
+                    <ctl:LabeledField Label="Name" IsVisible="{Binding SelectedDevice, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" MinWidth="260">
+                            <TextBox Text="{Binding NameText}" AutomationProperties.AutomationId="EquipmentDeviceName" />
+                            <Button Grid.Column="1" Content="Rename" Command="{Binding RenameCommand}" AutomationProperties.AutomationId="EquipmentDeviceRename" />
+                        </Grid>
+                    </ctl:LabeledField>
+                    <Button Content="{Binding AddKindText}" Classes="ghost" Command="{Binding AddToKindCommand}" VerticalAlignment="Bottom" AutomationProperties.AutomationId="EquipmentAddToKind" />
+                    <Button Content="Cancel" Command="{Binding CancelAddCommand}" IsVisible="{Binding IsAddingDevice}" VerticalAlignment="Bottom" AutomationProperties.AutomationId="EquipmentAddCancel" />
+                </WrapPanel>
+                <TextBlock Classes="meta" Text="{Binding RenameProblemText}" TextWrapping="Wrap" IsVisible="{Binding HasRenameProblem}" AutomationProperties.AutomationId="EquipmentRenameProblem" />
                 <TextBlock Classes="secondary" Text="{Binding MissingDeviceText}" IsVisible="{Binding HasMissingDevice}" />
             </StackPanel>
             <ContentControl Grid.Row="1" Content="{Binding SelectedSlot}" IsVisible="{Binding SelectedSlot, Converter={x:Static ObjectConverters.IsNotNull}}">

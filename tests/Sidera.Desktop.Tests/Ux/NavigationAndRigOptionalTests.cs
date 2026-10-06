@@ -61,7 +61,7 @@ public class NavigationAndRigOptionalTests
     // Without any rig
 
     [Fact]
-    public async Task WithoutRigs_TheEquipmentPageHasOnlyTheStandaloneContext_AndNoRigTabs()
+    public async Task WithoutRigs_TheEquipmentPageHasOnlyTheDevices_AndNoImagingSetupsSection()
     {
         await using var app = await UxApp.Create(UxSetup.Simple);
         var equipment = app.Vm.Equipment;
@@ -69,13 +69,16 @@ public class NavigationAndRigOptionalTests
         Assert.False(equipment.HasRigs);
         Assert.Empty(equipment.Rigs);
         Assert.True(equipment.HasDevices);
-        Assert.Equal(["Standalone"], equipment.Contexts.Select(c => c.Title));
-        Assert.Equal(["Devices"], equipment.LandingGroups.Select(g => g.Title)); // not "Standalone devices": there is nothing else
+        Assert.Equal(["Devices"], equipment.Contexts.Select(c => c.Title));
+        Assert.Equal(["Cameras", "Mounts", "Guiders"], equipment.LandingGroups.Select(g => g.Title)); // by kind; nothing about setups
         Assert.Equal(3, equipment.Devices.Count());
+        Assert.False(equipment.HasImagingSetups);
+        Assert.DoesNotContain(equipment.Sections, s => s.Section == EquipmentSection.ImagingSetups);
+        Assert.False(equipment.NeedsSetupHint); // one camera: it is the setup; nothing is asked
 
         equipment.Contexts[0].SelectCommand.Execute(null);
 
-        Assert.Equal(["Camera", "Mount", "Guider"], equipment.Pages.Select(p => p.Title)); // no focusers, no filter wheels: no empty pages
+        Assert.Equal(["Camera", "Focuser", "Filter Wheel", "Rotator", "Mount", "Guider"], equipment.Pages.Select(p => p.Title)); // every kind has its page: the first focuser is added there
     }
 
     [Fact]
@@ -88,6 +91,12 @@ public class NavigationAndRigOptionalTests
         foreach (var page in equipment.Pages.ToList())
         {
             page.SelectCommand.Execute(null);
+            if (equipment.DeviceChoices.Count == 0)
+            {
+                Assert.Null(equipment.SelectedDevice); // a kind without a device: its page is where one is added
+                continue;
+            }
+
             Assert.NotNull(equipment.SelectedDetail);
             Assert.False(equipment.HasMissingDevice);
         }
@@ -139,7 +148,7 @@ public class NavigationAndRigOptionalTests
 
         Assert.True(equipment.HasRigs);
         Assert.True(equipment.IsLanding); // the overview first
-        Assert.Equal(["Standalone", "Main Rig"], equipment.Contexts.Select(c => c.Title));
+        Assert.Equal(["Devices", "Main Rig"], equipment.Contexts.Select(c => c.Title));
         Assert.Single(equipment.Rigs);
         Assert.Single(equipment.Cameras);
         Assert.Single(equipment.Focusers);
@@ -155,7 +164,7 @@ public class NavigationAndRigOptionalTests
         var equipment = app.Vm.Equipment;
         Assert.Equal(3, equipment.Rigs.Count);
 
-        Assert.Equal(["Standalone", "Main Rig", "Narrow Rig", "Wide Rig"], equipment.Contexts.Select(c => c.Title));
+        Assert.Equal(["Devices", "Main Rig", "Narrow Rig", "Wide Rig"], equipment.Contexts.Select(c => c.Title));
 
         equipment.Contexts.Single(c => c.Title == "Wide Rig").SelectCommand.Execute(null);
 
@@ -191,17 +200,17 @@ public class NavigationAndRigOptionalTests
     }
 
     [Fact]
-    public async Task TheStandalonePages_AreInTheOrderOfTheKinds_AndEachChoosesOnlyAmongItsKind()
+    public async Task ThePagesOfTheDevices_AreInTheOrderOfTheKinds_AndEachChoosesOnlyAmongItsKind()
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
         equipment.Contexts.Single(c => c.IsStandalone).SelectCommand.Execute(null);
 
         Assert.Equal(
-            [EquipmentPage.Camera, EquipmentPage.Mount, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Guider],
+            [EquipmentPage.Camera, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Rotator, EquipmentPage.Mount, EquipmentPage.Guider],
             equipment.Pages.Select(p => p.Page));
         var seen = 0;
-        foreach (var page in equipment.Pages.ToList())
+        foreach (var page in equipment.Pages.Where(p => p.Page != EquipmentPage.Rotator).ToList())
         {
             page.SelectCommand.Execute(null);
             var kind = equipment.SelectedDevice!.GetType();

@@ -172,14 +172,14 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         Assert.True(vm.Equipment.HasDevices);
         Assert.Same(cameras, vm.Equipment.Cameras);
         Assert.Equal(3, cameras.Count);
-        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.LandingGroups.Select(g => g.Title)); // the shared mount and guider are the rigs' devices
+        Assert.Equal(["Cameras", "Focusers", "Filter Wheels", "Mounts", "Guiders", "Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.LandingGroups.Select(g => g.Title)); // every device once under its kind, then the setups
         Assert.True(vm.Equipment.HasRigs);
         Assert.Equal(3, vm.Equipment.Rigs.Count);
         Assert.Equal(8, vm.SequenceDraft.Steps.Count);
         Assert.True(vm.Dashboard.UnitsAreRigs);
         Assert.Equal(3, vm.Dashboard.Units.Count);
         Assert.True(vm.Equipment.IsLanding); // the overview, with everything that was added
-        Assert.Equal(["Standalone", "Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.Contexts.Select(c => c.Title));
+        Assert.Equal(["Devices", "Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.Contexts.Select(c => c.Title));
     }
 
     [Fact]
@@ -1113,7 +1113,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         mount.Selected = mount.Choices.Single(c => c.Id is null);
         equipment.ShowOverviewCommand.Execute(null);
 
-        Assert.Contains("Mount", equipment.LandingGroups.Single(g => g.Title == "Main Rig").HintText);
+        Assert.DoesNotContain(equipment.LandingGroups.Single(g => g.Title == "Main Rig").Rows, r => r.Role == "Mount"); // the setup no longer has a mount; the mount is still listed under Mounts
         equipment.Contexts.Single(c => c.Title == "Main Rig").SelectCommand.Execute(null);
         Assert.All(equipment.RigSetup!.Assignments, a => Assert.NotEmpty(a.Hint));
     }

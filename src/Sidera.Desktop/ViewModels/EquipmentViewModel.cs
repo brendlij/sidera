@@ -112,6 +112,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     /// <summary>Rigs are optional: nothing about them is shown when none is configured.</summary>
     public bool HasRigs => _rigs.Count > 0;
 
+    /// <summary>The tabs of the page are shown: there is equipment, or equipment can be added (a page of a kind with no device is where the first one is added).</summary>
+    public bool ShowSections => HasDevices || CanManage;
+
     /// <summary>There is at least one device.</summary>
     public bool HasDevices => Devices.Any();
 
@@ -185,6 +188,13 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                     _ => EquipmentPage.FilterWheel,
                 };
                 member.OpenCommand = new RelayCommand(() => OpenRigPage(captured, page));
+            }
+
+            // A device of an imaging setup opens on the page of its kind: where every device of that kind is, with the setup only saying which devices go together.
+            foreach (var part in vm.Parts)
+            {
+                var device = part.Device;
+                part.OpenCommand = new RelayCommand(() => OpenDevice(device));
             }
             _rigs.Add(vm);
         }
@@ -310,6 +320,8 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                     {
                         RefreshDetails(); // the camera pages offer the new rotator
                     }
+
+                    _addingKind = null; // the device that was being added is there: the page shows it
                     if (!_addingMany)
                     {
                         OpenDevice(vm);
@@ -338,6 +350,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         DevicesChanged?.Invoke(this, EventArgs.Empty);
         OnPropertyChanged(nameof(HasRigs));
         OnPropertyChanged(nameof(HasDevices));
+        OnPropertyChanged(nameof(ShowSections));
     }
 
     private void ReplaceViewModel(IDevice replaced)

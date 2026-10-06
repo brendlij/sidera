@@ -70,6 +70,17 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   as after a normal end. When several things are due at once the order is: stop, then meridian flip, then autofocus, then dither, then the next exposure; so no flip, autofocus or dither starts
   for imaging that is over. A block that reaches its frames does not stop other setups; the target's stop ends all of them. Conditions are saved in the version 8 workflow (nothing is written
   where there are none) and stay in the explicit steps when a workflow is converted to Advanced. Not yet: weather, Moon, adaptive scheduling, nested AND/OR.
+- **Devices, imaging setups, resource claims:** the Equipment page is organised by kind (Cameras, Focusers, Filter Wheels, Rotators, Mounts, Guiders); each kind holds any number of named devices, added
+  on its own page ("+ Add Camera"), and one device of a kind is simply the device. An *imaging setup* is optional: a camera with its focuser, filter wheel, rotator, optics and, if you like, its mount and guider.
+  With one camera and no setup, Sidera uses an implicit setup made of the only device of each kind (never stored, never listed); with several cameras and no setup nothing is guessed and the workflow says to make
+  one. Which device an instruction uses is decided in this order: the device it names, the setup's binding, the one device that can be meant (the only connected one, else the only configured one), else an
+  error naming the candidates. A setup is *usable* when its camera is connected (when none is, all configured ones count, so a session can be planned offline); the setup selectors, "Parallel imaging" and the
+  shared resources panel appear only with two or more usable setups. Sharing is inferred from the device ids: setups on one mount share it, setups on one guider share it. What may run at the same time follows
+  from the claims of the actions: an exposure holds its camera and shares the stability of its mount, so cameras on one mount expose together; a slew, centering, dither or flip holds the stability of the mount
+  exclusively and so waits for the exposures that run and keeps new ones from starting; unrelated mounts, guiders and cameras never wait for each other. An autofocus holds only its camera and focuser unless
+  Settings → Autofocus says to hold the mount still, in which case it waits for the other exposures on that mount. Meridian flips are per mount group; a dither is asked for by a trigger setup and runs once for
+  every setup on that mount or guider. V1 constraint: one target per workflow, so setups on one mount cannot be pointed at different targets (a slew inside a track is refused); instructions on different mounts
+  are not coordinated about targets. The equipment file format is unchanged (version 1): an imaging setup is the rig that was stored, same ids, same shared mounts and guiders.
 - **Session mode:** a session is a Workflow unless you choose otherwise (Settings → Sequencer) or open a file that is not one. `[Workflow] [Advanced]` next to the title: Advanced shows
   the explicit action tree and asks first, because workflow policies are no longer editable afterwards. Back to Workflow is only offered where it is exact (an empty sequence, or the
   untouched steps of a workflow); otherwise it says "This sequence cannot be represented as a Workflow."

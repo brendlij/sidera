@@ -118,6 +118,11 @@ public static class SideraSettingsSerializer
     public static SideraSettings Deserialize(ReadOnlySpan<byte> content)
     {
         JsonDocument document;
+        if (content.StartsWith<byte>([0xEF, 0xBB, 0xBF]))
+        {
+            content = content[3..]; // a file saved by an editor that writes a byte order mark is still the file it was
+        }
+
         try
         {
             document = JsonDocument.Parse(content.ToArray());
