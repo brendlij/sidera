@@ -8,14 +8,18 @@ namespace Sidera.Core.Sequencing;
 /// </summary>
 public sealed class RepeatStep : ISequenceStep
 {
-    public RepeatStep(int count, ISequenceStep child)
+    public RepeatStep(int count, ISequenceStep child, IRepeatControl? control = null)
     {
+        Control = control;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(count, 0);
         ArgumentNullException.ThrowIfNull(child);
 
         Count = count;
         Child = child;
     }
+
+    /// <summary>What ends the repetition earlier than <see cref="Count"/>, if anything (conditions of a workflow); <c>null</c> for a plain repeat.</summary>
+    public IRepeatControl? Control { get; }
 
     public int Count { get; }
     public ISequenceStep Child { get; }
@@ -33,11 +37,27 @@ public sealed class RepeatStep : ISequenceStep
     )
     {
         var results = new List<SequenceStepResult>(Count);
-
-        for (var i = 0; i < Count; i++)
+        Control?.Begin();
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            results.Add(await context.ExecuteChildAsync(Child, i, Count, cancellationToken));
+            for (var i = 0; i < Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (Control?.ShouldStop(i) == true)
+                {
+                    break;
+                }
+
+                results.Add(await context.ExecuteChildAsync(Child, i, Count, cancellationToken));
+                if (Control?.AfterIteration(i + 1) == true)
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            Control?.End(results.Count);
         }
 
         return new SequenceStepResult(results.AsReadOnly());

@@ -6,8 +6,9 @@ namespace Sidera.Core.Sequencing;
 /// </summary>
 public sealed class SequenceGroup : ISequenceStep
 {
-    public SequenceGroup(string name, IEnumerable<ISequenceStep> children)
+    public SequenceGroup(string name, IEnumerable<ISequenceStep> children, IGroupGuard? guard = null)
     {
+        Guard = guard;
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(children);
 
@@ -30,6 +31,9 @@ public sealed class SequenceGroup : ISequenceStep
     public string Name { get; }
     public IReadOnlyList<ISequenceStep> Children { get; }
 
+    /// <summary>Asked before each child whether it may run; <c>null</c> for a plain group.</summary>
+    public IGroupGuard? Guard { get; }
+
     /// <summary>
     /// Runs the children in order through <paramref name="context"/>, so each one is tracked and reported
     /// like any other execution. Cancellation is checked before every child. A failing or cancelled child
@@ -46,7 +50,13 @@ public sealed class SequenceGroup : ISequenceStep
         for (var i = 0; i < Children.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (Guard is not null && !Guard.MayRun(i, Children[i]))
+            {
+                break; // the guard has its reason; the steps that were left are not run
+            }
+
             results.Add(await context.ExecuteChildAsync(Children[i], i, Children.Count, cancellationToken));
+            Guard?.Ran(i, Children[i]);
         }
 
         return new SequenceStepResult(results.AsReadOnly());
