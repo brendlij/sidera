@@ -318,6 +318,79 @@ public static class SequenceDraftBuilder
     }
 
     /// <summary>
+    /// The equipment that a sequence moves on purpose: the mounts that slew (a Slew, a Slew &amp; Center, a Center &amp; Rotate, the meridian flip of a block) and the rotators that turn (a rotation step,
+    /// a Center &amp; Rotate, the rotation check of a flip). Guiding and dithering are not counted: they are small corrections of a mount that guides. Each device once; the question before a run is
+    /// built from it.
+    /// </summary>
+    public static IReadOnlyList<(bool IsRotator, DeviceId Device)> MovingEquipment(IEnumerable<SequenceStepDraft> steps, SequenceDraftContext? context = null)
+    {
+        var found = new List<(bool IsRotator, DeviceId Device)>();
+
+        void Mount(DeviceId? id)
+        {
+            if (id is { } device)
+            {
+                found.Add((false, device));
+            }
+        }
+
+        void Rotator(RigId? rigId)
+        {
+            if (rigId is { } id && TryGetRig(context, id, out var rig) && rig.RotatorId is { } rotator)
+            {
+                found.Add((true, rotator));
+            }
+        }
+
+        DeviceId? MountOf(DeviceId? named, RigId? rigId) =>
+            StepScopes.EffectiveMount(rigId is { } id && TryGetRig(context, id, out var rig) ? rig : null, named, context?.Shared);
+
+        void Visit(SequenceStepDraft step)
+        {
+            switch (step)
+            {
+                case SlewStepDraft slew:
+                    Mount(slew.MountId);
+                    break;
+                case SlewAndCenterStepDraft center:
+                    Mount(MountOf(center.MountId, center.RigId));
+                    break;
+                case CenterAndRotateStepDraft both:
+                    Mount(MountOf(both.MountId, both.RigId));
+                    Rotator(both.RigId);
+                    break;
+                case RotateToAngleStepDraft rotate:
+                    Rotator(rotate.RigId);
+                    break;
+                case RotateAndVerifyStepDraft verify:
+                    Rotator(verify.RigId);
+                    break;
+                case RepeatStepDraft repeat:
+                    repeat.Children.ToList().ForEach(Visit);
+                    break;
+                case MultiRigStepDraft { MeridianFlip: { IsEnabled: true } flip } block:
+                    foreach (var track in block.Tracks)
+                    {
+                        Mount(MountOf(null, track.RigId));
+                    }
+
+                    if (flip.Settings.VerifyRotationAfterFlip && flip.DesiredRotationDegrees is not null)
+                    {
+                        foreach (var track in block.Tracks)
+                        {
+                            Rotator(track.RigId);
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        steps.ToList().ForEach(Visit);
+        return found.Distinct().ToList();
+    }
+
+    /// <summary>
     /// What a Multi-Rig dither policy moves and uses: the mount and the guider of its trigger rig (for a rig that names none, the session's shared ones), and the tracks whose rigs sit on that
     /// mount. Rigs on another mount are not disturbed by it and are not asked to wait for it. <c>null</c> when the policy has no usable trigger rig.
     /// </summary>

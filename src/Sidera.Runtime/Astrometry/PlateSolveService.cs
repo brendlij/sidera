@@ -115,8 +115,6 @@ public sealed class PlateSolveService
         LastRequest = null;
         CameraFrame frame;
         var camera = Camera(rig.CameraId);
-        if (camera is not SimulatedCamera && Sidera.Core.SideraEnvironment.Get("SIDERA_ASTAP_CAMERA_OK") != "1")
-            return PlateSolveResult.Failed(Solver.Name, PlateSolveFailure.ImageError, "Real camera solve exposure requires SIDERA_ASTAP_CAMERA_OK=1.", TimeSpan.Zero);
         try { frame = await AcquisitionExposer.ExposeAsync(camera, exposure, intent, _acquisition, _logger, token); }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return PlateSolveResult.Failed(Solver.Name, PlateSolveFailure.ImageError, $"Camera exposure failed: {ex.Message}", TimeSpan.Zero); }
@@ -178,8 +176,6 @@ public sealed class PlateSolveService
     {
         ValidateCentering(toleranceArcseconds, maxAttempts);
         if (!_devices.TryGet(mountId, out var device) || device is not IMount mount) throw new InvalidOperationException("The selected mount is unavailable.");
-        if (mount is not SimulatedMount && Sidera.Core.SideraEnvironment.Get("SIDERA_ASTROMETRY_CENTERING_OK") != "1")
-            return CenterFailure(0, null, "Real mount centering requires SIDERA_ASTROMETRY_CENTERING_OK=1.");
         using var scope = _logger.BeginScope(new Dictionary<string, object?> { ["RigId"] = rig.Id.Value, ["CameraId"] = rig.CameraId.Value, ["MountId"] = mountId.Value, ["Target"] = target, ["Backend"] = Solver.Name });
         _logger.LogInformation(new EventId(5200, "CenteringStarted"), "CenteringStarted {Target}", target);
         var commanded = target;

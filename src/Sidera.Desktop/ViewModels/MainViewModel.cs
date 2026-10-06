@@ -81,6 +81,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site);
         SequenceDocument.Workflow = Workflow;
         SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, Workflow);
+        PlateSolve.Safety = Safety;
+        Framing.Safety = Safety;
+        Sequencer.Safety = Safety;
         Dashboard = new DashboardViewModel(
             Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, postToUi, page => SelectedPage = page);
 
@@ -167,6 +170,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public SequencerViewModel Sequencer { get; }
     public SessionPageViewModel SessionPage { get; }
     public WorkflowEditorViewModel Workflow { get; }
+
+    /// <summary>The question that comes before real equipment moves; answered by the user, never by an environment variable.</summary>
+    public HardwareSafetyViewModel Safety { get; } = new();
     public ExecutionOverviewViewModel Execution { get; }
     public ImagingViewModel Imaging { get; }
     public RuntimeStatusViewModel Runtime { get; }

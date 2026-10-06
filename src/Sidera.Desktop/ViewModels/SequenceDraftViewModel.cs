@@ -232,6 +232,10 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private SequenceDraftContext Context => new(
         _rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation, Time: Clock, Site: SiteProvider);
 
+    /// <summary>The mounts and rotators that this sequence moves on purpose, as the draft is now (see <see cref="SequenceDraftBuilder.MovingEquipment"/>).</summary>
+    public IReadOnlyList<(MovingEquipment Kind, DeviceId Device)> MovingEquipment() =>
+        SequenceDraftBuilder.MovingEquipment(Snapshot(), Context).Select(m => (m.IsRotator ? ViewModels.MovingEquipment.Rotator : ViewModels.MovingEquipment.Mount, m.Device)).ToList();
+
     /// <summary>The observing site of the application, for what needs the sky (the meridian flip); <c>null</c> where there is none.</summary>
     public Func<Sidera.Core.Location.ObservingSite?>? SiteProvider { get; set; }
 

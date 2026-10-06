@@ -157,7 +157,23 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     });
     private bool CanSlewAndCenter() => !IsBusy && CenterDisabledText.Length == 0;
 
-    [RelayCommand(CanExecute = nameof(CanSlewAndCenter))] private Task SlewAndCenterAsync() => RunAsync(async (service, rig, token) =>
+    /// <summary>What asks before the mount moves; <c>null</c> where nothing is asked. Set by the main view model.</summary>
+    public HardwareSafetyViewModel? Safety { get; set; }
+
+    [RelayCommand(CanExecute = nameof(CanSlewAndCenter))] private async Task SlewAndCenterAsync()
+    {
+        // A real mount asks first: no means nothing moves.
+        if (Safety is not null && SelectedMount is { } chosen
+            && !await Safety.ConfirmAsync("Slew & Center", [HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, MovingEquipment.Mount, chosen.Id)]))
+        {
+            StatusText = "Cancelled: nothing was moved.";
+            return;
+        }
+
+        await SlewAndCenterCoreAsync();
+    }
+
+    private Task SlewAndCenterCoreAsync() => RunAsync(async (service, rig, token) =>
     {
         var mount = SelectedMount ?? throw new InvalidOperationException("Select a mount.");
         var target = Target ?? throw new InvalidOperationException(CenterDisabledText);

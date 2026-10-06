@@ -613,11 +613,20 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     /// Slews to the center of the framing and centers it: the existing centering of the plate solver. Position only: nothing is synchronized and nothing is rotated. After it
     /// the rotation that the last solve found is shown next to the desired one.
     /// </summary>
+    /// <summary>What asks before the mount or the rotator moves; <c>null</c> where nothing is asked. Set by the main view model.</summary>
+    public HardwareSafetyViewModel? Safety { get; set; }
+
     [RelayCommand(CanExecute = nameof(CanSlew))]
     private async Task SlewAndCenterAsync()
     {
         if (Target is not { } target || SelectedRig is not { } rig || SelectedMount is not { } mount || _host.PlateSolving is not { } service)
         {
+            return;
+        }
+
+        if (Safety is not null && !await Safety.ConfirmAsync("Slew & Center", [HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, MovingEquipment.Mount, mount.Id)]))
+        {
+            StatusText = "Cancelled: nothing was moved.";
             return;
         }
 
@@ -680,6 +689,14 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     {
         if (Target is not { } target || CurrentRig is not { RotatorId: not null } rig || SelectedMount is not { } mount || _host.Rotation is not { } service)
         {
+            return;
+        }
+
+        if (Safety is not null && !await Safety.ConfirmAsync(
+                "Center & Rotate",
+                [HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, MovingEquipment.Mount, mount.Id), HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, MovingEquipment.Rotator, rig.RotatorId!.Value)]))
+        {
+            StatusText = "Cancelled: nothing was moved.";
             return;
         }
 
