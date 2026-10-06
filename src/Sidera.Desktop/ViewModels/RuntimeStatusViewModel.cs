@@ -26,7 +26,7 @@ public sealed partial class RuntimeStatusViewModel : ViewModelBase
     }
 
     /// <summary>Sidera runs on this computer only.</summary>
-    public string ModeText => "Standalone · local runtime";
+    public string ModeText => "Local runtime";
 
     /// <summary>The runtime is part of the application: it is there for as long as the window is.</summary>
     public string StatusText => "Runtime online";

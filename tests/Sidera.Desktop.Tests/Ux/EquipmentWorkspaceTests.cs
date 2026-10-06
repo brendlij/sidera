@@ -24,11 +24,12 @@ public class EquipmentWorkspaceTests
         Assert.Null(equipment.SelectedContext);
         Assert.False(equipment.IsDeviceWorkspace);
         Assert.Null(equipment.SelectedDevice);
-        // The demo rigs all sit on the one mount and the one guider: each rig names them, so they are the rigs' devices (shared), and no device is left over.
-        Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig"], equipment.LandingGroups.Select(g => g.Title));
-        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.LandingGroups[0].Rows.Select(r => r.Role));
-        Assert.Equal(["Camera", "Mount", "Focuser", "Guider"], equipment.LandingGroups[2].Rows.Select(r => r.Role)); // the wide rig has no filter wheel
-        Assert.Equal("5 devices · 0 connected", equipment.LandingGroups[0].SummaryText);
+        // Every device once under its kind (no rotator is configured: no such group), and then the imaging setups with the devices they are made of.
+        Assert.Equal(["Cameras", "Focusers", "Filter Wheels", "Mounts", "Guiders", "Main Rig", "Narrow Rig", "Wide Rig"], equipment.LandingGroups.Select(g => g.Title));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.LandingGroups.Single(g => g.Title == "Main Rig").Rows.Select(r => r.Role));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Guider"], equipment.LandingGroups.Single(g => g.Title == "Wide Rig").Rows.Select(r => r.Role)); // the wide rig has no filter wheel
+        Assert.Equal("5 devices · 0 connected", equipment.LandingGroups.Single(g => g.Title == "Main Rig").SummaryText);
+        Assert.Equal("3 devices · 0 connected", equipment.LandingGroups.Single(g => g.Title == "Cameras").SummaryText);
         Assert.False(equipment.CanGoBack);
         Assert.Equal(["Equipment"], equipment.Breadcrumb.Select(b => b.Title));
     }
@@ -38,21 +39,23 @@ public class EquipmentWorkspaceTests
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
-        var main = equipment.LandingGroups[0];
+        var main = equipment.LandingGroups.Single(g => g.Title == "Main Rig");
 
         await equipment.Cameras.Single(c => c.DeviceIdText == "camera.main").ConnectCommand.ExecuteAsync(null);
         Assert.Equal("5 devices · 1 connected", main.SummaryText);
 
         main.Rows.Single(r => r.Role == "Focuser").OpenCommand.Execute(null);
 
-        Assert.Equal("Main Rig", equipment.SelectedContext!.Title);
+        // A device opens on the page of its kind, wherever the row was: the setup only says which devices go together.
+        Assert.Equal("Devices", equipment.SelectedContext!.Title);
         Assert.Equal(EquipmentPage.Focuser, equipment.SelectedPage);
+        Assert.Equal(EquipmentSection.Focusers, equipment.SelectedSection);
         Assert.Equal("focuser.main", equipment.SelectedDevice!.DeviceIdText);
 
         equipment.ShowOverviewCommand.Execute(null);
-        equipment.LandingGroups[2].Rows.Single(r => r.Role == "Mount").OpenCommand.Execute(null); // the mount is shared: it opens in the rig that was clicked
+        equipment.LandingGroups.Single(g => g.Title == "Wide Rig").Rows.Single(r => r.Role == "Mount").OpenCommand.Execute(null);
 
-        Assert.Equal("Wide Rig", equipment.SelectedContext!.Title);
+        Assert.Equal("Devices", equipment.SelectedContext!.Title);
         Assert.Equal(EquipmentPage.Mount, equipment.SelectedPage);
         Assert.Equal("mount.eq6", equipment.SelectedDevice!.DeviceIdText);
         Assert.IsType<MountDetailViewModel>(equipment.SelectedDetail);
@@ -61,17 +64,19 @@ public class EquipmentWorkspaceTests
     // ---- Standalone: a page for each kind of device, and a choice of the device
 
     [Fact]
-    public async Task StandaloneHasAPageForEachKindOfDevice_AndOnlyForKindsThatThereAre()
+    public async Task TheDevicesHaveAPageForEachKind_AlsoForAKindThatHasNoDeviceYet()
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
 
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
 
-        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider"], equipment.Pages.Select(p => p.Title)); // no rotator is configured: no such page
+        // No rotator is configured, and there is still a page for it: it is where the first one is added.
+        Assert.Equal(["Camera", "Focuser", "Filter Wheel", "Rotator", "Mount", "Guider"], equipment.Pages.Select(p => p.Title));
         Assert.Equal(EquipmentPage.Camera, equipment.SelectedPage);
         Assert.True(equipment.IsDeviceWorkspace);
-        Assert.Equal(["Camera"], equipment.Breadcrumb.Select(b => b.Title).Skip(1));
+        Assert.Equal(["Cameras"], equipment.Breadcrumb.Select(b => b.Title).Skip(1));
+        Assert.Equal(["Overview", "Cameras", "Focusers", "Filter Wheels", "Rotators", "Mounts", "Guiders", "Imaging Setups"], equipment.Sections.Select(s => s.Title));
     }
 
     [Fact]
@@ -79,7 +84,7 @@ public class EquipmentWorkspaceTests
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
 
         Assert.True(equipment.HasDeviceChooser);
         Assert.Equal(["camera.main", "camera.narrow", "camera.wide"], equipment.DeviceChoices.Select(d => d.DeviceIdText));
@@ -99,7 +104,7 @@ public class EquipmentWorkspaceTests
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
 
         OpenPage(equipment, "Mount");
 
@@ -112,7 +117,7 @@ public class EquipmentWorkspaceTests
     {
         await using var app = await UxApp.Create(UxSetup.Demo);
         var equipment = app.Vm.Equipment;
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
         equipment.ChosenDevice = equipment.DeviceChoices[1];
         OpenPage(equipment, "Focuser");
         equipment.ChosenDevice = equipment.DeviceChoices[2];
@@ -120,7 +125,7 @@ public class EquipmentWorkspaceTests
         // Away to a rig and back to the standalone devices, and to the overview and back.
         Context(equipment, "Main Rig").SelectCommand.Execute(null);
         equipment.ShowOverviewCommand.Execute(null);
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
 
         Assert.Equal(EquipmentPage.Focuser, equipment.SelectedPage);
         Assert.Equal("focuser.wide", equipment.SelectedDevice!.DeviceIdText);
@@ -136,7 +141,7 @@ public class EquipmentWorkspaceTests
 
         equipment.Focusers.Single(f => f.DeviceIdText == "focuser.wide").OpenCommand!.Execute(null);
 
-        Assert.Equal("Standalone", equipment.SelectedContext!.Title);
+        Assert.Equal("Devices", equipment.SelectedContext!.Title);
         Assert.Equal("focuser.wide", equipment.SelectedDevice!.DeviceIdText);
         Assert.IsType<FocuserDetailViewModel>(equipment.SelectedDetail);
         Assert.Equal([equipment.Focusers.Single(f => f.DeviceIdText == "focuser.wide")], equipment.Devices.Where(d => d.IsSelected));
@@ -248,7 +253,7 @@ public class EquipmentWorkspaceTests
     {
         await using var app = await UxApp.Create(UxSetup.Simple);
         var equipment = app.Vm.Equipment;
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
         var camera = equipment.SelectedDetail!.Device;
 
         Assert.Equal("Disconnected", camera.StatusText);
@@ -337,7 +342,7 @@ public class EquipmentWorkspaceTests
 
         Assert.False(equipment.HasRigs);
         Assert.Null(equipment.SelectedRig);
-        Context(equipment, "Standalone").SelectCommand.Execute(null);
+        Context(equipment, "Devices").SelectCommand.Execute(null);
 
         var camera = Assert.IsType<CameraDetailViewModel>(equipment.SelectedDetail);
         Assert.False(camera.HasRig);
@@ -377,6 +382,6 @@ public class EquipmentWorkspaceTests
         Assert.Equal("Partly connected", rig.StatusText);
         Assert.Equal("Idle", rig.ActivityText);
         Assert.Equal(StatusKind.Ok, equipment.Cameras[0].StatusKind);
-        Assert.Equal(equipment.Devices.Count(), equipment.LandingGroups.Sum(g => g.Rows.Count)); // the rig adds no device of its own
+        Assert.Equal(equipment.Devices.Count(), equipment.LandingGroups.Where(g => !g.IsRig).Sum(g => g.Rows.Count)); // every device once under its kind; the rig adds no device of its own
     }
 }

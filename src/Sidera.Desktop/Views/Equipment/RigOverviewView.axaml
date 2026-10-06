@@ -6,13 +6,13 @@
              x:DataType="vm:EquipmentViewModel">
 
     <!--
-        The overview of a rig: its optical train, its devices with their state (a row opens the page of the device; no manual controls here), and how the rig is put together. A mount or a
-        guider that another rig names too is the same device on both.
+        The overview of an imaging setup: its optical train, its devices with their state (a row opens the page of the device; no manual controls here), and how the setup is put together. A
+        mount or a guider that another setup names too is the same device on both.
     -->
     <StackPanel Spacing="12">
     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
         <TextBlock Classes="value" Text="{Binding SelectedRig.Name}" />
-        <TextBlock Classes="secondary" Text="is one imaging setup." />
+        <TextBlock Classes="secondary" Text="is an imaging setup: a camera with the devices on its telescope." />
     </StackPanel>
     <TextBlock Classes="secondary" TextWrapping="Wrap" MaxWidth="880" HorizontalAlignment="Left"
                Text="Below: what it is made of, and how to change that. Click a device to open its page, set it up and connect it." />
@@ -47,7 +47,7 @@
             </ItemsControl>
         </ctl:WorkspaceSection>
 
-        <ctl:WorkspaceSection Header="RIG SETUP: WHAT IS IN THIS RIG" Width="420">
+        <ctl:WorkspaceSection Header="WHAT IS IN THIS IMAGING SETUP" Width="420">
             <StackPanel Spacing="10" DataContext="{Binding RigSetup}" x:DataType="vm:RigSetupViewModel">
                 <ctl:LabeledField Label="Name">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -70,9 +70,9 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Classes="meta" TextWrapping="Wrap" Text="Changing a device changes the rig at once and saves it. A mount or guider can be shared with another rig; the other devices belong to one rig." />
+                <TextBlock Classes="meta" TextWrapping="Wrap" Text="Changing a device changes the setup at once and saves it. A mount or guider can be shared with another setup; the other devices belong to one setup." />
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Remove rig" Command="{Binding RemoveCommand}" IsVisible="{Binding !IsConfirmingRemove}" AutomationProperties.AutomationId="RigRemove" />
+                    <Button Content="Remove imaging setup" Command="{Binding RemoveCommand}" IsVisible="{Binding !IsConfirmingRemove}" AutomationProperties.AutomationId="RigRemove" />
                     <Button Classes="danger" Content="Confirm remove" Command="{Binding RemoveCommand}" IsVisible="{Binding IsConfirmingRemove}" AutomationProperties.AutomationId="RigRemoveConfirm" />
                     <Button Content="Keep" Command="{Binding CancelRemoveCommand}" IsVisible="{Binding IsConfirmingRemove}" />
                 </StackPanel>
