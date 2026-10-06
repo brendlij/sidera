@@ -692,7 +692,7 @@ public sealed class MeridianFlipGroup
 /// at safe points, so the flip can come as soon as everybody is there; when the flip is due the setup asks for it (the first one that does runs it for all), and when it is over the exposure
 /// starts. An exposure that is running is never interrupted: the gate is only asked between exposures.
 /// </summary>
-public sealed class MeridianGateStep(MeridianFlipGroup group, double exposureSeconds) : ISequenceStep
+public sealed class MeridianGateStep(MeridianFlipGroup group, double exposureSeconds, Sidera.Runtime.Sequencing.ConditionScope? stop = null) : ISequenceStep
 {
     public string Name => "Meridian check";
 
@@ -703,6 +703,13 @@ public sealed class MeridianGateStep(MeridianFlipGroup group, double exposureSec
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // A stop condition that holds comes before the flip: there is nothing to flip for when the imaging that would follow is over. The step ends; what follows it does not start.
+            if (stop?.Check() == true)
+            {
+                return new SequenceStepResult();
+            }
+
             switch (await group.EvaluateAsync(exposureSeconds, cancellationToken))
             {
                 case MeridianGateDecision.Clear:
