@@ -108,7 +108,7 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
 
         var setup = Assert.Single(catalog.GetAll());
 
-        Assert.Equal(ImagingSetupCatalog.ImplicitId, setup.Id);
+        Assert.Equal(ImagingSetupCatalog.ImplicitIdFor(new DeviceId("camera.main")), setup.Id);
         Assert.Equal("Camera main", setup.Name);
         Assert.Equal(new DeviceId("camera.main"), setup.CameraId);
         Assert.Equal(new DeviceId("focuser.main"), setup.FocuserId);

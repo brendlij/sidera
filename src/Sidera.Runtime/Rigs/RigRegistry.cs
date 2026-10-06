@@ -57,6 +57,21 @@ public sealed class RigRegistry : ISetupSource
         }
     }
 
+    /// <summary>The setup an imaging binding means: the setup of the camera of a path, else the setup with that id.</summary>
+    public bool TryResolve(ImagingBindingId binding, out Rig? rig)
+    {
+        if (binding.TryGetCamera(out var camera))
+        {
+            lock (_gate)
+            {
+                rig = _rigs.Values.FirstOrDefault(r => r.CameraId == camera);
+                return rig is not null;
+            }
+        }
+
+        return TryGet(new RigId(binding.Value), out rig);
+    }
+
     public IReadOnlyCollection<Rig> GetAll()
     {
         lock (_gate)

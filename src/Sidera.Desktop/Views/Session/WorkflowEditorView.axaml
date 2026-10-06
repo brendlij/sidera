@@ -301,7 +301,7 @@
                     </StackPanel>
                     <CheckBox Content="On" IsChecked="{Binding Enabled}" />
 
-                    <ctl:LabeledField Label="Setup" IsVisible="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).IsMultiSetup}">
+                    <ctl:LabeledField Label="Setup" IsVisible="{Binding ShowSetupChoice}">
                         <ComboBox ItemsSource="{Binding SetupChoices}" SelectedItem="{Binding SelectedSetup}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="WorkflowRowSetup">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:SetupChoice">

@@ -13,7 +13,14 @@ public interface ISetupSource
 {
     IReadOnlyCollection<Rig> GetAll();
 
+    /// <summary>The setup with this setup id (what a draft step names).</summary>
     bool TryGet(RigId id, out Rig? rig);
+
+    /// <summary>
+    /// The setup that an imaging binding means. In this order: the path of a camera (<see cref="ImagingBindingId.IsPath"/>) is the setup of that camera, explicit or implicit; otherwise the binding is
+    /// a setup id, as documents have always named them. Nothing else is tried: a binding that is neither is not resolved, and is never bound to another camera instead.
+    /// </summary>
+    bool TryResolve(ImagingBindingId binding, out Rig? rig);
 }
 
 /// <summary>
@@ -28,8 +35,13 @@ public interface ISetupSource
 /// </summary>
 public sealed class ImagingSetupCatalog(DeviceRegistry devices, RigRegistry rigs) : ISetupSource
 {
-    /// <summary>The id of the implicit setup. It never appears in a saved sequence as a choice: a block that says "Auto" means the only usable setup.</summary>
-    public static readonly RigId ImplicitId = new("setup.implicit");
+    /// <summary>The id that the implicit setup had before it was derived from its camera; a document may still name it. It means the setup of the one camera that can be meant.</summary>
+    public static readonly RigId LegacyImplicitId = new("setup.implicit");
+
+    private const string ImplicitPrefix = "setup.implicit:";
+
+    /// <summary>The setup id of the implicit setup of a camera: derived from the camera, so it is the same on every start and for every list order. It is the id of the setup object (what a draft step names); what a workflow refers to is <see cref="ImagingBindingId"/>.</summary>
+    public static RigId ImplicitIdFor(DeviceId camera) => new(ImplicitPrefix + camera.Value);
 
     public IReadOnlyCollection<Rig> GetAll()
     {
@@ -44,14 +56,31 @@ public sealed class ImagingSetupCatalog(DeviceRegistry devices, RigRegistry rigs
             return true;
         }
 
-        if (id == ImplicitId && ImplicitSetup([.. rigs.GetAll()]) is { } implied)
+        // The implicit setup of a camera, by the id derived from it; and the same reference after the camera got a setup of its own (a draft step that named the implicit setup keeps its meaning).
+        if (id.Value.StartsWith(ImplicitPrefix, StringComparison.Ordinal) && id.Value.Length > ImplicitPrefix.Length)
         {
-            rig = implied;
-            return true;
+            return TryResolve(ImagingBindingId.For(new DeviceId(id.Value[ImplicitPrefix.Length..])), out rig);
+        }
+
+        // The id of the implicit setup from before it was derived: the setup of the one camera that can be meant, when there is one.
+        if (id == LegacyImplicitId && OnlyAvailable<ICamera>() is { } only)
+        {
+            return TryResolve(ImagingBindingId.For(only.Id), out rig);
         }
 
         rig = null;
         return false;
+    }
+
+    public bool TryResolve(ImagingBindingId binding, out Rig? rig)
+    {
+        if (binding.TryGetCamera(out var camera))
+        {
+            rig = GetAll().FirstOrDefault(r => r.CameraId == camera);
+            return rig is not null;
+        }
+
+        return TryGet(new RigId(binding.Value), out rig);
     }
 
     /// <summary>Whether the setup can image now: its camera is there and connected.</summary>
@@ -79,7 +108,7 @@ public sealed class ImagingSetupCatalog(DeviceRegistry devices, RigRegistry rigs
         }
 
         return new Rig(
-            ImplicitId, camera.Name, camera.Id, optics: null,
+            ImplicitIdFor(camera.Id), camera.Name, camera.Id, optics: null,
             focuserId: OnlyAvailable<IFocuser>()?.Id, filterWheelId: OnlyAvailable<IFilterWheel>()?.Id, rotatorId: null, rotatorModel: null,
             mountId: OnlyAvailable<IMount>()?.Id, guiderId: OnlyAvailable<IGuider>()?.Id);
     }

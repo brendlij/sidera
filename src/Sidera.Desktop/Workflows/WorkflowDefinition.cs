@@ -50,7 +50,7 @@ public enum WorkflowSection
 /// plate-solves for it (<c>null</c>: the first one imaged, never a guess made again at each run).
 /// </summary>
 public sealed record WorkflowTarget(
-    string Name, double RightAscensionHours, double DeclinationDegrees, double? DesiredRotationDegrees = null, RigId? PointingSetup = null)
+    string Name, double RightAscensionHours, double DeclinationDegrees, double? DesiredRotationDegrees = null, ImagingBindingId? PointingSetup = null)
 {
     public static WorkflowTarget Default { get; } = new("Target", SequenceDraftDefaults.TargetRightAscensionHours, SequenceDraftDefaults.TargetDeclinationDegrees);
 }
@@ -68,7 +68,7 @@ public sealed record AutofocusSettings(double ExposureSeconds, int StepSize, int
 public sealed record WorkflowStep(
     Guid Id,
     WorkflowStepKind Kind,
-    RigId? Setup = null,
+    ImagingBindingId? Setup = null,
     bool Enabled = true,
     double Seconds = 2,
     double ToleranceArcseconds = 60,
@@ -88,7 +88,7 @@ public sealed record WorkflowStep(
 /// </summary>
 public sealed record ImagingBlock(
     Guid Id,
-    RigId? Setup,
+    ImagingBindingId? Setup,
     int? FilterSlot,
     double ExposureSeconds,
     int Frames,
@@ -110,7 +110,7 @@ public sealed record ImagingBlock(
 public sealed record WorkflowDither(
     bool Enabled = false,
     int EveryNFrames = 3,
-    RigId? CountedSetup = null,
+    ImagingBindingId? CountedSetup = null,
     double AmplitudePixels = 1.5,
     double SettleThresholdPixels = 0.5,
     double SettleStableSeconds = 1,
@@ -123,7 +123,7 @@ public sealed record WorkflowDither(
 /// When one setup focuses by itself during imaging: at the start, every <see cref="IntervalMinutes"/> minutes (0: not by time) and after a filter change. All of them are one policy; the
 /// reasons that fall together are one autofocus.
 /// </summary>
-public sealed record SetupAutofocus(RigId Setup, bool Enabled, bool AtStart, double IntervalMinutes, bool AfterFilterChange, AutofocusSettings Settings);
+public sealed record SetupAutofocus(ImagingBindingId Setup, bool Enabled, bool AtStart, double IntervalMinutes, bool AfterFilterChange, AutofocusSettings Settings);
 
 /// <summary>
 /// A session as the user thinks of it: a target, what to prepare, what to image, what to finish with, and the policies that apply while imaging. It is plain values; the one place that turns
@@ -157,12 +157,15 @@ public sealed record WorkflowDefinition(
     public static WorkflowDefinition Empty { get; } = new(WorkflowTarget.Default, [], [], [], WorkflowDither.Off, []);
 
     /// <summary>The autofocus policy that the defaults propose for a setup.</summary>
-    public static SetupAutofocus AutofocusPolicyOf(RigId setup, Sidera.Desktop.Settings.AutofocusDefaults d) =>
+    public static SetupAutofocus AutofocusPolicyOf(ImagingBindingId setup, Sidera.Desktop.Settings.AutofocusDefaults d) =>
         new(setup, d.PolicyEnabled, d.PolicyAtStart, d.PolicyIntervalMinutes, d.PolicyAfterFilterChange, new AutofocusSettings(d.ExposureSeconds, d.StepSize, d.SampleCount));
 
     /// <summary>The autofocus policy of a setup; off when it has none.</summary>
-    public SetupAutofocus AutofocusOf(RigId setup) =>
+    public SetupAutofocus AutofocusOf(ImagingBindingId setup) =>
         AutofocusPolicies.FirstOrDefault(p => p.Setup == setup) ?? new SetupAutofocus(setup, false, false, 0, false, AutofocusSettings.Default);
+
+    /// <summary>The autofocus policy of the imaging path of a setup. Bindings are compared as paths (see <see cref="Canonical"/>), never by the id of the setup object.</summary>
+    public SetupAutofocus AutofocusOf(Rig rig) => AutofocusOf(ImagingBindingId.Of(rig));
 
     /// <summary>A starting point for the rigs there are: center, focus and guide (where the first setup has what it takes), image with the first setup, stop guiding.</summary>
     /// <summary>The application defaults that a new workflow starts from: what to focus with, whether to guide and dither. Existing workflows are never changed by them.</summary>

@@ -57,6 +57,9 @@ public static class WorkflowCompiler
         IReadOnlySet<RigId>? usable = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
+
+        // Bindings are compared as imaging paths (derived from the camera), never by the id of a setup object: see WorkflowBindings.
+        workflow = WorkflowBindings.Canonical(workflow, rigs);
         var problems = new List<WorkflowProblem>();
         var origins = new Dictionary<Guid, Guid>();
         var all = rigs?.GetAll().OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList() ?? [];
@@ -64,7 +67,14 @@ public static class WorkflowCompiler
         // The setups that "Auto" can mean: the usable ones. Nothing is guessed between several of them.
         var pool = usable is null ? all : all.Where(r => usable.Contains(r.Id)).ToList();
 
-        Rig? Find(RigId? id) => id is { } rigId && rigs is not null && rigs.TryGet(rigId, out var rig) ? rig : null;
+        Rig? Find(ImagingBindingId? id) => id is { } binding && rigs is not null && rigs.TryResolve(binding, out var rig) ? rig : null;
+
+        // A pointing setup that is not there is said, and not replaced by another one (the choice only exists, and only matters, when there are several setups). The autofocus settings of a setup that is not
+        // there are not applied to any other setup: a block that names the missing setup says so itself, and one that does not simply has no settings of that setup.
+        if (pool.Count > 1 && workflow.Target.PointingSetup is { } pointingBinding && Find(pointingBinding) is null)
+        {
+            problems.Add(new WorkflowProblem(null, $"The target points with {WorkflowBindings.Describe(pointingBinding)}, which is not available. Choose a pointing setup."));
+        }
 
         // What the conditions of the workflow are computed for: the target of the workflow, as plain coordinates inside the steps that use them.
         var conditionTarget = new ConditionTargetDraft(workflow.Target.Name, workflow.Target.RightAscensionHours, workflow.Target.DeclinationDegrees);
@@ -77,8 +87,8 @@ public static class WorkflowCompiler
             var rig = block.Setup is null ? (pool.Count == 1 ? pool[0] : null) : Find(block.Setup);
             if (rig is null)
             {
-                problems.Add(new WorkflowProblem(block.Id, block.Setup is not null
-                    ? $"The imaging setup '{block.Setup}' does not exist any more. Choose another one."
+                problems.Add(new WorkflowProblem(block.Id, block.Setup is { } missing
+                    ? WorkflowBindings.Unavailable(missing)
                     : pool.Count > 1
                         ? $"There are several imaging setups ({string.Join(", ", pool.Select(r => r.Name))}): choose the one for this block."
                         : "There is no imaging setup to image with. Connect a camera, or make an imaging setup on the Equipment page (needed when there is more than one camera: Sidera does not guess which one you mean)."));
@@ -158,7 +168,7 @@ public static class WorkflowCompiler
             }
 
             steps.Add(new MultiRigStepDraft(
-                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, applicationFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings(), setups, blocksOf, problems),
+                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, applicationFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings(), setups, blocksOf, problems, Find),
                 TargetStop: workflow.TargetStopAny.Count > 0 ? new StopConditionsDraft(workflow.TargetStopAny, conditionTarget) : null));
         }
 
@@ -176,7 +186,7 @@ public static class WorkflowCompiler
             var explicitRig = step.Setup is null ? null : Find(step.Setup);
             if (step.Setup is not null && explicitRig is null)
             {
-                problems.Add(new WorkflowProblem(step.Id, $"The imaging setup '{step.Setup}' does not exist any more. Choose another one."));
+                problems.Add(new WorkflowProblem(step.Id, WorkflowBindings.Unavailable(step.Setup!.Value)));
                 return;
             }
 
@@ -275,7 +285,7 @@ public static class WorkflowCompiler
             foreach (var group in groups)
             {
                 // The setup that solves for this mount: the one the target names, else the one of this step, else the first of the mount.
-                var pointing = group.FirstOrDefault(r => r.Id == target.PointingSetup) ?? group.First();
+                var pointing = group.FirstOrDefault(r => target.PointingSetup is { } wanted && ImagingBindingId.Of(r) == wanted) ?? group.First();
                 var id = Derive(step.Id, "center:" + group.Key.Value);
                 origins[id] = step.Id;
                 if (target.DesiredRotationDegrees is { } rotation && pointing.RotatorId is not null)
@@ -297,7 +307,7 @@ public static class WorkflowCompiler
     // The meridian flip of the Imaging section: for every mount of the imaged setups, once, for all the setups on it. The target it slews back to is the target of the workflow.
     private static MeridianFlipPolicyDraft? FlipOf(
         WorkflowDefinition workflow, Sidera.Core.Mounts.MeridianFlipSettings applicationFlip, IReadOnlyList<Rig> setups, IReadOnlyDictionary<RigId, List<ImagingBlock>> blocksOf,
-        List<WorkflowProblem> problems)
+        List<WorkflowProblem> problems, Func<ImagingBindingId?, Rig?> find)
     {
         var settings = workflow.EffectiveFlip(applicationFlip);
         if (!settings.Enabled)
@@ -318,14 +328,14 @@ public static class WorkflowCompiler
         var target = workflow.Target;
         var dither = workflow.Dither;
         return new MeridianFlipPolicyDraft(
-            settings, target.RightAscensionHours, target.DeclinationDegrees, target.Name, target.DesiredRotationDegrees, target.PointingSetup,
+            settings, target.RightAscensionHours, target.DeclinationDegrees, target.Name, target.DesiredRotationDegrees, find(target.PointingSetup)?.Id,
             dither.AmplitudePixels, dither.SettleThresholdPixels, dither.SettleStableSeconds, Math.Max(dither.SettleTimeoutSeconds, 60));
     }
 
     // The autofocus policy of a setup as the track has it; nothing for a setup that does not focus by itself.
     private static RigAutofocusPolicyDraft? PolicyOf(WorkflowDefinition workflow, Rig rig, Guid blockId, List<WorkflowProblem> problems)
     {
-        var policy = workflow.AutofocusOf(rig.Id);
+        var policy = workflow.AutofocusOf(rig);
         if (!policy.Enabled)
         {
             return null;
@@ -360,7 +370,7 @@ public static class WorkflowCompiler
             return null;
         }
 
-        var counted = dither.CountedSetup is { } named ? setups.FirstOrDefault(r => r.Id == named) : setups[0];
+        var counted = dither.CountedSetup is { } named ? setups.FirstOrDefault(r => ImagingBindingId.Of(r) == named) : setups[0];
         if (counted is null)
         {
             problems.Add(new WorkflowProblem(null, "Dither counts the frames of an imaging setup that is not imaged. Choose one that is."));

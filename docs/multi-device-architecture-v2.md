@@ -35,6 +35,25 @@
 8. **Meridian flip** stays session-level and is executed per MountGroup (unchanged semantics, now derived from the claim matrix). Target pointing inside a MountGroup must be one target: a validation error
    otherwise (V1 constraint).
 
+## Imaging binding identity (stable across implicit and explicit setups)
+
+A workflow does not refer to the *setup object* (`RigId`, what `equipment.json` stores) but to an **imaging path** (`ImagingBindingId`, `imaging:auto:<camera id>`). The id is derived from the camera and nothing
+else: no name, no list position, no random part. So it is the same on every start, the same for the implicit setup of a single camera and for the explicit setup made for that camera later, and a rename of the
+camera or of the setup changes nothing.
+
+- **What holds a path**: blocks of the Imaging section, the autofocus policy of a setup, "Frames counted on" (dither), the pointing setup. The `.astraseq` format is unchanged (version 8, same properties, the
+  value is just another string); `equipment.json` stays version 1. Loading never rewrites a file.
+- **Resolution** (`ISetupSource.TryResolve`): a path means the setup of that camera, explicit or implicit; any other value is a reference by setup id as older documents wrote it (exact id, then the id the
+  implicit setup had: `setup.implicit:<camera>` and the earlier constant `setup.implicit`, which means the setup of the one camera that can be meant). `WorkflowBindings.Canonical` turns every reference that resolves into
+  the path of its setup when a workflow is loaded or compiled (not an edit; the document is not marked modified), so from then on bindings are compared as paths.
+- **Never guessed**: a reference that does not resolve is reported ("The imaging setup of camera 'x' is not available: the camera was removed or replaced, or it is one of several cameras and has no imaging
+  setup") and never bound to another camera. Several cameras with no setup stay ambiguous; no implicit setup is made for them.
+- **"Auto"** (a block with no binding) names no path: with one setup to image with, a new block stays Auto and means that setup, whatever its camera is later. With several, new blocks name the path of the chosen
+  setup. Editing a row never rewrites its binding; a row whose binding does not resolve shows its setup choice (even with one setup) so that choosing the setup is the repair.
+- **Camera replaced in a setup** is another path: bindings and autofocus policy written for the old camera are not carried over to the new one (an Auto block simply follows the only setup; a named block is reported;
+  a policy of the old camera is not applied to the new one and is dropped with the next edit). **Camera or setup deleted**: the same message.
+- The only exception is a document that still names a setup by its *id* (written before paths existed): while that setup exists it resolves to it, whatever its camera is now.
+
 ## Order of work (each step keeps the whole suite green)
 
 1. Core claims + manager shared/exclusive + actions declare claims + `ResourceClaimMatrix` (commit: coordinate sequencing through resource claims).

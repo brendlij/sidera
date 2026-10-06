@@ -682,6 +682,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private void Load(WorkflowDefinition? definition, bool modified)
     {
+        // Every reference to an imaging setup is held as the path of the setup it means (a document may name the setup object): see WorkflowBindings. This is not an edit and does not mark the document.
+        definition = definition is null ? null : WorkflowBindings.Canonical(definition, _rigs);
         _loading = true;
         try
         {
@@ -800,10 +802,21 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         OnPropertyChanged(nameof(SharedResources));
     }
 
-    // A block of the implicit setup is saved as "Auto": the implicit setup is not something a file should name, because it only exists while there is one camera and no setup of its own.
-    internal RigId? StoredSetup(RigId? id) => id == ImagingSetupCatalog.ImplicitId ? null : id;
+    // What a block that is given a setup stores. With one setup to image with the block stays "Auto": it is that setup, whatever its camera is later (a replaced camera must not leave a block
+    // that names the old one, with no selector to repair it). With several, the block names the path of the setup (the identity of its camera, the same for an implicit and an explicit setup).
+    internal ImagingBindingId? StoredSetup(ImagingBindingId? chosen) => IsMultiSetup ? chosen : null;
+
+    // The same for a row that was edited: nothing chosen leaves the binding as it is (an unresolved one is reported, never replaced); the choice the binding already means leaves it as it is, so that
+    // editing the exposure of a block never rewrites what it is bound to.
+    internal ImagingBindingId? StoredSetup(SetupChoice? chosen, ImagingBindingId? current) =>
+        chosen is null ? current
+        : current is not null && chosen.Id is not null && WorkflowBindings.Canonical(current, _rigs) == chosen.Id ? current
+        : StoredSetup(chosen.Id);
 
     private WorkflowDefinition Stored(WorkflowDefinition workflow) => workflow with { Imaging = [.. workflow.Imaging.Select(b => b with { Setup = StoredSetup(b.Setup) })] };
+
+    // The path of a setup, which is what a policy, a counted setup and a pointing setup are keyed by.
+    private static ImagingBindingId PathOf(Rig rig) => ImagingBindingId.Of(rig);
 
     /// <summary>The devices that more than one imaging setup of the workflow uses, with the setups: "Mount · AM3 — Main, Wide". Empty with one setup.</summary>
     public IReadOnlyList<string> SharedResources
@@ -835,10 +848,10 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     public bool HasSharedResources => SharedResources.Count > 0;
 
-    private Rig? RigOf(RigId? id) => id is { } rigId && _rigs is not null && _rigs.TryGet(rigId, out var rig) ? rig : null;
+    private Rig? RigOf(ImagingBindingId? binding) => binding is { } reference && _rigs is not null && _rigs.TryResolve(reference, out var rig) ? rig : null;
 
     // The setup a row works with: the one it names, else (for "Auto") the only setup there is.
-    private Rig? ResolvedSetup(RigId? named) => named is not null ? RigOf(named) : UsableRigs.Count == 1 ? UsableRigs[0] : null;
+    private Rig? ResolvedSetup(ImagingBindingId? named) => named is not null ? RigOf(named) : UsableRigs.Count == 1 ? UsableRigs[0] : null;
 
     private string DescribeSetup(Rig rig)
     {
@@ -883,7 +896,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         CountedChoices.Add(auto with { Detail = "the first setup that is imaged" });
         foreach (var rig in rigs)
         {
-            var choice = new SetupChoice(rig.Id, rig.Name, DescribeSetup(rig));
+            var choice = new SetupChoice(PathOf(rig), rig.Name, DescribeSetup(rig));
             SetupChoices.Add(choice);
             PointingChoices.Add(choice);
             CountedChoices.Add(choice);
@@ -892,9 +905,12 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         foreach (var row in AllRows)
         {
             var rowChoices = row.IsImaging ? SetupChoices.ToList() : [auto, .. SetupChoices];
-            var current = row.Step?.Setup ?? row.Block?.Setup;
-            var selected = rowChoices.FirstOrDefault(c => c.Id == current) ?? (row.IsImaging ? (current is null ? rowChoices.FirstOrDefault() : null) : auto);
+            var current = WorkflowBindings.Canonical(row.Step?.Setup ?? row.Block?.Setup, _rigs);
+
+            // A row that names a setup that is not there has nothing selected (it is not "Auto" and not another setup), and its choice is shown so that it can be repaired.
+            var selected = rowChoices.FirstOrDefault(c => c.Id == current) ?? (current is null ? (row.IsImaging ? rowChoices.FirstOrDefault() : auto) : null);
             row.SetChoices(rowChoices, selected);
+            row.ShowSetupChoice = IsMultiSetup || (current is not null && selected is null);
             if (row.IsImaging)
             {
                 var rig = ResolvedSetup(row.Block!.Setup);
@@ -902,8 +918,10 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             }
         }
 
-        SelectedPointing = PointingChoices.FirstOrDefault(c => c.Id == _target.PointingSetup) ?? PointingChoices[0];
-        SelectedCounted = CountedChoices.FirstOrDefault(c => c.Id == _dither.CountedSetup) ?? CountedChoices[0];
+        var pointing = WorkflowBindings.Canonical(_target.PointingSetup, _rigs);
+        var counted = WorkflowBindings.Canonical(_dither.CountedSetup, _rigs);
+        SelectedPointing = PointingChoices.FirstOrDefault(c => c.Id == pointing) ?? PointingChoices[0];
+        SelectedCounted = CountedChoices.FirstOrDefault(c => c.Id == counted) ?? CountedChoices[0];
     }
 
     private IEnumerable<FilterChoice> FiltersOf(Rig? rig)
@@ -960,8 +978,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         {
             if (SelectedRow is { IsImaging: true } row && PolicySetupOf(row) is { } rig)
             {
-                var policy = (Definition ?? WorkflowDefinition.Empty with { AutofocusPolicies = _policies }).AutofocusOf(rig.Id);
-                policy = _policies.FirstOrDefault(p => p.Setup == rig.Id) ?? policy;
+                var policy = (Definition ?? WorkflowDefinition.Empty with { AutofocusPolicies = _policies }).AutofocusOf(rig);
+                policy = _policies.FirstOrDefault(p => p.Setup == PathOf(rig)) ?? policy;
                 PolicyEnabled = policy.Enabled;
                 PolicyAtStart = policy.AtStart;
                 PolicyIntervalText = policy.IntervalMinutes.ToString("0.##", CultureInfo.InvariantCulture);
@@ -1066,7 +1084,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         }
 
         var problems = new List<string>();
-        var current = _policies.FirstOrDefault(p => p.Setup == rig.Id) ?? new SetupAutofocus(rig.Id, false, false, 0, false, AutofocusSettings.Default);
+        var current = _policies.FirstOrDefault(p => p.Setup == PathOf(rig)) ?? new SetupAutofocus(PathOf(rig), false, false, 0, false, AutofocusSettings.Default);
         var updated = current with
         {
             Enabled = PolicyEnabled,
@@ -1079,7 +1097,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
                 Whole(PolicySamplesText, "The autofocus samples", problems, current.Settings.SampleCount)),
         };
         _policyProblems = problems;
-        _policies = [.. _policies.Where(p => p.Setup != rig.Id), updated];
+        _policies = [.. _policies.Where(p => p.Setup != PathOf(rig)), updated];
         Recompile(true);
     }
 
@@ -1170,16 +1188,16 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     [RelayCommand(CanExecute = nameof(IsEditable))]
     private void AddImagingBlock()
     {
-        var used = ImagingRows.Select(r => r.Block!.Setup).ToHashSet();
+        var used = ImagingRows.Select(r => ResolvedSetup(r.Block!.Setup)?.Id).OfType<RigId>().ToHashSet();
         var rig = UsableRigs.FirstOrDefault(r => !used.Contains(r.Id)) ?? UsableRigs.FirstOrDefault();
 
         // A setup that comes into the workflow focuses by itself when the settings propose it (and it can); a setup that has a policy keeps it.
-        if (rig?.FocuserId is not null && StartDefaults.Autofocus.PolicyEnabled && _policies.All(p => p.Setup != rig.Id))
+        if (rig?.FocuserId is not null && StartDefaults.Autofocus.PolicyEnabled && _policies.All(p => p.Setup != PathOf(rig)))
         {
-            _policies.Add(WorkflowDefinition.AutofocusPolicyOf(rig.Id, StartDefaults.Autofocus));
+            _policies.Add(WorkflowDefinition.AutofocusPolicyOf(PathOf(rig), StartDefaults.Autofocus));
         }
 
-        Add(WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), StoredSetup(rig?.Id), null, _defaults.ExposureSeconds, 10));
+        Add(WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), StoredSetup(rig is null ? null : PathOf(rig)), null, _defaults.ExposureSeconds, 10));
     }
 
     private bool CanRemove => IsEditable && SelectedRow is not null;
@@ -1398,7 +1416,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         ImagingRows.Select(r => r.Block!).ToList(),
         FinishRows.Select(r => r.Step!).ToList(),
         _dither,
-        _policies.Where(p => ImagingRows.Any(r => ResolvedSetup(r.Block!.Setup)?.Id == p.Setup)).ToList(),
+        _policies.Where(p => ImagingRows.Any(r => ResolvedSetup(r.Block!.Setup) is { } rig ? PathOf(rig) == p.Setup : r.Block!.Setup == p.Setup)).ToList(),
         _flipUsesDefaults || _flip == new MeridianFlipSettings() ? null : _flip,
         _flipUsesDefaults,
         TargetStopConditions());
@@ -1491,7 +1509,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     {
         var imaged = ImagingRows.Where(r => r.Block!.Enabled).Select(r => ResolvedSetup(r.Block!.Setup)).OfType<Rig>().DistinctBy(r => r.Id).ToList();
         var counted = definition.Dither.Enabled
-            ? (definition.Dither.CountedSetup is { } named ? imaged.FirstOrDefault(r => r.Id == named) : imaged.FirstOrDefault())
+            ? (definition.Dither.CountedSetup is { } named ? imaged.FirstOrDefault(r => PathOf(r) == named) : imaged.FirstOrDefault())
             : null;
 
         foreach (var row in PrepareRows.Concat(FinishRows))
@@ -1499,6 +1517,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             var step = row.Step!;
             var rig = step.Setup is null ? null : RigOf(step.Setup);
             row.SetupLabel = rig?.Name ?? (step.Setup is not null ? "missing" : step.Kind is WorkflowStepKind.Wait ? string.Empty : AutoLabel(imaged));
+            row.ShowSetupChoice = IsMultiSetup || (step.Setup is not null && rig is null);
             var scope = rig is not null ? [rig] : imaged.Count > 0 ? imaged : UsableRigs.Count == 1 ? UsableRigs.ToList() : new List<Rig>();
             row.Summary = step.Kind switch
             {
@@ -1518,6 +1537,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             var block = row.Block!;
             var rig = ResolvedSetup(block.Setup);
             row.SetupLabel = rig?.Name ?? "Choose a setup";
+            row.ShowSetupChoice = IsMultiSetup || (block.Setup is not null && rig is null);
             row.FilterLabel = FilterName(rig, block.FilterSlot);
             row.ExposureLabel = string.Create(CultureInfo.InvariantCulture, $"{block.ExposureSeconds:0.##} s");
             row.FramesLabel = block.Frames.ToString(CultureInfo.InvariantCulture);
@@ -1525,7 +1545,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             row.StartText = block.StartAll.Count > 0 ? "Start: " + ConditionTogglesViewModel.SummarizeStart(block.StartAll) : string.Empty;
             row.StopText = block.StopAny.Count > 0 ? "Stop: " + ConditionTogglesViewModel.SummarizeStop(block.StopAny, block.Frames) : string.Empty;
             row.DitherLabel = DitherLabel(definition, rig, counted, imaged);
-            var policy = rig is null ? null : definition.AutofocusPolicies.FirstOrDefault(p => p.Setup == rig.Id);
+            var policy = rig is null ? null : definition.AutofocusPolicies.FirstOrDefault(p => p.Setup == PathOf(rig));
             row.AutofocusLabel = policy is { Enabled: true } p2 ? AutofocusWhen(p2) : "Off";
         }
     }
@@ -1601,12 +1621,15 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             Load(Stored(WorkflowDefinition.Template([.. UsableRigs], _defaults, StartDefaults)), modified: true);
         }
 
+        ImagingBindingId? framing = null;
         _loading = true;
         try
         {
-            _target = new WorkflowTarget(request.Name, request.RightAscensionHours, request.DeclinationDegrees, request.DesiredRotationDegrees, request.Setup);
+            // The framing names a setup by its id; the workflow holds it as the path of that setup (a setup that is not there stays what it was named, and is reported).
+            framing = request.Setup is { } named ? RigOf(named) is { } found ? PathOf(found) : named : null;
+            _target = new WorkflowTarget(request.Name, request.RightAscensionHours, request.DeclinationDegrees, request.DesiredRotationDegrees, framing);
             ReadTargetFields();
-            SelectedPointing = PointingChoices.FirstOrDefault(c => c.Id == request.Setup) ?? PointingChoices[0];
+            SelectedPointing = PointingChoices.FirstOrDefault(c => c.Id == framing) ?? PointingChoices[0];
         }
         finally
         {
@@ -1621,9 +1644,9 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             added = true;
         }
 
-        if (ImagingRows.Count == 0 && request.Setup is { } setup)
+        if (ImagingRows.Count == 0 && framing is { } setup)
         {
-            ImagingRows.Add(new WorkflowRowViewModel(this, WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), setup, null, _defaults.ExposureSeconds, 10)));
+            ImagingRows.Add(new WorkflowRowViewModel(this, WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), StoredSetup(setup), null, _defaults.ExposureSeconds, 10)));
             added = true;
         }
 
