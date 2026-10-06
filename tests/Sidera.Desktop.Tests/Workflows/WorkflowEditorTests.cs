@@ -388,7 +388,7 @@ public sealed class WorkflowEditorTests : IAsyncLifetime
         Assert.NotNull(message);
         Assert.Equal("NGC 7000", editor.Definition!.Target.Name);
         Assert.Equal(81.5, editor.Definition.Target.DesiredRotationDegrees);
-        Assert.Equal(new RigId("rig.wide"), editor.Definition.Target.PointingSetup);
+        Assert.Equal(ImagingBindingId.For(new Sidera.Core.Devices.DeviceId("camera.wide")), editor.Definition.Target.PointingSetup); // the setup of the framing, as the path of its camera
         Assert.Contains(editor.PrepareRows, r => r.Kind == WorkflowStepKind.SlewAndCenter);
         Assert.DoesNotContain(editor.PrepareRows.Concat(editor.FinishRows), r => r.Title.Contains("Sync", StringComparison.Ordinal));
     }

@@ -300,7 +300,7 @@ internal static class WorkflowJson
         var workflowTarget = new WorkflowTarget(
             Text(target, "name"), Number(target, "raHours"), Number(target, "decDegrees"),
             target.TryGetProperty("rotationDegrees", out _) ? Number(target, "rotationDegrees") : null,
-            OptionalRig(target, "pointingSetup"));
+            OptionalBinding(target, "pointingSetup"));
 
         var prepare = ReadSteps(element, "prepare");
         var finish = ReadSteps(element, "finish");
@@ -311,7 +311,7 @@ internal static class WorkflowJson
         {
             var id = IdOf(block, ids);
             blocks.Add(new ImagingBlock(
-                id, OptionalRig(block, "setup"), block.TryGetProperty("filterSlot", out _) ? Whole(block, "filterSlot") : null,
+                id, OptionalBinding(block, "setup"), block.TryGetProperty("filterSlot", out _) ? Whole(block, "filterSlot") : null,
                 Number(block, "exposureSeconds"), Whole(block, "frames"), Flag(block, "enabled"), ReadConditionsOrNull(block, "startWhen"), ReadConditionsOrNull(block, "stopWhen")));
         }
 
@@ -333,14 +333,14 @@ internal static class WorkflowJson
 
         var dither = Object(element, "dither");
         var workflowDither = new WorkflowDither(
-            Flag(dither, "enabled"), Whole(dither, "everyNFrames"), OptionalRig(dither, "countedSetup"), Number(dither, "amplitudePixels"),
+            Flag(dither, "enabled"), Whole(dither, "everyNFrames"), OptionalBinding(dither, "countedSetup"), Number(dither, "amplitudePixels"),
             Number(dither, "settleThresholdPixels"), Number(dither, "settleStableSeconds"), Number(dither, "settleTimeoutSeconds"));
 
         var policies = new List<SetupAutofocus>();
         foreach (var policy in Array(element, "autofocus"))
         {
             policies.Add(new SetupAutofocus(
-                new RigId(Text(policy, "setup")), Flag(policy, "enabled"), Flag(policy, "atStart"), Number(policy, "intervalMinutes"), Flag(policy, "afterFilterChange"), Settings(policy)));
+                new ImagingBindingId(Text(policy, "setup")), Flag(policy, "enabled"), Flag(policy, "atStart"), Number(policy, "intervalMinutes"), Flag(policy, "afterFilterChange"), Settings(policy)));
         }
 
         MeridianFlipSettings? meridianFlip = null;
@@ -367,7 +367,7 @@ internal static class WorkflowJson
             }
 
             steps.Add(new WorkflowStep(
-                IdOf(step, null), kind.Kind, OptionalRig(step, "setup"), Flag(step, "enabled"), Number(step, "seconds"), Number(step, "toleranceArcseconds"),
+                IdOf(step, null), kind.Kind, OptionalBinding(step, "setup"), Flag(step, "enabled"), Number(step, "seconds"), Number(step, "toleranceArcseconds"),
                 Whole(step, "maxAttempts"), Number(step, "solveExposureSeconds"), step.TryGetProperty("autofocus", out var settings) && settings.ValueKind == JsonValueKind.Object ? Settings(settings) : null,
                 step.TryGetProperty("waitMode", out var mode) && mode.ValueKind == JsonValueKind.String
                     ? mode.GetString() switch
@@ -601,6 +601,10 @@ internal static class WorkflowJson
 
     private static bool Flag(JsonElement parent, string name) =>
         parent.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : throw Structure($"'{name}' must be true or false.");
+
+    // A reference to an imaging path or, in a document from before paths, to a setup by its id; both are the text that is stored.
+    private static ImagingBindingId? OptionalBinding(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } text ? new ImagingBindingId(text) : null;
 
     private static RigId? OptionalRig(JsonElement parent, string name) =>
         parent.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } text ? new RigId(text) : null;

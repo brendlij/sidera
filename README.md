@@ -81,6 +81,10 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   Settings → Autofocus says to hold the mount still, in which case it waits for the other exposures on that mount. Meridian flips are per mount group; a dither is asked for by a trigger setup and runs once for
   every setup on that mount or guider. V1 constraint: one target per workflow, so setups on one mount cannot be pointed at different targets (a slew inside a track is refused); instructions on different mounts
   are not coordinated about targets. The equipment file format is unchanged (version 1): an imaging setup is the rig that was stored, same ids, same shared mounts and guiders.
+- **Stable imaging bindings:** a workflow refers to an imaging *path* (derived from the camera: blocks, autofocus policy, "Frames counted on", pointing setup), not to the setup object. Making an explicit
+  imaging setup for a camera that was used without one therefore changes nothing: blocks, policies and the dither choice carry on with the new setup, with its optics at once. Renaming the camera or the setup changes
+  nothing either. A replaced or removed camera is *not* followed silently: what referred to it is reported, an Auto block simply means the only setup, and a policy of the old camera is not applied to the new one.
+  Several cameras and no setup stay ambiguous. Files are unchanged (`.astraseq` version 8, `equipment.json` version 1) and old files, which name setups by id, open as before.
 - **Session mode:** a session is a Workflow unless you choose otherwise (Settings → Sequencer) or open a file that is not one. `[Workflow] [Advanced]` next to the title: Advanced shows
   the explicit action tree and asks first, because workflow policies are no longer editable afterwards. Back to Workflow is only offered where it is exact (an empty sequence, or the
   untouched steps of a workflow); otherwise it says "This sequence cannot be represented as a Workflow."

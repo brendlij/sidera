@@ -10,7 +10,7 @@ using Sidera.Desktop.Workflows;
 namespace Sidera.Desktop.ViewModels;
 
 /// <summary>An imaging setup as a choice; <see cref="Id"/> is <c>null</c> for "Auto": the setup the workflow makes unambiguous.</summary>
-public sealed record SetupChoice(RigId? Id, string Name, string Detail)
+public sealed record SetupChoice(ImagingBindingId? Id, string Name, string Detail)
 {
     public bool IsAuto => Id is null;
 }
@@ -135,6 +135,10 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AutomationName))]
     public partial string SetupLabel { get; internal set; } = string.Empty;
+
+    /// <summary>Whether the setup choice is shown: with several setups, and also when the row names a setup that is not there, so that it can be repaired.</summary>
+    [ObservableProperty]
+    public partial bool ShowSetupChoice { get; internal set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AutomationName))]
@@ -344,7 +348,7 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
 
             Step = step with
             {
-                Setup = SelectedSetup?.Id, Enabled = Enabled, Seconds = seconds, ToleranceArcseconds = tolerance, MaxAttempts = attempts, SolveExposureSeconds = solve,
+                Setup = SelectedSetup is null ? step.Setup : SelectedSetup.Id, Enabled = Enabled, Seconds = seconds, ToleranceArcseconds = tolerance, MaxAttempts = attempts, SolveExposureSeconds = solve,
                 Autofocus = step.Kind == WorkflowStepKind.Autofocus ? afSettings : step.Autofocus,
                 WaitMode = step.Kind == WorkflowStepKind.Wait ? mode : WorkflowWaitMode.Duration,
                 Until = until is { Count: > 0 } ? until : null,
@@ -360,7 +364,7 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
             problems.AddRange(Stop.Problems);
             Block = block with
             {
-                Setup = _owner.StoredSetup(SelectedSetup?.Id), FilterSlot = SelectedFilter?.Slot, ExposureSeconds = exposure, Frames = frames, Enabled = Enabled,
+                Setup = _owner.StoredSetup(SelectedSetup, block.Setup), FilterSlot = SelectedFilter?.Slot, ExposureSeconds = exposure, Frames = frames, Enabled = Enabled,
                 StartWhen = startWhen.Count > 0 ? startWhen : null, StopWhen = stopWhen.Count > 0 ? stopWhen : null,
             };
         }
