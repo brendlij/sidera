@@ -46,9 +46,25 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public const string ObservatoryTab = "observatory";
     public const string PlateSolvingTab = "platesolving";
     public const string FramingTab = "framing";
+    public const string ImagingTab = "imaging";
+    public const string AutofocusTab = "autofocus";
+    public const string GuidingTab = "guiding";
+    public const string MeridianFlipTab = "meridianflip";
+    public const string SequencerTab = "sequencer";
+    public const string AdvancedTab = "advanced";
 
-    public SettingsViewModel(LogInfo? log = null, Sidera.Desktop.Settings.SiteService? site = null)
+    public SettingsViewModel(LogInfo? log = null, Sidera.Desktop.Settings.SiteService? site = null, HardwareSafetyViewModel? safety = null)
     {
+        if (site is not null)
+        {
+            Imaging = new ImagingSettingsViewModel(site);
+            Autofocus = new AutofocusSettingsViewModel(site);
+            Guiding = new GuidingSettingsViewModel(site);
+            MeridianFlip = new MeridianFlipSettingsViewModel(site);
+            Sequencer = new SequencerSettingsViewModel(site);
+            Advanced = new AdvancedSettingsViewModel(site, log, safety);
+        }
+
         Site = site is null ? null : new SiteSettingsViewModel(site);
         PlateSolving = site is null ? null : new PlateSolvingSettingsViewModel(site);
         SkyAtlas = site is null ? null : new SkyAtlasSettingsViewModel(site);
@@ -58,7 +74,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         List<SettingsTabViewModel> tabs = [new(GeneralTab, "General", SelectTab)];
         if (site is not null)
         {
-            tabs.AddRange([new(ObservatoryTab, "Observatory", SelectTab), new(PlateSolvingTab, "Plate solving", SelectTab), new(FramingTab, "Framing", SelectTab)]);
+            tabs.AddRange(
+            [
+                new(ObservatoryTab, "Observatory", SelectTab), new(ImagingTab, "Imaging", SelectTab), new(AutofocusTab, "Autofocus", SelectTab), new(GuidingTab, "Guiding", SelectTab),
+                new(PlateSolvingTab, "Plate solving", SelectTab), new(FramingTab, "Framing", SelectTab), new(MeridianFlipTab, "Meridian Flip", SelectTab),
+                new(SequencerTab, "Sequencer", SelectTab), new(AdvancedTab, "Advanced", SelectTab),
+            ]);
         }
 
         Tabs = tabs;
@@ -97,6 +118,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public bool HasSite => Site is not null;
     public PlateSolvingSettingsViewModel? PlateSolving { get; }
     public SkyAtlasSettingsViewModel? SkyAtlas { get; }
+    public ImagingSettingsViewModel? Imaging { get; }
+    public AutofocusSettingsViewModel? Autofocus { get; }
+    public GuidingSettingsViewModel? Guiding { get; }
+    public MeridianFlipSettingsViewModel? MeridianFlip { get; }
+    public SequencerSettingsViewModel? Sequencer { get; }
+    public AdvancedSettingsViewModel? Advanced { get; }
 
     public IReadOnlyList<SettingsGroup> Groups { get; }
 
@@ -104,13 +131,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<SettingsTabViewModel> Tabs { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGeneral), nameof(IsObservatory), nameof(IsPlateSolving), nameof(IsFraming))]
+    [NotifyPropertyChangedFor(nameof(IsGeneral), nameof(IsObservatory), nameof(IsPlateSolving), nameof(IsFraming), nameof(IsImaging), nameof(IsAutofocus), nameof(IsGuiding), nameof(IsMeridianFlip), nameof(IsSequencer), nameof(IsAdvanced))]
     public partial string SelectedTabKey { get; private set; } = GeneralTab;
 
     public bool IsGeneral => SelectedTabKey == GeneralTab;
     public bool IsObservatory => SelectedTabKey == ObservatoryTab;
     public bool IsPlateSolving => SelectedTabKey == PlateSolvingTab;
     public bool IsFraming => SelectedTabKey == FramingTab;
+    public bool IsImaging => SelectedTabKey == ImagingTab;
+    public bool IsAutofocus => SelectedTabKey == AutofocusTab;
+    public bool IsGuiding => SelectedTabKey == GuidingTab;
+    public bool IsMeridianFlip => SelectedTabKey == MeridianFlipTab;
+    public bool IsSequencer => SelectedTabKey == SequencerTab;
+    public bool IsAdvanced => SelectedTabKey == AdvancedTab;
 
     /// <summary>Shows a tab; a tab that does not exist is ignored.</summary>
     public void SelectTab(string key)
@@ -131,5 +164,5 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public string SaveNoteText => "Each tab is saved with its own Save button; nothing is applied while you type.";
 
     /// <summary>The sentence that says why nothing can be changed here yet.</summary>
-    public string NoteText => "The observing site, plate solving and the sky atlas can be set here. Application information is on the General tab.";
+    public string NoteText => "Defaults for what is created from now on live here; what already exists (a session, a workflow with its own settings) is not changed by them. Application information is on the General tab.";
 }

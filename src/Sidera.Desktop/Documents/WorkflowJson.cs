@@ -88,7 +88,14 @@ internal static class WorkflowJson
         w.WriteNumber("settleTimeoutSeconds", dither.SettleTimeoutSeconds);
         w.WriteEndObject();
 
-        if (workflow.MeridianFlip is { } flip)
+        if (workflow.MeridianFlipUsesDefaults)
+        {
+            // Follows the application's settings: nothing of the flip is copied into the document.
+            w.WriteStartObject("meridianFlip");
+            w.WriteBoolean("useDefaults", true);
+            w.WriteEndObject();
+        }
+        else if (workflow.MeridianFlip is { } flip)
         {
             w.WriteStartObject("meridianFlip");
             WriteSettingsBody(w, flip);
@@ -152,7 +159,7 @@ internal static class WorkflowJson
 
     // ---- the meridian flip: its settings, and as a policy of a Multi-Rig block with the target it keeps pointing at
 
-    private static void WriteSettingsBody(Utf8JsonWriter w, MeridianFlipSettings s)
+    internal static void WriteSettingsBody(Utf8JsonWriter w, MeridianFlipSettings s)
     {
         w.WriteBoolean("enabled", s.Enabled);
         w.WriteNumber("pauseBeforeMeridianMinutes", s.PauseBeforeMeridianMinutes);
@@ -174,7 +181,7 @@ internal static class WorkflowJson
     }
 
     // A setting that the file does not have is the default of the setting; one that has the wrong kind of value is an error.
-    private static MeridianFlipSettings ReadSettingsBody(JsonElement e)
+    internal static MeridianFlipSettings ReadSettingsBody(JsonElement e)
     {
         var d = new MeridianFlipSettings();
         bool Flag(string name, bool fallback) =>
@@ -325,12 +332,14 @@ internal static class WorkflowJson
         }
 
         MeridianFlipSettings? meridianFlip = null;
+        var usesDefaults = false;
         if (element.TryGetProperty("meridianFlip", out var flipElement) && flipElement.ValueKind == JsonValueKind.Object)
         {
-            meridianFlip = ReadSettingsBody(flipElement);
+            usesDefaults = flipElement.TryGetProperty("useDefaults", out var use) && use.ValueKind == JsonValueKind.True;
+            meridianFlip = usesDefaults ? null : ReadSettingsBody(flipElement);
         }
 
-        return new WorkflowDefinition(workflowTarget, prepare, blocks, finish, workflowDither, policies, meridianFlip);
+        return new WorkflowDefinition(workflowTarget, prepare, blocks, finish, workflowDither, policies, meridianFlip, usesDefaults);
     }
 
     private static List<WorkflowStep> ReadSteps(JsonElement parent, string name)

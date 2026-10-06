@@ -247,6 +247,10 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
             var frame = await _host.DeviceOperations.ExposeAsync(target.CameraId, duration, intent, source.Token);
             var capture = FrameExporter.CaptureContext(_host, target.CameraId, startedAt);
             _imaging.Publish(frame, $"{target.Label} · {CameraName} (manual)", target.CameraId, capture);
+            if (_imaging.FitOnCapture)
+            {
+                _imaging.FitCommand.Execute(null);
+            }
             StatusText = string.Create(CultureInfo.InvariantCulture, $"{frame.ExposureDuration.TotalSeconds:0.###} s {intent.FrameType.ToString().ToLowerInvariant()} frame, {frame.Width} × {frame.Height}");
         }
         catch (OperationCanceledException)

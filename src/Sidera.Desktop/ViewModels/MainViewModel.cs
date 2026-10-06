@@ -47,7 +47,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         EquipmentManagement? equipmentManagement = null,
         bool withDemoSequence = true,
         Sidera.Sky.ICelestialObjectCatalog? objectCatalog = null,
-        System.Func<Sidera.Sky.SkySurveyDescriptor, Sidera.Sky.ISkySurveyProvider>? skyProviders = null)
+        System.Func<Sidera.Sky.SkySurveyDescriptor, Sidera.Sky.ISkySurveyProvider>? skyProviders = null,
+        bool startWithSettingsMode = false)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -56,6 +57,22 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure, equipmentManagement);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
+
+        // What the settings propose for what is created from now on: the measurements of an autofocus and the values of a dither. Nothing that exists is changed by it.
+        if (equipmentManagement?.Site is { } proposed)
+        {
+            defaults = defaults with
+            {
+                AutofocusExposureSeconds = proposed.Autofocus.ExposureSeconds,
+                AutofocusStepSize = proposed.Autofocus.StepSize,
+                AutofocusSampleCount = proposed.Autofocus.SampleCount,
+                DitherAmplitudePixels = proposed.Guiding.DitherAmplitudePixels,
+                SettleThresholdPixels = proposed.Guiding.SettleThresholdPixels,
+                SettleStableSeconds = proposed.Guiding.SettleStableSeconds,
+                SettleTimeoutSeconds = proposed.Guiding.SettleTimeoutSeconds,
+            };
+        }
+
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 || !withDemoSequence ? [] : defaults.InitialSteps(),
             rigs: host.RigRegistry, shared: SharedEquipmentDraft.FromRigs(host.RigRegistry.GetAll(), defaults.MountId, defaults.GuiderId, host.RigRegistry.GetAll().Count == 0),
@@ -63,12 +80,15 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults,
             plateSolving: host.PlateSolving, solveDefaults: () => (equipmentManagement?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()).Defaults(),
             rotation: host.Rotation);
-        Imaging.Capture = new ImagingCaptureViewModel(host, Imaging);
+        Imaging.AutoStretch = equipmentManagement?.Site?.Imaging.AutoStretch ?? true;
+        Imaging.FitOnCapture = equipmentManagement?.Site?.Imaging.FitOnCapture ?? true;
+        Imaging.SaveDirectory = () => equipmentManagement?.Site?.Imaging.SaveDirectory;
+        Imaging.Capture = new ImagingCaptureViewModel(host, Imaging, equipmentManagement?.Site?.Imaging.ManualExposureSeconds ?? 5);
         Imaging.Autofocus = new ManualAutofocusViewModel(host, defaults, postToUi);
         Imaging.ExportHost = host;
         Imaging.ExportSite = () => equipmentManagement?.Site?.Site;
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
-        Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site);
+        Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site, Safety);
         PlateSolve = new PlateSolveViewModel(host, Imaging, equipmentManagement?.Site, postToUi);
         Framing = new FramingViewModel(host, equipmentManagement?.Site, SequenceDraft, objectCatalog, skyProviders, postToUi);
         Sequencer = new SequencerViewModel(
@@ -78,7 +98,13 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
         SequenceDraft.SiteProvider = () => equipmentManagement?.Site?.Site;
-        Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site);
+        Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site);
+
+        // A new session opens in the mode the settings choose (a workflow unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.
+        if (startWithSettingsMode && SequenceDraft.IsEmpty)
+        {
+            Workflow.StartNew();
+        }
         SequenceDocument.Workflow = Workflow;
         SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, Workflow);
         PlateSolve.Safety = Safety;

@@ -59,7 +59,14 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   with policies, plate solving, and multiple rigs in one sequence. Sequences are saved as `.astraseq` files. Rig steps choose a rig, not a camera and a focuser; each step
   uses the mount and guider of its rig. With more than one rig the session can be seen as Overview, one tab per rig, or Shared: the same steps, filtered. Rigs on different
   mounts work at the same time; rigs on one mount or one guider take turns for it (a plate solve or a rotation holds only the devices it uses).
-- **Settings:** tabs for General, Observatory, Plate solving and Framing. Each editable tab is saved with its own Save button; nothing is applied while you type.
+- **Session mode:** a session is a Workflow unless you choose otherwise (Settings → Sequencer) or open a file that is not one. `[Workflow] [Advanced]` next to the title: Advanced shows
+  the explicit action tree and asks first, because workflow policies are no longer editable afterwards. Back to Workflow is only offered where it is exact (an empty sequence, or the
+  untouched steps of a workflow); otherwise it says "This sequence cannot be represented as a Workflow."
+- **Settings:** tabs for General, Observatory, Imaging, Autofocus, Guiding, Plate solving, Framing, Meridian Flip, Sequencer and Advanced. Each editable tab is saved with its own Save
+  button; nothing is applied while you type. Defaults are only used for what is created afterwards: a workflow with its own settings, or an open session, is not rewritten. A workflow
+  chooses its meridian flip between "Use application defaults" and "Custom for this Workflow".
+- **Hardware safety:** operations that move real equipment (Slew & Center, Center & Rotate, running a sequence with a real mount or rotator) ask once per device and run:
+  "Ensure the equipment can move safely." Cancel moves nothing. The answer is kept only for the running application (Settings → Advanced forgets it). Simulators never ask.
 - **Diagnostics:** structured logging to `%LOCALAPPDATA%\Sidera\logs`.
 
 ## Requirements
@@ -89,6 +96,11 @@ The tests need no hardware: devices are simulators or fakes of the ASCOM drivers
 | `src/Sidera.Phd2` | PHD2 as a guider: the TCP event server protocol, `Phd2Guider`; nothing of the protocol leaves this project |
 | `src/Sidera.Desktop` | The Avalonia application |
 | `tests/` | Unit tests for each project, and opt-in integration tests against ASCOM |
+
+## Environment variables
+
+The application reads only `SIDERA_EQUIPMENT_FILE` and `SIDERA_SETTINGS_FILE` (file locations). Every other `SIDERA_*` variable below belongs to the tests of real devices and is not
+read by the application; a test is skipped unless its variable is set.
 
 ## Real-hardware tests
 
@@ -138,10 +150,9 @@ are never changed automatically.
 
 Slew & Center holds the camera and mount resources until it finishes, uses
 spherical pointing errors and tangent-plane corrections, stops at tolerance
-or the attempt limit, and never syncs the mount. Real solve exposures require
-`SIDERA_ASTAP_CAMERA_OK=1`; real mount centering additionally requires
-`SIDERA_ASTROMETRY_CENTERING_OK=1`. Simulated devices need neither gate.
-Do not enable these gates unless physical operation is intended.
+or the attempt limit, and never syncs the mount. There are no environment gates for solving
+or centering; moving a real mount or rotator asks for the confirmation described under Hardware safety.
+Do not confirm unless physical operation is intended.
 
 The backend-neutral Plate Solve sequence step is persisted as `plateSolve`
 in `.astraseq` version 7. Versions 1–6 continue to load; older Sidera versions

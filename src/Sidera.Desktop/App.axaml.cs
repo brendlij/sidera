@@ -105,7 +105,7 @@ public partial class App : Application
 
             var viewModel = new MainViewModel(
                 host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard,
-                equipmentManagement: management, withDemoSequence: false, objectCatalog: objectCatalog,
+                equipmentManagement: management, withDemoSequence: false, objectCatalog: objectCatalog, startWithSettingsMode: true,
                 skyProviders: survey => new Sidera.Sky.HiPSSurveyProvider(survey, skyHttp, skyCache, skyDecoder, hipsOptions, host.LoggerFactory.CreateLogger<Sidera.Sky.HiPSSurveyProvider>()));
 
             var window = new MainWindow { DataContext = viewModel };

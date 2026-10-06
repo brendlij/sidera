@@ -48,7 +48,8 @@ public static class WorkflowCompiler
         return new Guid(bytes);
     }
 
-    public static WorkflowCompilation Compile(WorkflowDefinition workflow, RigRegistry? rigs, SequenceDraftDefaults? defaults = null)
+    public static WorkflowCompilation Compile(
+        WorkflowDefinition workflow, RigRegistry? rigs, SequenceDraftDefaults? defaults = null, Sidera.Core.Mounts.MeridianFlipSettings? applicationFlip = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         var problems = new List<WorkflowProblem>();
@@ -134,7 +135,7 @@ public static class WorkflowCompiler
             }
 
             steps.Add(new MultiRigStepDraft(
-                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, setups, blocksOf, problems)));
+                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, applicationFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings(), setups, blocksOf, problems)));
         }
 
         foreach (var step in workflow.Finish.Where(s => s.Enabled))
@@ -258,9 +259,10 @@ public static class WorkflowCompiler
 
     // The meridian flip of the Imaging section: for every mount of the imaged setups, once, for all the setups on it. The target it slews back to is the target of the workflow.
     private static MeridianFlipPolicyDraft? FlipOf(
-        WorkflowDefinition workflow, IReadOnlyList<Rig> setups, IReadOnlyDictionary<RigId, List<ImagingBlock>> blocksOf, List<WorkflowProblem> problems)
+        WorkflowDefinition workflow, Sidera.Core.Mounts.MeridianFlipSettings applicationFlip, IReadOnlyList<Rig> setups, IReadOnlyDictionary<RigId, List<ImagingBlock>> blocksOf,
+        List<WorkflowProblem> problems)
     {
-        var settings = workflow.FlipSettings;
+        var settings = workflow.EffectiveFlip(applicationFlip);
         if (!settings.Enabled)
         {
             return null;

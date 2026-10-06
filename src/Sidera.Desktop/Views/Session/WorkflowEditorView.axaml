@@ -86,8 +86,6 @@
                                     <MenuItem Header="Finish" IsEnabled="False" />
                                     <MenuItem Header="Stop Guiding" Command="{Binding AddStopGuidingCommand}" />
                                     <MenuItem Header="Wait" Command="{Binding AddWaitToFinishCommand}" />
-                                    <Separator />
-                                    <MenuItem Header="More actions: Convert to Advanced" IsEnabled="False" />
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
@@ -98,12 +96,6 @@
                         <Button Classes="ghost" Content="Remove" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Delete" />
                     </StackPanel>
                     <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding CanRunText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="WorkflowStatus" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                        <Button Classes="ghost" Content="Convert to Advanced" Command="{Binding ConvertToAdvancedCommand}" IsVisible="{Binding !IsConfirmingAdvanced}"
-                                ToolTip.Tip="Keep the steps as they are, in the explicit editor with Parallel, Repeat and every action. The workflow is not kept." />
-                        <Button Classes="danger" Content="Convert: the workflow is not kept" Command="{Binding ConvertToAdvancedCommand}" IsVisible="{Binding IsConfirmingAdvanced}" />
-                        <Button Content="Keep workflow" Command="{Binding CancelConvertToAdvancedCommand}" IsVisible="{Binding IsConfirmingAdvanced}" />
-                    </StackPanel>
                 </Grid>
 
                 <ctl:EmptyState Icon="{StaticResource IconSession}" Title="An empty workflow" Margin="0,40" IsVisible="{Binding IsEmpty}"
@@ -210,8 +202,18 @@
                                 <TextBlock Classes="eyebrow" Text="MERIDIAN FLIP" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Classes="secondary accent" Text="{Binding MeridianInfoText}" IsVisible="{Binding HasMeridianInfo}" AutomationProperties.AutomationId="WorkflowMeridianInfo" />
                             </Grid>
-                            <CheckBox Content="Flip at the meridian" IsChecked="{Binding FlipEnabled}" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowFlipEnabled" />
-                            <StackPanel Spacing="12" IsVisible="{Binding FlipEnabled}" IsEnabled="{Binding IsEditable}">
+                            <StackPanel Spacing="6" IsEnabled="{Binding IsEditable}">
+                                <RadioButton GroupName="WorkflowFlipMode" Content="Use application defaults" IsChecked="{Binding FlipUsesDefaults, Mode=OneWay}" Command="{Binding UseFlipDefaultsCommand}"
+                                             AutomationProperties.AutomationId="WorkflowFlipUseDefaults" />
+                                <RadioButton GroupName="WorkflowFlipMode" Content="Custom for this Workflow" IsChecked="{Binding FlipIsCustom, Mode=OneWay}" Command="{Binding CustomizeFlipCommand}"
+                                             AutomationProperties.AutomationId="WorkflowFlipCustom" />
+                            </StackPanel>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding FlipUsesDefaults}">
+                                <TextBlock Classes="secondary" Text="{Binding FlipDefaultsSummary}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.AutomationId="WorkflowFlipDefaultsSummary" />
+                                <Button Grid.Column="1" Content="Customize" Command="{Binding CustomizeFlipCommand}" AutomationProperties.AutomationId="WorkflowFlipCustomize" />
+                            </Grid>
+                            <CheckBox Content="Flip at the meridian" IsChecked="{Binding FlipEnabled}" IsEnabled="{Binding IsEditable}" IsVisible="{Binding FlipIsCustom}" AutomationProperties.AutomationId="WorkflowFlipEnabled" />
+                            <StackPanel Spacing="12" IsVisible="{Binding FlipFieldsVisible}" IsEnabled="{Binding IsEditable}">
                                 <TextBlock Classes="meta" Text="TIMING (minutes from the moment the target is on the meridian)" />
                                 <WrapPanel ItemSpacing="16" LineSpacing="8">
                                     <ctl:LabeledField Label="Hold new exposures before"><TextBox Text="{Binding FlipPauseBeforeText}" Width="90" AutomationProperties.AutomationId="WorkflowFlipPauseBefore" /></ctl:LabeledField>

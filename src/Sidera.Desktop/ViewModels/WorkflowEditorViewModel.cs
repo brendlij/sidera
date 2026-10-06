@@ -53,6 +53,9 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     private readonly Action<Action> _post;
     private readonly Func<Sidera.Core.Location.ObservingSite?>? _site;
     private IDisposable? _flipSubscription;
+    private readonly Sidera.Desktop.Settings.SiteService? _settings;
+    private bool _flipUsesDefaults;
+    private (WorkflowDefinition Workflow, string Fingerprint)? _converted;
     private MeridianFlipSettings _flip = new();
     private List<string> _flipProblems = [];
     private readonly List<TrackLaneViewModel> _wiredLanes = [];
@@ -63,8 +66,15 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     public WorkflowEditorViewModel(
         SequenceDraftViewModel draft, RigRegistry? rigs, DeviceRegistry registry, SequenceDraftDefaults defaults, ExecutionOverviewViewModel? execution = null,
-        Sidera.Runtime.Events.EventBus? events = null, Action<Action>? postToUi = null, Func<Sidera.Core.Location.ObservingSite?>? site = null)
+        Sidera.Runtime.Events.EventBus? events = null, Action<Action>? postToUi = null, Func<Sidera.Core.Location.ObservingSite?>? site = null,
+        Sidera.Desktop.Settings.SiteService? settings = null)
     {
+        _settings = settings;
+        if (_settings is not null)
+        {
+            _settings.Changed += OnSettingsChanged;
+        }
+
         _events = events;
         _post = postToUi ?? (action => action());
         _site = site;
@@ -82,6 +92,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         _draft.TargetSink = AddTarget;
         _draft.PropertyChanged += OnDraftPropertyChanged;
         _draft.Modified += OnDraftModified;
+        _draft.Changed += OnDraftChanged;
         if (_execution is not null)
         {
             _execution.PropertyChanged += OnExecutionChanged;
@@ -92,7 +103,13 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     {
         _draft.PropertyChanged -= OnDraftPropertyChanged;
         _draft.Modified -= OnDraftModified;
+        _draft.Changed -= OnDraftChanged;
         _draft.FlipGroupsChanged -= OnFlipGroupsChanged;
+        if (_settings is not null)
+        {
+            _settings.Changed -= OnSettingsChanged;
+        }
+
         _flipSubscription?.Dispose();
         if (_execution is not null)
         {
@@ -264,7 +281,11 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     // ---- the meridian flip: a policy of the imaging section, set once for the workflow
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlipFieldsVisible))]
     public partial bool FlipEnabled { get; set; }
+
+    /// <summary>The fields of the workflow's own flip are shown: it has its own flip, and it is on.</summary>
+    public bool FlipFieldsVisible => FlipEnabled && !_flipUsesDefaults;
 
     [ObservableProperty]
     public partial string FlipPauseBeforeText { get; set; } = "5";
@@ -313,9 +334,126 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     public partial string FlipCenterAttemptsText { get; set; } = "5";
 
     /// <summary>The flip in a sentence: "Hold new exposures 5 min before the meridian, flip 2 min after it, at the latest 15 min after."</summary>
-    public string FlipSummary => FlipEnabled
-        ? string.Create(CultureInfo.InvariantCulture, $"Hold new exposures {_flip.PauseBeforeMeridianMinutes:0.#} min before the meridian, flip {_flip.FlipAfterMeridianMinutes:0.#} min after it, at the latest {_flip.LatestAllowedFlipMinutes:0.#} min after.")
+    public string FlipSummary => FlipSentence(_flipUsesDefaults ? ApplicationFlip : _flip with { Enabled = FlipEnabled });
+
+    private static string FlipSentence(MeridianFlipSettings s) => s.Enabled
+        ? string.Create(CultureInfo.InvariantCulture, $"Hold new exposures {s.PauseBeforeMeridianMinutes:0.#} min before the meridian, flip {s.FlipAfterMeridianMinutes:0.#} min after it, at the latest {s.LatestAllowedFlipMinutes:0.#} min after.")
         : "Off";
+
+    /// <summary>The workflow follows the application's meridian flip defaults (Settings); nothing of them is copied into it.</summary>
+    public bool FlipUsesDefaults => _flipUsesDefaults;
+
+    /// <summary>The workflow has a meridian flip of its own.</summary>
+    public bool FlipIsCustom => !_flipUsesDefaults;
+
+    /// <summary>"Using defaults · Hold −5m · Flip +2m · Recenter · Guiding", or that the defaults are off.</summary>
+    public string FlipDefaultsSummary
+    {
+        get
+        {
+            var s = ApplicationFlip;
+            if (!s.Enabled)
+            {
+                return "Using defaults · off (turn it on in Settings → Meridian Flip, or customize it for this workflow)";
+            }
+
+            var parts = new List<string>
+            {
+                string.Create(CultureInfo.InvariantCulture, $"Hold -{s.PauseBeforeMeridianMinutes:0.#}m"),
+                string.Create(CultureInfo.InvariantCulture, $"Flip +{s.FlipAfterMeridianMinutes:0.#}m"),
+            };
+            if (s.RecenterAfterFlip)
+            {
+                parts.Add("Recenter");
+            }
+
+            if (s.VerifyRotationAfterFlip)
+            {
+                parts.Add("Rotation");
+            }
+
+            if (s.AutofocusAfterFlip)
+            {
+                parts.Add("Autofocus");
+            }
+
+            if (s.RestartGuidingAfterFlip)
+            {
+                parts.Add("Guiding");
+            }
+
+            if (s.DitherAfterFlip)
+            {
+                parts.Add("Dither");
+            }
+
+            return "Using defaults · " + string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>Follows the application's meridian flip defaults from now on; what was set for this workflow is dropped from it.</summary>
+    [RelayCommand(CanExecute = nameof(IsEditable))]
+    private void UseFlipDefaults()
+    {
+        if (_flipUsesDefaults)
+        {
+            return;
+        }
+
+        _flipUsesDefaults = true;
+        RaiseFlipModeChanged();
+        Recompile(true);
+    }
+
+    /// <summary>Gives this workflow a meridian flip of its own, starting from the defaults it followed; from then on the defaults do not touch it.</summary>
+    [RelayCommand(CanExecute = nameof(IsEditable))]
+    private void CustomizeFlip()
+    {
+        if (!_flipUsesDefaults)
+        {
+            return;
+        }
+
+        _flip = ApplicationFlip;
+        _flipUsesDefaults = false;
+        var wasLoading = _loading;
+        _loading = true;
+        try
+        {
+            ReadFlipFields();
+        }
+        finally
+        {
+            _loading = wasLoading;
+        }
+
+        RaiseFlipModeChanged();
+        Recompile(true);
+    }
+
+    private void RaiseFlipModeChanged()
+    {
+        OnPropertyChanged(nameof(FlipUsesDefaults));
+        OnPropertyChanged(nameof(FlipIsCustom));
+        OnPropertyChanged(nameof(FlipFieldsVisible));
+        OnPropertyChanged(nameof(FlipDefaultsSummary));
+        OnPropertyChanged(nameof(FlipSummary));
+        UseFlipDefaultsCommand.NotifyCanExecuteChanged();
+        CustomizeFlipCommand.NotifyCanExecuteChanged();
+    }
+
+    // The settings changed: what follows the defaults follows them (compiled again, the document is not modified by it), and what is custom is left alone.
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        _post(() =>
+        {
+            RaiseFlipModeChanged();
+            if (Definition is not null && _flipUsesDefaults)
+            {
+                Recompile(false);
+            }
+        });
+    }
 
     /// <summary>Where the target is relative to the meridian, when the site is known: the countdown the session shows next to its target.</summary>
     [ObservableProperty]
@@ -347,6 +485,9 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private void ReadFlipFields()
     {
+        OnPropertyChanged(nameof(FlipUsesDefaults));
+        OnPropertyChanged(nameof(FlipIsCustom));
+        OnPropertyChanged(nameof(FlipDefaultsSummary));
         FlipEnabled = _flip.Enabled;
         FlipPauseBeforeText = _flip.PauseBeforeMeridianMinutes.ToString("0.##", CultureInfo.InvariantCulture);
         FlipAfterText = _flip.FlipAfterMeridianMinutes.ToString("0.##", CultureInfo.InvariantCulture);
@@ -371,6 +512,11 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         if (_loading)
         {
             return;
+        }
+
+        if (_flipUsesDefaults)
+        {
+            return; // the fields are not shown; what is in them is not the workflow's
         }
 
         var problems = new List<string>();
@@ -449,16 +595,29 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     // ---- loading
 
+    // What the application's settings propose: used for what is created, never to change what exists.
+    private MeridianFlipSettings ApplicationFlip => _settings?.MeridianFlip ?? new MeridianFlipSettings();
+
+    private WorkflowDefinition.StartDefaults StartDefaults => new(_settings?.Autofocus ?? new Sidera.Desktop.Settings.AutofocusDefaults(), _settings?.Guiding ?? new Sidera.Desktop.Settings.GuidingDefaults());
+
+    /// <summary>Starts a new session in the mode the settings choose: an empty workflow, or an empty Advanced sequence.</summary>
     public void StartNew()
     {
-        Load(WorkflowDefinition.Empty);
+        _converted = null;
+        if (_settings?.Sequencer.DefaultSessionMode == Sidera.Desktop.Settings.SessionMode.Advanced)
+        {
+            Load(null);
+            return;
+        }
+
+        Load(WorkflowDefinition.NewEmpty(StartDefaults));
     }
 
     /// <summary>A starting point from the rigs there are, with a target of your own; the rows are what the first setup can do.</summary>
     [RelayCommand(CanExecute = nameof(IsEditable))]
     private void StartFromTemplate()
     {
-        var template = WorkflowDefinition.Template(_rigs?.GetAll().ToList() ?? [], _defaults);
+        var template = WorkflowDefinition.Template(_rigs?.GetAll().ToList() ?? [], _defaults, StartDefaults);
         Load(template with { Target = Definition?.Target ?? WorkflowTarget.Default }, modified: true);
     }
 
@@ -487,6 +646,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             _dither = definition.Dither;
             _policies = [.. definition.AutofocusPolicies];
             _flip = definition.FlipSettings;
+            _flipUsesDefaults = definition.MeridianFlipUsesDefaults;
             _flipProblems = [];
             foreach (var step in definition.Prepare)
             {
@@ -524,6 +684,9 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private void RaiseModeChanged()
     {
+        OnPropertyChanged(nameof(CanReturnToWorkflow));
+        OnPropertyChanged(nameof(WhyNotWorkflowText));
+        SwitchToWorkflowCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasUnreadableFields));
         StartFromTemplateCommand.NotifyCanExecuteChanged();
@@ -809,15 +972,19 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         _ => FinishRows,
     };
 
-    private WorkflowStep NewStep(WorkflowStepKind kind) => new(
-        Guid.NewGuid(), kind, null, true, _defaults.DelaySeconds, 60, 5, 5,
-        kind == WorkflowStepKind.Autofocus ? new AutofocusSettings(_defaults.AutofocusExposureSeconds, _defaults.AutofocusStepSize, _defaults.AutofocusSampleCount) : null);
+    private WorkflowStep NewStep(WorkflowStepKind kind)
+    {
+        var af = StartDefaults.Autofocus;
+        return new(
+            Guid.NewGuid(), kind, null, true, _defaults.DelaySeconds, 60, 5, 5,
+            kind == WorkflowStepKind.Autofocus ? new AutofocusSettings(af.ExposureSeconds, af.StepSize, af.SampleCount) : null);
+    }
 
     private WorkflowRowViewModel Add(WorkflowSection section, WorkflowStep? step, ImagingBlock? block)
     {
         if (Definition is null)
         {
-            Load(WorkflowDefinition.Empty, modified: true);
+            Load(WorkflowDefinition.NewEmpty(StartDefaults), modified: true);
         }
 
         var row = new WorkflowRowViewModel(this, section, step, block);
@@ -865,6 +1032,13 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     {
         var used = ImagingRows.Select(r => r.Block!.Setup).ToHashSet();
         var rig = Rigs.FirstOrDefault(r => !used.Contains(r.Id)) ?? Rigs.FirstOrDefault();
+
+        // A setup that comes into the workflow focuses by itself when the settings propose it (and it can); a setup that has a policy keeps it.
+        if (rig?.FocuserId is not null && StartDefaults.Autofocus.PolicyEnabled && _policies.All(p => p.Setup != rig.Id))
+        {
+            _policies.Add(WorkflowDefinition.AutofocusPolicyOf(rig.Id, StartDefaults.Autofocus));
+        }
+
         Add(WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), rig?.Id, null, _defaults.ExposureSeconds, 10));
     }
 
@@ -964,7 +1138,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         foreach (var command in new IRelayCommand[]
         {
             AddSlewAndCenterCommand, AddAutofocusStepCommand, AddStartGuidingCommand, AddWaitToPrepareCommand, AddStopGuidingCommand, AddWaitToFinishCommand, AddImagingBlockCommand,
-            RemoveSelectedCommand, DuplicateSelectedCommand, MoveUpCommand, MoveDownCommand, ToggleEnabledCommand, StartFromTemplateCommand, ConvertToAdvancedCommand,
+            RemoveSelectedCommand, DuplicateSelectedCommand, MoveUpCommand, MoveDownCommand, ToggleEnabledCommand, StartFromTemplateCommand, ConvertToAdvancedCommand, SwitchToWorkflowCommand,
         })
         {
             command.NotifyCanExecuteChanged();
@@ -995,12 +1169,50 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             return;
         }
 
+        // The steps stay exactly as the workflow compiled them: no action is lost. What was the workflow is remembered, so that going back is possible for as long as the steps are untouched.
+        var workflow = Definition;
         IsConfirmingAdvanced = false;
         Load(null, modified: false);
         _draft.ExternalProblems = [];
         _draft.Revalidate();
+        _converted = (workflow, Fingerprint(_draft.Snapshot()));
         RaiseModified();
         RaiseModeChanged();
+    }
+
+    /// <summary>What the user is told before the explicit tree is opened.</summary>
+    public string AdvancedWarningText =>
+        "Converting to Advanced exposes the explicit action tree. Workflow policies will no longer be editable through the high-level workflow model.";
+
+    /// <summary>
+    /// Going back to a workflow is only possible where it is exact: the sequence is empty, or it is still the very steps that a workflow compiled to (nothing of the tree was changed since it was
+    /// opened). A tree is never read back into a workflow by guessing what its steps mean.
+    /// </summary>
+    public bool CanReturnToWorkflow =>
+        Definition is null && IsEditable && (_draft.IsEmpty || (_converted is { } converted && Fingerprint(_draft.Snapshot()) == converted.Fingerprint));
+
+    /// <summary>Why the sequence cannot become a workflow; empty when it can (or already is one).</summary>
+    public string WhyNotWorkflowText => Definition is not null || CanReturnToWorkflow ? string.Empty : "This sequence cannot be represented as a Workflow.";
+
+    /// <summary>Back to the workflow: a new empty one for an empty sequence, or the workflow that the steps still are.</summary>
+    [RelayCommand(CanExecute = nameof(CanReturnToWorkflow))]
+    private void SwitchToWorkflow()
+    {
+        if (Definition is not null)
+        {
+            return;
+        }
+
+        var workflow = _draft.IsEmpty || _converted is null ? WorkflowDefinition.NewEmpty(StartDefaults) : _converted.Value.Workflow;
+        _converted = null;
+        Load(workflow, modified: true);
+        RaiseModeChanged();
+    }
+
+    // The steps as the document would hold them: two sequences with the same fingerprint are the same sequence.
+    private static string Fingerprint(IReadOnlyList<SequenceStepDraft> steps)
+    {
+        return Sidera.Desktop.Documents.SequenceDocumentStore.Fingerprint(Sidera.Desktop.Documents.SequenceDocumentMapper.ToDocument(steps));
     }
 
     [RelayCommand]
@@ -1047,7 +1259,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         FinishRows.Select(r => r.Step!).ToList(),
         _dither,
         _policies.Where(p => ImagingRows.Any(r => ResolvedSetup(r.Block!.Setup)?.Id == p.Setup)).ToList(),
-        _flip == new MeridianFlipSettings() ? null : _flip);
+        _flipUsesDefaults || _flip == new MeridianFlipSettings() ? null : _flip,
+        _flipUsesDefaults);
 
     private string LabelOf(Guid id)
     {
@@ -1072,7 +1285,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
         var definition = BuildDefinition();
         Definition = definition;
-        var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults);
+        var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults, ApplicationFlip);
 
         var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).ToList();
         _unreadable = _targetProblems.Count > 0 || _ditherProblems.Count > 0 || _policyProblems.Count > 0 || _flipProblems.Count > 0;
@@ -1231,7 +1444,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
                 return null;
             }
 
-            Load(WorkflowDefinition.Template(_rigs?.GetAll().ToList() ?? [], _defaults), modified: true);
+            Load(WorkflowDefinition.Template(_rigs?.GetAll().ToList() ?? [], _defaults, StartDefaults), modified: true);
         }
 
         _loading = true;
@@ -1298,6 +1511,17 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     // Something other than this editor changed the steps while the session is a workflow (a step pasted, a step added by code): the steps are no longer what the workflow compiles to, so the
     // session is a sequence of explicit steps from here on, and nothing is lost: the steps are kept as they are.
+    // The steps of an Advanced sequence changed: whether it can still be a workflow is read again.
+    private void OnDraftChanged(object? sender, EventArgs e)
+    {
+        if (Definition is null)
+        {
+            OnPropertyChanged(nameof(CanReturnToWorkflow));
+            OnPropertyChanged(nameof(WhyNotWorkflowText));
+            SwitchToWorkflowCommand.NotifyCanExecuteChanged();
+        }
+    }
+
     private void OnDraftModified(object? sender, EventArgs e)
     {
         if (Definition is not null && !_ownModification)
