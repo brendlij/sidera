@@ -70,6 +70,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         Sidera.Desktop.Settings.SiteService? settings = null)
     {
         _settings = settings;
+        TargetStop = new ConditionTogglesViewModel(TargetStopEdited);
         if (_settings is not null)
         {
             _settings.Changed += OnSettingsChanged;
@@ -595,6 +596,62 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     // ---- loading
 
+    // ---- conditions of the whole target: when imaging of it stops, whatever the blocks are doing
+
+    /// <summary>When imaging of the target stops, for every block of it (any that is on): after the exposures that are running, and the Finish part follows.</summary>
+    public ConditionTogglesViewModel TargetStop { get; }
+
+    /// <summary>"Target stops: astronomical dawn or altitude &lt; 20°"; empty when nothing but the blocks end the imaging.</summary>
+    public string TargetStopSummary => Definition is { } d && d.TargetStopAny.Count > 0 ? "Target stops: " + ConditionTogglesViewModel.SummarizeStop(d.TargetStopAny) : string.Empty;
+
+    private IReadOnlyList<string> _targetStopProblems = [];
+
+    private void TargetStopEdited()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _ = TargetStop.BuildStop();
+        _targetStopProblems = TargetStop.Problems;
+        Recompile(true);
+    }
+
+    /// <summary>Reads what the run says about its waits and stops into the rows; called about once a second while the page is shown, with <see cref="RefreshMeridian"/>.</summary>
+    public void RefreshConditions()
+    {
+        if (Definition is null)
+        {
+            return;
+        }
+
+        var board = _draft.ConditionStatuses;
+        foreach (var row in AllRows)
+        {
+            Sidera.Runtime.Sequencing.ConditionStatus? status = null;
+            if (row.IsImaging)
+            {
+                // A block that still waits to start says why; once it runs, how it is doing.
+                if (board.TryGet(WorkflowCompiler.Derive(row.Id, "start"), out var start) && start.Phase == Sidera.Runtime.Sequencing.ConditionPhase.Waiting)
+                {
+                    status = start;
+                }
+                else if (board.TryGet(WorkflowCompiler.Derive(row.Id, "repeat"), out var imaging))
+                {
+                    status = imaging;
+                }
+            }
+            else if (row.Step is { Kind: WorkflowStepKind.Wait } && board.TryGet(WorkflowCompiler.Derive(row.Id, row.Section == WorkflowSection.Prepare ? "prepare" : "finish"), out var wait))
+            {
+                status = wait;
+            }
+
+            row.ConditionStatusText = status?.Text ?? string.Empty;
+            row.ConditionStatusDetail = status?.Detail ?? string.Empty;
+        }
+    }
+
     // What the application's settings propose: used for what is created, never to change what exists.
     private MeridianFlipSettings ApplicationFlip => _settings?.MeridianFlip ?? new MeridianFlipSettings();
 
@@ -648,6 +705,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             _flip = definition.FlipSettings;
             _flipUsesDefaults = definition.MeridianFlipUsesDefaults;
             _flipProblems = [];
+            TargetStop.Load(definition.TargetStopAny);
+            _targetStopProblems = [];
             foreach (var step in definition.Prepare)
             {
                 PrepareRows.Add(new WorkflowRowViewModel(this, WorkflowSection.Prepare, step, null));
@@ -1260,7 +1319,14 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         _dither,
         _policies.Where(p => ImagingRows.Any(r => ResolvedSetup(r.Block!.Setup)?.Id == p.Setup)).ToList(),
         _flipUsesDefaults || _flip == new MeridianFlipSettings() ? null : _flip,
-        _flipUsesDefaults);
+        _flipUsesDefaults,
+        TargetStopConditions());
+
+    private IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition>? TargetStopConditions()
+    {
+        var conditions = TargetStop.BuildStop();
+        return conditions.Count > 0 ? conditions : null;
+    }
 
     private string LabelOf(Guid id)
     {
@@ -1287,7 +1353,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         Definition = definition;
         var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults, ApplicationFlip);
 
-        var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).ToList();
+        var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).Concat(_targetStopProblems).ToList();
         _unreadable = _targetProblems.Count > 0 || _ditherProblems.Count > 0 || _policyProblems.Count > 0 || _flipProblems.Count > 0;
         var compile = compilation.Problems.Select(p => p.ElementId is { } id ? $"{LabelOf(id)}: {p.Message}" : p.Message).ToList();
         _draft.ExternalProblems = [.. parse, .. compile];
@@ -1331,6 +1397,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         OnPropertyChanged(nameof(HasUnreadableFields));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(CanRunText));
+        OnPropertyChanged(nameof(TargetStopSummary));
         if (modified)
         {
             RaiseModified();
@@ -1357,6 +1424,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
                 WorkflowStepKind.Autofocus => string.Create(CultureInfo.InvariantCulture, $"Once · {(step.Autofocus ?? AutofocusSettings.Default).ExposureSeconds:0.##} s × {(step.Autofocus ?? AutofocusSettings.Default).SampleCount} samples"),
                 WorkflowStepKind.StartGuiding => GuiderNames(scope) is { Length: > 0 } guiders ? $"{guiders} · settles automatically" : "no guider",
                 WorkflowStepKind.StopGuiding => GuiderNames(scope),
+                _ when step.WaitMode == WorkflowWaitMode.UntilTime => "Until " + ConditionTogglesViewModel.SummarizeStart(step.UntilAll),
+                _ when step.WaitMode == WorkflowWaitMode.UntilCondition => "Until " + ConditionTogglesViewModel.SummarizeStart(step.UntilAll),
                 _ => string.Create(CultureInfo.InvariantCulture, $"{step.Seconds:0.##} s"),
             };
         }
@@ -1370,6 +1439,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             row.ExposureLabel = string.Create(CultureInfo.InvariantCulture, $"{block.ExposureSeconds:0.##} s");
             row.FramesLabel = block.Frames.ToString(CultureInfo.InvariantCulture);
             row.Summary = string.Create(CultureInfo.InvariantCulture, $"{(block.FilterSlot is null ? string.Empty : FilterName(rig, block.FilterSlot) + " · ")}{block.ExposureSeconds:0.##} s × {block.Frames}");
+            row.StartText = block.StartAll.Count > 0 ? "Start: " + ConditionTogglesViewModel.SummarizeStart(block.StartAll) : string.Empty;
+            row.StopText = block.StopAny.Count > 0 ? "Stop: " + ConditionTogglesViewModel.SummarizeStop(block.StopAny, block.Frames) : string.Empty;
             row.DitherLabel = DitherLabel(definition, rig, counted, imaged);
             var policy = rig is null ? null : definition.AutofocusPolicies.FirstOrDefault(p => p.Setup == rig.Id);
             row.AutofocusLabel = policy is { Enabled: true } p2 ? AutofocusWhen(p2) : "Off";

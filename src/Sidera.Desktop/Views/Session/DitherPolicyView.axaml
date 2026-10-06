@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Session.DitherPolicyView"
+             x:DataType="vm:WorkflowEditorViewModel">
+
+    <Border Classes="panel" Padding="20,16" Margin="0,8,0,0">
+        <StackPanel Spacing="10">
+            <TextBlock Classes="eyebrow" Text="DITHER" />
+            <WrapPanel ItemSpacing="16" LineSpacing="8">
+                <CheckBox Content="Dither" IsChecked="{Binding DitherEnabled}" IsEnabled="{Binding IsEditable}" VerticalAlignment="Bottom" AutomationProperties.AutomationId="WorkflowDitherEnabled" />
+                <ctl:LabeledField Label="Every N frames"><TextBox Text="{Binding DitherEveryText}" Width="70" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowDitherEvery" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Frames counted on">
+                    <ComboBox ItemsSource="{Binding CountedChoices}" SelectedItem="{Binding SelectedCounted}" Width="170" IsEnabled="{Binding IsEditable}">
+                        <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:SetupChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                </ctl:LabeledField>
+                <ctl:LabeledField Label="Amplitude (px)"><TextBox Text="{Binding DitherAmplitudeText}" Width="90" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Settle ≤ (px)"><TextBox Text="{Binding DitherThresholdText}" Width="90" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="for (s)"><TextBox Text="{Binding DitherStableText}" Width="70" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="timeout (s)"><TextBox Text="{Binding DitherTimeoutText}" Width="80" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
+            </WrapPanel>
+            <TextBlock Classes="secondary" Text="{Binding DitherSummary}" TextWrapping="Wrap" AutomationProperties.AutomationId="WorkflowDitherSummary" />
+        </StackPanel>
+    </Border>
+
+</UserControl>
