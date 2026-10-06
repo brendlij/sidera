@@ -7,6 +7,9 @@ public enum DropPlacement
 {
     Before,
     After,
+
+    /// <summary>Into the container the pointer is over, after the steps it has: the only way to put a step into an empty Repeat, Rig Track or Multi-Rig block.</summary>
+    Into,
 }
 
 /// <summary>What dropping a step at a place would do.</summary>
@@ -45,4 +48,7 @@ public sealed record StepDropPlan(
 )
 {
     public bool IsMove => Outcome == StepDropOutcome.Move;
+
+    /// <summary>How the place was found, so that a drop repeats it.</summary>
+    public DropPlacement Placement { get; init; }
 }

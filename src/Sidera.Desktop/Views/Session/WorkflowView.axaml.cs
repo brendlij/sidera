@@ -107,7 +107,7 @@ public partial class WorkflowView : UserControl
         }
 
         var plan = PlanAt(draft, source, e);
-        var moved = plan?.Over is { } over && draft.Drop(source, over.Id, plan.MarkerBefore ? DropPlacement.Before : DropPlacement.After);
+        var moved = plan?.Over is { } over && draft.Drop(source, over.Id, plan.Placement);
         draft.EndDrag();
         if (moved)
         {
@@ -138,8 +138,17 @@ public partial class WorkflowView : UserControl
 
             if (y <= top.Y + container.Bounds.Height || i == StepList.ItemCount - 1)
             {
-                var placement = y < top.Y + container.Bounds.Height / 2 ? DropPlacement.Before : DropPlacement.After;
-                return StepList.Items[i] is StepDraftViewModel row ? draft.PlanDrop(source, row.Id, placement) : null;
+                if (StepList.Items[i] is not StepDraftViewModel row)
+                {
+                    return null;
+                }
+
+                // The middle of a row that can hold steps puts the step into it (the only way into an empty one); its upper and lower quarter put it before and after.
+                var offset = (y - top.Y) / Math.Max(1, container.Bounds.Height);
+                var placement = row is ContainerStepDraftViewModel && offset is >= 0.25 and <= 0.75
+                    ? DropPlacement.Into
+                    : offset < 0.5 ? DropPlacement.Before : DropPlacement.After;
+                return draft.PlanDrop(source, row.Id, placement);
             }
         }
 
