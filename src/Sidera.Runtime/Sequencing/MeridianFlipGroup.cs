@@ -605,7 +605,8 @@ public sealed class MeridianFlipGroup
     {
         public string Name => "Center after the flip";
 
-        public IReadOnlyCollection<ResourceId> ServiceResources => [ResourceId.ForDevice(group.MountId), ResourceId.ForDevice(group._plan.PointingRig.CameraId)];
+        public IReadOnlyCollection<ResourceId> ServiceResources =>
+            [ResourceId.ForDevice(group.MountId), ResourceId.ForMountStability(group.MountId), ResourceId.ForDevice(group._plan.PointingRig.CameraId)];
 
         public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
         {
@@ -636,12 +637,16 @@ public sealed class MeridianFlipGroup
     }
 
     // Waits for the guider to settle (and, with dither, dithers once first). The real settle of the guider, never a fixed delay.
-    private sealed class FlipSettleStep(MeridianFlipGroup group, DeviceRegistry registry, DeviceId guiderId, bool dither) : IResourceAwareSequenceStep
+    private sealed class FlipSettleStep(MeridianFlipGroup group, DeviceRegistry registry, DeviceId guiderId, bool dither) : IResourceAwareSequenceStep, IClaimingSequenceStep
     {
         public string Name => dither ? "Dither after the flip" : "Settle after the flip";
 
         public IReadOnlyCollection<ResourceId> RequiredResources =>
             dither ? [ResourceId.ForDevice(guiderId), ResourceId.ForDevice(group.MountId)] : [ResourceId.ForDevice(guiderId)];
+
+        // A dither after the flip moves the mount: its stability is held too. Settling alone only watches the guider.
+        public IReadOnlyCollection<ResourceClaim> Claims =>
+            dither ? [.. ResourceClaim.AllExclusive(RequiredResources), ResourceClaim.Exclusive(ResourceId.ForMountStability(group.MountId))] : ResourceClaim.AllExclusive(RequiredResources);
 
         public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
         {

@@ -231,7 +231,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     private SequenceDraftContext Context => new(
         _rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation, Time: Clock, Site: SiteProvider,
-        MeridianPollInterval: PollInterval, Conditions: ConditionStatuses, ConditionPollInterval: PollInterval);
+        MeridianPollInterval: PollInterval, Conditions: ConditionStatuses, ConditionPollInterval: PollInterval, AutofocusHoldsMount: AutofocusHoldsMount?.Invoke() ?? false);
 
     /// <summary>The mounts and rotators that this sequence moves on purpose, as the draft is now (see <see cref="SequenceDraftBuilder.MovingEquipment"/>).</summary>
     public IReadOnlyList<(MovingEquipment Kind, DeviceId Device)> MovingEquipment() =>
@@ -242,6 +242,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     /// <summary>The clock the sky follows; <c>null</c> is the real one. For tests.</summary>
     public TimeProvider? Clock { get; set; }
+
+    /// <summary>Whether a focus run holds the stability of its mount (a setting of the application); <c>null</c> is no.</summary>
+    public Func<bool>? AutofocusHoldsMount { get; set; }
 
     /// <summary>How often a run looks at the sky (conditions, the meridian); <c>null</c> is the usual interval. For tests.</summary>
     public TimeSpan? PollInterval { get; set; }

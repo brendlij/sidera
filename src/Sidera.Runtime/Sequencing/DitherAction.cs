@@ -124,7 +124,7 @@ public sealed class DitherAction : ISequenceStep
 
     // Holds the equipment while the dither runs. Executed by the runner, which acquires its resources first, so
     // it calls the devices directly and never goes through DeviceOperationService.
-    private sealed class DitherCommand(DeviceRegistry registry, DitherAction definition, ILogger logger) : IResourceAwareSequenceStep
+    private sealed class DitherCommand(DeviceRegistry registry, DitherAction definition, ILogger logger) : IResourceAwareSequenceStep, IClaimingSequenceStep
     {
         public string Name => "Dither command";
 
@@ -134,6 +134,9 @@ public sealed class DitherAction : ISequenceStep
                 .Select(ResourceId.ForDevice)
                 .Distinct()
                 .ToArray();
+
+        // The guider and the mount alone, the cameras that are affected (none may expose), and the stability of the mount: the dither moves the mount.
+        public IReadOnlyCollection<ResourceClaim> Claims => [.. ResourceClaim.AllExclusive(RequiredResources), ResourceClaim.Exclusive(ResourceId.ForMountStability(definition.MountId))];
 
         public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
         {

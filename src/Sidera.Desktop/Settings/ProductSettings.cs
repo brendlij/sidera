@@ -61,6 +61,12 @@ public sealed record AutofocusDefaults
 
     public bool PolicyAfterFilterChange { get; init; }
 
+    /// <summary>
+    /// A focus run holds the stability of the mount, so that the exposures of other cameras on the same mount finish before it starts and none starts until it is over. Off by default: focusing
+    /// touches only the camera and the focuser of its setup, and the other setups go on exposing.
+    /// </summary>
+    public bool HoldMountStable { get; init; }
+
     public string? Problem =>
         !double.IsFinite(ExposureSeconds) || ExposureSeconds is < 0.001 or > 3600 ? "The autofocus exposure must be from 0.001 to 3600 seconds."
         : StepSize is < 1 or > 100_000 ? "The step size must be from 1 to 100000 focuser steps."

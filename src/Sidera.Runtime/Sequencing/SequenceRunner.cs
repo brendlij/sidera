@@ -407,8 +407,8 @@ public sealed class SequenceRunner
         {
             // Only steps that declare requirements acquire anything. Containers do not, so a repeat, group
             // or parallel step never holds what its children need: each child takes its own resources.
-            var required = step is IResourceAwareSequenceStep aware ? aware.RequiredResources : [];
-            using (await _resources.AcquireAsync(required, cancellationToken))
+            var required = StepResources.ClaimsOf(step);
+            using (await _resources.AcquireClaimsAsync(required, cancellationToken))
             {
                 // Cancelled while waiting for the resource (or just as it was handed over): do not start the step.
                 cancellationToken.ThrowIfCancellationRequested();

@@ -26,6 +26,16 @@ public readonly record struct ResourceId
         return new ResourceId($"device:{deviceId.Value}");
     }
 
+    /// <summary>
+    /// The resource "the mount does not move": exposures of every camera on that mount hold it shared, and whatever moves or shakes the mount (a slew, centering, a flip, a dither) holds it
+    /// exclusively, which makes it wait for the exposures that are running and keeps new ones from starting. The mount is a device; its stability is a resource of its own because holding the device
+    /// (to slew it) and relying on it standing still (to expose) are different things.
+    /// </summary>
+    public static ResourceId ForMountStability(DeviceId mountId)
+    {
+        return new ResourceId($"mountstability:{mountId.Value}");
+    }
+
     public override string ToString()
     {
         return Value;

@@ -9,10 +9,11 @@ public sealed class ResourceLease : IDisposable
     private long _grantedAt;
     private int _released;
 
-    internal ResourceLease(ResourceManager manager, IReadOnlyList<ResourceId> resources, long grantedAt)
+    internal ResourceLease(ResourceManager manager, IReadOnlyList<ResourceClaim> claims, long grantedAt)
     {
         _manager = manager;
-        Resources = resources;
+        Claims = claims;
+        Resources = [.. claims.Select(c => c.Resource)];
         _grantedAt = grantedAt;
     }
 
@@ -22,11 +23,14 @@ public sealed class ResourceLease : IDisposable
     /// <summary>The distinct resources held by this lease, in the manager's acquisition order.</summary>
     public IReadOnlyList<ResourceId> Resources { get; }
 
+    /// <summary>What is held, and how.</summary>
+    public IReadOnlyList<ResourceClaim> Claims { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _released, 1) == 0)
         {
-            _manager.Release(Resources, _grantedAt);
+            _manager.Release(Claims, _grantedAt);
         }
     }
 }
