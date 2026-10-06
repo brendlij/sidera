@@ -96,7 +96,7 @@ public sealed class DeviceOperationService
             mountId, target.RightAscensionHours, target.DeclinationDegrees);
         await Run("Slew", mountId, async () =>
         {
-            using (await _resources.AcquireAsync([ResourceId.ForDevice(mountId)], cancellationToken))
+            using (await _resources.AcquireClaimsAsync(ResourceClaim.AllExclusive([ResourceId.ForDevice(mountId), ResourceId.ForMountStability(mountId)]), cancellationToken))
             {
                 await mount.SlewToAsync(target, cancellationToken);
             }

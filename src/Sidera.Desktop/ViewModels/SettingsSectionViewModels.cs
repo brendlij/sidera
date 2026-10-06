@@ -223,6 +223,7 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
     [ObservableProperty] public partial bool PolicyAtStart { get; set; }
     [ObservableProperty] public partial string IntervalText { get; set; } = string.Empty;
     [ObservableProperty] public partial bool PolicyAfterFilterChange { get; set; }
+    [ObservableProperty] public partial bool HoldMountStable { get; set; }
 
     public override string AppliesText => "New workflows use it at once; a new Autofocus step and the manual autofocus from the next start. After a meridian flip: see the Meridian Flip tab.";
 
@@ -231,7 +232,7 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
             ? new AutofocusDefaults
             {
                 ExposureSeconds = exposure, StepSize = step, SampleCount = samples, PolicyEnabled = PolicyEnabled, PolicyAtStart = PolicyAtStart, PolicyIntervalMinutes = interval,
-                PolicyAfterFilterChange = PolicyAfterFilterChange,
+                PolicyAfterFilterChange = PolicyAfterFilterChange, HoldMountStable = HoldMountStable,
             }
             : null;
 
@@ -247,6 +248,7 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
         PolicyAtStart = s.PolicyAtStart;
         IntervalText = Format(s.PolicyIntervalMinutes);
         PolicyAfterFilterChange = s.PolicyAfterFilterChange;
+        HoldMountStable = s.HoldMountStable;
     }
 
     protected override string? SaveCore() =>

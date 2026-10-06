@@ -140,7 +140,8 @@ public sealed class RotationService
         var skyTarget = SkyMath.NormalizeRotationDegrees(targetSkyRotationDegrees);
         return RunAsync(async () =>
         {
-            using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(mountId), .. RotatorResources(rig, rotator.Id)], cancellationToken);
+            using var lease = await _resources.AcquireClaimsAsync(
+                ResourceClaim.AllExclusive([ResourceId.ForDevice(mountId), ResourceId.ForMountStability(mountId), .. RotatorResources(rig, rotator.Id)]), cancellationToken);
             CenteringResult? centering = null;
             RotationResult? rotation = null;
             double? pointing = null;
@@ -325,7 +326,7 @@ public sealed class RotationService
 
     /// <summary>What centering and rotating of this rig holds while it runs: the mount, the rotator and the cameras on it.</summary>
     public IReadOnlyCollection<ResourceId> ResourcesOfCenterAndRotate(Rig rig, DeviceId mountId) =>
-        [ResourceId.ForDevice(mountId), .. ResourcesOfRotation(rig)];
+        [ResourceId.ForDevice(mountId), ResourceId.ForMountStability(mountId), .. ResourcesOfRotation(rig)];
 
     // The rotator and every camera that sits on it: none of them may expose while it turns.
     private ResourceId[] RotatorResources(Rig rig, DeviceId rotatorId) =>

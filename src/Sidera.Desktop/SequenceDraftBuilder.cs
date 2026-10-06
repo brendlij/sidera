@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using Sidera.Core.Coordination;
 using Sidera.Core.Conditions;
+using Sidera.Core.Resources;
 using Sidera.Core.Devices;
 using Sidera.Core.Events;
 using Sidera.Core.FilterWheels;
@@ -50,7 +51,8 @@ public sealed record SequenceDraftContext(
     Func<Sidera.Core.Location.ObservingSite?>? Site = null,
     TimeSpan? MeridianPollInterval = null,
     Sidera.Runtime.Sequencing.ConditionStatusBoard? Conditions = null,
-    TimeSpan? ConditionPollInterval = null
+    TimeSpan? ConditionPollInterval = null,
+    bool AutofocusHoldsMount = false
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -397,8 +399,9 @@ public static class SequenceDraftBuilder
     }
 
     /// <summary>
-    /// What a Multi-Rig dither policy moves and uses: the mount and the guider of its trigger rig (for a rig that names none, the session's shared ones), and the tracks whose rigs sit on that
-    /// mount. Rigs on another mount are not disturbed by it and are not asked to wait for it. <c>null</c> when the policy has no usable trigger rig.
+    /// What a Multi-Rig dither policy moves and uses: the mount and the guider of its trigger rig (for a rig that names none, the session's shared ones), and the tracks it affects: the ones whose
+    /// claims conflict with the dither's (the stability of that mount, that guider), which is to say the tracks on the same mount or guided by the same guider. Tracks that share neither are not
+    /// disturbed by it and are not asked to wait for it. <c>null</c> when the policy has no usable trigger rig.
     /// </summary>
     public static DitherDomain? DitherDomain(MultiRigStepDraft multiRig, MultiRigDitherPolicyDraft policy, SequenceDraftContext? context)
     {
@@ -409,12 +412,19 @@ public static class SequenceDraftBuilder
 
         var mount = StepScopes.EffectiveMount(triggerRig, null, context?.Shared);
         var guider = StepScopes.EffectiveGuider(triggerRig, null, context?.Shared);
-        var affected = multiRig.Tracks
-            .Where(track => track.RigId is { } id && TryGetRig(context, id, out var rig)
-                && (id == trigger || (mount is not null && StepScopes.EffectiveMount(rig, null, context?.Shared) == mount)))
-            .Select(track => track.Id)
-            .ToList();
+        var tracks = multiRig.Tracks.Where(track => track.RigId is { } id && TryGetRig(context, id, out _)).ToList();
+        var profiles = tracks.Select(track => ProfileOf(context, track)).ToList();
+        var operation = mount is { } stable ? OperationClaims.Dither(stable, guider) : [];
+        var hit = ResourceClaimMatrix.Affected(profiles, operation).ToHashSet();
+        var affected = tracks.Where((track, index) => track.RigId == trigger || hit.Contains(index)).Select(track => track.Id).ToList();
         return new DitherDomain(mount, guider, affected);
+    }
+
+    // What a track holds over its run, as claims: the one place where its rig, its mount and its guider become claims.
+    private static ClaimProfile ProfileOf(SequenceDraftContext? context, RigTrackDraft track)
+    {
+        TryGetRig(context, track.RigId!.Value, out var rig);
+        return new ClaimProfile(rig.Name, OperationClaims.ImagingSetup(rig, StepScopes.EffectiveMount(rig, null, context?.Shared), StepScopes.EffectiveGuider(rig, null, context?.Shared)));
     }
 
     /// <summary>Checks the whole draft, containers and tracks included, without building anything.</summary>
@@ -519,7 +529,7 @@ public static class SequenceDraftBuilder
         DeviceRegistry registry, AutofocusPlan plan, SequenceDraftContext? context, Orchestration? orchestration, AutofocusOrigin origin)
     {
         var action = AutofocusAction.ForRig(
-            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults);
+            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults, StableMountOf(context, plan.Rig));
         var description = new StepDescription(
             "Autofocus", origin switch
             {
@@ -545,7 +555,7 @@ public static class SequenceDraftBuilder
     private static List<BuiltStep> IntervalAutofocus(DeviceRegistry registry, AutofocusPlan plan, SequenceDraftContext? context, Orchestration? orchestration)
     {
         var action = AutofocusAction.ForRig(
-            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults);
+            registry, plan.Rig, plan.Options, context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults, StableMountOf(context, plan.Rig));
         var step = new IntervalAutofocusStep(action, plan.Clock!, plan.Interval!.Value, plan.Time!);
         var child = new BuiltStep(
             Guid.Empty, new StepDescription("Autofocus", "automatic · interval"), action, null, IsGenerated: true, AutofocusOrigin: AutofocusOrigin.Interval);
@@ -790,11 +800,19 @@ public static class SequenceDraftBuilder
 
         if (flip is not null)
         {
-            foreach (var track in multiRig.Tracks)
+            // A flip moves a mount: the tracks it affects are the ones whose claims conflict with moving that mount, grouped by the mount.
+            var flipTracks = multiRig.Tracks.Where(t => t.RigId is { } id && TryGetRig(context, id, out _)).ToList();
+            var flipProfiles = flipTracks.Select(t => ProfileOf(context, t)).ToList();
+            var flipMounts = flipTracks
+                .Select(t => TryGetRig(context, t.RigId!.Value, out var rig) ? StepScopes.EffectiveMount(rig, null, context?.Shared) : null)
+                .OfType<DeviceId>()
+                .Distinct()
+                .ToList();
+            foreach (var mount in flipMounts)
             {
-                if (track.RigId is { } id && TryGetRig(context, id, out var rig) && StepScopes.EffectiveMount(rig, null, context?.Shared) is { } mount)
+                foreach (var index in ResourceClaimMatrix.Affected(flipProfiles, OperationClaims.MountMove(mount, null)))
                 {
-                    Join(mount, track);
+                    Join(mount, flipTracks[index]);
                 }
             }
         }
@@ -909,17 +927,18 @@ public static class SequenceDraftBuilder
         AutofocusStepDraft a => AutofocusAction.ForRig(
             registry, TryGetRig(context, a.RigId!.Value, out var autofocusRig) ? autofocusRig : null!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
-            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults),
+            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults, StableMountOf(context, autofocusRig)),
         RigAutofocusStepDraft a => AutofocusAction.ForRig(
             registry, rig!,
             new AutofocusOptions(TimeSpan.FromSeconds(a.ExposureSeconds), a.StepSize, a.SampleCount),
-            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults),
+            context!.FocusMetrics!, context.Events, context.Loggers?.CreateLogger<AutofocusAction>(), context.AcquisitionDefaults, StableMountOf(context, rig)),
+        // The mount that carries the camera is part of what an exposure claims: it must stand still, next to other exposures on the same mount.
         ExposureStepDraft e => new CameraExposureAction(
             registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
-            context?.Loggers?.CreateLogger<CameraExposureAction>()),
+            context?.Loggers?.CreateLogger<CameraExposureAction>(), MountOfCamera(context, e.CameraId.Value)),
         RigExposureStepDraft e => new CameraExposureAction(
             registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
-            context?.Loggers?.CreateLogger<CameraExposureAction>()),
+            context?.Loggers?.CreateLogger<CameraExposureAction>(), StepScopes.EffectiveMount(rig, null, context?.Shared)),
         MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterAction(registry, c.FilterWheelId!.Value, c.SlotIndex),
         // Resolved here, at build time: the track names a rig, and the rig names its focuser and its filter wheel.
@@ -939,6 +958,17 @@ public static class SequenceDraftBuilder
             context?.Loggers?.CreateLogger<DitherAction>()),
         _ => throw new ArgumentException($"Unsupported step '{step.GetType().Name}'.", nameof(step)),
     };
+
+    // The mount that carries a camera: the mount of the rig the camera is in, else the mount the session shares; none when neither is known (an exposure does not need one).
+    private static DeviceId? MountOfCamera(SequenceDraftContext? context, DeviceId cameraId)
+    {
+        var rig = context?.Rigs?.GetAll().FirstOrDefault(r => r.CameraId == cameraId);
+        return rig is not null ? StepScopes.EffectiveMount(rig, null, context?.Shared) : context?.Shared?.MountId;
+    }
+
+    // Autofocus holds the stability of the mount only where the application says focusing must not overlap the exposures of other cameras on it.
+    private static DeviceId? StableMountOf(SequenceDraftContext? context, Rig? rig) =>
+        context is { AutofocusHoldsMount: true } && rig is not null ? StepScopes.EffectiveMount(rig, null, context.Shared) : null;
 
     private static bool TryGetRig(SequenceDraftContext? context, RigId id, out Rig rig)
     {

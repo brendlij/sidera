@@ -74,6 +74,10 @@ public static class SideraSettingsSerializer
             w.WriteBoolean("policyAtStart", settings.Autofocus.PolicyAtStart);
             w.WriteNumber("policyIntervalMinutes", settings.Autofocus.PolicyIntervalMinutes);
             w.WriteBoolean("policyAfterFilterChange", settings.Autofocus.PolicyAfterFilterChange);
+            if (settings.Autofocus.HoldMountStable)
+            {
+                w.WriteBoolean("holdMountStable", true);
+            }
             w.WriteEndObject();
 
             w.WriteStartObject("guiding");
@@ -234,6 +238,7 @@ public static class SideraSettingsSerializer
                 PolicyAtStart = Flag(autofocus, "policyAtStart", d.PolicyAtStart, "autofocus"),
                 PolicyIntervalMinutes = Num(autofocus, "policyIntervalMinutes", d.PolicyIntervalMinutes, "autofocus"),
                 PolicyAfterFilterChange = Flag(autofocus, "policyAfterFilterChange", d.PolicyAfterFilterChange, "autofocus"),
+                HoldMountStable = Flag(autofocus, "holdMountStable", d.HoldMountStable, "autofocus"),
             };
             settings = settings with { Autofocus = next.Problem is { } problem ? throw new SideraSettingsException(problem) : next };
         }

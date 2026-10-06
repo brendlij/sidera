@@ -98,6 +98,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
         SequenceDraft.SiteProvider = () => equipmentManagement?.Site?.Site;
+        SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
         Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site);
 
         // A new session opens in the mode the settings choose (a workflow unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.

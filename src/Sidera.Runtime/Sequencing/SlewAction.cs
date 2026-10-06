@@ -17,7 +17,7 @@ namespace Sidera.Runtime.Sequencing;
 /// safe points between branches, not of this resource lock.
 /// </para>
 /// </summary>
-public sealed class SlewAction : IResourceAwareSequenceStep
+public sealed class SlewAction : IResourceAwareSequenceStep, IClaimingSequenceStep
 {
     private readonly DeviceRegistry _registry;
     private readonly DeviceId _mountId;
@@ -39,6 +39,9 @@ public sealed class SlewAction : IResourceAwareSequenceStep
         $"Slew to RA {Target.RightAscensionHours:0.###}h Dec {Target.DeclinationDegrees:+0.###;-0.###;0}°");
 
     public IReadOnlyCollection<ResourceId> RequiredResources => [ResourceId.ForDevice(_mountId)];
+
+    /// <summary>The mount, and its stability: a slew waits for the exposures that run on this mount and keeps new ones from starting.</summary>
+    public IReadOnlyCollection<ResourceClaim> Claims => [ResourceClaim.Exclusive(ResourceId.ForDevice(_mountId)), ResourceClaim.Exclusive(ResourceId.ForMountStability(_mountId))];
 
     /// <exception cref="InvalidOperationException">The mount is unknown, not a mount, or not connected.</exception>
     public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)

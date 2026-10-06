@@ -371,12 +371,14 @@ public sealed class MultiRigResourceMatrixTests
     {
         await using var e = await CreateAsync(sameMount: false, sameGuider: false);
 
-        Assert.Equal(["device:camera.a", "device:mount.1"], StepResources.Of(Center(e, e.A)).Select(r => r.Value).Order());
-        Assert.Equal(["device:camera.b", "device:mount.2"], StepResources.Of(Center(e, e.B)).Select(r => r.Value).Order());
+        // Centering moves the mount: it holds the mount, the stability of the mount (no exposure on it meanwhile) and the camera, all of its own rig.
+        Assert.Equal(["device:camera.a", "device:mount.1", "mountstability:mount.1"], StepResources.Of(Center(e, e.A)).Select(r => r.Value).Order());
+        Assert.Equal(["device:camera.b", "device:mount.2", "mountstability:mount.2"], StepResources.Of(Center(e, e.B)).Select(r => r.Value).Order());
         Assert.Equal(
-            ["device:camera.b", "device:mount.2", "device:rotator.b"],
+            ["device:camera.b", "device:mount.2", "device:rotator.b", "mountstability:mount.2"],
             StepResources.Of(CenterAndRotate(e, e.B)).Select(r => r.Value).Order());
         Assert.DoesNotContain("device:mount.1", StepResources.Of(CenterAndRotate(e, e.B)).Select(r => r.Value));
+        Assert.DoesNotContain("mountstability:mount.1", StepResources.Of(CenterAndRotate(e, e.B)).Select(r => r.Value));
     }
 
     // ---- No self-deadlock

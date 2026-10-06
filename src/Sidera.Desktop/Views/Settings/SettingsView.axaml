@@ -121,6 +121,7 @@
                 <CheckBox Content="Focus at the start" IsChecked="{Binding PolicyAtStart}" />
                 <ctl:LabeledField Label="Refocus every (min, 0 = off)"><TextBox Text="{Binding IntervalText}" AutomationProperties.Name="Autofocus interval" /></ctl:LabeledField>
                 <CheckBox Content="Refocus after a filter change" IsChecked="{Binding PolicyAfterFilterChange}" />
+                <CheckBox Content="Hold the mount still while focusing (other setups on the same mount wait)" IsChecked="{Binding HoldMountStable}" AutomationProperties.AutomationId="AutofocusHoldMount" />
                 <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveAutofocus" />

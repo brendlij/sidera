@@ -34,7 +34,7 @@ namespace Sidera.Runtime.Sequencing;
 /// the rig as scope.
 /// </para>
 /// </summary>
-public sealed class AutofocusAction : IResourceAwareSequenceStep
+public sealed class AutofocusAction : IResourceAwareSequenceStep, IClaimingSequenceStep
 {
     private readonly DeviceRegistry _registry;
     private readonly IFocusMetricProvider _metrics;
@@ -54,13 +54,14 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
         IFocusMetricProvider metrics,
         IEventPublisher? events = null,
         ILogger<AutofocusAction>? logger = null,
-        IAcquisitionDefaultsSource? acquisitionDefaults = null)
+        IAcquisitionDefaultsSource? acquisitionDefaults = null,
+        DeviceId? stableMountId = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(metrics);
         options.Validate();
-
+        StableMountId = stableMountId;
         _registry = registry;
         _metrics = metrics;
         _events = events;
@@ -76,12 +77,12 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
     /// <exception cref="InvalidOperationException">The rig has no focuser.</exception>
     public static AutofocusAction ForRig(
         DeviceRegistry registry, Rig rig, AutofocusOptions options, IFocusMetricProvider metrics, IEventPublisher? events = null,
-        ILogger<AutofocusAction>? logger = null, IAcquisitionDefaultsSource? acquisitionDefaults = null)
+        ILogger<AutofocusAction>? logger = null, IAcquisitionDefaultsSource? acquisitionDefaults = null, DeviceId? stableMountId = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
 
         return rig.FocuserId is { } focuserId
-            ? new AutofocusAction(registry, rig.Id, rig.CameraId, focuserId, options, metrics, events, logger, acquisitionDefaults)
+            ? new AutofocusAction(registry, rig.Id, rig.CameraId, focuserId, options, metrics, events, logger, acquisitionDefaults, stableMountId)
             : throw new InvalidOperationException($"The rig '{rig.Id}' has no focuser, so it cannot be focused.");
     }
 
@@ -92,8 +93,20 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep
 
     public string Name => "Autofocus";
 
+    /// <summary>
+    /// The mount whose stability the focus run claims exclusively; <c>null</c> (the default) when focusing does not need the mount to stand still, which is the usual case: the focuser and the
+    /// camera of one setup are all it touches, and other setups on the same mount go on exposing. Set it where focusing must not overlap the exposures of other cameras on the mount: the run then
+    /// waits for the exposures that are running, and no new one starts until it has finished.
+    /// </summary>
+    public DeviceId? StableMountId { get; }
+
     public IReadOnlyCollection<ResourceId> RequiredResources =>
         [ResourceId.ForDevice(CameraId), ResourceId.ForDevice(FocuserId)];
+
+    public IReadOnlyCollection<ResourceClaim> Claims =>
+        StableMountId is { } mount
+            ? [.. ResourceClaim.AllExclusive(RequiredResources), ResourceClaim.Exclusive(ResourceId.ForMountStability(mount))]
+            : ResourceClaim.AllExclusive(RequiredResources);
 
     /// <summary>Returns a result whose payload is the <see cref="AutofocusResult"/> of this execution.</summary>
     /// <exception cref="AutofocusFailedException">No reliable focus was found.</exception>

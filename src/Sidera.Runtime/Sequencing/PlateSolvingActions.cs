@@ -19,7 +19,7 @@ public sealed class SlewAndCenterAction(
     TimeSpan exposure, PlateSolveDefaults defaults, AcquisitionIntent? intent = null) : ISequenceStep, IServiceLeasedStep
 {
     public IReadOnlyCollection<Sidera.Core.Resources.ResourceId> ServiceResources =>
-        [Sidera.Core.Resources.ResourceId.ForDevice(mountId), Sidera.Core.Resources.ResourceId.ForDevice(rig.CameraId)];
+        [Sidera.Core.Resources.ResourceId.ForDevice(mountId), Sidera.Core.Resources.ResourceId.ForMountStability(mountId), Sidera.Core.Resources.ResourceId.ForDevice(rig.CameraId)];
 
     public CelestialCoordinates Target => target;
 

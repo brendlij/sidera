@@ -263,6 +263,17 @@ public sealed class ProductSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void TheAutofocusHoldingTheMountStill_IsOffByDefault_AndIsStored()
+    {
+        var settings = NewSettings();
+        Assert.False(settings.Autofocus.HoldMountStable);
+
+        Assert.Null(settings.SetAutofocus(new AutofocusDefaults { HoldMountStable = true }).Problem);
+
+        Assert.True(NewSettings().Autofocus.HoldMountStable);
+    }
+
+    [Fact]
     public void WrongValues_AreRefused_WithASentence_AndNothingIsChanged()
     {
         var settings = NewSettings();

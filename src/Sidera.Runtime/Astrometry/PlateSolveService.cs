@@ -154,7 +154,9 @@ public sealed class PlateSolveService
         ValidateCentering(toleranceArcseconds, maxAttempts);
         return RunAsync(async () =>
         {
-            using var lease = await _resources.AcquireAsync([ResourceId.ForDevice(mountId), ResourceId.ForDevice(rig.CameraId)], cancellationToken);
+            // The mount moves while it centers: its stability is held as well, so no camera on this mount is exposing meanwhile.
+            using var lease = await _resources.AcquireClaimsAsync(
+                ResourceClaim.AllExclusive([ResourceId.ForDevice(mountId), ResourceId.ForMountStability(mountId), ResourceId.ForDevice(rig.CameraId)]), cancellationToken);
             return await CenterTargetInLeaseAsync(target, rig, mountId, toleranceArcseconds, maxAttempts, exposure, defaults, intent, progress, cancellationToken);
         }, mountId, MountClaim(mountId), CameraClaim(rig.CameraId));
     }
