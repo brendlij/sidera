@@ -29,8 +29,12 @@ public partial class ImagingView : UserControl
         }
 
         var isFits = kind == "fits";
+        var folder = DataContext is ImagingViewModel { SaveDirectory: { } directory } && directory() is { Length: > 0 } path && System.IO.Directory.Exists(path)
+            ? await storage.TryGetFolderFromPathAsync(path)
+            : null;
         var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
         {
+            SuggestedStartLocation = folder,
             Title = isFits ? "Save the frame as FITS" : "Save the picture as PNG",
             SuggestedFileName = suggestedName,
             DefaultExtension = kind,

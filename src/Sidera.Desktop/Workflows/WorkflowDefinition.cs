@@ -102,20 +102,46 @@ public sealed record WorkflowDefinition(
     IReadOnlyList<WorkflowStep> Finish,
     WorkflowDither Dither,
     IReadOnlyList<SetupAutofocus> AutofocusPolicies,
-    Sidera.Core.Mounts.MeridianFlipSettings? MeridianFlip = null)
+    Sidera.Core.Mounts.MeridianFlipSettings? MeridianFlip = null,
+    bool MeridianFlipUsesDefaults = false)
 {
-    /// <summary>The meridian flip of the workflow; off when the workflow has none.</summary>
+    /// <summary>The meridian flip that the workflow has of its own; off when it has none.</summary>
     public Sidera.Core.Mounts.MeridianFlipSettings FlipSettings => MeridianFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings();
+
+    /// <summary>
+    /// The meridian flip that counts: the application's defaults when the workflow uses them (<see cref="MeridianFlipUsesDefaults"/>), else its own. A workflow with its own settings never
+    /// follows the defaults, so changing them rewrites nothing that was set for this workflow. A document without either is a workflow with its own, disabled flip, as before defaults existed.
+    /// </summary>
+    public Sidera.Core.Mounts.MeridianFlipSettings EffectiveFlip(Sidera.Core.Mounts.MeridianFlipSettings applicationDefaults) =>
+        MeridianFlipUsesDefaults ? applicationDefaults : FlipSettings;
 
     /// <summary>A workflow with a target and nothing else.</summary>
     public static WorkflowDefinition Empty { get; } = new(WorkflowTarget.Default, [], [], [], WorkflowDither.Off, []);
+
+    /// <summary>The autofocus policy that the defaults propose for a setup.</summary>
+    public static SetupAutofocus AutofocusPolicyOf(RigId setup, Sidera.Desktop.Settings.AutofocusDefaults d) =>
+        new(setup, d.PolicyEnabled, d.PolicyAtStart, d.PolicyIntervalMinutes, d.PolicyAfterFilterChange, new AutofocusSettings(d.ExposureSeconds, d.StepSize, d.SampleCount));
 
     /// <summary>The autofocus policy of a setup; off when it has none.</summary>
     public SetupAutofocus AutofocusOf(RigId setup) =>
         AutofocusPolicies.FirstOrDefault(p => p.Setup == setup) ?? new SetupAutofocus(setup, false, false, 0, false, AutofocusSettings.Default);
 
     /// <summary>A starting point for the rigs there are: center, focus and guide (where the first setup has what it takes), image with the first setup, stop guiding.</summary>
-    public static WorkflowDefinition Template(IReadOnlyList<Rig> rigs, SequenceDraftDefaults defaults)
+    /// <summary>The application defaults that a new workflow starts from: what to focus with, whether to guide and dither. Existing workflows are never changed by them.</summary>
+    public sealed record StartDefaults(Sidera.Desktop.Settings.AutofocusDefaults Autofocus, Sidera.Desktop.Settings.GuidingDefaults Guiding);
+
+    /// <summary>A new workflow, empty, with the dither values of the defaults and the meridian flip following the application's.</summary>
+    public static WorkflowDefinition NewEmpty(StartDefaults? start = null)
+    {
+        var g = start?.Guiding ?? new Sidera.Desktop.Settings.GuidingDefaults();
+        return Empty with
+        {
+            Dither = new WorkflowDither(g.DitherByDefault, g.DitherEveryNFrames, null, g.DitherAmplitudePixels, g.SettleThresholdPixels, g.SettleStableSeconds, g.SettleTimeoutSeconds),
+            MeridianFlipUsesDefaults = true,
+        };
+    }
+
+    public static WorkflowDefinition Template(IReadOnlyList<Rig> rigs, SequenceDraftDefaults defaults, StartDefaults? start = null)
     {
         ArgumentNullException.ThrowIfNull(rigs);
         ArgumentNullException.ThrowIfNull(defaults);
@@ -127,18 +153,30 @@ public sealed record WorkflowDefinition(
             prepare.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.SlewAndCenter));
         }
 
+        var autofocus = start?.Autofocus ?? new Sidera.Desktop.Settings.AutofocusDefaults();
+        var guiding = start?.Guiding ?? new Sidera.Desktop.Settings.GuidingDefaults();
         if (first?.FocuserId is not null)
         {
-            prepare.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.Autofocus));
+            prepare.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.Autofocus, Autofocus: new AutofocusSettings(autofocus.ExposureSeconds, autofocus.StepSize, autofocus.SampleCount)));
         }
 
         if (first?.GuiderId is not null)
         {
-            prepare.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.StartGuiding));
-            finish.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.StopGuiding));
+            if (guiding.StartBeforeImaging)
+            {
+                prepare.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.StartGuiding));
+            }
+
+            if (guiding.StopWhenDone)
+            {
+                finish.Add(new WorkflowStep(Guid.NewGuid(), WorkflowStepKind.StopGuiding));
+            }
         }
 
         var blocks = first is null ? [] : new List<ImagingBlock> { new(Guid.NewGuid(), first.Id, null, defaults.ExposureSeconds, 10) };
-        return Empty with { Prepare = prepare, Imaging = blocks, Finish = finish };
+        var policies = first is not null && first.FocuserId is not null && autofocus.PolicyEnabled
+            ? [AutofocusPolicyOf(first.Id, autofocus)]
+            : new List<SetupAutofocus>();
+        return NewEmpty(start) with { Prepare = prepare, Imaging = blocks, Finish = finish, AutofocusPolicies = policies };
     }
 }

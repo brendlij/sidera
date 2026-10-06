@@ -46,6 +46,14 @@ public sealed class SequenceDocumentStore(ISequenceDocumentSerializer serializer
     /// <summary>A store with the serializer of the current format version.</summary>
     public static SequenceDocumentStore CreateDefault() => new(new JsonSequenceDocumentSerializer());
 
+    /// <summary>The document as it would be stored, as text: two documents with the same fingerprint are the same sequence.</summary>
+    public static string Fingerprint(SequenceDocument document)
+    {
+        using var stream = new MemoryStream();
+        new JsonSequenceDocumentSerializer().SaveAsync(stream, document, CancellationToken.None).GetAwaiter().GetResult();
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
     public async Task<SequenceDocument> LoadAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

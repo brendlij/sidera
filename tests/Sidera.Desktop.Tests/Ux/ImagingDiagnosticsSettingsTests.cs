@@ -218,7 +218,7 @@ public class ImagingDiagnosticsSettingsTests
 
         Assert.Equal(["General", "Appearance", "Logging", "Equipment defaults"], settings.Groups.Select(g => g.Title));
         Assert.DoesNotContain(settings.Groups, g => g.IsEditable); // no fake switches
-        Assert.Contains("observing site", settings.NoteText);
+        Assert.Contains("from now on", settings.NoteText);
     }
 
     [Fact]
@@ -253,7 +253,8 @@ public class ImagingDiagnosticsSettingsTests
         try
         {
             var settings = new SettingsViewModel(null, new Sidera.Desktop.Settings.SiteService(new Sidera.Desktop.Settings.SideraSettingsStore(path)));
-            Assert.Equal(["General", "Observatory", "Plate solving", "Framing"], settings.Tabs.Select(t => t.Title));
+            Assert.Equal(
+                ["General", "Observatory", "Imaging", "Autofocus", "Guiding", "Plate solving", "Framing", "Meridian Flip", "Sequencer", "Advanced"], settings.Tabs.Select(t => t.Title));
             Assert.Equal(["General"], settings.Tabs.Where(t => t.IsSelected).Select(t => t.Title));
 
             settings.Tabs.Single(t => t.Title == "Plate solving").IsSelected = true; // what the tab button does

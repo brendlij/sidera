@@ -20,8 +20,13 @@
                     <TextBlock Classes="page-title" Text="{Binding Document.DisplayName}" VerticalAlignment="Center"
                                AutomationProperties.AutomationId="SessionTitle" />
                     <ctl:StatusIndicator Kind="Warning" Text="Modified" IsVisible="{Binding Document.IsDirty}" />
-                    <TextBlock Classes="meta" Text="Advanced · explicit steps" VerticalAlignment="Center" IsVisible="{Binding Workflow.IsAdvancedMode, FallbackValue=False}"
-                               ToolTip.Tip="This session is a sequence of explicit steps. New creates a workflow." />
+                    <!-- How the session is edited: as a workflow, or as the explicit tree of steps. Going to Advanced asks first; going back is offered only where it is exact. -->
+                    <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center" DataContext="{Binding Workflow}" x:DataType="vm:WorkflowEditorViewModel">
+                        <Button Classes="ghost" Content="Workflow" Classes.primary="{Binding IsWorkflowMode}" Command="{Binding SwitchToWorkflowCommand}"
+                                AutomationProperties.AutomationId="SessionModeWorkflow" AutomationProperties.Name="Workflow mode" />
+                        <Button Classes="ghost" Content="Advanced" Classes.primary="{Binding IsAdvancedMode}" Command="{Binding ConvertToAdvancedCommand}"
+                                AutomationProperties.AutomationId="SessionModeAdvanced" AutomationProperties.Name="Advanced mode" />
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="0" Margin="-10,0,0,0">
                     <Button Classes="ghost" Content="New" Command="{Binding Document.NewCommand}" />
@@ -46,6 +51,15 @@
 
         <!-- What needs a word, near what it is about: the document, the run -->
         <StackPanel Grid.Row="1" Spacing="8">
+            <Border Classes="notice-info" IsVisible="{Binding Workflow.IsConfirmingAdvanced, FallbackValue=False}" AutomationProperties.AutomationId="ConvertToAdvancedNotice">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding Workflow.AdvancedWarningText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Classes="primary" Content="Convert to Advanced" Command="{Binding Workflow.ConvertToAdvancedCommand}" AutomationProperties.AutomationId="ConfirmConvertToAdvanced" />
+                    <Button Grid.Column="2" Content="Keep Workflow" Command="{Binding Workflow.CancelConvertToAdvancedCommand}" AutomationProperties.AutomationId="CancelConvertToAdvanced" />
+                </Grid>
+            </Border>
+            <TextBlock Classes="secondary" Text="{Binding Workflow.WhyNotWorkflowText}" TextWrapping="Wrap" AutomationProperties.AutomationId="WhyNotWorkflow"
+                       IsVisible="{Binding Workflow.WhyNotWorkflowText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
             <Border Classes="notice-info" IsVisible="{Binding Document.IsConfirmingDiscard}">
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                     <TextBlock Text="Discard unsaved changes?" VerticalAlignment="Center" />

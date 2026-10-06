@@ -20,11 +20,11 @@
 
             <ItemsControl ItemsSource="{Binding Tabs}">
                 <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
+                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:SettingsTabViewModel">
-                        <RadioButton Classes="tab" GroupName="SettingsTab" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
+                        <RadioButton Classes="tab" Margin="0,0,20,4" GroupName="SettingsTab" Content="{Binding Title}" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -93,6 +93,126 @@
                 <TextBlock Classes="meta" Text="The cache holds only the sky imagery you looked at, for your own use; it belongs to its source and is never shared." TextWrapping="Wrap" />
                 <Button Content="Save sky atlas" Command="{Binding SaveCommand}" HorizontalAlignment="Left" />
                 <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel DataContext="{Binding Imaging}" x:DataType="vm:ImagingSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsImaging}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="IMAGING" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="The manual imaging page. The acquisition defaults of a camera stay with the camera." />
+                <ctl:LabeledField Label="Save folder (empty for the folder the dialog chooses)"><TextBox Text="{Binding SaveDirectoryText}" AutomationProperties.Name="Save folder" /></ctl:LabeledField>
+                <CheckBox Content="Auto Stretch for new frames" IsChecked="{Binding AutoStretch}" />
+                <CheckBox Content="Fit the frame to the view when a manual capture arrives" IsChecked="{Binding FitOnCapture}" />
+                <ctl:LabeledField Label="Manual capture exposure (s)"><TextBox Text="{Binding ManualExposureText}" AutomationProperties.Name="Manual exposure" /></ctl:LabeledField>
+                <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveImaging" />
+                    <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardImaging" />
+                    <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyImaging" />
+                </StackPanel>
+                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultImaging" /></Border>
+            </StackPanel>
+            <StackPanel DataContext="{Binding Autofocus}" x:DataType="vm:AutofocusSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsAutofocus}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="AUTOFOCUS" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Exposure (s)"><TextBox Text="{Binding ExposureText}" AutomationProperties.Name="Autofocus exposure" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding StepSizeText}" AutomationProperties.Name="Autofocus step size" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding SamplesText}" AutomationProperties.Name="Autofocus samples" /></ctl:LabeledField>
+                </Grid>
+                <TextBlock Classes="eyebrow" Text="POLICY FOR NEW WORKFLOWS" />
+                <CheckBox Content="New imaging setups with a focuser focus by themselves" IsChecked="{Binding PolicyEnabled}" />
+                <CheckBox Content="Focus at the start" IsChecked="{Binding PolicyAtStart}" />
+                <ctl:LabeledField Label="Refocus every (min, 0 = off)"><TextBox Text="{Binding IntervalText}" AutomationProperties.Name="Autofocus interval" /></ctl:LabeledField>
+                <CheckBox Content="Refocus after a filter change" IsChecked="{Binding PolicyAfterFilterChange}" />
+                <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveAutofocus" />
+                    <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardAutofocus" />
+                    <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyAutofocus" />
+                </StackPanel>
+                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultAutofocus" /></Border>
+            </StackPanel>
+            <StackPanel DataContext="{Binding Guiding}" x:DataType="vm:GuidingSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsGuiding}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="GUIDING" />
+                <CheckBox Content="Start guiding before imaging" IsChecked="{Binding StartBeforeImaging}" />
+                <CheckBox Content="Stop guiding when the session is done" IsChecked="{Binding StopWhenDone}" />
+                <CheckBox Content="Dither in new workflows" IsChecked="{Binding DitherByDefault}" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Dither every N frames"><TextBox Text="{Binding EveryText}" AutomationProperties.Name="Dither every" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Dither amount (px)"><TextBox Text="{Binding AmplitudeText}" AutomationProperties.Name="Dither amount" /></ctl:LabeledField>
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Settle tolerance (px)"><TextBox Text="{Binding ThresholdText}" AutomationProperties.Name="Settle tolerance" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Stable for (s)"><TextBox Text="{Binding StableText}" AutomationProperties.Name="Settle stable time" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Timeout (s)"><TextBox Text="{Binding TimeoutText}" AutomationProperties.Name="Settle timeout" /></ctl:LabeledField>
+                </Grid>
+                <TextBlock Classes="meta" TextWrapping="Wrap" Text="Dithering moves the guide star in both axes; RA-only dithering is not supported." />
+                <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveGuiding" />
+                    <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardGuiding" />
+                    <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyGuiding" />
+                </StackPanel>
+                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultGuiding" /></Border>
+            </StackPanel>
+            <StackPanel DataContext="{Binding MeridianFlip}" x:DataType="vm:MeridianFlipSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsMeridianFlip}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="MERIDIAN FLIP (APPLICATION DEFAULTS)" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="What every workflow does at the meridian unless it has settings of its own. A workflow chooses between these defaults and its own on the session page." />
+                <CheckBox Content="Flip at the meridian" IsChecked="{Binding Enabled}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Hold new exposures (min before)"><TextBox Text="{Binding PauseBeforeText}" AutomationProperties.Name="Pause before" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Flip (min after)"><TextBox Text="{Binding FlipAfterText}" AutomationProperties.Name="Flip after" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Latest (min after)"><TextBox Text="{Binding LatestText}" AutomationProperties.Name="Latest flip" /></ctl:LabeledField>
+                </Grid>
+                <CheckBox Content="Stop guiding before the flip" IsChecked="{Binding StopGuiding}" />
+                <CheckBox Content="Recenter after the flip" IsChecked="{Binding Recenter}" />
+                <CheckBox Content="Verify the rotation after the flip" IsChecked="{Binding VerifyRotation}" />
+                <CheckBox Content="Autofocus after the flip" IsChecked="{Binding Autofocus}" />
+                <CheckBox Content="Restart guiding after the flip" IsChecked="{Binding RestartGuiding}" />
+                <CheckBox Content="Dither after the flip" IsChecked="{Binding Dither}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Pause after the flip (min)"><TextBox Text="{Binding PauseAfterText}" AutomationProperties.Name="Pause after" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Flip attempts"><TextBox Text="{Binding AttemptsText}" AutomationProperties.Name="Flip attempts" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Centering tolerance (arcsec)"><TextBox Text="{Binding ToleranceText}" AutomationProperties.Name="Centering tolerance" /></ctl:LabeledField>
+                </Grid>
+                <ctl:LabeledField Label="Centering attempts"><TextBox Text="{Binding CenteringAttemptsText}" AutomationProperties.Name="Centering attempts" /></ctl:LabeledField>
+                <CheckBox Content="Pause the session when the flip fails (otherwise abort it)" IsChecked="{Binding PauseOnFailure}" />
+                <TextBlock Classes="meta" TextWrapping="Wrap" Text="An exposure that is running when the flip comes due is always finished first." />
+                <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveMeridianFlip" />
+                    <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardMeridianFlip" />
+                    <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyMeridianFlip" />
+                </StackPanel>
+                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultMeridianFlip" /></Border>
+            </StackPanel>
+            <StackPanel DataContext="{Binding Sequencer}" x:DataType="vm:SequencerSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsSequencer}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="SEQUENCER" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="How a new session opens." />
+                <RadioButton GroupName="DefaultSessionMode" Content="Workflow (targets, imaging blocks and policies)" IsChecked="{Binding IsWorkflowDefault}" AutomationProperties.AutomationId="DefaultModeWorkflow" />
+                <RadioButton GroupName="DefaultSessionMode" Content="Advanced (the explicit tree of steps)" IsChecked="{Binding IsAdvancedDefault}" AutomationProperties.AutomationId="DefaultModeAdvanced" />
+                <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveSequencer" />
+                    <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardSequencer" />
+                    <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtySequencer" />
+                </StackPanel>
+                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultSequencer" /></Border>
+            </StackPanel>
+            <StackPanel DataContext="{Binding Advanced}" x:DataType="vm:AdvancedSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsAdvanced}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="ADVANCED" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="Technical information. Nothing here is a hardware test switch: the tests of real equipment have their own variables and are not part of the application." />
+                <Border Classes="panel">
+                    <StackPanel Spacing="4">
+                        <ctl:InfoRow Label="Settings file" Value="{Binding SettingsFileText}" />
+                        <ctl:InfoRow Label="Equipment file" Value="{Binding EquipmentFileText}" />
+                        <ctl:InfoRow Label="Log folder" Value="{Binding LogFolderText}" />
+                    </StackPanel>
+                </Border>
+                <TextBlock Classes="eyebrow" Text="ENVIRONMENT VARIABLES READ" />
+                <ItemsControl ItemsSource="{Binding EnvironmentText}">
+                    <ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Classes="secondary" Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="eyebrow" Text="HARDWARE ACKNOWLEDGEMENTS" IsVisible="{Binding HasSafety}" />
+                <TextBlock Classes="secondary" Text="{Binding AnsweredText}" TextWrapping="Wrap" IsVisible="{Binding HasSafety}" AutomationProperties.AutomationId="AnsweredText" />
+                <Button Content="Forget hardware acknowledgements" Command="{Binding ForgetCommand}" IsVisible="{Binding HasSafety}" HorizontalAlignment="Left" AutomationProperties.AutomationId="ForgetAcknowledgements" />
             </StackPanel>
             <ItemsControl ItemsSource="{Binding Groups}" IsVisible="{Binding IsGeneral}">
                 <ItemsControl.ItemsPanel>

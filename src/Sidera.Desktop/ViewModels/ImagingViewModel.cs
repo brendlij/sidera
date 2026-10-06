@@ -157,6 +157,12 @@ public sealed partial class ImagingViewModel : ViewModelBase, IDisposable
     /// <summary>Asks the person where to save: the suggested file name and the kind ("fits" or "png") in, the path out, <c>null</c> when they cancel. Set by the view.</summary>
     public Func<string, string, Task<string?>>? PickSavePath { get; set; }
 
+    /// <summary>The folder the Save dialogs open in (a setting); <c>null</c> for the folder the dialog chooses.</summary>
+    public Func<string?>? SaveDirectory { get; set; }
+
+    /// <summary>A frame that a manual capture made is shown fitted to the view (a setting); off keeps the zoom and position that were chosen.</summary>
+    public bool FitOnCapture { get; set; } = true;
+
     /// <summary>What the host knows about the equipment and the site, for the header of a FITS file. Set by the application.</summary>
     public Sidera.Runtime.SideraRuntimeHost? ExportHost { get; set; }
 
