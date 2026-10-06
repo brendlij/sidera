@@ -58,6 +58,9 @@ public static class WorkflowCompiler
 
         Rig? Find(RigId? id) => id is { } rigId && rigs is not null && rigs.TryGet(rigId, out var rig) ? rig : null;
 
+        // What the conditions of the workflow are computed for: the target of the workflow, as plain coordinates inside the steps that use them.
+        var conditionTarget = new ConditionTargetDraft(workflow.Target.Name, workflow.Target.RightAscensionHours, workflow.Target.DeclinationDegrees);
+
         // ---- the setups that are imaged, in the order they first appear
         var setups = new List<Rig>();
         var blocksOf = new Dictionary<RigId, List<ImagingBlock>>();
@@ -115,6 +118,14 @@ public static class WorkflowCompiler
                 int? slot = null;
                 foreach (var block in blocksOf[rig.Id])
                 {
+                    // "Do not begin until ...": before everything the block does, so that it does not even change the filter or focus for imaging that has to wait.
+                    if (block.StartAll.Count > 0)
+                    {
+                        var start = Derive(block.Id, "start");
+                        origins[start] = block.Id;
+                        trackSteps.Add(new WaitUntilStepDraft(start, block.StartAll, conditionTarget));
+                    }
+
                     if (block.FilterSlot is { } wanted && wanted != slot && rig.FilterWheelId is not null)
                     {
                         var change = Derive(block.Id, "filter");
@@ -127,7 +138,9 @@ public static class WorkflowCompiler
                     var repeat = Derive(block.Id, "repeat");
                     origins[exposure] = block.Id;
                     origins[repeat] = block.Id;
-                    trackSteps.Add(new RepeatStepDraft(repeat, Math.Max(1, block.Frames), [new RigExposureStepDraft(exposure, Math.Max(double.Epsilon, block.ExposureSeconds))]));
+                    trackSteps.Add(new RepeatStepDraft(
+                        repeat, Math.Max(1, block.Frames), [new RigExposureStepDraft(exposure, Math.Max(double.Epsilon, block.ExposureSeconds))],
+                        block.StopAny.Count > 0 ? new StopConditionsDraft(block.StopAny, conditionTarget) : null));
                 }
 
                 origins[trackId] = blocksOf[rig.Id][0].Id;
@@ -135,7 +148,8 @@ public static class WorkflowCompiler
             }
 
             steps.Add(new MultiRigStepDraft(
-                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, applicationFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings(), setups, blocksOf, problems)));
+                Derive(Guid.Empty, "imaging"), tracks, DitherOf(workflow, setups, blocksOf, problems), SingleTrack: true, MeridianFlip: FlipOf(workflow, applicationFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings(), setups, blocksOf, problems),
+                TargetStop: workflow.TargetStopAny.Count > 0 ? new StopConditionsDraft(workflow.TargetStopAny, conditionTarget) : null));
         }
 
         foreach (var step in workflow.Finish.Where(s => s.Enabled))
@@ -164,7 +178,20 @@ public static class WorkflowCompiler
                 {
                     var id = Derive(step.Id, section);
                     origins[id] = step.Id;
-                    steps.Add(new DelayStepDraft(id, step.Seconds));
+                    if (step.WaitMode == WorkflowWaitMode.Duration)
+                    {
+                        steps.Add(new DelayStepDraft(id, step.Seconds));
+                    }
+                    else
+                    {
+                        if (step.UntilAll.Count == 0)
+                        {
+                            problems.Add(new WorkflowProblem(step.Id, step.WaitMode == WorkflowWaitMode.UntilTime ? "Choose the time to wait until." : "Choose what to wait for."));
+                        }
+
+                        steps.Add(new WaitUntilStepDraft(id, step.UntilAll, conditionTarget));
+                    }
+
                     break;
                 }
 

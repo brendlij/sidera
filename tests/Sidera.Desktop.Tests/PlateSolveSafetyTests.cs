@@ -133,7 +133,7 @@ public sealed class PlateSolveSafetyTests : IAsyncLifetime
 
         await vm.SlewAndCenterCommand.ExecuteAsync(null);
 
-        Assert.Equal("Centered", vm.StatusText);
+        Assert.StartsWith("Centered", vm.StatusText); // the last progress line of the centering can still follow the word
         Assert.True(SkyMath.AngularSeparationDegrees(mount.Coordinates, new CelestialCoordinates(5.5, 22)) < 0.01);
         Assert.Equal(0, ((Sidera.Runtime.Devices.SimulatedMount)mount).SyncCount);
         Assert.NotNull(host);

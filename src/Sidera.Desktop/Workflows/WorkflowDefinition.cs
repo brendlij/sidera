@@ -20,8 +20,21 @@ public enum WorkflowStepKind
     /// <summary>Stops guiding with the guider of the setup (or of every setup that was imaged).</summary>
     StopGuiding,
 
-    /// <summary>Waits.</summary>
+    /// <summary>Waits: for a time, until a moment, or until a condition (see <see cref="WorkflowWaitMode"/>).</summary>
     Wait
+}
+
+/// <summary>What a Wait step waits for.</summary>
+public enum WorkflowWaitMode
+{
+    /// <summary>A number of seconds.</summary>
+    Duration,
+
+    /// <summary>A moment: a time of day or an instant.</summary>
+    UntilTime,
+
+    /// <summary>Until conditions of the sky hold (the target above an altitude, darkness).</summary>
+    UntilCondition
 }
 
 /// <summary>The sections of a workflow, in the order they run.</summary>
@@ -61,13 +74,34 @@ public sealed record WorkflowStep(
     double ToleranceArcseconds = 60,
     int MaxAttempts = 5,
     double SolveExposureSeconds = 5,
-    AutofocusSettings? Autofocus = null);
+    AutofocusSettings? Autofocus = null,
+    WorkflowWaitMode WaitMode = WorkflowWaitMode.Duration,
+    IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition>? Until = null)
+{
+    /// <summary>What a Wait step waits until (all of it); empty for a Wait of a duration.</summary>
+    public IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition> UntilAll => Until ?? [];
+}
 
 /// <summary>
 /// One program of the Imaging section: with this setup, optionally through this filter (the index of its slot), take <see cref="Frames"/> exposures of <see cref="ExposureSeconds"/>.
 /// Blocks of different setups run at the same time; blocks of one setup run one after another, in the order they are listed.
 /// </summary>
-public sealed record ImagingBlock(Guid Id, RigId? Setup, int? FilterSlot, double ExposureSeconds, int Frames, bool Enabled = true);
+public sealed record ImagingBlock(
+    Guid Id,
+    RigId? Setup,
+    int? FilterSlot,
+    double ExposureSeconds,
+    int Frames,
+    bool Enabled = true,
+    IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition>? StartWhen = null,
+    IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition>? StopWhen = null)
+{
+    /// <summary>The block does not begin until <b>all</b> of these hold.</summary>
+    public IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition> StartAll => StartWhen ?? [];
+
+    /// <summary>The block stops when <b>any</b> of these holds (and when its frames are taken, which is its own count).</summary>
+    public IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition> StopAny => StopWhen ?? [];
+}
 
 /// <summary>
 /// Dithering as a policy of the Imaging section: after every <see cref="EveryNFrames"/> frames of the <see cref="CountedSetup"/> (<c>null</c>: the first one imaged) the mount of that
@@ -103,8 +137,12 @@ public sealed record WorkflowDefinition(
     WorkflowDither Dither,
     IReadOnlyList<SetupAutofocus> AutofocusPolicies,
     Sidera.Core.Mounts.MeridianFlipSettings? MeridianFlip = null,
-    bool MeridianFlipUsesDefaults = false)
+    bool MeridianFlipUsesDefaults = false,
+    IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition>? StopTargetWhen = null)
 {
+    /// <summary>Imaging of the whole target stops when <b>any</b> of these holds: every block of it ends after its current exposure, and the Finish part follows.</summary>
+    public IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition> TargetStopAny => StopTargetWhen ?? [];
+
     /// <summary>The meridian flip that the workflow has of its own; off when it has none.</summary>
     public Sidera.Core.Mounts.MeridianFlipSettings FlipSettings => MeridianFlip ?? new Sidera.Core.Mounts.MeridianFlipSettings();
 

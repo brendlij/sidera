@@ -252,9 +252,13 @@ public sealed partial class RepeatStepDraftViewModel : ContainerStepDraftViewMod
         : base(draft.Id, children)
     {
         CountText = draft.Count.ToString(CultureInfo.InvariantCulture);
+        Stop = draft.Stop;
     }
 
     public override SequenceStepKind Kind => SequenceStepKind.Repeat;
+
+    /// <summary>When imaging in this Repeat stops before its count (any of them); kept as the draft had it, shown in the description of the step.</summary>
+    public StopConditionsDraft? Stop { get; }
 
     /// <summary>How many times the steps inside run.</summary>
     [ObservableProperty]
@@ -277,7 +281,7 @@ public sealed partial class RepeatStepDraftViewModel : ContainerStepDraftViewMod
     }
 
     // Without its children: the draft view model reads those, with their own problems.
-    internal override SequenceStepDraft Read(List<string> parseErrors) => new RepeatStepDraft(Id, ReadCount(parseErrors), []);
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new RepeatStepDraft(Id, ReadCount(parseErrors), [], Stop);
 }
 
 /// <summary>
@@ -293,6 +297,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     {
         SingleTrack = draft.SingleTrack;
         MeridianFlip = draft.MeridianFlip;
+        TargetStop = draft.TargetStop;
         var policy = draft.DitherPolicy ?? MultiRigDitherPolicyDraft.Default;
         DitherEnabled = policy.Enabled;
         DitherEveryText = policy.EveryNFrames.ToString(CultureInfo.InvariantCulture);
@@ -315,6 +320,9 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
 
     /// <summary>The meridian flip of the block, kept as it was read: a workflow sets it, the Advanced editor shows it in the summary and keeps it.</summary>
     public MeridianFlipPolicyDraft? MeridianFlip { get; }
+
+    /// <summary>When imaging of the whole target stops (any of them); kept as the draft had it.</summary>
+    public StopConditionsDraft? TargetStop { get; }
 
     /// <summary>The Rig Tracks as lanes: what each rig does, one summary for each, for the overview of the block.</summary>
     public IReadOnlyList<LaneSummary> Lanes => Children.OfType<RigTrackDraftViewModel>().Select(track => track.Lane).ToList();
@@ -428,7 +436,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     }
 
     // Without its tracks: the draft view model reads those.
-    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors), SingleTrack, MeridianFlip);
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new MultiRigStepDraft(Id, [], ReadPolicy(parseErrors), SingleTrack, MeridianFlip, TargetStop);
 }
 
 /// <summary>
@@ -645,6 +653,24 @@ public sealed partial class DelayStepDraftViewModel : StepDraftViewModel
 
     internal override SequenceStepDraft Read(List<string> parseErrors) =>
         new DelayStepDraft(Id, ParseNumber(DurationText, "Delay", "a number of seconds", parseErrors, 1));
+}
+
+/// <summary>
+/// A Wait Until step: all of its conditions must hold. The conditions are edited in the workflow; here they are shown, and kept exactly as they are, so that a sequence that came from a workflow
+/// loses nothing in the Advanced editor.
+/// </summary>
+public sealed class WaitUntilStepDraftViewModel : StepDraftViewModel
+{
+    private readonly WaitUntilStepDraft _draft;
+
+    public WaitUntilStepDraftViewModel(WaitUntilStepDraft draft) : base(draft.Id) => _draft = draft;
+
+    public override SequenceStepKind Kind => SequenceStepKind.WaitUntil;
+
+    /// <summary>"Target altitude above 30° and Astronomical darkness".</summary>
+    public string ConditionsText => _draft.Conditions.Count == 0 ? "No condition" : string.Join(" and ", _draft.Conditions.Select(c => c.Summary));
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) => _draft;
 }
 
 public sealed partial class SlewStepDraftViewModel : StepDraftViewModel

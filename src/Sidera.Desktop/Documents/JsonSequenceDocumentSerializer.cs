@@ -44,6 +44,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
     // The discriminators of version 1. They are part of the file format: never derive them from a class name.
     private const string ExposureType = "exposure";
     private const string DelayType = "delay";
+    private const string WaitUntilType = "waitUntil";
     private const string SlewType = "slew";
     private const string StartGuidingType = "startGuiding";
     private const string StopGuidingType = "stopGuiding";
@@ -153,6 +154,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             case DelayDocumentStep d:
                 Header(w, DelayType, d.Id);
                 w.WriteNumber("durationSeconds", d.DurationSeconds);
+                break;
+            case WaitUntilDocumentStep wait:
+                Header(w, WaitUntilType, wait.Id);
+                WorkflowJson.WriteConditions(w, "conditions", wait.Conditions);
+                WorkflowJson.WriteConditionTarget(w, wait.Target);
                 break;
             case SlewDocumentStep s:
                 Header(w, SlewType, s.Id);
@@ -322,6 +328,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                     WorkflowJson.WriteMeridianFlip(w, meridianFlip);
                 }
 
+                WorkflowJson.WriteStop(w, "targetStop", m.TargetStop);
+
                 if (m.DitherPolicy is { } policy)
                 {
                     w.WriteStartObject("ditherPolicy");
@@ -346,6 +354,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 }
 
                 w.WriteEndArray();
+                WorkflowJson.WriteStop(w, "stop", r.Stop);
                 break;
             default:
                 throw new SequenceDocumentException(
@@ -500,6 +509,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             || (version >= 2 && type is MultiRigType or RigExposureType)
             || (version >= 3 && type is MoveFocuserType or ChangeFilterType or RigMoveFocuserType or RigChangeFilterType)
             || (version >= 4 && type is AutofocusType or RigAutofocusType)
+            || (version >= 8 && type is WaitUntilType)
             || (version >= 7 && type is "plateSolve" or "slewAndCenter" or "syncMountToSolved" or "rotateToAngle" or "rotateAndVerify" or "centerAndRotate");
         if (!known)
         {
@@ -560,6 +570,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             ExposureType => new ExposureDocumentStep(
                 id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
             DelayType => new DelayDocumentStep(id, ReadNumber(element, type, "durationSeconds")),
+            WaitUntilType => new WaitUntilDocumentStep(id, WorkflowJson.ReadConditions(element, "conditions"), WorkflowJson.ReadConditionTarget(element)),
             SlewType => new SlewDocumentStep(
                 id, ReadDevice(element, type, "mountId"),
                 ReadNumber(element, type, "raHours"), ReadNumber(element, type, "decDegrees")),
@@ -626,7 +637,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return new MultiRigDocumentStep(
             id, tracks, ReadDitherPolicy(element), version >= 8 && element.TryGetProperty("singleTrack", out var single) && single.ValueKind == JsonValueKind.True,
-            version >= 8 ? WorkflowJson.ReadMeridianFlip(element) : null);
+            version >= 8 ? WorkflowJson.ReadMeridianFlip(element) : null,
+            version >= 8 ? WorkflowJson.ReadStop(element, "targetStop") : null);
     }
 
     // Optional, and only in version 5: a track without one does not focus by itself. When it is there, it is complete.
@@ -716,7 +728,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 child, place == Place.InTrack ? Place.InTrackRepeat : Place.InRepeat, version, ids));
         }
 
-        return new RepeatDocumentStep(id, count, children);
+        return new RepeatDocumentStep(id, count, children, version >= 8 ? WorkflowJson.ReadStop(element, "stop") : null);
     }
 
     private static Guid ReadId(JsonElement element, string type, HashSet<Guid> ids)

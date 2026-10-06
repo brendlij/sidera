@@ -230,7 +230,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         SequenceDraftBuilder.RequiredDeviceIds(Snapshot(), Context);
 
     private SequenceDraftContext Context => new(
-        _rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation, Time: Clock, Site: SiteProvider);
+        _rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation, Time: Clock, Site: SiteProvider,
+        MeridianPollInterval: PollInterval, Conditions: ConditionStatuses, ConditionPollInterval: PollInterval);
 
     /// <summary>The mounts and rotators that this sequence moves on purpose, as the draft is now (see <see cref="SequenceDraftBuilder.MovingEquipment"/>).</summary>
     public IReadOnlyList<(MovingEquipment Kind, DeviceId Device)> MovingEquipment() =>
@@ -241,6 +242,12 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     /// <summary>The clock the sky follows; <c>null</c> is the real one. For tests.</summary>
     public TimeProvider? Clock { get; set; }
+
+    /// <summary>How often a run looks at the sky (conditions, the meridian); <c>null</c> is the usual interval. For tests.</summary>
+    public TimeSpan? PollInterval { get; set; }
+
+    /// <summary>What the waiting and the imaging of the sequence that runs say about themselves, by the id of the step: the user interface shows it where the step is.</summary>
+    public Sidera.Runtime.Sequencing.ConditionStatusBoard ConditionStatuses { get; private set; } = new();
 
     /// <summary>The meridian flips of the sequence that was built last, one for each mount; what the status of a run follows.</summary>
     public IReadOnlyList<Sidera.Runtime.Sequencing.MeridianFlipGroup> FlipGroups { get; private set; } = [];
@@ -271,6 +278,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             throw new SequenceConfigurationException(ValidationErrors);
         }
 
+        ConditionStatuses = new Sidera.Runtime.Sequencing.ConditionStatusBoard(); // a run says what it does itself; what the last one said is not shown for this one
         var built = SequenceDraftBuilder.Build(_registry, Snapshot(), Context);
         FlipGroups = FlipGroupsOf(built.Steps);
         FlipGroupsChanged?.Invoke(this, EventArgs.Empty);
@@ -1015,7 +1023,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                 draft = new RepeatStepDraft(
                     repeat.Id,
                     repeat.ReadCount(errors),
-                    repeat.Children.Select(child => (LeafStepDraft)ReadStep(child, parseErrors)).ToList());
+                    repeat.Children.Select(child => (LeafStepDraft)ReadStep(child, parseErrors)).ToList(),
+                    repeat.Stop);
                 break;
             case RigTrackDraftViewModel track:
                 draft = new RigTrackDraft(
@@ -1028,7 +1037,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
                     multiRig.Children.Select(track => (RigTrackDraft)ReadStep(track, parseErrors)).ToList(),
                     multiRig.ReadPolicy(errors),
                     multiRig.SingleTrack,
-                    multiRig.MeridianFlip);
+                    multiRig.MeridianFlip,
+                    multiRig.TargetStop);
                 break;
             default:
                 draft = step.Read(errors);
@@ -1127,6 +1137,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         ExposureStepDraft e => new ExposureStepDraftViewModel(_registry, e),
         RigExposureStepDraft e => RigExposureViewModel(e),
         DelayStepDraft d => new DelayStepDraftViewModel(d),
+        WaitUntilStepDraft w => new WaitUntilStepDraftViewModel(w),
         SlewStepDraft s => new SlewStepDraftViewModel(_registry, s),
         StartGuidingStepDraft g => new StartGuidingStepDraftViewModel(_registry, g),
         StopGuidingStepDraft g => new StopGuidingStepDraftViewModel(_registry, g),

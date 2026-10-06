@@ -56,6 +56,18 @@
             </StackPanel>
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:WaitUntilStepDraftViewModel}" x:DataType="vm:WaitUntilStepDraftViewModel">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
+                    <TextBlock Classes="section-title" Text="Wait Until" />
+                </StackPanel>
+                <TextBlock Classes="secondary" Text="Waits until all of these hold." TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ConditionsText}" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
+            </StackPanel>
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:SlewStepDraftViewModel}" x:DataType="vm:SlewStepDraftViewModel">
             <StackPanel Spacing="16">
                 <StackPanel Spacing="2">

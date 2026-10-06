@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
+using Sidera.Core.Astronomy;
+using Sidera.Core.Conditions;
 using Sidera.Core.Mounts;
 using Sidera.Core.Rigs;
 using Sidera.Desktop.Workflows;
@@ -66,6 +68,8 @@ internal static class WorkflowJson
             w.WriteNumber("exposureSeconds", block.ExposureSeconds);
             w.WriteNumber("frames", block.Frames);
             w.WriteBoolean("enabled", block.Enabled);
+            WriteConditions(w, "startWhen", block.StartAll);
+            WriteConditions(w, "stopWhen", block.StopAny);
             w.WriteEndObject();
         }
 
@@ -101,6 +105,8 @@ internal static class WorkflowJson
             WriteSettingsBody(w, flip);
             w.WriteEndObject();
         }
+
+        WriteConditions(w, "stopTargetWhen", workflow.TargetStopAny);
 
         w.WriteStartArray("autofocus");
         foreach (var policy in workflow.AutofocusPolicies)
@@ -144,6 +150,12 @@ internal static class WorkflowJson
             w.WriteNumber("toleranceArcseconds", step.ToleranceArcseconds);
             w.WriteNumber("maxAttempts", step.MaxAttempts);
             w.WriteNumber("solveExposureSeconds", step.SolveExposureSeconds);
+            if (step.WaitMode != WorkflowWaitMode.Duration)
+            {
+                w.WriteString("waitMode", step.WaitMode == WorkflowWaitMode.UntilTime ? "untilTime" : "untilCondition");
+                WriteConditions(w, "until", step.UntilAll);
+            }
+
             if (step.Autofocus is { } autofocus)
             {
                 w.WriteStartObject("autofocus");
@@ -300,7 +312,7 @@ internal static class WorkflowJson
             var id = IdOf(block, ids);
             blocks.Add(new ImagingBlock(
                 id, OptionalRig(block, "setup"), block.TryGetProperty("filterSlot", out _) ? Whole(block, "filterSlot") : null,
-                Number(block, "exposureSeconds"), Whole(block, "frames"), Flag(block, "enabled")));
+                Number(block, "exposureSeconds"), Whole(block, "frames"), Flag(block, "enabled"), ReadConditionsOrNull(block, "startWhen"), ReadConditionsOrNull(block, "stopWhen")));
         }
 
         foreach (var step in prepare)
@@ -339,7 +351,7 @@ internal static class WorkflowJson
             meridianFlip = usesDefaults ? null : ReadSettingsBody(flipElement);
         }
 
-        return new WorkflowDefinition(workflowTarget, prepare, blocks, finish, workflowDither, policies, meridianFlip, usesDefaults);
+        return new WorkflowDefinition(workflowTarget, prepare, blocks, finish, workflowDither, policies, meridianFlip, usesDefaults, ReadConditionsOrNull(element, "stopTargetWhen"));
     }
 
     private static List<WorkflowStep> ReadSteps(JsonElement parent, string name)
@@ -356,10 +368,201 @@ internal static class WorkflowJson
 
             steps.Add(new WorkflowStep(
                 IdOf(step, null), kind.Kind, OptionalRig(step, "setup"), Flag(step, "enabled"), Number(step, "seconds"), Number(step, "toleranceArcseconds"),
-                Whole(step, "maxAttempts"), Number(step, "solveExposureSeconds"), step.TryGetProperty("autofocus", out var settings) && settings.ValueKind == JsonValueKind.Object ? Settings(settings) : null));
+                Whole(step, "maxAttempts"), Number(step, "solveExposureSeconds"), step.TryGetProperty("autofocus", out var settings) && settings.ValueKind == JsonValueKind.Object ? Settings(settings) : null,
+                step.TryGetProperty("waitMode", out var mode) && mode.ValueKind == JsonValueKind.String
+                    ? mode.GetString() switch
+                    {
+                        "untilTime" => WorkflowWaitMode.UntilTime,
+                        "untilCondition" => WorkflowWaitMode.UntilCondition,
+                        _ => throw Structure($"unknown wait mode '{mode.GetString()}'."),
+                    }
+                    : WorkflowWaitMode.Duration,
+                ReadConditionsOrNull(step, "until")));
         }
 
         return steps;
+    }
+
+    // ---- conditions: written only where there are some, so a workflow without them is the file it was before they existed
+
+    internal static void WriteConditions(Utf8JsonWriter w, string name, IReadOnlyList<WorkflowCondition> conditions)
+    {
+        if (conditions.Count == 0)
+        {
+            return;
+        }
+
+        w.WriteStartArray(name);
+        foreach (var condition in conditions)
+        {
+            WriteCondition(w, condition);
+        }
+
+        w.WriteEndArray();
+    }
+
+    internal static void WriteCondition(Utf8JsonWriter w, WorkflowCondition condition)
+    {
+        w.WriteStartObject();
+        switch (condition)
+        {
+            case TimeCondition { AbsoluteUtc: { } utc }:
+                w.WriteString("type", "time");
+                w.WriteString("utc", utc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
+                break;
+            case TimeCondition time:
+                w.WriteString("type", "time");
+                w.WriteString("timeOfDay", time.TimeOfDay!.Value.ToString("HH':'mm", CultureInfo.InvariantCulture));
+                if (time.TimeZoneId is { } zone)
+                {
+                    w.WriteString("zone", zone);
+                }
+
+                break;
+            case DurationCondition duration:
+                w.WriteString("type", "duration");
+                w.WriteNumber("seconds", duration.Duration.TotalSeconds);
+                break;
+            case TargetAltitudeCondition target:
+                w.WriteString("type", "targetAltitude");
+                w.WriteNumber("degrees", target.Degrees);
+                w.WriteString("when", target.Direction == ThresholdDirection.Above ? "above" : "below");
+                break;
+            case SunAltitudeCondition sun:
+                w.WriteString("type", "sunAltitude");
+                w.WriteNumber("degrees", sun.Degrees);
+                w.WriteString("when", sun.Direction == ThresholdDirection.Above ? "above" : "below");
+                break;
+            case TwilightCondition twilight:
+                w.WriteString("type", "twilight");
+                w.WriteString("twilight", twilight.Twilight.Title());
+                w.WriteString("event", twilight.Event == TwilightEvent.Dusk ? "dusk" : "dawn");
+                break;
+            case FrameCountCondition frames:
+                w.WriteString("type", "frames");
+                w.WriteNumber("count", frames.Frames);
+                break;
+            default:
+                throw new SequenceDocumentException(SequenceDocumentErrorKind.Structure, $"The condition '{condition.GetType().Name}' cannot be saved.");
+        }
+
+        w.WriteEndObject();
+    }
+
+    // A workflow without conditions is the workflow it was before they existed: null, not an empty list.
+    private static IReadOnlyList<WorkflowCondition>? ReadConditionsOrNull(JsonElement parent, string name) => ReadConditions(parent, name) is { Count: > 0 } list ? list : null;
+
+    internal static IReadOnlyList<WorkflowCondition> ReadConditions(JsonElement parent, string name)
+    {
+        if (!parent.TryGetProperty(name, out var list) || list.ValueKind == JsonValueKind.Null)
+        {
+            return [];
+        }
+
+        if (list.ValueKind != JsonValueKind.Array)
+        {
+            throw Structure($"'{name}' must be a list of conditions.");
+        }
+
+        var conditions = new List<WorkflowCondition>();
+        foreach (var element in list.EnumerateArray())
+        {
+            conditions.Add(ReadCondition(element));
+        }
+
+        return conditions;
+    }
+
+    internal static WorkflowCondition ReadCondition(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw Structure("a condition must be an object.");
+        }
+
+        var type = Text(element, "type");
+        WorkflowCondition condition = type switch
+        {
+            "time" when element.TryGetProperty("utc", out _) => DateTime.TryParseExact(
+                Text(element, "utc"), "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var utc)
+                ? TimeCondition.AtUtc(utc)
+                : throw Structure("the time of a condition is not a date and time."),
+            "time" => TimeOnly.TryParseExact(Text(element, "timeOfDay"), "HH':'mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var timeOfDay)
+                ? TimeCondition.AtLocalTime(timeOfDay, element.TryGetProperty("zone", out var zone) && zone.ValueKind == JsonValueKind.String ? zone.GetString() : null)
+                : throw Structure("the time of day of a condition is not a time."),
+            "duration" => new DurationCondition(TimeSpan.FromSeconds(Number(element, "seconds"))),
+            "targetAltitude" => new TargetAltitudeCondition(Number(element, "degrees"), Direction(element)),
+            "sunAltitude" => new SunAltitudeCondition(Number(element, "degrees"), Direction(element)),
+            "twilight" => new TwilightCondition(
+                Text(element, "twilight") switch { "civil" => Twilight.Civil, "nautical" => Twilight.Nautical, "astronomical" => Twilight.Astronomical, var other => throw Structure($"unknown twilight '{other}'.") },
+                Text(element, "event") switch { "dusk" => TwilightEvent.Dusk, "dawn" => TwilightEvent.Dawn, var other => throw Structure($"unknown twilight event '{other}'.") }),
+            "frames" => new FrameCountCondition(Whole(element, "count")),
+            _ => throw Structure($"unknown condition '{type}'."),
+        };
+
+        return condition.Problem is { } problem ? throw Structure(problem) : condition;
+    }
+
+    private static ThresholdDirection Direction(JsonElement element) => Text(element, "when") switch
+    {
+        "above" => ThresholdDirection.Above,
+        "below" => ThresholdDirection.Below,
+        var other => throw Structure($"unknown comparison '{other}'."),
+    };
+
+    // The stop conditions of a block or a target, in a sequence: { "any": [ ... ], "target": { "name", "raHours", "decDegrees" } }
+    internal static void WriteStop(Utf8JsonWriter w, string name, StopConditionsDraft? stop)
+    {
+        if (stop is null or { IsEmpty: true })
+        {
+            return;
+        }
+
+        w.WriteStartObject(name);
+        WriteConditions(w, "any", stop.Any);
+        WriteConditionTarget(w, stop.Target);
+        w.WriteEndObject();
+    }
+
+    internal static StopConditionsDraft? ReadStop(JsonElement parent, string name)
+    {
+        if (!parent.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var any = ReadConditions(element, "any");
+        return any.Count == 0 ? null : new StopConditionsDraft(any, ReadConditionTarget(element));
+    }
+
+    internal static void WriteConditionTarget(Utf8JsonWriter w, ConditionTargetDraft? target)
+    {
+        if (target is null)
+        {
+            return;
+        }
+
+        w.WriteStartObject("target");
+        if (target.Name is { } targetName)
+        {
+            w.WriteString("name", targetName);
+        }
+
+        w.WriteNumber("raHours", target.RightAscensionHours);
+        w.WriteNumber("decDegrees", target.DeclinationDegrees);
+        w.WriteEndObject();
+    }
+
+    internal static ConditionTargetDraft? ReadConditionTarget(JsonElement parent)
+    {
+        if (!parent.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return new ConditionTargetDraft(
+            target.TryGetProperty("name", out var targetName) && targetName.ValueKind == JsonValueKind.String ? targetName.GetString() : null,
+            Number(target, "raHours"), Number(target, "decDegrees"));
     }
 
     private static AutofocusSettings Settings(JsonElement element) => new(Number(element, "exposureSeconds"), Whole(element, "stepSize"), Whole(element, "samples"));
