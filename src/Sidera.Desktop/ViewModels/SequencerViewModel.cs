@@ -558,10 +558,24 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         RunCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>What asks before real equipment moves; <c>null</c> where nothing is asked (tests of other pages). Set by the main view model.</summary>
+    public HardwareSafetyViewModel? Safety { get; set; }
+
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task RunAsync()
     {
         ClearError();
+
+        // A sequence that slews a real mount or turns a real rotator asks once for each of them; no is no movement and no run.
+        if (Safety is not null && Draft is not null)
+        {
+            var notices = Draft.MovingEquipment().Select(m => HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, m.Kind, m.Device));
+            if (!await Safety.ConfirmAsync("Run the sequence", notices))
+            {
+                ReadinessHint = "Cancelled: nothing was moved.";
+                return;
+            }
+        }
 
         // A fresh sequence from the draft as it is now. Nothing of an earlier run is reused, and later edits cannot
         // reach it: the run executes this sequence and shows this snapshot, and the editors are locked from the start.
