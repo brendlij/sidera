@@ -73,9 +73,11 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             };
         }
 
+        // The setups the sequencer works with: the ones that were made, and the one that follows from a single camera.
+        Setups = new Sidera.Runtime.Rigs.ImagingSetupCatalog(host.DeviceRegistry, host.RigRegistry);
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 || !withDemoSequence ? [] : defaults.InitialSteps(),
-            rigs: host.RigRegistry, shared: SharedEquipmentDraft.FromRigs(host.RigRegistry.GetAll(), defaults.MountId, defaults.GuiderId, host.RigRegistry.GetAll().Count == 0),
+            rigs: Setups, shared: SharedEquipmentDraft.FromRigs(Setups.GetAll(), defaults.MountId, defaults.GuiderId, host.RigRegistry.GetAll().Count == 0),
             focusMetrics: host.FocusMetricProvider, events: host.EventBus,
             loggers: host.LoggerFactory, acquisitionDefaults: host.AcquisitionDefaults,
             plateSolving: host.PlateSolving, solveDefaults: () => (equipmentManagement?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()).Defaults(),
@@ -99,7 +101,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
         SequenceDraft.SiteProvider = () => equipmentManagement?.Site?.Site;
         SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
-        Workflow = new WorkflowEditorViewModel(SequenceDraft, host.RigRegistry, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site);
+        Workflow = new WorkflowEditorViewModel(SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site);
 
         // A new session opens in the mode the settings choose (a workflow unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.
         if (startWithSettingsMode && SequenceDraft.IsEmpty)
@@ -189,6 +191,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Sequencer.ExecutionRefreshed += (_, _) => Runtime.Refresh();
         Sequencer.RefreshReadiness();
     }
+
+    /// <summary>The imaging setups of the sequencer: the configured ones and, for one camera, the implicit one.</summary>
+    public Sidera.Runtime.Rigs.ImagingSetupCatalog Setups { get; }
 
     public DashboardViewModel Dashboard { get; }
     public EquipmentViewModel Equipment { get; }

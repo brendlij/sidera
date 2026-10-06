@@ -48,13 +48,21 @@ public static class WorkflowCompiler
         return new Guid(bytes);
     }
 
+    /// <param name="usable">
+    /// The setups that can image now (their camera is connected). "Auto" is the only usable setup; a setup that is configured and not connected does not make it ambiguous. <c>null</c>: every setup
+    /// there is counts.
+    /// </param>
     public static WorkflowCompilation Compile(
-        WorkflowDefinition workflow, RigRegistry? rigs, SequenceDraftDefaults? defaults = null, Sidera.Core.Mounts.MeridianFlipSettings? applicationFlip = null)
+        WorkflowDefinition workflow, ISetupSource? rigs, SequenceDraftDefaults? defaults = null, Sidera.Core.Mounts.MeridianFlipSettings? applicationFlip = null,
+        IReadOnlySet<RigId>? usable = null)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         var problems = new List<WorkflowProblem>();
         var origins = new Dictionary<Guid, Guid>();
         var all = rigs?.GetAll().OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+
+        // The setups that "Auto" can mean: the usable ones. Nothing is guessed between several of them.
+        var pool = usable is null ? all : all.Where(r => usable.Contains(r.Id)).ToList();
 
         Rig? Find(RigId? id) => id is { } rigId && rigs is not null && rigs.TryGet(rigId, out var rig) ? rig : null;
 
@@ -66,12 +74,14 @@ public static class WorkflowCompiler
         var blocksOf = new Dictionary<RigId, List<ImagingBlock>>();
         foreach (var block in workflow.Imaging.Where(b => b.Enabled))
         {
-            var rig = block.Setup is null ? (all.Count == 1 ? all[0] : null) : Find(block.Setup);
+            var rig = block.Setup is null ? (pool.Count == 1 ? pool[0] : null) : Find(block.Setup);
             if (rig is null)
             {
-                problems.Add(new WorkflowProblem(block.Id, block.Setup is null
-                    ? "Choose an imaging setup for this block."
-                    : $"The imaging setup '{block.Setup}' does not exist any more. Choose another one."));
+                problems.Add(new WorkflowProblem(block.Id, block.Setup is not null
+                    ? $"The imaging setup '{block.Setup}' does not exist any more. Choose another one."
+                    : pool.Count > 1
+                        ? $"There are several imaging setups ({string.Join(", ", pool.Select(r => r.Name))}): choose the one for this block."
+                        : "There is no imaging setup to image with. Connect a camera, or make an imaging setup on the Equipment page (needed when there is more than one camera: Sidera does not guess which one you mean)."));
                 continue;
             }
 
@@ -171,7 +181,7 @@ public static class WorkflowCompiler
             }
 
             // "Auto" means the setups that are imaged; before there are any, the only setup there is.
-            var scope = explicitRig is not null ? [explicitRig] : setups.Count > 0 ? setups : all.Count == 1 ? all : (IReadOnlyList<Rig>)[];
+            var scope = explicitRig is not null ? [explicitRig] : setups.Count > 0 ? setups : pool.Count == 1 ? pool : (IReadOnlyList<Rig>)[];
             switch (step.Kind)
             {
                 case WorkflowStepKind.Wait:
@@ -247,7 +257,7 @@ public static class WorkflowCompiler
 
         void CompileCenter(WorkflowStep step, Rig? explicitRig)
         {
-            var candidates = explicitRig is not null ? [explicitRig] : setups.Count > 0 ? setups : all.Count == 1 ? all : (IReadOnlyList<Rig>)[];
+            var candidates = explicitRig is not null ? [explicitRig] : setups.Count > 0 ? setups : pool.Count == 1 ? pool : (IReadOnlyList<Rig>)[];
             var groups = candidates.Where(r => r.MountId is not null).GroupBy(r => r.MountId!.Value).ToList();
             if (explicitRig is not null && explicitRig.MountId is null)
             {

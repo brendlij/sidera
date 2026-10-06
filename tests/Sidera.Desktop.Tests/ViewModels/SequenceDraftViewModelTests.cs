@@ -343,7 +343,7 @@ public class SequenceDraftViewModelTests
     }
 
     [Fact]
-    public async Task Defaults_PickTheFirstDeviceOfAKindWhenTheDemoDevicesAreNotRegistered()
+    public async Task Defaults_NeverPickBetweenSeveralDevices_ButTakeTheOnlyOne()
     {
         await using var host = new SideraRuntimeHost();
         host.AddSimulatedCamera(new DeviceId("camera.b"), "Camera B");
@@ -353,10 +353,21 @@ public class SequenceDraftViewModelTests
         var exposure = Add<ExposureStepDraftViewModel>(draft, SequenceStepKind.Exposure);
         var slew = Add<SlewStepDraftViewModel>(draft, SequenceStepKind.Slew);
 
-        Assert.Equal(new DeviceId("camera.a"), exposure.Camera.SelectedId);
+        Assert.Null(exposure.Camera.SelectedId); // two cameras and nothing to say which: the step asks, it does not pick the first
         Assert.Equal(["camera.a", "camera.b"], exposure.Camera.Options.Select(o => o.IdText));
         Assert.Null(slew.Mount.SelectedId);
         Assert.Empty(slew.Mount.Options);
+        Assert.Contains(draft.ValidationErrors, e => e.Contains("camera", StringComparison.OrdinalIgnoreCase));
+
+        // With one of them connected, that one is the camera that can be meant.
+        await host.DeviceRegistry.GetAll().OfType<ICamera>().First(c => c.Id == new DeviceId("camera.b")).ConnectAsync();
+        var connected = CreateDraft(host);
+        Assert.Equal(new DeviceId("camera.b"), Add<ExposureStepDraftViewModel>(connected, SequenceStepKind.Exposure).Camera.SelectedId);
+
+        // And one camera is simply the camera.
+        await using var single = new SideraRuntimeHost();
+        single.AddSimulatedCamera(new DeviceId("camera.only"), "Only");
+        Assert.Equal(new DeviceId("camera.only"), Add<ExposureStepDraftViewModel>(CreateDraft(single), SequenceStepKind.Exposure).Camera.SelectedId);
     }
 
     [Fact]

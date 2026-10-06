@@ -45,7 +45,7 @@ public sealed record WorkflowTargetRequest(string Name, double RightAscensionHou
 public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSource, IDisposable
 {
     private readonly SequenceDraftViewModel _draft;
-    private readonly RigRegistry? _rigs;
+    private readonly ISetupSource? _rigs;
     private readonly DeviceRegistry _registry;
     private readonly SequenceDraftDefaults _defaults;
     private readonly ExecutionOverviewViewModel? _execution;
@@ -65,7 +65,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     private List<SetupAutofocus> _policies = [];
 
     public WorkflowEditorViewModel(
-        SequenceDraftViewModel draft, RigRegistry? rigs, DeviceRegistry registry, SequenceDraftDefaults defaults, ExecutionOverviewViewModel? execution = null,
+        SequenceDraftViewModel draft, ISetupSource? rigs, DeviceRegistry registry, SequenceDraftDefaults defaults, ExecutionOverviewViewModel? execution = null,
         Sidera.Runtime.Events.EventBus? events = null, Action<Action>? postToUi = null, Func<Sidera.Core.Location.ObservingSite?>? site = null,
         Sidera.Desktop.Settings.SiteService? settings = null)
     {
@@ -674,7 +674,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     [RelayCommand(CanExecute = nameof(IsEditable))]
     private void StartFromTemplate()
     {
-        var template = WorkflowDefinition.Template(_rigs?.GetAll().ToList() ?? [], _defaults, StartDefaults);
+        var template = Stored(WorkflowDefinition.Template([.. UsableRigs], _defaults, StartDefaults));
         Load(template with { Target = Definition?.Target ?? WorkflowTarget.Default }, modified: true);
     }
 
@@ -756,16 +756,96 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private IReadOnlyList<Rig> Rigs => _rigs?.GetAll().OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList() ?? [];
 
+    // The setups that can image now: the ones whose camera is connected (when none is, all of them). A setup that is configured and not connected is not a reason to ask which one is meant.
+    private IReadOnlyList<Rig> UsableRigs => _rigs is ImagingSetupCatalog catalog ? catalog.UsableSetups() : Rigs;
+
+    private IReadOnlySet<RigId>? UsableIds => _rigs is ImagingSetupCatalog ? UsableRigs.Select(r => r.Id).ToHashSet() : null;
+
+    /// <summary>
+    /// There is more than one setup to image with. Only then is anything about choosing a setup, running setups side by side or what they share shown: with one, the workflow is Target,
+    /// Prepare, Imaging, Finish and nothing else.
+    /// </summary>
+    public bool IsMultiSetup => UsableRigs.Count >= 2;
+
+    /// <summary>"Imaging" for one setup, "Parallel imaging" for several.</summary>
+    public string ImagingHeaderText => IsMultiSetup ? "PARALLEL IMAGING" : "IMAGING";
+
+    private HashSet<RigId>? _lastUsable;
+
+    /// <summary>Looks at which setups can image now (a camera was connected or disconnected) and, when that changed, gives the rows their choices again. Called about once a second with the other refreshes.</summary>
+    public void RefreshAvailability()
+    {
+        var now = UsableRigs.Select(r => r.Id).ToHashSet();
+        if (_lastUsable is not null && _lastUsable.SetEquals(now))
+        {
+            return;
+        }
+
+        var first = _lastUsable is null;
+        _lastUsable = now;
+        if (first)
+        {
+            return;
+        }
+
+        RefreshSetups();
+        RaiseSetupModeChanged();
+    }
+
+    private void RaiseSetupModeChanged()
+    {
+        OnPropertyChanged(nameof(IsMultiSetup));
+        OnPropertyChanged(nameof(ImagingHeaderText));
+        OnPropertyChanged(nameof(HasSharedResources));
+        OnPropertyChanged(nameof(SharedResources));
+    }
+
+    // A block of the implicit setup is saved as "Auto": the implicit setup is not something a file should name, because it only exists while there is one camera and no setup of its own.
+    internal RigId? StoredSetup(RigId? id) => id == ImagingSetupCatalog.ImplicitId ? null : id;
+
+    private WorkflowDefinition Stored(WorkflowDefinition workflow) => workflow with { Imaging = [.. workflow.Imaging.Select(b => b with { Setup = StoredSetup(b.Setup) })] };
+
+    /// <summary>The devices that more than one imaging setup of the workflow uses, with the setups: "Mount · AM3 — Main, Wide". Empty with one setup.</summary>
+    public IReadOnlyList<string> SharedResources
+    {
+        get
+        {
+            var imaged = ImagingRows.Where(r => r.Block!.Enabled).Select(r => ResolvedSetup(r.Block!.Setup)).OfType<Rig>().DistinctBy(r => r.Id).ToList();
+            if (imaged.Count < 2)
+            {
+                return [];
+            }
+
+            var shared = SharedEquipmentDraft.FromRigs(imaged, null, null, false);
+            var rows = new List<string>();
+            void Group(string kind, Func<Rig, DeviceId?> of)
+            {
+                foreach (var group in imaged.Where(r => of(r) is not null).GroupBy(r => of(r)!.Value).Where(g => g.Count() >= 2))
+                {
+                    var name = _registry.TryGet(group.Key, out var device) ? device!.Name : group.Key.Value;
+                    rows.Add($"{kind} · {name} — {string.Join(", ", group.Select(r => r.Name))}");
+                }
+            }
+
+            Group("Mount", r => StepScopes.EffectiveMount(r, null, shared));
+            Group("Guider", r => StepScopes.EffectiveGuider(r, null, shared));
+            return rows;
+        }
+    }
+
+    public bool HasSharedResources => SharedResources.Count > 0;
+
     private Rig? RigOf(RigId? id) => id is { } rigId && _rigs is not null && _rigs.TryGet(rigId, out var rig) ? rig : null;
 
     // The setup a row works with: the one it names, else (for "Auto") the only setup there is.
-    private Rig? ResolvedSetup(RigId? named) => named is not null ? RigOf(named) : Rigs.Count == 1 ? Rigs[0] : null;
+    private Rig? ResolvedSetup(RigId? named) => named is not null ? RigOf(named) : UsableRigs.Count == 1 ? UsableRigs[0] : null;
 
     private string DescribeSetup(Rig rig)
     {
         var camera = _registry.TryGet(rig.CameraId, out var device) ? device!.Name : "no camera";
         var optics = rig.Optics is { } o ? $" · {o.FocalLengthMm:0.#} mm" : string.Empty;
-        return camera + optics;
+        var state = _rigs is ImagingSetupCatalog catalog && !catalog.IsUsable(rig) ? " · not connected" : string.Empty; // it can be chosen and planned with; it only runs when its camera is connected
+        return camera + optics + state;
     }
 
     /// <summary>Reads the rigs again (one came, went or changed) and gives every row its choices.</summary>
@@ -789,6 +869,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
         SelectedRow = AllRows.FirstOrDefault(r => r.Id == selected) ?? SelectedRow;
         Recompile(false);
+        RaiseSetupModeChanged();
     }
 
     private void ReadSetups()
@@ -1090,7 +1171,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
     private void AddImagingBlock()
     {
         var used = ImagingRows.Select(r => r.Block!.Setup).ToHashSet();
-        var rig = Rigs.FirstOrDefault(r => !used.Contains(r.Id)) ?? Rigs.FirstOrDefault();
+        var rig = UsableRigs.FirstOrDefault(r => !used.Contains(r.Id)) ?? UsableRigs.FirstOrDefault();
 
         // A setup that comes into the workflow focuses by itself when the settings propose it (and it can); a setup that has a policy keeps it.
         if (rig?.FocuserId is not null && StartDefaults.Autofocus.PolicyEnabled && _policies.All(p => p.Setup != rig.Id))
@@ -1098,7 +1179,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             _policies.Add(WorkflowDefinition.AutofocusPolicyOf(rig.Id, StartDefaults.Autofocus));
         }
 
-        Add(WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), rig?.Id, null, _defaults.ExposureSeconds, 10));
+        Add(WorkflowSection.Imaging, null, new ImagingBlock(Guid.NewGuid(), StoredSetup(rig?.Id), null, _defaults.ExposureSeconds, 10));
     }
 
     private bool CanRemove => IsEditable && SelectedRow is not null;
@@ -1351,7 +1432,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
         var definition = BuildDefinition();
         Definition = definition;
-        var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults, ApplicationFlip);
+        var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults, ApplicationFlip, UsableIds);
 
         var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).Concat(_targetStopProblems).ToList();
         _unreadable = _targetProblems.Count > 0 || _ditherProblems.Count > 0 || _policyProblems.Count > 0 || _flipProblems.Count > 0;
@@ -1398,6 +1479,8 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(CanRunText));
         OnPropertyChanged(nameof(TargetStopSummary));
+        OnPropertyChanged(nameof(SharedResources));
+        OnPropertyChanged(nameof(HasSharedResources));
         if (modified)
         {
             RaiseModified();
@@ -1416,7 +1499,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
             var step = row.Step!;
             var rig = step.Setup is null ? null : RigOf(step.Setup);
             row.SetupLabel = rig?.Name ?? (step.Setup is not null ? "missing" : step.Kind is WorkflowStepKind.Wait ? string.Empty : AutoLabel(imaged));
-            var scope = rig is not null ? [rig] : imaged.Count > 0 ? imaged : Rigs.Count == 1 ? Rigs.ToList() : new List<Rig>();
+            var scope = rig is not null ? [rig] : imaged.Count > 0 ? imaged : UsableRigs.Count == 1 ? UsableRigs.ToList() : new List<Rig>();
             row.Summary = step.Kind switch
             {
                 WorkflowStepKind.SlewAndCenter => string.Create(CultureInfo.InvariantCulture, $"{definition.Target.Name} · {step.ToleranceArcseconds:0.##}\" · up to {step.MaxAttempts} attempts")
@@ -1515,7 +1598,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
                 return null;
             }
 
-            Load(WorkflowDefinition.Template(_rigs?.GetAll().ToList() ?? [], _defaults, StartDefaults), modified: true);
+            Load(Stored(WorkflowDefinition.Template([.. UsableRigs], _defaults, StartDefaults)), modified: true);
         }
 
         _loading = true;

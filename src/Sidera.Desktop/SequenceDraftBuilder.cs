@@ -38,7 +38,7 @@ public sealed record StepDescription(string Title, string Summary);
 /// available, without shared equipment nothing is compared, without a focus metric autofocus is not available.
 /// </summary>
 public sealed record SequenceDraftContext(
-    RigRegistry? Rigs = null,
+    ISetupSource? Rigs = null,
     SharedEquipmentDraft? Shared = null,
     IFocusMetricProvider? FocusMetrics = null,
     IEventPublisher? Events = null,

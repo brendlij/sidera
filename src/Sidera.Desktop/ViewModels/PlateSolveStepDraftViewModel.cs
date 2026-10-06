@@ -19,7 +19,7 @@ public sealed partial class PlateSolveStepDraftViewModel : StepDraftViewModel
 public sealed partial class SlewAndCenterStepDraftViewModel : StepDraftViewModel
 {
     public SlewAndCenterStepDraftViewModel(
-        Sidera.Runtime.Devices.DeviceRegistry registry, SlewAndCenterStepDraft draft, RigPickerViewModel rig, Sidera.Runtime.Rigs.RigRegistry? rigs = null, Func<SharedEquipmentDraft?>? shared = null)
+        Sidera.Runtime.Devices.DeviceRegistry registry, SlewAndCenterStepDraft draft, RigPickerViewModel rig, Sidera.Runtime.Rigs.ISetupSource? rigs = null, Func<SharedEquipmentDraft?>? shared = null)
         : base(draft.Id)
     {
         _registry = registry;
@@ -47,7 +47,7 @@ public sealed partial class SlewAndCenterStepDraftViewModel : StepDraftViewModel
     private readonly string? _targetName;
     private readonly double? _desiredRotation;
     private readonly Sidera.Runtime.Devices.DeviceRegistry _registry;
-    private readonly Sidera.Runtime.Rigs.RigRegistry? _rigs;
+    private readonly Sidera.Runtime.Rigs.ISetupSource? _rigs;
     private readonly Func<SharedEquipmentDraft?>? _shared;
     private readonly Sidera.Core.Devices.DeviceId? _mountId;
 
