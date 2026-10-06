@@ -51,7 +51,7 @@ public sealed partial class RotateAndVerifyStepDraftViewModel : StepDraftViewMod
 public sealed partial class CenterAndRotateStepDraftViewModel : StepDraftViewModel
 {
     public CenterAndRotateStepDraftViewModel(
-        Sidera.Runtime.Devices.DeviceRegistry registry, CenterAndRotateStepDraft draft, RigPickerViewModel rig, Sidera.Runtime.Rigs.RigRegistry? rigs = null, Func<SharedEquipmentDraft?>? shared = null)
+        Sidera.Runtime.Devices.DeviceRegistry registry, CenterAndRotateStepDraft draft, RigPickerViewModel rig, Sidera.Runtime.Rigs.ISetupSource? rigs = null, Func<SharedEquipmentDraft?>? shared = null)
         : base(draft.Id)
     {
         _registry = registry;
@@ -80,7 +80,7 @@ public sealed partial class CenterAndRotateStepDraftViewModel : StepDraftViewMod
 
     private readonly string? _targetName;
     private readonly Sidera.Runtime.Devices.DeviceRegistry _registry;
-    private readonly Sidera.Runtime.Rigs.RigRegistry? _rigs;
+    private readonly Sidera.Runtime.Rigs.ISetupSource? _rigs;
     private readonly Func<SharedEquipmentDraft?>? _shared;
     private readonly Sidera.Core.Devices.DeviceId? _mountId;
 

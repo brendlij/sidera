@@ -26,6 +26,7 @@ public partial class WorkflowEditorView : UserControl
     {
         if (DataContext is WorkflowEditorViewModel editor)
         {
+            editor.RefreshAvailability();
             editor.RefreshMeridian();
             editor.RefreshConditions();
         }

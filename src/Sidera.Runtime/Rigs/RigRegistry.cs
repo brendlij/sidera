@@ -11,7 +11,7 @@ namespace Sidera.Runtime.Rigs;
 /// are known to the <see cref="DeviceRegistry"/>. Devices are not owned by rigs: several rigs may
 /// refer to the same device.
 /// </summary>
-public sealed class RigRegistry
+public sealed class RigRegistry : ISetupSource
 {
     private readonly object _gate = new();
     private readonly Dictionary<RigId, Rig> _rigs = new();

@@ -8,7 +8,7 @@ namespace Sidera.Desktop.ViewModels;
 /// <summary>Says which mount a rig-local step works with: the mount of its rig. Shown in the editor, never edited there.</summary>
 internal static class RigMountText
 {
-    public static string Of(RigRegistry? rigs, DeviceRegistry devices, RigId? rigId, DeviceId? named, SharedEquipmentDraft? shared)
+    public static string Of(ISetupSource? rigs, DeviceRegistry devices, RigId? rigId, DeviceId? named, SharedEquipmentDraft? shared)
     {
         if (rigId is not { } id || rigs is null || !rigs.TryGet(id, out var rig) || rig is null)
         {

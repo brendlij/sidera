@@ -55,9 +55,11 @@ public sealed record SequenceDraftDefaults
         ArgumentNullException.ThrowIfNull(registry);
         var devices = registry.GetAll();
 
+        // The device a new step starts with: the demo's own when it is there, else the one device that can be meant. With several and nothing to say which, none: the step asks for a choice instead
+        // of picking the first one.
         DeviceId? Pick<T>(DeviceId preferred) where T : class, IDevice =>
             devices.OfType<T>().FirstOrDefault(d => d.Id == preferred)?.Id
-            ?? devices.OfType<T>().OrderBy(d => d.Id.Value, StringComparer.Ordinal).FirstOrDefault()?.Id;
+            ?? DeviceResolver.Resolve<T>(registry, null, null, string.Empty).Device;
 
         var focuserId = Pick<IFocuser>(DemoSetup.MainFocuserId);
         var focuser = focuserId is { } id ? devices.OfType<IFocuser>().FirstOrDefault(f => f.Id == id) : null;

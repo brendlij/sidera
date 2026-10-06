@@ -36,7 +36,7 @@ namespace Sidera.Desktop.ViewModels;
 public sealed partial class SequenceDraftViewModel : ViewModelBase
 {
     private readonly DeviceRegistry _registry;
-    private readonly RigRegistry? _rigs;
+    private readonly ISetupSource? _rigs;
     private readonly SequenceDraftDefaults _defaults;
     private readonly ISequenceStepClipboard _clipboard;
     private readonly IFocusMetricProvider? _focusMetrics;
@@ -54,7 +54,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         SequenceDraftDefaults defaults,
         IEnumerable<SequenceStepDraft>? initialSteps = null,
         ISequenceStepClipboard? clipboard = null,
-        RigRegistry? rigs = null,
+        ISetupSource? rigs = null,
         SharedEquipmentDraft? shared = null,
         IFocusMetricProvider? focusMetrics = null,
         IEventPublisher? events = null,

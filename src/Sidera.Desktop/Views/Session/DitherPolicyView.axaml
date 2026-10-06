@@ -11,7 +11,7 @@
             <WrapPanel ItemSpacing="16" LineSpacing="8">
                 <CheckBox Content="Dither" IsChecked="{Binding DitherEnabled}" IsEnabled="{Binding IsEditable}" VerticalAlignment="Bottom" AutomationProperties.AutomationId="WorkflowDitherEnabled" />
                 <ctl:LabeledField Label="Every N frames"><TextBox Text="{Binding DitherEveryText}" Width="70" IsEnabled="{Binding IsEditable}" AutomationProperties.AutomationId="WorkflowDitherEvery" /></ctl:LabeledField>
-                <ctl:LabeledField Label="Frames counted on">
+                <ctl:LabeledField Label="Frames counted on" IsVisible="{Binding IsMultiSetup}">
                     <ComboBox ItemsSource="{Binding CountedChoices}" SelectedItem="{Binding SelectedCounted}" Width="170" IsEnabled="{Binding IsEditable}">
                         <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:SetupChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
                     </ComboBox>

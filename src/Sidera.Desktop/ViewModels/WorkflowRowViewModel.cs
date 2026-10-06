@@ -360,7 +360,7 @@ public sealed partial class WorkflowRowViewModel : ObservableObject
             problems.AddRange(Stop.Problems);
             Block = block with
             {
-                Setup = SelectedSetup?.Id, FilterSlot = SelectedFilter?.Slot, ExposureSeconds = exposure, Frames = frames, Enabled = Enabled,
+                Setup = _owner.StoredSetup(SelectedSetup?.Id), FilterSlot = SelectedFilter?.Slot, ExposureSeconds = exposure, Frames = frames, Enabled = Enabled,
                 StartWhen = startWhen.Count > 0 ? startWhen : null, StopWhen = stopWhen.Count > 0 ? stopWhen : null,
             };
         }

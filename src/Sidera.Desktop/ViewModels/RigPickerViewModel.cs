@@ -22,17 +22,17 @@ public sealed record RigOption(RigId Id, string Name, string CameraText, bool Is
 }
 
 /// <summary>
-/// Picks one rig from the <see cref="RigRegistry"/>. A selected rig that is not registered (any more) stays selected,
+/// Picks one rig from the <see cref="ISetupSource"/>. A selected rig that is not registered (any more) stays selected,
 /// shown as missing, so the user can see what the track refers to; the validation reports it, and it is never
 /// silently replaced.
 /// </summary>
 public sealed partial class RigPickerViewModel : ObservableObject
 {
-    private readonly RigRegistry? _rigs;
+    private readonly ISetupSource? _rigs;
     private readonly DeviceRegistry _devices;
     private bool _refreshing;
 
-    public RigPickerViewModel(RigRegistry? rigs, DeviceRegistry devices, RigId? initial)
+    public RigPickerViewModel(ISetupSource? rigs, DeviceRegistry devices, RigId? initial)
     {
         _rigs = rigs;
         _devices = devices;
