@@ -150,7 +150,6 @@ public sealed class SequenceDragDropDocumentTests : IDisposable
         Assert.True(app.Draft.BeginDrag(f.Top[0].Id));
         app.Draft.EndDrag(); // cancelled
         Assert.False(app.Draft.Drop(f.Top[0].Id, f.Top[0].Id, DropPlacement.After)); // where it is
-        Assert.False(app.Draft.Drop(f.Top[1].Id, f.Inner[0].Id, DropPlacement.Before)); // into the Repeat
         Assert.False(app.Draft.Drop(f.TrackStep.Id, f.Top[0].Id, DropPlacement.Before)); // a rig step to the top level
         Assert.False(app.Draft.Drop(f.Top[2].Id, f.Inner[1].Id, DropPlacement.After)); // the Repeat into itself
 

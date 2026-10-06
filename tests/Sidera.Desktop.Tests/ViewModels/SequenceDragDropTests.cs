@@ -194,7 +194,7 @@ public class SequenceDragDropTests
     }
 
     [Fact]
-    public async Task AStepOfARepeatCannotLeaveIt_AndATopLevelStepCannotEnterIt()
+    public async Task AStep_CanLeaveARepeatAndEnterAnother_WhereTheStructureAllowsIt()
     {
         await using var host = CreateHost();
         var inner = new LeafStepDraft[] { Exposure(), Delay() };
@@ -203,13 +203,17 @@ public class SequenceDragDropTests
         var loose = Exposure();
         var draft = CreateDraft(host, repeat, other, loose);
 
-        Assert.False(draft.CanMoveStep(inner[0].Id, null, 0)); // out of its Repeat
-        Assert.False(draft.CanMoveStep(inner[0].Id, other.Id, 0)); // into another Repeat
-        Assert.False(draft.CanMoveStep(loose.Id, repeat.Id, 1)); // from the top level in
-        Assert.Equal("Steps are reordered within their own list.", draft.WhyNotMoveStep(loose.Id, repeat.Id, 1));
+        Assert.True(draft.CanMoveStep(inner[0].Id, null, 0)); // out of its Repeat
+        Assert.True(draft.CanMoveStep(inner[0].Id, other.Id, 0)); // into another Repeat
+        Assert.True(draft.CanMoveStep(loose.Id, repeat.Id, 1)); // from the top level in
 
-        Assert.Equal(inner.Select(s => s.Id), ChildrenOf(draft, repeat.Id));
-        Assert.Equal([repeat.Id, other.Id, loose.Id], Order(draft));
+        Assert.True(draft.MoveStep(loose.Id, repeat.Id, 1));
+        Assert.Equal([inner[0].Id, loose.Id, inner[1].Id], ChildrenOf(draft, repeat.Id));
+        Assert.Equal([repeat.Id, other.Id], Order(draft));
+
+        Assert.True(draft.MoveStep(inner[1].Id, null, 0));
+        Assert.Equal([inner[1].Id, repeat.Id, other.Id], Order(draft));
+        Assert.Equal([inner[0].Id, loose.Id], ChildrenOf(draft, repeat.Id));
     }
 
     // What the structure forbids
@@ -282,10 +286,12 @@ public class SequenceDragDropTests
         var draft = CreateDraft(host, [.. session, block]);
         var before = draft.Rows.Select(r => r.Id).ToList();
 
-        foreach (var step in session) // the Delay may be a step of a track, but it is not moved there: lists keep their steps
+        foreach (var step in session.Where(step => step is not DelayStepDraft)) // the Delay may be a step of a track, and so it may be moved there; the others are steps of the session
         {
             Assert.False(draft.CanMoveStep(step.Id, track.Id, 0), step.GetType().Name);
         }
+
+        Assert.True(draft.CanMoveStep(session[3].Id, track.Id, 0));
 
         Assert.Contains("cannot be part of a Rig Track", draft.WhyNotMoveStep(session[1].Id, track.Id, 0));
         Assert.False(draft.CanMoveStep(session[0].Id, block.Id, 0)); // nor into the block between the tracks
@@ -329,7 +335,7 @@ public class SequenceDragDropTests
     }
 
     [Fact]
-    public async Task AStepOfARigTrack_CannotMoveToAnotherTrack_OrOutOfItsRepeat()
+    public async Task AStepOfARigTrack_CanMoveToAnotherTrack_AndOutOfItsRepeat()
     {
         await using var host = CreateHost();
         var inner = new LeafStepDraft[] { RigExposure(), RigExposure() };
@@ -338,9 +344,9 @@ public class SequenceDragDropTests
         var second = Track(Wide, RigExposure());
         var draft = CreateDraft(host, MultiRig(first, second));
 
-        Assert.False(draft.CanMoveStep(first.Steps[0].Id, second.Id, 0));
-        Assert.False(draft.CanMoveStep(inner[0].Id, first.Id, 0));
-        Assert.False(draft.CanMoveStep(inner[0].Id, second.Id, 0));
+        Assert.True(draft.CanMoveStep(first.Steps[0].Id, second.Id, 0)); // a rig step is the rig of the track it is in
+        Assert.True(draft.CanMoveStep(inner[0].Id, first.Id, 0));
+        Assert.True(draft.CanMoveStep(inner[0].Id, second.Id, 0));
     }
 
     [Fact]
@@ -446,8 +452,11 @@ public class SequenceDragDropTests
         Assert.True(last.ShowsDropAfter);
         Assert.False(last.ShowsDropBefore);
 
-        draft.ShowDrop(draft.PlanDrop(slew.Id, inner.Id, DropPlacement.Before)); // into the Repeat: refused
+        draft.ShowDrop(draft.PlanDrop(slew.Id, inner.Id, DropPlacement.Before)); // into the Repeat: a place like any other
         Assert.False(last.ShowsDropAfter); // the line of the place before is gone
+        Assert.True(draft.Rows.Single(r => r.Id == inner.Id).ShowsDropBefore);
+        draft.ShowDrop(draft.PlanDrop(repeat.Id, inner.Id, DropPlacement.Before)); // the Repeat into itself: refused
+        Assert.False(draft.Rows.Single(r => r.Id == inner.Id).ShowsDropBefore);
         var refused = draft.Rows.Single(r => r.Id == inner.Id);
         Assert.True(refused.IsDropRejected);
         Assert.DoesNotContain(draft.Rows, row => row.ShowsDropAfter || row.ShowsDropBefore);

@@ -639,9 +639,21 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         }
 
         var step = Rows.First(row => row.Id == sourceId);
+        var newParent = targetParentId is { } parentId ? Rows.First(row => row.Id == parentId) as ContainerStepDraftViewModel : null;
         var siblings = SiblingsOf(step);
-        var from = siblings.IndexOf(step);
-        siblings.Move(from, targetIndex > from ? targetIndex - 1 : targetIndex);
+        if (newParent == step.Parent)
+        {
+            var from = siblings.IndexOf(step);
+            siblings.Move(from, targetIndex > from ? targetIndex - 1 : targetIndex);
+        }
+        else
+        {
+            // Into another list: out of the old one, into the new one at the place that was judged (counted before the step left).
+            siblings.Remove(step);
+            step.Parent = newParent;
+            (newParent?.Children ?? Steps).Insert(targetIndex, step);
+        }
+
         RebuildRows();
         SelectedStep = step;
         Revalidate();
@@ -661,10 +673,22 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             return new StepDropPlan(StepDropOutcome.Rejected, null, 0, null, null, false, "That row is not in the sequence.");
         }
 
+        if (placement == DropPlacement.Into)
+        {
+            if (over is not ContainerStepDraftViewModel container)
+            {
+                return new StepDropPlan(StepDropOutcome.Rejected, null, 0, over, null, false, "Only a Repeat, a Rig Track or a Multi-Rig block can hold steps.") { Placement = placement };
+            }
+
+            // After the steps it has; an empty container has none, and this is how its first one gets there.
+            var into = JudgeMove(sourceId, container.Id, container.Children.Count);
+            return into with { Over = over, Marker = LastRowOf(over), MarkerBefore = false, Placement = placement };
+        }
+
         var index = SiblingsOf(over).IndexOf(over) + (placement == DropPlacement.After ? 1 : 0);
         var judged = JudgeMove(sourceId, over.Parent?.Id, index);
         var before = placement == DropPlacement.Before;
-        return judged with { Over = over, Marker = before ? over : LastRowOf(over), MarkerBefore = before };
+        return judged with { Over = over, Marker = before ? over : LastRowOf(over), MarkerBefore = before, Placement = placement };
     }
 
     /// <summary>Starts dragging a step: it is selected and marked as the one being moved. Not while the sequence runs.</summary>
@@ -693,7 +717,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
         if (plan.IsMove && plan.Marker is { } marker && plan.Over is { } over)
         {
-            marker.DropIndentWidth = over.IndentWidth;
+            marker.DropIndentWidth = over.IndentWidth + (plan.Placement == DropPlacement.Into ? 28 : 0); // into a container: as far in as its steps
             if (plan.MarkerBefore)
             {
                 marker.ShowsDropBefore = true;
@@ -784,19 +808,15 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             return Refuse(WhyNotAccepted(step, parent));
         }
 
-        if (parent != step.Parent)
-        {
-            return Refuse("Steps are reordered within their own list.");
-        }
-
-        var siblings = SiblingsOf(step);
+        // A step may change its list (into a Repeat, out of one, into another) wherever the structure above accepts it there.
+        var siblings = parent is null ? Steps : parent.Children;
         if (index < 0 || index > siblings.Count)
         {
             return Refuse("That place is outside the list.");
         }
 
-        var from = siblings.IndexOf(step);
-        return index == from || index == from + 1
+        var from = parent == step.Parent ? siblings.IndexOf(step) : -1;
+        return parent == step.Parent && (index == from || index == from + 1)
             ? new StepDropPlan(StepDropOutcome.Unchanged, parentId, index, null, null, false, null)
             : new StepDropPlan(StepDropOutcome.Move, parentId, index, null, null, false, null);
     }
