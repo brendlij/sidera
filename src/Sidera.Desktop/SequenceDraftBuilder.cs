@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Sidera.Core.Coordination;
+using Sidera.Core.Conditions;
 using Sidera.Core.Devices;
 using Sidera.Core.Events;
 using Sidera.Core.FilterWheels;
@@ -47,7 +48,9 @@ public sealed record SequenceDraftContext(
     Sidera.Runtime.Astrometry.RotationService? Rotation = null,
     TimeProvider? Time = null,
     Func<Sidera.Core.Location.ObservingSite?>? Site = null,
-    TimeSpan? MeridianPollInterval = null
+    TimeSpan? MeridianPollInterval = null,
+    Sidera.Runtime.Sequencing.ConditionStatusBoard? Conditions = null,
+    TimeSpan? ConditionPollInterval = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -146,6 +149,7 @@ public static class SequenceDraftBuilder
             ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, e.CameraId)}"),
             RigExposureStepDraft e => new("Exposure", $"{Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, rig?.CameraId)}"),
             DelayStepDraft d => new("Delay", Seconds(d.Seconds)),
+            WaitUntilStepDraft w => new("Wait Until", w.Conditions.Count == 0 ? "no condition" : string.Join(" and ", w.Conditions.Select(c => c.Summary))),
             SlewStepDraft s => new("Slew", string.Create(
                 CultureInfo.InvariantCulture,
                 $"RA {s.RightAscensionHours:0.###} h · Dec {s.DeclinationDegrees:+0.##;-0.##;0}°")),
@@ -166,7 +170,8 @@ public static class SequenceDraftBuilder
                 : AutofocusSettings(a.ExposureSeconds, a.StepSize, a.SampleCount)),
             RepeatStepDraft r => new(
                 string.Create(CultureInfo.InvariantCulture, $"Repeat × {r.Count}"),
-                r.Children.Count == 0 ? "no steps" : r.Children.Count == 1 ? "1 step" : $"{r.Children.Count} steps"),
+                (r.Children.Count == 0 ? "no steps" : r.Children.Count == 1 ? "1 step" : $"{r.Children.Count} steps")
+                + (r.Stop is { IsEmpty: false } stop ? "\nStops when any: " + string.Join(" or ", stop.Any.Select(c => c.Summary)) : string.Empty)),
             MultiRigStepDraft m => new(
                 MultiRigName,
                 (m.Tracks.Count == 0 ? "no rig tracks" : m.Tracks.Count == 1 ? "1 rig track" : $"{m.Tracks.Count} rig tracks")
@@ -175,7 +180,8 @@ public static class SequenceDraftBuilder
                     ? string.Create(
                         CultureInfo.InvariantCulture,
                         $"\nMeridian flip: hold {flip.Settings.PauseBeforeMeridianMinutes:0.#} min before · flip {flip.Settings.FlipAfterMeridianMinutes:0.#} min after the meridian · latest {flip.Settings.LatestAllowedFlipMinutes:0.#} min")
-                    : string.Empty)),
+                    : string.Empty)
+                + (m.TargetStop is { IsEmpty: false } targetStop ? "\nThe target stops when any: " + string.Join(" or ", targetStop.Any.Select(c => c.Summary)) : string.Empty)),
             _ => new(step.Kind.ToString(), string.Empty),
         };
     }
@@ -573,7 +579,8 @@ public static class SequenceDraftBuilder
         Rig? rig,
         Orchestration? orchestration,
         FrameCounter? counter,
-        AutofocusPlan? autofocus)
+        AutofocusPlan? autofocus,
+        ConditionPlan? plan = null)
     {
         var description = Describe(registry, step, context, rig);
         switch (step)
@@ -583,8 +590,20 @@ public static class SequenceDraftBuilder
                 // One orchestration for each mount that a dither or a meridian flip moves: only the tracks on it are orchestrated (they hold safe points and wait for the dither or the flip). A rig on
                 // another mount is not disturbed by it and runs on as if the policy were not there.
                 var orchestrations = Orchestrate(registry, multiRig, context);
+
+                // What stops the whole target: one scope for all the tracks, which every block of every track belongs to.
+                var firstRig = multiRig.Tracks.Select(t => t.RigId).OfType<RigId>().Select(id => TryGetRig(context, id, out var found) ? found : null).FirstOrDefault(r => r is not null);
+                var conditionPlan = multiRig.TargetStop is { IsEmpty: false } targetStop
+                    ? new ConditionPlan(NewScope(registry, context, firstRig, targetStop, null))
+                    : null;
+                if (conditionPlan?.Target is not null)
+                {
+                    var status = context?.Conditions?.For(multiRig.Id);
+                    status?.Set(ConditionPhase.Idle, "Target stops when any: " + string.Join(" or ", multiRig.TargetStop!.Any.Select(c => c.Summary)));
+                }
+
                 var tracks = multiRig.Tracks
-                    .Select(track => BuildTrack(registry, track, context, orchestrations.FirstOrDefault(o => o.Participants.Contains(track.Id))))
+                    .Select(track => BuildTrack(registry, track, context, orchestrations.FirstOrDefault(o => o.Participants.Contains(track.Id)), conditionPlan))
                     .ToList();
 
                 // A block of one track (the imaging of a single setup) has nothing to run next to: it is its track, in a group so that the block keeps its place in the tree.
@@ -622,10 +641,31 @@ public static class SequenceDraftBuilder
             }
             case RepeatStepDraft repeat:
             {
-                // A RepeatStep repeats one child; the group makes the children of the draft one.
-                var children = BuildSteps(registry, repeat.Children, context, rig, orchestration, counter, autofocus);
-                var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step));
-                return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body), children);
+                if (repeat.Stop is not { IsEmpty: false } && plan?.Target is null)
+                {
+                    // A RepeatStep repeats one child; the group makes the children of the draft one.
+                    var plainChildren = BuildSteps(registry, repeat.Children, context, rig, orchestration, counter, autofocus);
+                    var plainBody = new SequenceGroup(RepeatBodyName, plainChildren.Select(child => child.Step));
+                    return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, plainBody), plainChildren);
+                }
+
+                // A block of frames with conditions: the frames are the count, and the stop conditions of the block (and of its target) can end it earlier. The same control is asked before
+                // each frame, before each step of a frame and after each frame, so that once a stop holds nothing new starts and the exposure that runs is finished.
+                var scope = NewScope(registry, context, rig, repeat.Stop, plan?.Target);
+                var children = BuildSteps(registry, repeat.Children, context, rig, orchestration, counter, autofocus, new ConditionPlan(plan?.Target, scope));
+                var counted = children
+                    .Where(child => repeat.Children.Any(draft => draft.Id == child.DraftId && draft is RigExposureStepDraft or ExposureStepDraft))
+                    .Select(child => child.Step)
+                    .ToHashSet();
+                var control = new ConditionBlockControl(scope, ConditionServicesOf(registry, context, rig), repeat.Count, counted, context?.Conditions?.For(repeat.Id));
+                var body = new SequenceGroup(RepeatBodyName, children.Select(child => child.Step), control);
+                return new BuiltStep(step.Id, description, new RepeatStep(repeat.Count, body, control), children);
+            }
+            case WaitUntilStepDraft wait:
+            {
+                var target = wait.Target is { } at ? new CelestialCoordinates(at.RightAscensionHours, at.DeclinationDegrees) : null;
+                var waiting = new WaitUntilStep(description.Title, wait.Conditions, target, ConditionServicesOf(registry, context, rig), context?.Conditions?.For(wait.Id), plan?.Target);
+                return new BuiltStep(step.Id, description, waiting);
             }
             default:
                 return new BuiltStep(step.Id, description, CreateLeaf(registry, step, rig, context));
@@ -644,7 +684,8 @@ public static class SequenceDraftBuilder
         Rig? rig,
         Orchestration? orchestration,
         FrameCounter? counter,
-        AutofocusPlan? autofocus)
+        AutofocusPlan? autofocus,
+        ConditionPlan? plan = null)
     {
         var built = new List<BuiltStep>();
         for (var i = 0; i < steps.Count; i++)
@@ -655,7 +696,7 @@ public static class SequenceDraftBuilder
             // comes before an autofocus that is due, and the autofocus after it counts from the flip.
             if (step is RigExposureStepDraft guarded && orchestration?.Flip is { } flip)
             {
-                built.Add(Generated(new MeridianGateStep(flip, guarded.Seconds), flip.Children.Select(child => Generated(child)).ToList()));
+                built.Add(Generated(new MeridianGateStep(flip, guarded.Seconds, plan?.Block), flip.Children.Select(child => Generated(child)).ToList()));
             }
 
             // The interval policy looks at the clock before each exposure of the track: the policy says "focus again when it is time", and the place between two exposures is where that is safe.
@@ -665,7 +706,7 @@ public static class SequenceDraftBuilder
                 built.AddRange(IntervalAutofocus(registry, autofocus, context, orchestration));
             }
 
-            built.Add(BuildStep(registry, step, context, rig, orchestration, counter, autofocus));
+            built.Add(BuildStep(registry, step, context, rig, orchestration, counter, autofocus, plan));
 
             if (step is RigAutofocusStepDraft && autofocus is { Clock: not null })
             {
@@ -806,8 +847,21 @@ public static class SequenceDraftBuilder
         return new MeridianFlipGroup(plan, services);
     }
 
+    // The scopes of the conditions a step is built in: the target's (all the tracks), and the block's (the frames being built).
+    private sealed record ConditionPlan(ConditionScope? Target, ConditionScope? Block = null);
+
+    private static ConditionServices ConditionServicesOf(DeviceRegistry registry, SequenceDraftContext? context, Rig? rig) =>
+        new(context?.Time, ConditionServices.SiteOf(context?.Site, registry, rig?.MountId), context?.ConditionPollInterval ?? context?.MeridianPollInterval);
+
+    private static ConditionScope NewScope(DeviceRegistry registry, SequenceDraftContext? context, Rig? rig, StopConditionsDraft? stop, ConditionScope? parent) =>
+        new(
+            ConditionServicesOf(registry, context, rig),
+            stop?.Target is { } target ? new CelestialCoordinates(target.RightAscensionHours, target.DeclinationDegrees) : null,
+            stop?.Any ?? [],
+            parent);
+
     private static BuiltStep BuildTrack(
-        DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context, Orchestration? orchestration)
+        DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context, Orchestration? orchestration, ConditionPlan? conditions = null)
     {
         // Validated before: the rig is selected and there.
         TryGetRig(context, track.RigId!.Value, out var rig);
@@ -818,12 +872,14 @@ public static class SequenceDraftBuilder
             orchestration?.Clocks?.Add(clock); // a flip that autofocuses starts the interval again
         }
 
-        var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter, plan);
+        var steps = BuildSteps(registry, track.Steps, context, rig, orchestration, counter, plan, conditions);
 
         // At the start of the track, once: before the first step that does something, unless that is an autofocus.
-        if (plan is { AtTrackStart: true } && FirstExecutableStep(track.Steps) is not RigAutofocusStepDraft)
+        // A track that begins by waiting (for darkness, for the target to rise) focuses after the wait, not before it.
+        var leadingWaits = track.Steps.TakeWhile(step => step is WaitUntilStepDraft).Count();
+        if (plan is { AtTrackStart: true } && FirstExecutableStep(track.Steps.Skip(leadingWaits).ToList()) is not RigAutofocusStepDraft)
         {
-            steps.InsertRange(0, GeneratedAutofocus(registry, plan, context, orchestration, AutofocusOrigin.TrackStart));
+            steps.InsertRange(leadingWaits, GeneratedAutofocus(registry, plan, context, orchestration, AutofocusOrigin.TrackStart));
         }
 
         var runtime = new RigTrackStep(
@@ -986,11 +1042,45 @@ public static class SequenceDraftBuilder
             ValidateGuidingOrder(step, label, scope, pass, p => Report(step.Id, p));
         }
 
+        // The conditions of a step: each must make sense, and one that is about the target needs the target's coordinates.
+        private static void ConditionProblems(IReadOnlyList<WorkflowCondition> conditions, ConditionTargetDraft? target, string what, List<string> problems)
+        {
+            foreach (var condition in conditions)
+            {
+                if (condition.Problem is { } problem)
+                {
+                    problems.Add($"{what}: {problem}");
+                }
+            }
+
+            if (conditions.Any(c => c is TargetAltitudeCondition))
+            {
+                if (target is null)
+                {
+                    problems.Add($"{what}: a target altitude needs the coordinates of the target.");
+                }
+                else if (!double.IsFinite(target.RightAscensionHours) || target.RightAscensionHours is < 0 or >= 24 || !double.IsFinite(target.DeclinationDegrees) || target.DeclinationDegrees is < -90 or > 90)
+                {
+                    problems.Add($"{what}: the target needs a right ascension of 0 to 24 hours and a declination of -90 to 90 degrees.");
+                }
+            }
+        }
+
         private void Repeat(RepeatStepDraft repeat, int index, bool inTrack)
         {
             if (repeat.Count < 1)
             {
                 Report(repeat.Id, "Repeat count must be at least 1.");
+            }
+
+            if (repeat.Stop is { } stopConditions)
+            {
+                var stopProblems = new List<string>();
+                ConditionProblems(stopConditions.Any, stopConditions.Target, "Stop conditions", stopProblems);
+                foreach (var problem in stopProblems)
+                {
+                    Report(repeat.Id, problem);
+                }
             }
 
             if (repeat.Children.Count == 0)
@@ -1033,6 +1123,15 @@ public static class SequenceDraftBuilder
 
             DitherPolicy(multiRig, label);
             FlipPolicy(multiRig);
+            if (multiRig.TargetStop is { } targetStop)
+            {
+                var stopProblems = new List<string>();
+                ConditionProblems(targetStop.Any, targetStop.Target, "Target stop conditions", stopProblems);
+                foreach (var problem in stopProblems)
+                {
+                    Report(multiRig.Id, problem);
+                }
+            }
 
             var rigs = new HashSet<RigId>();
             var cameras = new HashSet<DeviceId>();
@@ -1240,6 +1339,16 @@ public static class SequenceDraftBuilder
 
         // What a Rig Track may hold: exposures with the rig camera, delays, moves of the rig focuser, changes of the
         // rig filter wheel, and Repeats of those.
+        private static void WaitUntilProblems(WaitUntilStepDraft wait, List<string> problems)
+        {
+            if (wait.Conditions.Count == 0)
+            {
+                problems.Add("Wait Until needs at least one condition.");
+            }
+
+            ConditionProblems(wait.Conditions, wait.Target, "Wait Until", problems);
+        }
+
         private void TrackLeaf(SequenceStepDraft step)
         {
             var problems = new List<string>();
@@ -1272,6 +1381,9 @@ public static class SequenceDraftBuilder
                     break;
                 case DelayStepDraft d:
                     CheckDuration(d.Seconds, "Delay", problems);
+                    break;
+                case WaitUntilStepDraft w:
+                    WaitUntilProblems(w, problems);
                     break;
                 case ExposureStepDraft:
                     problems.Add("Use an exposure of the track here: its camera is the camera of the rig.");
@@ -1373,6 +1485,9 @@ public static class SequenceDraftBuilder
                     break;
                 case DelayStepDraft d:
                     CheckDuration(d.Seconds, "Delay", problems);
+                    break;
+                case WaitUntilStepDraft w:
+                    WaitUntilProblems(w, problems);
                     break;
                 case SlewStepDraft s:
                     CheckDevice<IMount>(s.MountId, "mount", problems);
@@ -1872,6 +1987,7 @@ public static class SequenceDraftBuilder
         SequenceStepKind.Exposure => "Exposure",
         SequenceStepKind.RigExposure => "Exposure",
         SequenceStepKind.Delay => "Delay",
+        SequenceStepKind.WaitUntil => "Wait Until",
         SequenceStepKind.Slew => "Slew",
         SequenceStepKind.StartGuiding => "Start Guiding",
         SequenceStepKind.StopGuiding => "Stop Guiding",

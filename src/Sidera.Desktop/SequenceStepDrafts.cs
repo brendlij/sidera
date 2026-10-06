@@ -53,7 +53,10 @@ public enum SequenceStepKind
     RotateAndVerify,
 
     /// <summary>Centers a target and rotates to an angle, verified by solves.</summary>
-    CenterAndRotate
+    CenterAndRotate,
+
+    /// <summary>Waits until all of its conditions hold: a time, an altitude of the target or the Sun, darkness.</summary>
+    WaitUntil
 }
 
 /// <summary>
@@ -181,7 +184,7 @@ public sealed record DitherStepDraft(
 /// The one container of the editor: its <see cref="Children"/> run in order, <see cref="Count"/> times. Children are
 /// leaf steps only, which is how the model keeps a Repeat from containing another Repeat.
 /// </summary>
-public sealed record RepeatStepDraft(Guid Id, int Count, IReadOnlyList<LeafStepDraft> Children) : SequenceStepDraft(Id)
+public sealed record RepeatStepDraft(Guid Id, int Count, IReadOnlyList<LeafStepDraft> Children, StopConditionsDraft? Stop = null) : SequenceStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.Repeat;
     public override IEnumerable<DeviceId> DeviceIds => Children.SelectMany(child => child.DeviceIds);
@@ -382,7 +385,8 @@ public sealed record MultiRigStepDraft(
     IReadOnlyList<RigTrackDraft> Tracks,
     MultiRigDitherPolicyDraft? DitherPolicy = null,
     bool SingleTrack = false,
-    MeridianFlipPolicyDraft? MeridianFlip = null
+    MeridianFlipPolicyDraft? MeridianFlip = null,
+    StopConditionsDraft? TargetStop = null
 ) : SequenceStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.MultiRig;

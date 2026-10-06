@@ -59,7 +59,7 @@ public static class StepScopes
             or SequenceStepKind.RotateAndVerify or SequenceStepKind.CenterAndRotate => StepScope.RigLocal,
         SequenceStepKind.Exposure or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Slew or SequenceStepKind.SyncMountToSolved
             or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither => StepScope.Device,
-        SequenceStepKind.Repeat or SequenceStepKind.MultiRig or SequenceStepKind.RigTrack or SequenceStepKind.Delay => StepScope.Session,
+        SequenceStepKind.Repeat or SequenceStepKind.MultiRig or SequenceStepKind.RigTrack or SequenceStepKind.Delay or SequenceStepKind.WaitUntil => StepScope.Session,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The kind of step has no scope."),
     };
 

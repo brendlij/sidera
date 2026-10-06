@@ -53,6 +53,9 @@ public sealed record ExposureDocumentStep(Guid Id, string? CameraId, double Expo
 
 public sealed record DelayDocumentStep(Guid Id, double DurationSeconds) : DocumentLeafStep(Id);
 
+/// <summary>Waits until all of its conditions hold. Added in version 8 with the conditions.</summary>
+public sealed record WaitUntilDocumentStep(Guid Id, IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition> Conditions, ConditionTargetDraft? Target = null) : DocumentLeafStep(Id);
+
 public sealed record SlewDocumentStep(Guid Id, string? MountId, double RaHours, double DecDegrees) : DocumentLeafStep(Id);
 
 public sealed record StartGuidingDocumentStep(Guid Id, string? GuiderId) : DocumentLeafStep(Id);
@@ -91,7 +94,7 @@ public sealed record RigAutofocusDocumentStep(Guid Id, double ExposureSeconds, i
     : DocumentLeafStep(Id);
 
 /// <summary>The one container of version 1: leaf steps only, so a Repeat cannot contain a Repeat.</summary>
-public sealed record RepeatDocumentStep(Guid Id, int Count, IReadOnlyList<DocumentLeafStep> Children) : DocumentStep(Id);
+public sealed record RepeatDocumentStep(Guid Id, int Count, IReadOnlyList<DocumentLeafStep> Children, StopConditionsDraft? Stop = null) : DocumentStep(Id);
 
 /// <summary>An exposure inside a rig track, with the camera of that track's rig.</summary>
 public sealed record RigExposureDocumentStep(Guid Id, double ExposureSeconds, AcquisitionIntent? Acquisition = null) : DocumentLeafStep(Id);
@@ -138,7 +141,8 @@ public sealed record MultiRigDocumentStep(
     IReadOnlyList<RigTrackDocument> Tracks,
     DitherPolicyDocument? DitherPolicy = null,
     bool SingleTrack = false,
-    MeridianFlipPolicyDraft? MeridianFlip = null
+    MeridianFlipPolicyDraft? MeridianFlip = null,
+    StopConditionsDraft? TargetStop = null
 ) : DocumentStep(Id);
 
 public enum SequenceDocumentErrorKind
