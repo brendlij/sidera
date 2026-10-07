@@ -94,7 +94,9 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 - **Version 8 files:** a `.astraseq` of version 8 with a workflow is migrated when it is opened: the target and its Prepare become a target with its shared preparation, the imaging blocks become one sequence for each setup
   with their blocks (a block's start conditions a leading Wait Until, its stop conditions its limits, the autofocus policy of a setup and the dither policy the automation of its blocks), the meridian flip the session automation and the target stop the limits of the target.
   The file is not changed or rewritten by opening it; the session is saved as version 9 when you save it. References to a setup that cannot be found are kept and reported, never given to another setup.
-- **Settings:** tabs for General, Observatory, Imaging, Autofocus, Guiding, Plate solving, Framing, Meridian Flip, Sequencer and Advanced. Each editable tab is saved with its own Save
+- **Themes:** Settings → Appearance: Sidera Dark (the default), Midnight, Graphite, Red Night (black and red only, for night vision at the telescope) and Light. A theme is shown as soon as you choose it; Save keeps it
+  for the next start, Discard goes back to the saved one. Each theme is one palette file in `Styles/Themes`; views and styles take their colours from the tokens, so a theme changes nothing but colours.
+- **Settings:** tabs for General, Appearance, Observatory, Imaging, Autofocus, Guiding, Plate solving, Framing, Meridian Flip, Sequencer and Advanced. Each editable tab is saved with its own Save
   button; nothing is applied while you type. Defaults are only used for what is created afterwards: a session with its own settings, or an open session, is not rewritten. A session
   chooses its meridian flip between "Use application defaults" and "Custom for this session". Settings are defaults; what a session does is in the session.
 - **Hardware safety:** operations that move real equipment (Slew & Center, Center & Rotate, running a sequence with a real mount or rotator) ask once per device and run:

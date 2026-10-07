@@ -43,6 +43,7 @@ public sealed partial class SettingsTabViewModel(string key, string title, Syste
 public sealed partial class SettingsViewModel : ViewModelBase
 {
     public const string GeneralTab = "general";
+    public const string AppearanceTab = "appearance";
     public const string ObservatoryTab = "observatory";
     public const string PlateSolvingTab = "platesolving";
     public const string FramingTab = "framing";
@@ -53,10 +54,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public const string SequencerTab = "sequencer";
     public const string AdvancedTab = "advanced";
 
-    public SettingsViewModel(LogInfo? log = null, Sidera.Desktop.Settings.SiteService? site = null, HardwareSafetyViewModel? safety = null)
+    public SettingsViewModel(
+        LogInfo? log = null, Sidera.Desktop.Settings.SiteService? site = null, HardwareSafetyViewModel? safety = null, Sidera.Desktop.Themes.IThemeApplier? themes = null)
     {
         if (site is not null)
         {
+            Appearance = new AppearanceSettingsViewModel(site, themes);
             Imaging = new ImagingSettingsViewModel(site);
             Autofocus = new AutofocusSettingsViewModel(site);
             Guiding = new GuidingSettingsViewModel(site);
@@ -76,7 +79,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             tabs.AddRange(
             [
-                new(ObservatoryTab, "Observatory", SelectTab), new(ImagingTab, "Imaging", SelectTab), new(AutofocusTab, "Autofocus", SelectTab), new(GuidingTab, "Guiding", SelectTab),
+                new(AppearanceTab, "Appearance", SelectTab), new(ObservatoryTab, "Observatory", SelectTab), new(ImagingTab, "Imaging", SelectTab), new(AutofocusTab, "Autofocus", SelectTab), new(GuidingTab, "Guiding", SelectTab),
                 new(PlateSolvingTab, "Plate solving", SelectTab), new(FramingTab, "Framing", SelectTab), new(MeridianFlipTab, "Meridian Flip", SelectTab),
                 new(SequencerTab, "Sequencer", SelectTab), new(AdvancedTab, "Advanced", SelectTab),
             ]);
@@ -93,9 +96,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
                     new SettingRow("Platform", RuntimeInformation.OSDescription),
                     new SettingRow("Runtime", RuntimeInformation.FrameworkDescription),
                 ]),
-            new SettingsGroup(
-                "Appearance", "How Sidera looks.",
-                [new SettingRow("Theme", "Dark")]),
             new SettingsGroup(
                 "Logging", "What Sidera writes to its log, and for how long it keeps it.",
                 log is null
@@ -123,6 +123,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public GuidingSettingsViewModel? Guiding { get; }
     public MeridianFlipSettingsViewModel? MeridianFlip { get; }
     public SequencerSettingsViewModel? Sequencer { get; }
+    public AppearanceSettingsViewModel? Appearance { get; }
     public AdvancedSettingsViewModel? Advanced { get; }
 
     public IReadOnlyList<SettingsGroup> Groups { get; }
@@ -131,10 +132,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<SettingsTabViewModel> Tabs { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGeneral), nameof(IsObservatory), nameof(IsPlateSolving), nameof(IsFraming), nameof(IsImaging), nameof(IsAutofocus), nameof(IsGuiding), nameof(IsMeridianFlip), nameof(IsSequencer), nameof(IsAdvanced))]
+    [NotifyPropertyChangedFor(nameof(IsGeneral), nameof(IsAppearance), nameof(IsObservatory), nameof(IsPlateSolving), nameof(IsFraming), nameof(IsImaging), nameof(IsAutofocus), nameof(IsGuiding), nameof(IsMeridianFlip), nameof(IsSequencer), nameof(IsAdvanced))]
     public partial string SelectedTabKey { get; private set; } = GeneralTab;
 
     public bool IsGeneral => SelectedTabKey == GeneralTab;
+    public bool IsAppearance => SelectedTabKey == AppearanceTab;
     public bool IsObservatory => SelectedTabKey == ObservatoryTab;
     public bool IsPlateSolving => SelectedTabKey == PlateSolvingTab;
     public bool IsFraming => SelectedTabKey == FramingTab;

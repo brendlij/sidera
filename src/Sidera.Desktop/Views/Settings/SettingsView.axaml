@@ -29,6 +29,34 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <StackPanel DataContext="{Binding Appearance}" x:DataType="vm:AppearanceSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsAppearance}" Spacing="12">
+                <TextBlock Classes="eyebrow" Text="THEME" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="How Sidera looks. Red Night keeps everything in dark red to protect your night vision at the telescope." />
+                <ItemsControl ItemsSource="{Binding Choices}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ThemeChoice">
+                            <RadioButton Classes="card" Width="224" MinHeight="184" Margin="0,0,12,12" GroupName="Theme" IsChecked="{Binding IsChecked, Mode=TwoWay}" AutomationProperties.Name="{Binding Name}" AutomationProperties.AutomationId="{Binding Id, StringFormat='Theme-{0}'}">
+                                <StackPanel Spacing="8">
+                                    <ctl:ThemePreview Shown="{Binding Theme}" Height="96" />
+                                    <TextBlock Classes="value" Text="{Binding Name}" />
+                                    <TextBlock Classes="secondary" Text="{Binding Description}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="secondary" Text="A theme is shown as soon as you choose it. Save keeps it for the next start; Discard goes back to the saved one." TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveAppearance" />
+                    <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardAppearance" />
+                    <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyAppearance" />
+                </StackPanel>
+                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultAppearance" /></Border>
+            </StackPanel>
+
             <!-- The observing site: one place for the whole application, unknown until it is entered -->
             <StackPanel Spacing="12" IsVisible="{Binding IsObservatory}">
                 <StackPanel Spacing="2">

@@ -122,7 +122,7 @@
                         <Border Classes="preview" MinHeight="200">
                             <Grid>
                                 <Image Source="{Binding LatestFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}" Stretch="Uniform" />
-                                <ctl:EmptyState Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}" Margin="16"
+                                <ctl:EmptyState Classes="on-preview" Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}" Margin="16"
                                                 Title="No frame yet"
                                                 Message="Capture an exposure to preview and analyze it." />
                             </Grid>

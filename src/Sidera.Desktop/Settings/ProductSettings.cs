@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Sidera.Core.Focusing;
 
 namespace Sidera.Desktop.Settings;
@@ -9,6 +10,17 @@ public enum SessionMode
 {
     Workflow,
     Advanced,
+}
+
+/// <summary>How Sidera looks: the theme (see <c>SideraThemes</c>). Changing it changes nothing but colours.</summary>
+public sealed record AppearanceSettings
+{
+    /// <summary>The id of the theme; one of those of <c>SideraThemes</c>.</summary>
+    public string ThemeId { get; init; } = Sidera.Desktop.Themes.SideraThemes.DefaultId;
+
+    public string? Problem => Sidera.Desktop.Themes.SideraThemes.Find(ThemeId) is null
+        ? "Choose one of the themes: " + string.Join(", ", Sidera.Desktop.Themes.SideraThemes.All.Select(t => t.Id)) + "."
+        : null;
 }
 
 /// <summary>What the sequencer starts with. Changing it never changes a session that exists.</summary>

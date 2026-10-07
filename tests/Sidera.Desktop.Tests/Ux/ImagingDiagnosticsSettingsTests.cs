@@ -216,7 +216,7 @@ public class ImagingDiagnosticsSettingsTests
         await using var app = await UxApp.Create(UxSetup.Simple, logInfo: Info());
         var settings = app.Vm.Settings;
 
-        Assert.Equal(["General", "Appearance", "Logging", "Equipment defaults"], settings.Groups.Select(g => g.Title));
+        Assert.Equal(["General", "Logging", "Equipment defaults"], settings.Groups.Select(g => g.Title));
         Assert.DoesNotContain(settings.Groups, g => g.IsEditable); // no fake switches
         Assert.Contains("from now on", settings.NoteText);
     }
@@ -254,7 +254,7 @@ public class ImagingDiagnosticsSettingsTests
         {
             var settings = new SettingsViewModel(null, new Sidera.Desktop.Settings.SiteService(new Sidera.Desktop.Settings.SideraSettingsStore(path)));
             Assert.Equal(
-                ["General", "Observatory", "Imaging", "Autofocus", "Guiding", "Plate solving", "Framing", "Meridian Flip", "Sequencer", "Advanced"], settings.Tabs.Select(t => t.Title));
+                ["General", "Appearance", "Observatory", "Imaging", "Autofocus", "Guiding", "Plate solving", "Framing", "Meridian Flip", "Sequencer", "Advanced"], settings.Tabs.Select(t => t.Title));
             Assert.Equal(["General"], settings.Tabs.Where(t => t.IsSelected).Select(t => t.Title));
 
             settings.Tabs.Single(t => t.Title == "Plate solving").IsSelected = true; // what the tab button does

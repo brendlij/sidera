@@ -6,7 +6,10 @@ using CommunityToolkit.Mvvm.Input;
 using Sidera.Core;
 using Sidera.Core.Mounts;
 using Sidera.Desktop.Diagnostics;
+using System.Collections.Generic;
+using System.Linq;
 using Sidera.Desktop.Settings;
+using Sidera.Desktop.Themes;
 
 namespace Sidera.Desktop.ViewModels;
 
@@ -128,6 +131,104 @@ public abstract partial class SettingsSectionViewModel : ViewModelBase
 
         return null;
     }
+}
+
+/// <summary>One theme in the list of the appearance tab: what it is called, and whether it is the chosen one.</summary>
+public sealed partial class ThemeChoice : ObservableObject
+{
+    private readonly AppearanceSettingsViewModel _owner;
+
+    internal ThemeChoice(AppearanceSettingsViewModel owner, SideraTheme theme)
+    {
+        _owner = owner;
+        Theme = theme;
+    }
+
+    public SideraTheme Theme { get; }
+
+    public string Id => Theme.Id;
+
+    public string Name => Theme.Name;
+
+    public string Description => Theme.Description;
+
+    [ObservableProperty]
+    public partial bool IsChosen { get; internal set; }
+
+    // The radio button of the card: choosing it chooses the theme.
+    public bool IsChecked
+    {
+        get => IsChosen;
+        set
+        {
+            if (value)
+            {
+                _owner.Choose(this);
+            }
+        }
+    }
+
+    partial void OnIsChosenChanged(bool value) => OnPropertyChanged(nameof(IsChecked));
+}
+
+/// <summary>
+/// The theme. A theme is shown as soon as it is chosen, so that it can be judged on the page it is used on; Save keeps it for the next start, and Discard goes back to the saved one. Nothing but colours
+/// changes.
+/// </summary>
+public sealed partial class AppearanceSettingsViewModel : SettingsSectionViewModel
+{
+    private readonly SiteService _settings;
+    private readonly IThemeApplier? _applier;
+
+    public AppearanceSettingsViewModel(SiteService settings, IThemeApplier? applier = null)
+    {
+        _settings = settings;
+        _applier = applier;
+        Choices = [.. SideraThemes.All.Select(theme => new ThemeChoice(this, theme))];
+        Loaded();
+    }
+
+    /// <summary>The themes, in the order they are offered.</summary>
+    public IReadOnlyList<ThemeChoice> Choices { get; }
+
+    /// <summary>The theme that is shown (and saved, with Save).</summary>
+    public SideraTheme Selected => Choices.First(c => c.IsChosen).Theme;
+
+    public override string AppliesText => "The theme is kept for the next start.";
+
+    internal void Choose(ThemeChoice choice)
+    {
+        if (choice.IsChosen)
+        {
+            return;
+        }
+
+        foreach (var other in Choices)
+        {
+            other.IsChosen = ReferenceEquals(other, choice);
+        }
+
+        _applier?.Apply(choice.Theme);
+        OnPropertyChanged(nameof(Selected));
+    }
+
+    protected override bool Differs() => Selected.Id != SavedTheme().Id;
+
+    protected override void Reload()
+    {
+        var saved = SavedTheme();
+        foreach (var choice in Choices)
+        {
+            choice.IsChosen = ReferenceEquals(choice.Theme, saved);
+        }
+
+        _applier?.Apply(saved);
+        OnPropertyChanged(nameof(Selected));
+    }
+
+    protected override string? SaveCore() => _settings.SetAppearance(new AppearanceSettings { ThemeId = Selected.Id }).Problem;
+
+    private SideraTheme SavedTheme() => SideraThemes.Find(_settings.Appearance.ThemeId) ?? SideraThemes.Default;
 }
 
 /// <summary>How a new session opens. Changing it never changes a session that exists.</summary>

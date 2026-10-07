@@ -76,11 +76,11 @@
         <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
     </Style>
     <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#40E57F7F" />
+        <Setter Property="Background" Value="{DynamicResource SideraDangerTintHover}" />
         <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
     </Style>
     <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#55E57F7F" />
+        <Setter Property="Background" Value="{DynamicResource SideraDangerTintPressed}" />
         <Setter Property="Foreground" Value="{DynamicResource SideraDanger}" />
     </Style>
     <Style Selector="Button.danger:disabled /template/ ContentPresenter#PART_ContentPresenter">

@@ -1,56 +1,55 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:themes="using:Sidera.Desktop.Themes">
 
     <!--
         The design tokens of Sidera: every colour, size, spacing and shape that a view uses comes from here.
         Views never carry a hex colour, a font size or a margin of their own; they pick a token or a style class.
     -->
     <Styles.Resources>
+        <ResourceDictionary>
 
-        <!-- Surfaces, from the darkest to the lightest: window and sidebar, workspace, panel, raised (inputs, hover) -->
-        <Color x:Key="SideraBg0Color">#0E0F13</Color>
-        <Color x:Key="SideraBg1Color">#15161B</Color>
-        <Color x:Key="SideraBg2Color">#1C1D24</Color>
-        <Color x:Key="SideraBg3Color">#252630</Color>
-        <Color x:Key="SideraBg4Color">#2E3039</Color>
-        <Color x:Key="SideraLineColor">#262830</Color>
-        <Color x:Key="SideraLineStrongColor">#363842</Color>
+            <!--
+                The colours live in the themes (Themes/*.axaml): the same keys in each, chosen by the theme variant that the application is in (Settings → Appearance). The brushes below read them
+                dynamically, so one brush follows the theme without anything that uses it knowing. Dark is the default.
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceInclude x:Key="Dark" Source="avares://Sidera.Desktop/Styles/Themes/Dark.axaml" />
+                <ResourceInclude x:Key="Light" Source="avares://Sidera.Desktop/Styles/Themes/Light.axaml" />
+                <ResourceInclude x:Key="{x:Static themes:SideraThemeVariants.Midnight}" Source="avares://Sidera.Desktop/Styles/Themes/Midnight.axaml" />
+                <ResourceInclude x:Key="{x:Static themes:SideraThemeVariants.Graphite}" Source="avares://Sidera.Desktop/Styles/Themes/Graphite.axaml" />
+                <ResourceInclude x:Key="{x:Static themes:SideraThemeVariants.RedNight}" Source="avares://Sidera.Desktop/Styles/Themes/RedNight.axaml" />
+            </ResourceDictionary.ThemeDictionaries>
 
-        <!-- One accent, violet-blue -->
-        <Color x:Key="SideraAccentColor">#7F83EC</Color>
-        <Color x:Key="SideraAccentHoverColor">#9498F2</Color>
-        <Color x:Key="SideraAccentPressedColor">#6E72DA</Color>
-        <Color x:Key="SideraAccentTintColor">#247F83EC</Color>
-        <Color x:Key="SideraAccentTintStrongColor">#387F83EC</Color>
+        <SolidColorBrush x:Key="SideraBg0" Color="{DynamicResource SideraBg0Color}" />
+        <SolidColorBrush x:Key="SideraBg1" Color="{DynamicResource SideraBg1Color}" />
+        <SolidColorBrush x:Key="SideraBg2" Color="{DynamicResource SideraBg2Color}" />
+        <SolidColorBrush x:Key="SideraBg3" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="SideraBg4" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="SideraLine" Color="{DynamicResource SideraLineColor}" />
+        <SolidColorBrush x:Key="SideraLineStrong" Color="{DynamicResource SideraLineStrongColor}" />
+        <SolidColorBrush x:Key="SideraPreview" Color="{DynamicResource SideraPreviewColor}" />
+        <SolidColorBrush x:Key="SideraOnPreviewStrong" Color="{DynamicResource SideraOnPreviewStrongColor}" />
+        <SolidColorBrush x:Key="SideraOnPreviewText" Color="{DynamicResource SideraOnPreviewTextColor}" />
+        <SolidColorBrush x:Key="SideraOnPreviewLine" Color="{DynamicResource SideraOnPreviewLineColor}" />
+        <SolidColorBrush x:Key="SideraScrim" Color="{DynamicResource SideraScrimColor}" />
 
-        <Color x:Key="SideraOkColor">#6FCB9F</Color>
-        <Color x:Key="SideraWarnColor">#E3B25E</Color>
-        <Color x:Key="SideraDangerColor">#E57F7F</Color>
+        <SolidColorBrush x:Key="SideraText" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="SideraTextSecondary" Color="{DynamicResource SideraTextSecondaryColor}" />
+        <SolidColorBrush x:Key="SideraMuted" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="SideraOnAccent" Color="{DynamicResource SideraOnAccentColor}" />
 
-        <SolidColorBrush x:Key="SideraBg0" Color="{StaticResource SideraBg0Color}" />
-        <SolidColorBrush x:Key="SideraBg1" Color="{StaticResource SideraBg1Color}" />
-        <SolidColorBrush x:Key="SideraBg2" Color="{StaticResource SideraBg2Color}" />
-        <SolidColorBrush x:Key="SideraBg3" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="SideraBg4" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="SideraLine" Color="{StaticResource SideraLineColor}" />
-        <SolidColorBrush x:Key="SideraLineStrong" Color="{StaticResource SideraLineStrongColor}" />
-        <SolidColorBrush x:Key="SideraPreview" Color="#0A0B0E" />
-        <SolidColorBrush x:Key="SideraScrim" Color="#B30A0B0E" />
-
-        <SolidColorBrush x:Key="SideraText" Color="#EDEBE7" />
-        <SolidColorBrush x:Key="SideraTextSecondary" Color="#B6B8C2" />
-        <SolidColorBrush x:Key="SideraMuted" Color="#7F8190" />
-        <SolidColorBrush x:Key="SideraOnAccent" Color="#101116" />
-
-        <SolidColorBrush x:Key="SideraAccent" Color="{StaticResource SideraAccentColor}" />
-        <SolidColorBrush x:Key="SideraAccentHover" Color="{StaticResource SideraAccentHoverColor}" />
-        <SolidColorBrush x:Key="SideraAccentPressed" Color="{StaticResource SideraAccentPressedColor}" />
-        <SolidColorBrush x:Key="SideraAccentTint" Color="{StaticResource SideraAccentTintColor}" />
-        <SolidColorBrush x:Key="SideraAccentTintStrong" Color="{StaticResource SideraAccentTintStrongColor}" />
-        <SolidColorBrush x:Key="SideraOk" Color="{StaticResource SideraOkColor}" />
-        <SolidColorBrush x:Key="SideraWarn" Color="{StaticResource SideraWarnColor}" />
-        <SolidColorBrush x:Key="SideraDanger" Color="{StaticResource SideraDangerColor}" />
-        <SolidColorBrush x:Key="SideraDangerTint" Color="#26E57F7F" />
+        <SolidColorBrush x:Key="SideraAccent" Color="{DynamicResource SideraAccentColor}" />
+        <SolidColorBrush x:Key="SideraAccentHover" Color="{DynamicResource SideraAccentHoverColor}" />
+        <SolidColorBrush x:Key="SideraAccentPressed" Color="{DynamicResource SideraAccentPressedColor}" />
+        <SolidColorBrush x:Key="SideraAccentTint" Color="{DynamicResource SideraAccentTintColor}" />
+        <SolidColorBrush x:Key="SideraAccentTintStrong" Color="{DynamicResource SideraAccentTintStrongColor}" />
+        <SolidColorBrush x:Key="SideraOk" Color="{DynamicResource SideraOkColor}" />
+        <SolidColorBrush x:Key="SideraWarn" Color="{DynamicResource SideraWarnColor}" />
+        <SolidColorBrush x:Key="SideraDanger" Color="{DynamicResource SideraDangerColor}" />
+        <SolidColorBrush x:Key="SideraDangerTint" Color="{DynamicResource SideraDangerTintColor}" />
+        <SolidColorBrush x:Key="SideraDangerTintHover" Color="{DynamicResource SideraDangerTintHoverColor}" />
+        <SolidColorBrush x:Key="SideraDangerTintPressed" Color="{DynamicResource SideraDangerTintPressedColor}" />
 
         <!-- Spacing: 4 8 12 16 24 32, as numbers (for Spacing) and as thickness (for Margin and Padding) -->
         <x:Double x:Key="Space1">4</x:Double>
@@ -104,72 +103,107 @@
         <StreamGeometry x:Key="IconWarning">M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z</StreamGeometry>
 
         <!--
-            What the Fluent theme draws its controls with, set to the palette above, so that text boxes, drop-downs, check
+            What the Fluent theme draws its controls with, set to the palette of the theme (the accent colours come with the theme itself), so that text boxes, drop-downs, check
             boxes and progress bars follow Sidera's surfaces and its one accent without a template of our own.
         -->
-        <Color x:Key="SystemAccentColor">#7F83EC</Color>
-        <Color x:Key="SystemAccentColorLight1">#9498F2</Color>
-        <Color x:Key="SystemAccentColorLight2">#A9ACF6</Color>
-        <Color x:Key="SystemAccentColorDark1">#6E72DA</Color>
-        <Color x:Key="SystemAccentColorDark2">#5F63C4</Color>
-
-        <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{StaticResource SideraBg2Color}" />
+        <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{DynamicResource SideraBg2Color}" />
         <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
         <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
-        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource SideraAccentColor}" />
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{DynamicResource SideraAccentColor}" />
         <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="Transparent" />
-        <SolidColorBrush x:Key="TextControlForeground" Color="#EDEBE7" />
-        <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#EDEBE7" />
-        <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#EDEBE7" />
-        <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#7F8190" />
+        <SolidColorBrush x:Key="TextControlForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{DynamicResource SideraMutedColor}" />
         <Thickness x:Key="TextControlBorderThemeThickness">1</Thickness>
         <Thickness x:Key="TextControlBorderThemeThicknessFocused">1</Thickness>
 
-        <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="ComboBoxBackgroundFocused" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="{StaticResource SideraBg2Color}" />
+        <SolidColorBrush x:Key="ComboBoxBackground" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundFocused" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="{DynamicResource SideraBg2Color}" />
         <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="Transparent" />
         <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="Transparent" />
         <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="Transparent" />
-        <SolidColorBrush x:Key="ComboBoxBorderBrushFocused" Color="{StaticResource SideraAccentColor}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrushFocused" Color="{DynamicResource SideraAccentColor}" />
         <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="Transparent" />
-        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{StaticResource SideraLineStrongColor}" />
-        <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource SideraAccentTintColor}" />
-        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="{StaticResource SideraAccentTintStrongColor}" />
-        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="{StaticResource SideraAccentTintStrongColor}" />
-        <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#EDEBE7" />
-        <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="#EDEBE7" />
-        <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed" Color="#EDEBE7" />
+        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{DynamicResource SideraLineStrongColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{DynamicResource SideraAccentTintColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="{DynamicResource SideraAccentTintStrongColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="{DynamicResource SideraAccentTintStrongColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed" Color="{DynamicResource SideraTextColor}" />
 
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUnchecked" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPointerOver" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPressed" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="{StaticResource SideraLineStrongColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#7F8190" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource SideraAccentColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{StaticResource SideraAccentHoverColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{StaticResource SideraAccentPressedColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{StaticResource SideraAccentColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="{StaticResource SideraAccentHoverColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="{StaticResource SideraAccentPressedColor}" />
-        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#101116" />
-        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="#101116" />
-        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="#101116" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUnchecked" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPointerOver" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPressed" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="{DynamicResource SideraLineStrongColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource SideraAccentColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource SideraAccentHoverColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{DynamicResource SideraAccentPressedColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{DynamicResource SideraAccentColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="{DynamicResource SideraAccentHoverColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="{DynamicResource SideraAccentPressedColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource SideraOnAccentColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource SideraOnAccentColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource SideraOnAccentColor}" />
 
-        <SolidColorBrush x:Key="ProgressBarBackground" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="ScrollBarThumbFill" Color="{StaticResource SideraLineStrongColor}" />
+        <SolidColorBrush x:Key="ProgressBarBackground" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="ScrollBarThumbFill" Color="{DynamicResource SideraLineStrongColor}" />
 
-        <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{StaticResource SideraBg3Color}" />
-        <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{StaticResource SideraLineStrongColor}" />
-        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="{StaticResource SideraBg4Color}" />
-        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="{StaticResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{DynamicResource SideraLineStrongColor}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="{DynamicResource SideraBg4Color}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="{DynamicResource SideraBg4Color}" />
+
+        <!-- The text of the controls, in the colour of the text of the theme (Fluent would draw it white or black) -->
+        <SolidColorBrush x:Key="ComboBoxForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxForegroundFocusedPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocused" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocusedPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundCheckedPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundIndeterminate" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="RadioButtonForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="RadioButtonForegroundPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="RadioButtonForegroundPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ToolTipForeground" Color="{DynamicResource SideraTextColor}" />
+        <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="ComboBoxPlaceHolderForeground" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundUncheckedDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundCheckedDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="CheckBoxForegroundIndeterminateDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="RadioButtonForegroundDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemForegroundDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="MenuFlyoutItemKeyboardAcceleratorTextForeground" Color="{DynamicResource SideraMutedColor}" />
+        <SolidColorBrush x:Key="ToolTipBackground" Color="{DynamicResource SideraBg3Color}" />
+        <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{DynamicResource SideraLineStrongColor}" />
+        </ResourceDictionary>
     </Styles.Resources>
 </Styles>

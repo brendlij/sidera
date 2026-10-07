@@ -53,6 +53,8 @@ public sealed class ImageViewer : Control
         ClipToBoundsProperty.OverrideDefaultValue<ImageViewer>(true);
     }
 
+    public ImageViewer() => this.RedrawWithTheme();
+
     public CameraFrame? Frame { get => GetValue(FrameProperty); set => SetValue(FrameProperty, value); }
 
     /// <summary>Show the frame with the automatic stretch; off, it is shown linear.</summary>
@@ -144,11 +146,14 @@ public sealed class ImageViewer : Control
 
         if (ShowStars && Stars is { Count: > 0 } stars)
         {
+            // Thin and a little transparent: the overlay marks the stars, it does not compete with them.
+            var usablePen = this.Pen("SideraOnPreviewOkColor", Color.FromRgb(0x6F, 0xCB, 0x9F), 1, 0xC8);
+            var skippedPen = this.Pen("SideraOnPreviewWarnColor", Color.FromRgb(0xE3, 0xB2, 0x5E), 1, 0xC8);
             foreach (var star in stars)
             {
                 var (x, y) = _transform.ToView(star.X + 0.5, star.Y + 0.5);
                 var radius = Math.Max(star.Hfr * _transform.Scale, 4);
-                context.DrawEllipse(null, star.IsUsable ? UsablePen : SkippedPen, new Point(x, y), radius, radius);
+                context.DrawEllipse(null, star.IsUsable ? usablePen : skippedPen, new Point(x, y), radius, radius);
             }
         }
     }

@@ -1,0 +1,53 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Graphite: neutral grays that keep colour out of the way, with a teal accent. The same keys in every theme: the tokens read them, nothing else does. -->
+
+    <!-- Surfaces, from the deepest (window and sidebar) to the most raised (hover) -->
+    <Color x:Key="SideraBg0Color">#151617</Color>
+    <Color x:Key="SideraBg1Color">#1C1D1F</Color>
+    <Color x:Key="SideraBg2Color">#242527</Color>
+    <Color x:Key="SideraBg3Color">#2E2F32</Color>
+    <Color x:Key="SideraBg4Color">#38393D</Color>
+    <Color x:Key="SideraLineColor">#2A2B2E</Color>
+    <Color x:Key="SideraLineStrongColor">#3F4044</Color>
+
+    <!-- Text, and the text on the accent -->
+    <Color x:Key="SideraTextColor">#ECECEC</Color>
+    <Color x:Key="SideraTextSecondaryColor">#B8B9BE</Color>
+    <Color x:Key="SideraMutedColor">#85868D</Color>
+    <Color x:Key="SideraOnAccentColor">#08130F</Color>
+
+    <!-- The one accent -->
+    <Color x:Key="SideraAccentColor">#3CC4B0</Color>
+    <Color x:Key="SideraAccentHoverColor">#5AD3C1</Color>
+    <Color x:Key="SideraAccentPressedColor">#2FAB99</Color>
+    <Color x:Key="SideraAccentTintColor">#243CC4B0</Color>
+    <Color x:Key="SideraAccentTintStrongColor">#383CC4B0</Color>
+
+    <!-- Status -->
+    <Color x:Key="SideraOkColor">#8BCB6F</Color>
+    <Color x:Key="SideraWarnColor">#E3B25E</Color>
+    <Color x:Key="SideraDangerColor">#E57F7F</Color>
+    <Color x:Key="SideraDangerTintColor">#26E57F7F</Color>
+    <Color x:Key="SideraDangerTintHoverColor">#40E57F7F</Color>
+    <Color x:Key="SideraDangerTintPressedColor">#55E57F7F</Color>
+
+    <!-- Where an image is shown, and what covers the window while a question is asked -->
+    <Color x:Key="SideraPreviewColor">#0C0C0D</Color>
+    <Color x:Key="SideraOnPreviewTextColor">#A7A9AD</Color>
+    <Color x:Key="SideraOnPreviewAccentColor">#3CC4B0</Color>
+    <Color x:Key="SideraOnPreviewOkColor">#6FCB9F</Color>
+    <Color x:Key="SideraOnPreviewWarnColor">#E3B25E</Color>
+    <Color x:Key="SideraOnPreviewDangerColor">#E85050</Color>
+    <Color x:Key="SideraOnPreviewStrongColor">#ECECEC</Color>
+    <Color x:Key="SideraOnPreviewLineColor">#3F4044</Color>
+    <Color x:Key="SideraScrimColor">#B30C0C0D</Color>
+
+    <!-- What the Fluent controls take as their accent -->
+    <Color x:Key="SystemAccentColor">#3CC4B0</Color>
+    <Color x:Key="SystemAccentColorLight1">#5AD3C1</Color>
+    <Color x:Key="SystemAccentColorLight2">#7EE0D2</Color>
+    <Color x:Key="SystemAccentColorDark1">#2FAB99</Color>
+    <Color x:Key="SystemAccentColorDark2">#258F80</Color>
+</ResourceDictionary>
