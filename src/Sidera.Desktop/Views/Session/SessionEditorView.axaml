@@ -50,8 +50,9 @@
                             <TextBlock Classes="secondary" TextWrapping="Wrap" Text="1 · Add a target.   2 · Set its imaging block: filter, exposure, frames.   3 · Add automation and limits if you want them.   4 · Run." />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Classes="primary" Content="+ Add target" Command="{Binding AddTargetCommand}" AutomationProperties.AutomationId="AddTargetFirst" />
+                                <Button Content="From Framing" Command="{Binding FromFramingCommand}" AutomationProperties.AutomationId="FromFraming" />
                             </StackPanel>
-                            <TextBlock Classes="meta" Text="A target can also come from Framing: choose it there and use Add to Session." />
+                            <TextBlock Classes="meta" Text="Choose a target on the sky in Framing and use Add to Session." />
                         </StackPanel>
                     </Border>
 

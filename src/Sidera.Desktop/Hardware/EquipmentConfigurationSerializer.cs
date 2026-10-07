@@ -216,7 +216,7 @@ public static class EquipmentConfigurationSerializer
                     var rig = ReadRig(element, devices);
                     if (rigs.Any(r => string.Equals(r.Id, rig.Id, StringComparison.OrdinalIgnoreCase)))
                     {
-                        throw new EquipmentConfigurationException($"The rig id '{rig.Id}' is used twice.");
+                        throw new EquipmentConfigurationException($"The imaging setup id '{rig.Id}' is used twice.");
                     }
 
                     rigs.Add(rig);
@@ -297,10 +297,10 @@ public static class EquipmentConfigurationSerializer
 
     private static RigConfiguration ReadRig(JsonElement element, List<DeviceConfiguration> devices)
     {
-        RequireObject(element, "a rig");
-        var id = Required(element, "id", "a rig");
-        var name = Required(element, "name", $"the rig '{id}'");
-        var cameraId = Required(element, "cameraId", $"the rig '{id}'");
+        RequireObject(element, "an imaging setup");
+        var id = Required(element, "id", "an imaging setup");
+        var name = Required(element, "name", $"the imaging setup '{id}'");
+        var cameraId = Required(element, "cameraId", $"the imaging setup '{id}'");
         var focuserId = Optional(element, "focuserId");
         var wheelId = Optional(element, "filterWheelId");
         var rotatorId = Optional(element, "rotatorId");
@@ -340,7 +340,7 @@ public static class EquipmentConfigurationSerializer
             }
             catch (ArgumentException ex)
             {
-                throw new EquipmentConfigurationException($"The optics of the rig '{id}' are not valid: {ex.Message.Split('\n', 2)[0]}", ex);
+                throw new EquipmentConfigurationException($"The optics of the imaging setup '{id}' are not valid: {ex.Message.Split('\n', 2)[0]}", ex);
             }
         }
 
@@ -351,7 +351,7 @@ public static class EquipmentConfigurationSerializer
         {
             if (!devices.Any(d => string.Equals(d.Id, reference, StringComparison.OrdinalIgnoreCase)))
             {
-                throw new EquipmentConfigurationException($"The rig '{id}' refers to the device '{reference}', which is not in the file.");
+                throw new EquipmentConfigurationException($"The imaging setup '{id}' refers to the device '{reference}', which is not in the file.");
             }
         }
 
@@ -386,7 +386,7 @@ public static class EquipmentConfigurationSerializer
     private static double Number(JsonElement element, string name, string rig) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number)
             ? number
-            : throw new EquipmentConfigurationException($"The optics of the rig '{rig}' have no number '{name}'.");
+            : throw new EquipmentConfigurationException($"The optics of the imaging setup '{rig}' have no number '{name}'.");
 
     private static void RequireObject(JsonElement element, string what)
     {

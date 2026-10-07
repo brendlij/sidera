@@ -42,8 +42,13 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:LaneViewModel">
-                                <Button Classes="seq-tab" Classes.selected="{Binding IsSelected}" Content="{Binding SetupName}" Command="{Binding SelectCommand}"
-                                        AutomationProperties.AutomationId="LaneTab" AutomationProperties.Name="{Binding SetupName}" />
+                                <Button Classes="seq-tab" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                        AutomationProperties.AutomationId="LaneTab" AutomationProperties.Name="{Binding SetupName}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding SetupName}" />
+                                        <TextBlock Classes="meta accent" Text="{Binding TabProgress}" IsVisible="{Binding HasTabProgress}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

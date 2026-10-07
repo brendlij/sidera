@@ -121,6 +121,7 @@ public sealed partial class SessionEditorViewModel
             }
         }
 
+        var tab = Targets.SelectMany(t => t.Lanes).FirstOrDefault(l => l.Id == lane.Id);
         foreach (var block in lane.Blocks)
         {
             if (!cards.TryGetValue(block.Id, out var card))
@@ -164,6 +165,13 @@ public sealed partial class SessionEditorViewModel
                 card.ProgressFraction = 0;
                 card.ActivityText = string.Empty;
             }
+        }
+
+        if (tab is not null)
+        {
+            tab.TabProgress = track is not null && current is { } at && cards.TryGetValue(at, out var shown) && shown.ProgressText.StartsWith("Frame ", StringComparison.Ordinal)
+                ? shown.ProgressText["Frame ".Length..]
+                : string.Empty;
         }
     }
 

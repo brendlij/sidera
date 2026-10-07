@@ -53,10 +53,16 @@ public sealed partial class ActionRowViewModel : ObservableObject
 
     /// <summary>What is wrong with the action, said where it is; empty when nothing is.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasProblem))]
+    [NotifyPropertyChangedFor(nameof(HasProblem), nameof(HasEquipmentFix))]
     public partial string ProblemText { get; internal set; } = string.Empty;
 
     public bool HasProblem => ProblemText.Length > 0;
+
+    /// <summary>The problem is one the Equipment page can fix (a device the setup does not have): the line offers to go there instead of leaving it to be found when the run is started.</summary>
+    public bool HasEquipmentFix => ProblemText.Contains("Equipment page", StringComparison.Ordinal);
+
+    [RelayCommand]
+    private void OpenEquipment() => _owner.ShowEquipment?.Invoke();
 
     /// <summary>What the run says about it while it waits ("Waiting for astronomical darkness"); empty otherwise.</summary>
     [ObservableProperty]
@@ -245,6 +251,13 @@ public sealed partial class LaneViewModel : ObservableObject
     public bool CanRemove { get; }
 
     public ObservableCollection<BlockCardViewModel> Blocks { get; } = [];
+
+    /// <summary>How far the sequence of this setup has got while the session runs, "6 / 10": shown on its tab, so that a setup whose blocks are not on show is not out of sight.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTabProgress))]
+    public partial string TabProgress { get; internal set; } = string.Empty;
+
+    public bool HasTabProgress => TabProgress.Length > 0;
 
     public bool HasBlocks => Blocks.Count > 0;
 

@@ -401,7 +401,7 @@ public sealed partial class EquipmentService : IDevicePreferenceStore
 
         if (rig.RotatorId is null)
         {
-            return EquipmentResult.Fail("The rig has no rotator.");
+            return EquipmentResult.Fail("The imaging setup has no rotator.");
         }
 
         return ChangeRigOfCamera(rig.CameraId, _ => rig with { RotatorModel = model }, model is null ? "calibration removed" : "calibration saved", createIfMissing: false);

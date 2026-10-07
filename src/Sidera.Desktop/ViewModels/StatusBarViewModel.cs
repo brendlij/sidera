@@ -105,12 +105,12 @@ public sealed partial class StatusBarViewModel : ViewModelBase, IDisposable
         };
     }
 
-    // "Main: Exposure 180 s — Repeat × 40 · 6 / 40": the branch (a setup), the step that runs, and the repetition it is in.
+    // "Main 750: Exposure 180 s · 6 / 40": the setup, the step that runs, and how far the innermost repetition has got. The way down through the containers is for the tree, not for this line.
     private static string Describe(ActiveBranchViewModel branch)
     {
-        var context = Regex.Replace(branch.Context, @"^Step \d+ / \d+( › )?", string.Empty);
         var line = (branch.HasBranchName ? branch.BranchName + ": " : string.Empty) + branch.DisplayTitle;
-        return context.Length > 0 ? line + " — " + context : line;
+        var progress = Regex.Matches(branch.Context, @"Repeat × \d+ · (\d+ / \d+)");
+        return progress.Count > 0 ? line + " · " + progress[^1].Groups[1].Value : line;
     }
 
     /// <summary>Reads the elapsed time of the run again; called every second while a run goes on.</summary>

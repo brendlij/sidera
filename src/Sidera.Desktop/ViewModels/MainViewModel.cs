@@ -109,6 +109,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site,
             () => OpenEquipment(() => Equipment.BeginNewImagingSetup()));
         SessionEditor.CurrentSetup = () => SetupContext.Current?.Id;
+        SessionEditor.OpenFraming = () => SelectedPage = AppPage.Framing;
+        SessionEditor.ShowEquipment = () => OpenEquipment(() => Equipment.ShowSetupView());
         SequenceDraft.CurrentSetup = () => SetupContext.Current?.Id;
 
         // A new session opens in the mode the settings choose (blocks unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.

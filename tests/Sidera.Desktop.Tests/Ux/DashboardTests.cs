@@ -37,7 +37,7 @@ public class DashboardTests
         Assert.False(dashboard.ShowActivity);
         Assert.Equal("Idle", dashboard.StateText);
         Assert.Equal(StatusKind.Neutral, dashboard.StateKind);
-        Assert.Equal("Untitled session", dashboard.Title);
+        Assert.Equal("Untitled Session", dashboard.Title);
         Assert.False(dashboard.HasElapsed);
         Assert.Equal("No sequence is running", dashboard.IdleTitle);
     }

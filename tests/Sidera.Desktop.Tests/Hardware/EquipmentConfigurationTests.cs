@@ -191,7 +191,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
                "rigs": [ { "id": "rig.a", "name": "R", "cameraId": "camera.a", "optics": { "focalLengthMm": -1, "apertureMm": 150, "pixelSizeMicrons": 3.76, "sensorWidthMm": 23.5, "sensorHeightMm": 15.7, "resolutionWidth": 6248, "resolutionHeight": 4176 } } ] }
             """);
 
-        Assert.Contains("optics of the rig 'rig.a' are not valid", failure.Message);
+        Assert.Contains("optics of the imaging setup 'rig.a' are not valid", failure.Message);
     }
 
     // The ids

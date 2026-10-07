@@ -24,7 +24,7 @@ namespace Sidera.Desktop.ViewModels;
 /// </summary>
 public sealed partial class SequenceDocumentViewModel : ViewModelBase
 {
-    public const string UntitledName = "Untitled Sequence";
+    public const string UntitledName = "Untitled Session";
 
     private enum PendingAction
     {
@@ -71,7 +71,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsDirty { get; private set; }
 
-    /// <summary>The file name, or "Untitled Sequence".</summary>
+    /// <summary>The file name, or "Untitled Session".</summary>
     public string DisplayName => FilePath is null ? UntitledName : Path.GetFileName(FilePath);
 
     public bool HasFile => FilePath is not null;

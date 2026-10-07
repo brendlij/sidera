@@ -150,7 +150,7 @@ public class SequenceDocumentViewModelTests
         await using var app = Create();
 
         Assert.Null(app.Document.FilePath);
-        Assert.Equal("Untitled Sequence", app.Document.DisplayName);
+        Assert.Equal("Untitled Session", app.Document.DisplayName);
         Assert.False(app.Document.IsDirty);
         Assert.False(app.Document.HasFile);
         Assert.Equal(8, app.Draft.Steps.Count);
@@ -168,7 +168,7 @@ public class SequenceDocumentViewModelTests
 
         Assert.True(app.Draft.IsEmpty);
         Assert.Null(app.Document.FilePath);
-        Assert.Equal("Untitled Sequence", app.Document.DisplayName);
+        Assert.Equal("Untitled Session", app.Document.DisplayName);
         Assert.True(app.Document.IsDirty);
         Assert.False(app.Sequencer.CanRun);
         Assert.False(app.Document.IsConfirmingDiscard);

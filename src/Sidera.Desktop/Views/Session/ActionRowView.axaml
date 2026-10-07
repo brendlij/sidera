@@ -27,7 +27,10 @@
                     <TextBlock Classes="secondary accent" Text="{Binding StatusText}" TextWrapping="Wrap" />
                     <TextBlock Classes="meta" Text="{Binding StatusDetail}" TextWrapping="Wrap" />
                 </StackPanel>
-                <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" IsVisible="{Binding HasProblem}" Margin="32,0,0,0" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding HasProblem}" Margin="32,0,0,0">
+                    <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Classes="ghost" Content="Open Equipment" Command="{Binding OpenEquipmentCommand}" IsVisible="{Binding HasEquipmentFix}" AutomationProperties.AutomationId="ActionOpenEquipment" />
+                </StackPanel>
             </StackPanel>
         </Border>
     </StackPanel>

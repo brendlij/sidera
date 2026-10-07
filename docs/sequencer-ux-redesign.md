@@ -78,9 +78,10 @@ order of first use, per-setup autofocus policies and the dither policy → block
 
 ### 3.4 Setup context
 
-An `ImagingContext` (active imaging setup) service over `ImagingSetupCatalog`: current setup (implicit setups included), usable setups, "is multi". The sidebar shows the switcher only with two or more
-usable setups. Imaging, Autofocus, Framing, Plate Solve and the Equipment overview follow it; their own rig pickers go away. The Session lane tabs are separate: selecting a tab does **not** change the
-global context (predictable, tested); a lane is created with the active setup.
+`ImagingSetupContext` (view models) over `ImagingSetupCatalog`: the usable setups (the implicit setup of one camera included), the current one (kept by the imaging path of its camera, so a setup made, renamed
+or made again for the same camera keeps the choice), and what to say when none can image ("Multiple imaging paths are available. Create or choose an Imaging Setup."). The sidebar shows the setup's name
+quietly with one setup and a selector with two or more. Imaging (capture and autofocus), Framing, Plate Solve, the Equipment page, the dashboard and new targets/blocks follow it; their own rig pickers are gone.
+The Session lane tabs are separate: selecting a tab does **not** change the global context and the switcher does not move the lane that is shown (predictable, tested).
 
 ### 3.5 Session page
 
@@ -101,3 +102,17 @@ document (one-way, asked first, as today). Tree device pickers default to the in
 ## 4. Out of scope (stated limits)
 
 Scripting (YAML/Lua/C#), adaptive scheduling, per-block dither intervals that differ on the same mount, simultaneous different targets on independent mounts, temperature/HFR autofocus triggers.
+
+## 5. What was built, and where it deviates
+
+- The editor is model-first: every edit is an immutable function of `SessionEdits` over the `SessionDefinition`; the editor compiles, replaces the steps of the draft and maps the problems of the compiled steps back
+  to the block, lane or action they came from (`SessionCompilation.Origins`). Cards are rebuilt on each edit; the drawer is rebuilt only on structural edits, so typing does not lose the focus.
+- `.astraseq` v9 writes `session` next to the compiled `steps`; v8 `workflow` files are migrated by `WorkflowMigration` when read and never rewritten by opening them. The old `WorkflowCompiler` lives in the tests as the
+  reference of what a v8 workflow meant (`LegacyWorkflowCompiler`); `WorkflowMigrationTests` compares the migrated session's compile result with it.
+- Tree: one-way from the session (asked first), back only where the steps are exactly what a session compiled to (compared by fingerprint). With one usable setup the Tree shows no setup picker (its steps start
+  with the current setup); with several the picker stays where a step needs a setup: the explicit "override on request" button of the spec is not built. Wording of the Tree: Parallel Imaging, Setup Sequence.
+- Dither is counted on the first lane that dithers (the runtime counts on one setup); lanes with different intervals or several dithering lanes get a note, never a silent change. Autofocus "every N minutes" is the clock
+  of the lane (the shortest of its blocks). An autofocus trigger by N exposures, temperature or HFR is not supported.
+- Target status shows Pending, Running, Completed, Skipped, Failed (no separate "Waiting"; what a block waits for is said on its card and in the status bar).
+- Not built: scripting, adaptive scheduling, different simultaneous targets on independent mounts, per-block dither intervals on one mount, Safety and Recovery under Session Automation.
+- The settings file keeps `defaultSessionMode` = `workflow` | `advanced`; the Settings page calls them Blocks and Tree.

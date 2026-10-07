@@ -5,10 +5,10 @@
  <ScrollViewer><StackPanel Margin="{StaticResource InsetPage}" Spacing="16" MaxWidth="950" HorizontalAlignment="Left">
   <ctl:PageHeader Title="Plate Solve" />
   <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
-   <ctl:LabeledField Label="Mount" IsVisible="{Binding HasMountChoice}"><ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" AutomationProperties.AutomationId="PlateSolveMount">
+   <ctl:LabeledField Grid.Column="1" Label="Mount" IsVisible="{Binding HasMountChoice}"><ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" AutomationProperties.AutomationId="PlateSolveMount">
     <ComboBox.ItemTemplate><DataTemplate x:DataType="mount:IMount"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
    </ComboBox></ctl:LabeledField>
-   <ctl:LabeledField Grid.Column="2" Label="Exposure (s)"><NumericUpDown Value="{Binding ExposureSeconds}" Minimum="0.001" Maximum="3600" /></ctl:LabeledField>
+   <ctl:LabeledField Label="Exposure (s)"><NumericUpDown Value="{Binding ExposureSeconds}" Minimum="0.001" Maximum="3600" /></ctl:LabeledField>
   </Grid>
   <TextBlock Classes="secondary" Text="{Binding CenterDisabledText}" TextWrapping="Wrap" IsVisible="{Binding !HasSetup}" />
   <ctl:InfoRow Label="Camera" Value="{Binding CameraName}" AutomationProperties.AutomationId="PlateSolveCamera" />

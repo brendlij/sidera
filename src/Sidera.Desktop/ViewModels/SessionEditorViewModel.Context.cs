@@ -144,6 +144,34 @@ public sealed partial class SessionEditorViewModel
 
     public bool HasSetupNotice => SetupNotice.Length > 0;
 
+    /// <summary>Whether an autofocus holds the mount still (the setups on the same mount wait for it): the application's setting, said where the autofocus is set.</summary>
+    internal bool HoldMountStable => _settings?.Autofocus.HoldMountStable ?? false;
+
+    /// <summary>Opens the equipment of the current imaging setup, where a device that an action needs is added. Set by the application.</summary>
+    public Action? ShowEquipment { get; set; }
+
+    /// <summary>Opens Framing, where a target is chosen on the sky and added to the session. Set by the application.</summary>
+    public Action? OpenFraming { get; set; }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void FromFraming() => OpenFraming?.Invoke();
+
+    private const string NeedsSetupText = "Multiple imaging paths are available. Create or choose an Imaging Setup.";
+
+    // Several cameras and no setup to tell them apart: the session says so where it is made, with the way to make one. Nothing is guessed between the cameras.
+    private void UpdateSetupNeeded()
+    {
+        var needs = UsableRigs.Count == 0 && _registry.GetAll().OfType<Sidera.Core.Devices.ICamera>().Count() >= 2;
+        if (needs)
+        {
+            SetupNotice = NeedsSetupText;
+        }
+        else if (SetupNotice == NeedsSetupText)
+        {
+            SetupNotice = string.Empty;
+        }
+    }
+
     /// <summary>Goes to the Equipment page to make an imaging setup: what the notice offers.</summary>
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void CreateImagingSetup() => _openEquipment?.Invoke();
