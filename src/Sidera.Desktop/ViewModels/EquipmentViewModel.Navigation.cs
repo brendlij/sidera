@@ -789,7 +789,7 @@ public sealed partial class EquipmentViewModel
                     };
                     if (device is null)
                     {
-                        missing = $"No {TitleOf(kind).ToLowerInvariant()} is configured for this rig.";
+                        missing = $"No {TitleOf(kind).ToLowerInvariant()} is configured for this imaging setup.";
                     }
                 }
                 else if (_addingKind == kind)

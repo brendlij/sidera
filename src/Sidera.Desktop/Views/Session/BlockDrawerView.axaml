@@ -96,6 +96,7 @@
                         <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding FocusStepText}" /></ctl:LabeledField>
                         <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding FocusSamplesText}" /></ctl:LabeledField>
                     </Grid>
+                    <TextBlock Classes="meta" Text="{Binding FocusMountText}" IsVisible="{Binding HasFocusMountText}" TextWrapping="Wrap" AutomationProperties.AutomationId="BlockFocusMount" />
                 </StackPanel>
             </StackPanel>
         </StackPanel>

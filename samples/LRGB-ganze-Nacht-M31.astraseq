@@ -1,0 +1,371 @@
+{
+  "format": "astra-sequence",
+  "version": 9,
+  "name": "LRGB - ganze Nacht (M31)",
+  "steps": [],
+  "session": {
+    "automation": {
+      "meridianFlip": {
+        "enabled": true,
+        "pauseBeforeMeridianMinutes": 5,
+        "flipAfterMeridianMinutes": 2,
+        "latestAllowedFlipMinutes": 20,
+        "finishCurrentExposure": true,
+        "stopGuidingBeforeFlip": true,
+        "recenterAfterFlip": true,
+        "verifyRotationAfterFlip": true,
+        "autofocusAfterFlip": true,
+        "restartGuidingAfterFlip": true,
+        "ditherAfterFlip": true,
+        "pauseAfterFlipMinutes": 0,
+        "maxFlipAttempts": 3,
+        "failureBehavior": "pauseSession",
+        "centeringToleranceArcseconds": 30,
+        "maxCenteringAttempts": 5,
+        "solveExposureSeconds": 5
+      }
+    },
+    "start": [
+      {
+        "id": "7c27e69a-bc2d-417c-9511-aa186780ed7a",
+        "type": "waitUntil",
+        "enabled": true,
+        "conditions": [
+          {
+            "type": "twilight",
+            "twilight": "nautical",
+            "event": "dusk"
+          }
+        ]
+      }
+    ],
+    "targets": [
+      {
+        "id": "cee23c10-651a-c17a-18ee-7d658908f6fd",
+        "name": "M31 Andromeda Galaxy",
+        "raHours": 0.7123,
+        "decDegrees": 41.2692,
+        "enabled": true,
+        "preparation": [
+          {
+            "id": "75f87d5e-270e-467c-b8fb-c01c7674683a",
+            "type": "slewAndCenter",
+            "enabled": true,
+            "toleranceArcseconds": 30,
+            "maxAttempts": 5,
+            "solveExposureSeconds": 5
+          },
+          {
+            "id": "974359c9-2eff-42b8-902a-13eabab43cb2",
+            "type": "startGuiding",
+            "enabled": true
+          }
+        ],
+        "lanes": [
+          {
+            "id": "7b510bf4-6e8a-5c84-a16e-e3b4000d3ec7",
+            "blocks": [
+              {
+                "id": "a1b5bf92-faca-40d5-a1ae-81c79fe16ccf",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "fd3a4450-0406-8cce-489f-8814cf689ea2",
+                    "type": "waitUntil",
+                    "enabled": true,
+                    "conditions": [
+                      {
+                        "type": "twilight",
+                        "twilight": "astronomical",
+                        "event": "dusk"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "de1ff068-3dd2-b9c1-b7c9-f2338d79df20",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 0
+                  },
+                  {
+                    "id": "8b07811e-565c-a71c-3c5d-d35082b2d208",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 30
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              },
+              {
+                "id": "24800878-2890-482c-b7f6-e1ba3808b843",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "c1afb9c3-c3fd-fabf-c4cf-6e4950120148",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 1
+                  },
+                  {
+                    "id": "00d63690-d4dd-7cd2-eb3a-396b0fe654b3",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 15
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              },
+              {
+                "id": "fe061500-b0b4-424a-8ec5-1ee96505d6c6",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "0ae7a2c2-3b59-66d9-0e5b-971892848299",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 2
+                  },
+                  {
+                    "id": "1aaadedb-c81c-2bf2-4391-3ebfd80c8ef4",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 15
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              },
+              {
+                "id": "04503662-a111-41b6-8680-ec732d1f1304",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "b8d01a07-ffea-9450-2b89-d1d05a308896",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 3
+                  },
+                  {
+                    "id": "8f78fff1-5859-eb01-5642-4c462e10688a",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 30
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              },
+              {
+                "id": "07952f7b-2d85-44d1-ba0a-7e8b29f6bde6",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "3bd53a69-585c-93d8-df5d-5e8aad2f4a92",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 2
+                  },
+                  {
+                    "id": "c62701b6-92ca-b71f-72fc-9aa4d184bf3d",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 15
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              },
+              {
+                "id": "d67f19d5-9ecc-4e11-b129-91239818c666",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "fa518f04-68aa-db80-a8e6-921b4f3fd2eb",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 1
+                  },
+                  {
+                    "id": "a2e063bf-53cd-5dae-62c2-d4c4eeb79b63",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 15
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              },
+              {
+                "id": "73873f3d-ffef-4045-872b-8581cacc8470",
+                "enabled": true,
+                "actions": [
+                  {
+                    "id": "6da93fce-d832-4944-8c08-03fff276a420",
+                    "type": "setFilter",
+                    "enabled": true,
+                    "slot": 0
+                  },
+                  {
+                    "id": "be304ac6-39b0-94e7-df0b-f2beffbf8664",
+                    "type": "exposure",
+                    "enabled": true,
+                    "seconds": 180
+                  }
+                ],
+                "repeat": {
+                  "count": 30
+                },
+                "automation": {
+                  "dither": {
+                    "everyFrames": 3,
+                    "amplitudePixels": 3,
+                    "settleThresholdPixels": 0.5,
+                    "settleStableSeconds": 10,
+                    "settleTimeoutSeconds": 120
+                  },
+                  "autofocus": {
+                    "atBlockStart": false,
+                    "everyMinutes": 60,
+                    "afterFilterChange": true,
+                    "exposureSeconds": 3,
+                    "stepSize": 400,
+                    "samples": 9
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "limits": [
+          {
+            "type": "twilight",
+            "twilight": "astronomical",
+            "event": "dawn"
+          },
+          {
+            "type": "targetAltitude",
+            "degrees": 30,
+            "when": "below"
+          }
+        ]
+      }
+    ],
+    "end": [
+      {
+        "id": "569fddfe-a209-4043-8a19-f047fd89c2ad",
+        "type": "stopGuiding",
+        "enabled": true
+      }
+    ]
+  }
+}

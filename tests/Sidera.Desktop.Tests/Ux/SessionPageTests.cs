@@ -32,7 +32,7 @@ public class SessionPageTests
         await using var app = await UxApp.Create(UxSetup.OneRig);
         var page = app.Vm.SessionPage;
 
-        Assert.Equal("Untitled Sequence", page.Document.DisplayName);
+        Assert.Equal("Untitled Session", page.Document.DisplayName);
         Assert.NotNull(page.Document.NewCommand);
         Assert.NotNull(page.Document.OpenCommand);
         Assert.NotNull(page.Document.SaveCommand);

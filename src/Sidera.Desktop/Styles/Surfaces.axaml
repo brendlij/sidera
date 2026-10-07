@@ -194,4 +194,9 @@
     <Style Selector="Button.seq-tab.selected /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
     </Style>
+    <!-- The tab that is shown can have nothing to do (its command is off): it is still the one that is selected, not a dimmed one -->
+    <Style Selector="Button.seq-tab.selected:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
 </Styles>

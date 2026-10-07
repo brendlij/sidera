@@ -125,9 +125,9 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
 
     // The session
 
-    /// <summary>The name of the session: the name of its sequence file, or "Untitled session".</summary>
+    /// <summary>The name of the session: the name of its sequence file, or "Untitled Session".</summary>
     public string Title => _document.FilePath is null
-        ? "Untitled session"
+        ? "Untitled Session"
         : Path.GetFileNameWithoutExtension(_document.FilePath);
 
     /// <summary>The sequence has steps.</summary>

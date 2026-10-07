@@ -281,6 +281,7 @@ public sealed partial class SessionEditorViewModel : ViewModelBase, ISessionSour
         Problems = shown.Distinct().ToList();
         BannerProblems = banner.Distinct().ToList();
         RebuildCards();
+        UpdateSetupNeeded();
         if (rebuildDrawer)
         {
             RebuildDrawer();

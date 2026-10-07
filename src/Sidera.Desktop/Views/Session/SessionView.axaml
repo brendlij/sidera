@@ -22,9 +22,9 @@
                     <ctl:StatusIndicator Kind="Warning" Text="Modified" IsVisible="{Binding Document.IsDirty}" />
                     <!-- How the session is edited: as blocks, or as the tree of every step. Opening the tree asks first; going back is offered only where it is exact. -->
                     <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center" DataContext="{Binding Editor}" x:DataType="vm:SessionEditorViewModel">
-                        <Button Classes="ghost" Content="Blocks" Classes.primary="{Binding IsStructured}" Command="{Binding SwitchToStructuredCommand}"
+                        <Button Classes="seq-tab" Content="Blocks" Classes.selected="{Binding IsStructured}" Command="{Binding SwitchToStructuredCommand}"
                                 AutomationProperties.AutomationId="SessionModeBlocks" AutomationProperties.Name="Blocks view" />
-                        <Button Classes="ghost" Content="Tree" Classes.primary="{Binding IsTree}" Command="{Binding ShowTreeCommand}"
+                        <Button Classes="seq-tab" Content="Tree" Classes.selected="{Binding IsTree}" Command="{Binding ShowTreeCommand}"
                                 AutomationProperties.AutomationId="SessionModeTree" AutomationProperties.Name="Tree view" />
                     </StackPanel>
                 </StackPanel>

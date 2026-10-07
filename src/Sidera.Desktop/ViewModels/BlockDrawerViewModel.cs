@@ -78,6 +78,13 @@ public sealed partial class BlockDrawerViewModel : ObservableObject, IUnreadable
 
     public Guid Id => _id;
 
+    /// <summary>What an autofocus of this block means for the other setups on its mount; empty with one setup, or a setup with no mount.</summary>
+    public string FocusMountText => !_owner.IsMultiSetup || _rig?.MountId is null ? string.Empty
+        : _owner.HoldMountStable ? "While it focuses, the mount is held still: the other setups on this mount wait for it."
+        : "The other setups on this mount keep exposing while it focuses. Change this in Settings, Autofocus.";
+
+    public bool HasFocusMountText => FocusMountText.Length > 0;
+
     /// <summary>The block opens as a heading: "Block 2", or the name the user gave it.</summary>
     public string Heading => "Block";
 

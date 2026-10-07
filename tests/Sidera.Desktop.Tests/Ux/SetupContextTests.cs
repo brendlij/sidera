@@ -115,6 +115,26 @@ public sealed class SetupContextTests
         Assert.False(vm.Equipment.IsSetupView);
     }
 
+    [Fact]
+    public async Task SeveralCamerasAndNoSetup_TheSessionSaysSo_AndOffersToCreateOne()
+    {
+        var (host, vm) = await BareAsync("a", "b");
+        await using var _ = host;
+        using var __ = vm;
+        var editor = vm.SessionEditor;
+
+        editor.Load(SessionDefinition.Empty);
+        editor.AddTargetCommand.Execute(null);
+
+        Assert.True(editor.HasSetupNotice);
+        Assert.Equal("Multiple imaging paths are available. Create or choose an Imaging Setup.", editor.SetupNotice);
+        Assert.Contains(editor.Problems, p => p.Contains("No imaging setup", StringComparison.Ordinal)); // and the sequence is not run with a camera that was guessed
+
+        editor.CreateImagingSetupCommand.Execute(null);
+
+        Assert.Equal(AppPage.Equipment, vm.SelectedPage);
+    }
+
     // ---- the equipment of the current setup
 
     [Fact]

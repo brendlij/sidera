@@ -12,16 +12,16 @@ internal static class RigMountText
     {
         if (rigId is not { } id || rigs is null || !rigs.TryGet(id, out var rig) || rig is null)
         {
-            return "Select a rig.";
+            return "Select an imaging setup.";
         }
 
         var mount = StepScopes.EffectiveMount(rig, named, shared);
         if (mount is not { } mountId)
         {
-            return "The rig has no mount. Give it one on the Equipment page.";
+            return "The imaging setup has no mount. Give it one on the Equipment page.";
         }
 
         var name = devices.TryGet(mountId, out var device) && device is not null ? device.Name : mountId.Value;
-        return rig.MountId is not null ? name + " · the mount of the rig" : name + " · named by the step";
+        return rig.MountId is not null ? name + " · the mount of the imaging setup" : name + " · named by the step";
     }
 }
