@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Shell.StatusBarView"
+             x:DataType="vm:StatusBarViewModel">
+
+    <!-- What Sidera is doing now, on every page: the state, the step, what it is at, and how long the run has gone on. -->
+    <Border Padding="16,8" BorderBrush="{DynamicResource SideraLine}" BorderThickness="0,1,0,0" AutomationProperties.AutomationId="StatusBar">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="16">
+            <ctl:StatusIndicator Kind="{Binding StateKind}" Text="{Binding StateText}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Classes="value" Text="{Binding StepCounterText}" IsVisible="{Binding HasStepCounter}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding ActivityText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       ToolTip.Tip="{Binding ActivityText}" AutomationProperties.AutomationId="StatusBarActivity" />
+            <TextBlock Grid.Column="3" Classes="value" Text="{Binding ElapsedText}" IsVisible="{Binding HasElapsed}" VerticalAlignment="Center"
+                       AutomationProperties.AutomationId="StatusBarElapsed" />
+        </Grid>
+    </Border>
+</UserControl>

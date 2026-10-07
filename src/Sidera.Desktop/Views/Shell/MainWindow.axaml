@@ -18,9 +18,12 @@
     <Panel>
         <Grid ColumnDefinitions="Auto,*">
             <shell:SidebarView />
-            <Border Grid.Column="1" Classes="workspace" CornerRadius="12,0,0,0" ClipToBounds="True">
-                <ContentControl Content="{Binding CurrentPage}" />
-            </Border>
+            <DockPanel Grid.Column="1">
+                <shell:StatusBarView DockPanel.Dock="Bottom" DataContext="{Binding StatusBar}" />
+                <Border Classes="workspace" CornerRadius="12,0,0,0" ClipToBounds="True">
+                    <ContentControl Content="{Binding CurrentPage}" />
+                </Border>
+            </DockPanel>
         </Grid>
 
         <!-- Before real equipment moves: the question the hardware tests answer with an environment variable, here answered by the person at the telescope. -->

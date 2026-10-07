@@ -207,6 +207,12 @@ public sealed partial class ExecutionOverviewViewModel : ViewModelBase, IDisposa
     /// <summary>A sequence is running (also while it is pausing or paused).</summary>
     public bool IsRunning => _sequencer.IsRunning;
 
+    /// <summary>The steps of the sequence in order with what each is at (pending, active, done); a flat list, with the depth in each.</summary>
+    public IReadOnlyList<SequenceNodeViewModel> Nodes => _sequencer.Definition;
+
+    /// <summary>Raised each time the running sequence was read again, so that what is shown per step follows it.</summary>
+    public event EventHandler? Refreshed;
+
     private void OnRefreshed(object? sender, EventArgs e) => Refresh();
 
     private void OnSequencerChanged(object? sender, PropertyChangedEventArgs e)
@@ -261,6 +267,7 @@ public sealed partial class ExecutionOverviewViewModel : ViewModelBase, IDisposa
         SharedActivity = _sequencer.SharedActivity;
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(HasRunningLanes));
+        Refreshed?.Invoke(this, EventArgs.Empty);
     }
 
     // The tracks of the first Multi-Rig block: the nodes one level below it, and what each of them holds.

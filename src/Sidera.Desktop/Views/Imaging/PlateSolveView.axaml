@@ -5,7 +5,7 @@
  <ScrollViewer><StackPanel Margin="{StaticResource InsetPage}" Spacing="16" MaxWidth="950" HorizontalAlignment="Left">
   <ctl:PageHeader Title="Plate Solve" />
   <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
-   <ctl:LabeledField Label="Rig"><ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}">
+   <ctl:LabeledField Label="Imaging setup"><ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}">
     <ComboBox.ItemTemplate><DataTemplate x:DataType="rig:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
    </ComboBox></ctl:LabeledField>
    <ctl:LabeledField Grid.Column="1" Label="Mount"><ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}">

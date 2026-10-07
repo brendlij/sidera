@@ -17,7 +17,7 @@
         <Border Grid.Row="1" Classes="panel compact" IsVisible="{Binding HasCapture}">
             <StackPanel Spacing="10" DataContext="{Binding Capture}" x:DataType="vm:ImagingCaptureViewModel">
                 <WrapPanel ItemSpacing="16" LineSpacing="10">
-                    <ctl:LabeledField Label="Rig">
+                    <ctl:LabeledField Label="Imaging setup">
                         <ComboBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" MinWidth="170" AutomationProperties.AutomationId="CaptureRig">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:CaptureTarget"><TextBlock Text="{Binding Label}" /></DataTemplate>
@@ -100,7 +100,7 @@
                     <Border Classes="panel compact" IsVisible="{Binding HasAutofocus}">
                         <StackPanel Spacing="10" DataContext="{Binding Autofocus}" x:DataType="vm:ManualAutofocusViewModel">
                             <TextBlock Classes="eyebrow" Text="AUTOFOCUS" />
-                            <ctl:LabeledField Label="Rig">
+                            <ctl:LabeledField Label="Imaging setup">
                                 <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="AutofocusRig">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate x:DataType="rigs:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate>

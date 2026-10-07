@@ -259,7 +259,7 @@ public class MultiRigEditingTests
     // Rigs
 
     [Fact]
-    public async Task TheRigPicker_ShowsTheNameTheIdAndTheCameraOfEveryRig()
+    public async Task TheRigPicker_ShowsTheNameAndTheCameraOfEveryRig_NotTheId()
     {
         await using var host = CreateHost();
         var draft = CreateDraft(host);
@@ -268,7 +268,7 @@ public class MultiRigEditingTests
 
         Assert.Equal(["rig.main", "rig.narrow", "rig.wide"], track.Rig.Options.Select(o => o.IdText));
         var main = track.Rig.Options[0];
-        Assert.Equal(("Main Rig", "Main Camera", "rig.main · Main Camera"), (main.Name, main.CameraText, main.DetailText));
+        Assert.Equal(("Main Rig", "Main Camera", "Main Camera"), (main.Name, main.CameraText, main.DetailText)); // the id is what the file holds, not something to read
         Assert.Equal("rig.main", track.Rig.Selected!.IdText);
     }
 
