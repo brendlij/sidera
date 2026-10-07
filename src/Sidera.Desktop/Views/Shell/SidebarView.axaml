@@ -23,7 +23,23 @@
     <!-- The sidebar: the work above the line, the care of the application below it, the state of the runtime at the foot -->
     <Border Classes="sidebar" Width="200">
         <Grid RowDefinitions="Auto,*,Auto" Margin="12,24,12,16">
-            <TextBlock Classes="wordmark" Text="SIDERA" Margin="14,0,0,28" />
+            <StackPanel Margin="0,0,0,24" Spacing="16">
+                <TextBlock Classes="wordmark" Text="SIDERA" Margin="14,0,0,0" />
+
+                <!-- The imaging setup everything works with. With one there is nothing to choose: its name, quietly. With several the choice is here. -->
+                <StackPanel Spacing="4" Margin="14,0,0,0" DataContext="{Binding SetupContext}" x:DataType="vm:ImagingSetupContext" IsVisible="{Binding HasCurrent}">
+                    <TextBlock Classes="eyebrow" Text="IMAGING SETUP" />
+                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" IsVisible="{Binding HasSeveral}" HorizontalAlignment="Stretch" Margin="0,0,2,0"
+                              AutomationProperties.AutomationId="SetupSwitcher" AutomationProperties.Name="Imaging Setup">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SetupOption">
+                                <TextBlock Text="{Binding Name}" ToolTip.Tip="{Binding Detail}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Classes="value" Text="{Binding Name}" IsVisible="{Binding HasOne}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Detail}" AutomationProperties.AutomationId="SetupName" />
+                </StackPanel>
+            </StackPanel>
 
             <StackPanel Grid.Row="1" Spacing="2">
                 <ItemsControl ItemsSource="{Binding PrimaryNavigation}">

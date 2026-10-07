@@ -346,7 +346,7 @@ public class EquipmentWorkspaceTests
 
         var camera = Assert.IsType<CameraDetailViewModel>(equipment.SelectedDetail);
         Assert.False(camera.HasRig);
-        Assert.Equal("Not part of a rig", camera.RigText);
+        Assert.Equal("Not part of an imaging setup", camera.RigText);
         Assert.Equal("Not reported", camera.ResolutionText);
 
         await camera.Camera.StartExposureCommand.ExecuteAsync(null);

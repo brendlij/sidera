@@ -249,7 +249,7 @@ public class SequenceDragDropTests
         var draft = CreateDraft(host, slew, block, repeat);
 
         Assert.False(draft.CanMoveStep(block.Id, repeat.Id, 0));
-        Assert.Equal("A Multi-Rig block belongs at the top level of the sequence.", draft.WhyNotMoveStep(block.Id, repeat.Id, 0));
+        Assert.Equal("A Parallel Imaging block belongs at the top level of the sequence.", draft.WhyNotMoveStep(block.Id, repeat.Id, 0));
         Assert.False(draft.CanMoveStep(block.Id, block.Tracks[0].Id, 0));
 
         Assert.True(draft.Drop(block.Id, slew.Id, DropPlacement.Before));
@@ -269,7 +269,7 @@ public class SequenceDragDropTests
 
         Assert.False(draft.CanMoveStep(trackStep.Id, null, 0));
         Assert.False(draft.CanMoveStep(trackStep.Id, repeat.Id, 0));
-        Assert.Equal("A rig step only exists inside a Rig Track.", draft.WhyNotMoveStep(trackStep.Id, null, 0));
+        Assert.Equal("A step of an imaging setup only exists inside a Setup Sequence.", draft.WhyNotMoveStep(trackStep.Id, null, 0));
         Assert.Equal(StepDropOutcome.Rejected, draft.PlanDrop(trackStep.Id, repeat.Id, DropPlacement.After).Outcome);
         Assert.False(draft.Drop(trackStep.Id, repeat.Id, DropPlacement.After));
 
@@ -293,9 +293,9 @@ public class SequenceDragDropTests
 
         Assert.True(draft.CanMoveStep(session[3].Id, track.Id, 0));
 
-        Assert.Contains("cannot be part of a Rig Track", draft.WhyNotMoveStep(session[1].Id, track.Id, 0));
+        Assert.Contains("cannot be part of a Setup Sequence", draft.WhyNotMoveStep(session[1].Id, track.Id, 0));
         Assert.False(draft.CanMoveStep(session[0].Id, block.Id, 0)); // nor into the block between the tracks
-        Assert.Equal("A Multi-Rig block holds Rig Tracks only.", draft.WhyNotMoveStep(session[0].Id, block.Id, 0));
+        Assert.Equal("A Parallel Imaging block holds Setup Sequences only.", draft.WhyNotMoveStep(session[0].Id, block.Id, 0));
         Assert.Equal(before, draft.Rows.Select(r => r.Id));
     }
 
@@ -362,7 +362,7 @@ public class SequenceDragDropTests
         Assert.Equal([wide.Id, main.Id], ChildrenOf(draft, block.Id));
 
         Assert.False(draft.CanMoveStep(wide.Id, null, 2)); // a track does not leave its block
-        Assert.Equal("A Rig Track belongs in a Multi-Rig block.", draft.WhyNotMoveStep(wide.Id, null, 2));
+        Assert.Equal("A Setup Sequence belongs in a Parallel Imaging block.", draft.WhyNotMoveStep(wide.Id, null, 2));
     }
 
     // While the sequence runs

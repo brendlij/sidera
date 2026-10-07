@@ -21,18 +21,28 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     private readonly SideraRuntimeHost _host;
     private readonly ImagingViewModel _imaging;
     private readonly SiteService? _settings;
+    private readonly ImagingSetupContext _context;
     private readonly Action<Action> _post;
     private CancellationTokenSource? _cancel;
-    public PlateSolveViewModel(SideraRuntimeHost host, ImagingViewModel imaging, SiteService? settings, Action<Action> post)
+    public PlateSolveViewModel(SideraRuntimeHost host, ImagingViewModel imaging, ImagingSetupContext context, SiteService? settings, Action<Action> post)
     {
-        _host = host; _imaging = imaging; _settings = settings; _post = post;
+        _host = host; _imaging = imaging; _context = context; _settings = settings; _post = post;
+        _context.Changed += (_, _) => RefreshEquipment();
         var s = settings?.PlateSolving ?? new(); ExposureSeconds = s.ExposureSeconds;
         ToleranceArcseconds = s.CenteringToleranceArcseconds; MaxAttempts = s.MaxCenteringAttempts;
         RefreshEquipment();
     }
-    public ObservableCollection<Rig> Rigs { get; } = [];
+    /// <summary>The mounts there are. The one of the current imaging setup is the mount; only when the setup has none and there are several is one chosen here.</summary>
     public ObservableCollection<IMount> Mounts { get; } = [];
-    [ObservableProperty] public partial Rig? SelectedRig { get; set; }
+
+    /// <summary>The current imaging setup: its camera captures, its optics give the hints. Nothing is chosen on this page.</summary>
+    public Rig? Setup => _context.Current;
+
+    public bool HasSetup => Setup is not null;
+
+    /// <summary>The setup has no mount and there are several: which one is meant is asked, not guessed.</summary>
+    public bool HasMountChoice => Setup is { MountId: null } && Mounts.Count > 1;
+
     [ObservableProperty] public partial IMount? SelectedMount { get; set; }
     [ObservableProperty] public partial double ExposureSeconds { get; set; }
     // The target of Slew & Center is never 0 h / 0 deg by default: it starts empty, or as the position of the mount when that is connected and the person has not typed anything. A target that
@@ -77,7 +87,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     /// <summary>Why Slew &amp; Center cannot be used now, in a sentence; empty when it can.</summary>
     public string CenterDisabledText =>
         _host.PlateSolving is null ? "No plate solver is configured."
-        : SelectedRig is null ? "Select a rig."
+        : Setup is null ? _context.NoSetupText
         : SelectedMount is null ? "No mount is available."
         : SelectedMount.ConnectionState != DeviceConnectionState.Connected ? "Connect the mount to slew."
         : RaText.Trim().Length == 0 || DecText.Trim().Length == 0 ? "Enter the target (RA in hours, Dec in degrees); nothing is assumed."
@@ -114,24 +124,39 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     partial void OnIsBusyChanged(bool value) => SlewAndCenterCommand.NotifyCanExecuteChanged();
     [ObservableProperty] public partial string StatusText { get; private set; } = "Ready";
     [ObservableProperty] public partial string ResultText { get; private set; } = "No solve yet.";
-    [ObservableProperty] public partial string HintText { get; private set; } = "Select a rig.";
+    [ObservableProperty] public partial string HintText { get; private set; } = string.Empty;
     public string SolverName => _host.PlateSolving?.Solver.Name ?? "No solver configured";
-    public string CameraName => SelectedRig is { } r && _host.DeviceRegistry.TryGet(r.CameraId, out var camera) ? camera!.Name : "Unknown";
+    public string CameraName => Setup is { } r && _host.DeviceRegistry.TryGet(r.CameraId, out var camera) ? camera!.Name : "Unknown";
+
+    /// <summary>The setup the page works with, as a name; empty when there is none.</summary>
+    public string SetupName => _context.Name;
     [RelayCommand] public void RefreshEquipment()
     {
-        var rigId = SelectedRig?.Id; var mountId = SelectedMount?.Id;
-        Rigs.Clear(); foreach (var r in _host.RigRegistry.GetAll()) Rigs.Add(r);
+        var mountId = SelectedMount?.Id;
         Mounts.Clear(); foreach (var m in _host.DeviceRegistry.GetAll().OfType<IMount>()) Mounts.Add(m);
-        SelectedRig = Rigs.FirstOrDefault(r => r.Id == rigId) ?? Rigs.FirstOrDefault();
-        SelectedMount = Mounts.FirstOrDefault(m => m.Id == mountId) ?? Mounts.FirstOrDefault();
+
+        // The mount: the one of the setup; else the one that was chosen; else the only one. Never the first of several.
+        SelectedMount = Setup?.MountId is { } setupMount ? Mounts.FirstOrDefault(m => m.Id == setupMount)
+            : Mounts.FirstOrDefault(m => m.Id == mountId) ?? (Mounts.Count == 1 ? Mounts[0] : null);
+        OnPropertyChanged(nameof(Setup));
+        OnPropertyChanged(nameof(HasSetup));
+        OnPropertyChanged(nameof(SetupName));
+        OnPropertyChanged(nameof(CameraName));
+        OnPropertyChanged(nameof(HasMountChoice));
         RefreshHints();
     }
-    partial void OnSelectedRigChanged(Rig? value) { OnPropertyChanged(nameof(CameraName)); RefreshHints(); }
     partial void OnSelectedMountChanged(IMount? value) => RefreshHints();
     private PlateSolveDefaults Defaults => (_settings?.PlateSolving ?? new()).Defaults();
     private void RefreshHints()
     {
-        if (SelectedRig is not { } rig) { HintText = "Select a rig."; return; }
+        if (Setup is not { } rig)
+        {
+            HintText = _context.NoSetupText;
+            OnPropertyChanged(nameof(CenterDisabledText));
+            SlewAndCenterCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
         _host.DeviceRegistry.TryGet(rig.CameraId, out var camera);
         var geometry = OpticalTrainGeometry.Resolve(rig.Optics, SensorGeometry.For(camera));
         CelestialCoordinates? center = null;
@@ -152,7 +177,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     {
         var frame = _imaging.LatestFrame ?? throw new InvalidOperationException("Capture a frame first.");
         if (_imaging.LatestCameraId is { } cameraId && cameraId != rig.CameraId)
-            throw new InvalidOperationException("Select the rig whose camera captured the last frame.");
+            throw new InvalidOperationException("The last frame was taken with another camera. Choose the imaging setup of that camera, or capture again.");
         ShowResult(service, await service.SolveAsync(frame, rig, SelectedMount?.Id, Defaults, cancellationToken: token));
     });
     private bool CanSlewAndCenter() => !IsBusy && CenterDisabledText.Length == 0;
@@ -175,7 +200,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
 
     private Task SlewAndCenterCoreAsync() => RunAsync(async (service, rig, token) =>
     {
-        var mount = SelectedMount ?? throw new InvalidOperationException("Select a mount.");
+        var mount = SelectedMount ?? throw new InvalidOperationException("Choose a mount.");
         var target = Target ?? throw new InvalidOperationException(CenterDisabledText);
         var progress = new Progress<CenteringProgress>(p => _post(() => StatusText = FormattableString.Invariant($"{p.Stage} · attempt {p.Attempt} · error {p.PointingErrorArcseconds:0.##} arcsec")));
         var result = await service.CenterTargetAsync(target, rig, mount.Id, ToleranceArcseconds, MaxAttempts,
@@ -186,7 +211,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
     /// <summary>Explicit only: tells the mount where the last solve found it. Never done by a solve, a sequence or centering.</summary>
     [RelayCommand] private Task SyncMountAsync() => RunAsync(async (service, rig, token) =>
     {
-        var mount = SelectedMount ?? throw new InvalidOperationException("Select a mount.");
+        var mount = SelectedMount ?? throw new InvalidOperationException("Choose a mount.");
         await service.SyncMountToSolvedPositionAsync(mount.Id, token);
         StatusText = "Mount synchronized to the solved position.";
     });
@@ -198,7 +223,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
         try
         {
             var service = _host.PlateSolving ?? throw new InvalidOperationException("Configure a plate solver first.");
-            var rig = SelectedRig ?? throw new InvalidOperationException("Select a rig.");
+            var rig = Setup ?? throw new InvalidOperationException(_context.NoSetupText);
             await body(service, rig, _cancel.Token);
         }
         catch (OperationCanceledException) { StatusText = "Cancelled"; }

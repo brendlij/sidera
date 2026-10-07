@@ -295,7 +295,8 @@ public sealed partial class SessionEditorViewModel
         ImagingBindingId? laneSetup = null;
         if (usable.Count >= 2)
         {
-            var rig = framingSetup is { } id ? ResolvedSetup(id) : null;
+            // The setup the target was framed with; else the one the application works with now; else the first.
+            var rig = framingSetup is { } id ? ResolvedSetup(id) : CurrentSetup?.Invoke() is { } current ? ResolvedSetup(current) : null;
             laneSetup = PathOf(rig ?? usable[0]);
         }
 

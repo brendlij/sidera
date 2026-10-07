@@ -7,7 +7,7 @@ using Sidera.Runtime.Sequencing;
 namespace Sidera.Desktop.Tests;
 
 /// <summary>
-/// The autofocus policy of a Rig Track: what the build puts into the sequence for it, where, and what is refused. The
+/// The autofocus policy of a Setup Sequence: what the build puts into the sequence for it, where, and what is refused. The
 /// draft stays what the user wrote; the generated autofocus runs are runtime steps with no draft behind them.
 /// </summary>
 public class AutofocusPolicyBuilderTests
@@ -275,7 +275,7 @@ public class AutofocusPolicyBuilderTests
         Assert.True(node.IsGenerated);
         Assert.Equal(Guid.Empty, node.DraftId);
         Assert.Equal(AutofocusOrigin.TrackStart, node.AutofocusOrigin);
-        Assert.Equal("automatic · track start", node.Description.Summary);
+        Assert.Equal("automatic · at the start", node.Description.Summary);
     }
 
     [Fact]
@@ -353,7 +353,7 @@ public class AutofocusPolicyBuilderTests
 
         var problems = Problems(host, block);
 
-        Assert.Equal(["Step 1.1 (Rig Track): Enable at least one Autofocus trigger."], problems);
+        Assert.Equal(["Step 1.1 (Setup Sequence): Enable at least one Autofocus trigger."], problems);
         Assert.Throws<SequenceConfigurationException>(() => Build(host, block));
     }
 
@@ -375,7 +375,7 @@ public class AutofocusPolicyBuilderTests
         host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, Optics));
         var block = Block(Track(new RigId("rig.bare"), Policy(start: true), Exposure()), Track(Main, null, Exposure()));
 
-        Assert.Equal(["Step 1.1 (Rig Track): The rig 'rig.bare' has no focuser."], Problems(host, block));
+        Assert.Equal(["Step 1.1 (Setup Sequence): The imaging setup 'Bare Rig' has no focuser."], Problems(host, block));
     }
 
     [Fact]
@@ -387,7 +387,7 @@ public class AutofocusPolicyBuilderTests
         var start = Block(Track(Wide, Policy(start: true), Exposure()), Track(Main, null, Exposure()));
 
         Assert.Equal(
-            ["Step 1.1 (Rig Track): The rig 'rig.wide' has no filter wheel, so Autofocus cannot follow a filter change."],
+            ["Step 1.1 (Setup Sequence): The imaging setup 'Wide Rig' has no filter wheel, so Autofocus cannot follow a filter change."],
             Problems(host, filter));
         Assert.Empty(Problems(host, start));
     }
@@ -404,7 +404,7 @@ public class AutofocusPolicyBuilderTests
         await using var host = CreateHost();
         var block = Block(Track(Main, Policy(start: true, seconds: seconds, step: step, samples: samples), Exposure()), Track(Wide, null, Exposure()));
 
-        Assert.Equal([$"Step 1.1 (Rig Track): {expected}"], Problems(host, block));
+        Assert.Equal([$"Step 1.1 (Setup Sequence): {expected}"], Problems(host, block));
     }
 
     [Fact]
@@ -430,7 +430,7 @@ public class AutofocusPolicyBuilderTests
 
         var problems = Problems(host, block);
 
-        Assert.Equal(["Step 1.1 (Rig Track): The rig 'rig.gone' is not available."], problems);
+        Assert.Equal(["Step 1.1 (Setup Sequence): The imaging setup 'rig.gone' is not available."], problems);
     }
 
     [Fact]
@@ -441,7 +441,7 @@ public class AutofocusPolicyBuilderTests
 
         var problems = Problems(host, block, metrics: false);
 
-        Assert.Equal(["Step 1.1 (Rig Track): Autofocus is not available: there is nothing to measure focus with."], problems);
+        Assert.Equal(["Step 1.1 (Setup Sequence): Autofocus is not available: there is nothing to measure focus with."], problems);
     }
 
     [Fact]
@@ -467,9 +467,9 @@ public class AutofocusPolicyBuilderTests
 
         Assert.Equal("Main Camera", Summary(null));
         Assert.Equal("Main Camera", Summary(Policy(start: true, enabled: false)));
-        Assert.Equal("Main Camera\nAutofocus: track start", Summary(Policy(start: true)));
+        Assert.Equal("Main Camera\nAutofocus: at the start", Summary(Policy(start: true)));
         Assert.Equal("Main Camera\nAutofocus: filter change", Summary(Policy(filter: true)));
-        Assert.Equal("Main Camera\nAutofocus: track start + filter change", Summary(Policy(start: true, filter: true)));
+        Assert.Equal("Main Camera\nAutofocus: at the start + filter change", Summary(Policy(start: true, filter: true)));
     }
 
     [Fact]

@@ -505,7 +505,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
         var block = app.Draft.Rows.OfType<MultiRigStepDraftViewModel>().Single();
         Assert.Equal(new RigId("rig.observatory"), block.TriggerRig.SelectedId); // kept, not replaced
         Assert.True(block.TriggerRig.Selected!.IsMissing);
-        Assert.Contains("The trigger rig 'rig.observatory' is not a track of this block.", block.Problems);
+        Assert.Contains("The imaging setup 'rig.observatory' that counts the frames is not a sequence of this block.", block.Problems);
         Assert.False(app.Draft.IsValid);
         Assert.False(app.Vm.Sequencer.CanRun);
         Assert.False(app.Document.IsDirty);

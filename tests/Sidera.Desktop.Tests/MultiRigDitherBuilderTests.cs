@@ -121,7 +121,7 @@ public class MultiRigDitherBuilderTests
         await using var host = CreateHost();
         var policy = Policy() with { TriggerRigId = null };
 
-        Assert.Equal(["Step 1 (Multi-Rig Imaging): No trigger rig selected."], Problems(host, [Session(policy)]));
+        Assert.Equal(["Step 1 (Parallel Imaging): No imaging setup counts the frames for the dither."], Problems(host, [Session(policy)]));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class MultiRigDitherBuilderTests
         var block = Block(Policy(Narrow), Track(Main, Exposure()), Track(Wide, Exposure()));
 
         Assert.Equal(
-            ["Step 1 (Multi-Rig Imaging): The trigger rig 'rig.narrow' is not a track of this block."],
+            ["Step 1 (Parallel Imaging): The imaging setup 'rig.narrow' that counts the frames is not a sequence of this block."],
             Problems(host, [block]));
     }
 
@@ -143,7 +143,7 @@ public class MultiRigDitherBuilderTests
 
         var problems = Problems(host, [block]);
 
-        Assert.Contains("Step 1 (Multi-Rig Imaging): The trigger rig 'rig.observatory' is not a track of this block.", problems);
+        Assert.Contains("Step 1 (Parallel Imaging): The imaging setup 'rig.observatory' that counts the frames is not a sequence of this block.", problems);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class MultiRigDitherBuilderTests
         foreach (var block in new[] { onlyDelay, emptyRepeatBody, noSteps })
         {
             Assert.Contains(
-                "Step 1 (Multi-Rig Imaging): The trigger rig 'rig.wide' has no exposure to count: dithering would never start.",
+                "Step 1 (Parallel Imaging): The imaging setup 'rig.wide' that counts the frames has no exposure to count: dithering would never start.",
                 Problems(host, [block]));
         }
     }
@@ -179,7 +179,7 @@ public class MultiRigDitherBuilderTests
         await using var host = CreateHost();
 
         Assert.Equal(
-            ["Step 1 (Multi-Rig Imaging): Dither interval must be at least 1 frame."],
+            ["Step 1 (Parallel Imaging): Dither interval must be at least 1 frame."],
             Problems(host, [Session(Policy() with { EveryNFrames = every })]));
     }
 
@@ -205,7 +205,7 @@ public class MultiRigDitherBuilderTests
             _ => Policy() with { SettleTimeoutSeconds = value },
         };
 
-        Assert.Equal([$"Step 1 (Multi-Rig Imaging): {expected}"], Problems(host, [Session(policy)]));
+        Assert.Equal([$"Step 1 (Parallel Imaging): {expected}"], Problems(host, [Session(policy)]));
     }
 
     [Theory]
@@ -217,7 +217,7 @@ public class MultiRigDitherBuilderTests
         var policy = Policy() with { SettleStableSeconds = stable, SettleTimeoutSeconds = timeout };
 
         Assert.Equal(
-            ["Step 1 (Multi-Rig Imaging): Settle timeout must be longer than the stable time."],
+            ["Step 1 (Parallel Imaging): Settle timeout must be longer than the stable time."],
             Problems(host, [Session(policy)]));
     }
 
@@ -232,9 +232,9 @@ public class MultiRigDitherBuilderTests
         var none = Problems(host, [Session()], new SharedEquipmentDraft(null, null));
         var noMount = Problems(host, [Session()], new SharedEquipmentDraft(null, new DeviceId("guider.main")));
 
-        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a mount: the rig 'Wide Rig' has none. Give the rig a mount on the Equipment page.", none);
-        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a guider: the rig 'Wide Rig' has none. Give the rig a guider on the Equipment page.", none);
-        Assert.Contains("Step 1 (Multi-Rig Imaging): Dither needs a mount: the rig 'Wide Rig' has none. Give the rig a mount on the Equipment page.", noMount);
+        Assert.Contains("Step 1 (Parallel Imaging): Dither needs a mount: the imaging setup 'Wide Rig' has none. Give the setup a mount on the Equipment page.", none);
+        Assert.Contains("Step 1 (Parallel Imaging): Dither needs a guider: the imaging setup 'Wide Rig' has none. Give the setup a guider on the Equipment page.", none);
+        Assert.Contains("Step 1 (Parallel Imaging): Dither needs a mount: the imaging setup 'Wide Rig' has none. Give the setup a mount on the Equipment page.", noMount);
         Assert.DoesNotContain(noMount, p => p.Contains("needs a guider", StringComparison.Ordinal));
     }
 
@@ -246,7 +246,7 @@ public class MultiRigDitherBuilderTests
         var problems = Problems(host, [Start(), Stop(), Session()]);
 
         Assert.Single(problems);
-        Assert.StartsWith("Step 3 (Multi-Rig Imaging): Dither needs guiding, but step 2 stopped it.", problems[0], StringComparison.Ordinal);
+        Assert.StartsWith("Step 3 (Parallel Imaging): Dither needs guiding, but step 2 stopped it.", problems[0], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -469,9 +469,9 @@ public class MultiRigDitherBuilderTests
         var everyText = SequenceDraftBuilder.Describe(host.DeviceRegistry, every, Context(host)).Summary;
         var offText = SequenceDraftBuilder.Describe(host.DeviceRegistry, off, Context(host)).Summary;
 
-        Assert.Equal("3 rig tracks\nDither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s", onText);
-        Assert.Equal("3 rig tracks\nDither after every Wide Rig frame · 1.5 px · settle ≤ 0.5 px for 1 s", everyText);
-        Assert.Equal("3 rig tracks", offText);
+        Assert.Equal("3 setup sequences\nDither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s", onText);
+        Assert.Equal("3 setup sequences\nDither after every Wide Rig frame · 1.5 px · settle ≤ 0.5 px for 1 s", everyText);
+        Assert.Equal("3 setup sequences", offText);
     }
 
     [Fact]

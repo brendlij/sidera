@@ -82,7 +82,7 @@ public class LoggingIntegrationTests
         var tag = runner.ExecutionTag;
         var runStart = log.Single(LogLevel.Information, "started with 3 top-level steps");
         Assert.Equal(tag, runStart.ScopeValue(LogContext.SequenceExecutionId));
-        log.Single(LogLevel.Information, "Parallel block Multi-Rig Imaging started with 2 branches");
+        log.Single(LogLevel.Information, "Parallel block Parallel Imaging started with 2 branches");
 
         // The generated autofocus of the policy: the one autofocus action, in the context of its rig and its track.
         var autofocus = log.Single(LogLevel.Information, "Autofocus started for rig rig.main");

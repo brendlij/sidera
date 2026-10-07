@@ -16,7 +16,7 @@ internal static class BuilderText
         var parts = new System.Collections.Generic.List<string>();
         if (atStart)
         {
-            parts.Add("track start");
+            parts.Add("at the start");
         }
 
         if (afterFilterChange)

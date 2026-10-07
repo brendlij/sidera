@@ -126,7 +126,7 @@ public class AutofocusEditingTests
 
         step.Rig.Selected = step.Rig.Options.Single(o => o.IdText == "rig.bare");
 
-        Assert.Equal(["The rig 'rig.bare' has no focuser."], step.Problems);
+        Assert.Equal(["The imaging setup 'Bare Rig' has no focuser."], step.Problems);
         Assert.Equal(new RigId("rig.bare"), step.Rig.SelectedId);
         Assert.False(draft.IsValid);
     }
@@ -141,7 +141,7 @@ public class AutofocusEditingTests
         var step = Assert.IsType<AutofocusStepDraftViewModel>(draft.Rows.Single());
 
         Assert.True(step.Rig.Selected!.IsMissing);
-        Assert.Equal(["The rig 'rig.gone' is not available."], step.Problems);
+        Assert.Equal(["The imaging setup 'rig.gone' is not available."], step.Problems);
     }
 
     [Fact]
@@ -218,8 +218,8 @@ public class AutofocusEditingTests
 
         wide.Rig.Selected = wide.Rig.Options.Single(o => o.IdText == "rig.bare");
 
-        Assert.Equal(["The rig 'rig.bare' has no focuser."], step.Problems);
-        Assert.Equal("the rig has no focuser", step.Summary);
+        Assert.Equal(["The imaging setup 'Bare Rig' has no focuser."], step.Problems);
+        Assert.Equal("the imaging setup has no focuser", step.Summary);
         Assert.False(draft.IsValid);
 
         wide.Rig.Selected = wide.Rig.Options.Single(o => o.IdText == "rig.narrow");

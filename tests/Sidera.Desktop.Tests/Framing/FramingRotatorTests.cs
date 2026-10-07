@@ -112,7 +112,7 @@ public sealed class FramingRotatorTests : IAsyncLifetime
         var settings = new SiteService(new SideraSettingsStore(Path.Combine(_folder, "settings.json")));
         settings.Load();
         settings.SetPlateSolving(new PlateSolvingSettings { ExposureSeconds = 0.01, MaxCenteringAttempts = 3, CenteringToleranceArcseconds = 30, RotationToleranceDegrees = 0.7, MaxRotationAttempts = 3 });
-        var framing = new FramingViewModel(host, settings, session, new FakeCatalog(), survey => new FakeProvider(survey), a => a());
+        var framing = new FramingViewModel(host, TestSetups.ContextFor(host), settings, session, new FakeCatalog(), survey => new FakeProvider(survey), a => a());
         return new Harness(framing, host, session, solver, mount, rotator);
     }
 

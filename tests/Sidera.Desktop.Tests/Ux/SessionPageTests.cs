@@ -191,7 +191,7 @@ public class SessionPageTests
         Assert.Equal(["Main Rig", "Wide Rig"], block.Lanes.Select(l => l.Name));
 
         var main = block.Lanes[0];
-        Assert.Equal("Autofocus: track start + filter change", main.Autofocus);
+        Assert.Equal("Autofocus: at the start + filter change", main.Autofocus);
         Assert.True(main.HasAutofocus);
         Assert.Equal(
             [("Change Filter · Main Filter Wheel · Ha", false), ("Repeat × 40", false), ("Exposure · 300 s · Camera defaults", true)],
@@ -231,7 +231,7 @@ public class SessionPageTests
         wideTrack.AutofocusAtStart = true;
 
         Assert.Contains(nameof(MultiRigStepDraftViewModel.Lanes), raised);
-        Assert.Equal("Autofocus: track start", block.Lanes[1].Autofocus);
+        Assert.Equal("Autofocus: at the start", block.Lanes[1].Autofocus);
     }
 
     [Fact]

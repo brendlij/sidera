@@ -1,19 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:vm="using:Sidera.Desktop.ViewModels" xmlns:ctl="using:Sidera.Desktop.Controls"
- xmlns:rig="using:Sidera.Core.Rigs" xmlns:mount="using:Sidera.Core.Mounts"
+ xmlns:mount="using:Sidera.Core.Mounts"
  x:Class="Sidera.Desktop.Views.Imaging.PlateSolveView" x:DataType="vm:PlateSolveViewModel">
  <ScrollViewer><StackPanel Margin="{StaticResource InsetPage}" Spacing="16" MaxWidth="950" HorizontalAlignment="Left">
   <ctl:PageHeader Title="Plate Solve" />
   <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
-   <ctl:LabeledField Label="Imaging setup"><ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}">
-    <ComboBox.ItemTemplate><DataTemplate x:DataType="rig:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-   </ComboBox></ctl:LabeledField>
-   <ctl:LabeledField Grid.Column="1" Label="Mount"><ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}">
+   <ctl:LabeledField Label="Mount" IsVisible="{Binding HasMountChoice}"><ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" AutomationProperties.AutomationId="PlateSolveMount">
     <ComboBox.ItemTemplate><DataTemplate x:DataType="mount:IMount"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
    </ComboBox></ctl:LabeledField>
    <ctl:LabeledField Grid.Column="2" Label="Exposure (s)"><NumericUpDown Value="{Binding ExposureSeconds}" Minimum="0.001" Maximum="3600" /></ctl:LabeledField>
   </Grid>
-  <ctl:InfoRow Label="Camera" Value="{Binding CameraName}" />
+  <TextBlock Classes="secondary" Text="{Binding CenterDisabledText}" TextWrapping="Wrap" IsVisible="{Binding !HasSetup}" />
+  <ctl:InfoRow Label="Camera" Value="{Binding CameraName}" AutomationProperties.AutomationId="PlateSolveCamera" />
   <ctl:InfoRow Label="Solver" Value="{Binding SolverName}" />
   <TextBlock Classes="eyebrow" Text="HINTS" />
   <TextBlock Text="{Binding HintText}" TextWrapping="Wrap" />

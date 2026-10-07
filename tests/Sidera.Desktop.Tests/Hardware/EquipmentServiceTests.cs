@@ -449,7 +449,7 @@ public sealed class EquipmentServiceTests : IAsyncLifetime
         var result = service.Remove("focuser.main");
 
         Assert.False(result.Succeeded);
-        Assert.Contains("part of the rig 'Main Rig'", result.Problem);
+        Assert.Contains("part of the imaging setup 'Main Rig'", result.Problem);
         Assert.NotNull(host.DeviceRegistry.GetAll().SingleOrDefault(d => d.Id.Value == "focuser.main"));
         Assert.Equal(result.Problem, service.WhyCannotRemove("focuser.main"));
     }

@@ -14,7 +14,7 @@ using Sidera.Runtime.Sequencing;
 namespace Sidera.Desktop.Tests;
 
 /// <summary>
-/// The autofocus policy of a Rig Track, run by the real runner on the simulator: the generated autofocus runs where the
+/// The autofocus policy of a Setup Sequence, run by the real runner on the simulator: the generated autofocus runs where the
 /// policy says, as the one autofocus action; the other rigs carry on; a dither waits for it; a pause takes effect after
 /// it; a cancellation or a failure stops the track before it goes on imaging out of focus.
 /// </summary>

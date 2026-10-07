@@ -265,7 +265,7 @@ public sealed class RigManagementTests : IAsyncLifetime
         var focuser = app.Equipment.SetRigDevice("rig.wide-rig", RigRole.Focuser, "focuser.main");
 
         Assert.False(focuser.Succeeded);
-        Assert.Contains("already the focuser of the rig 'Main Rig'", focuser.Problem);
+        Assert.Contains("already the focuser of the imaging setup 'Main Rig'", focuser.Problem);
         Assert.False(app.Equipment.SetRigDevice("rig.wide-rig", RigRole.Rotator, "rotator.main").Succeeded);
         Assert.False(app.Equipment.SetRigDevice("rig.wide-rig", RigRole.FilterWheel, "filterwheel.main").Succeeded);
         Assert.False(app.Equipment.SetRigDevice("rig.wide-rig", RigRole.Camera, "camera.main").Succeeded);

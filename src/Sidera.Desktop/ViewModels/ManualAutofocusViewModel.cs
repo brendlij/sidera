@@ -28,20 +28,23 @@ public sealed record FocusSampleRow(int Position, double Hfr)
 }
 
 /// <summary>
-/// Starting the autofocus of a rig by hand, from the imaging page. It is the autofocus action of the sequences, run as a one step sequence through the sequence runner: the rig's camera and
-/// focuser are taken by the runner as for any step (so it cannot overlap an exposure or a focuser move of a running session, and it does not hold anything else), the progress is what the
+/// Starting the autofocus of the current imaging setup by hand, from the imaging page. It is the autofocus action of the sequences, run as a one step sequence through the sequence runner: the camera and
+/// focuser of the setup are taken by the runner as for any step (so it cannot overlap an exposure or a focuser move of a running session, and it does not hold anything else), the progress is what the
 /// run publishes on the event bus, and the end result is what the action returns. Nothing is estimated here: the samples, the best position and the fit are the run's.
 /// </summary>
 public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposable
 {
     private readonly SideraRuntimeHost _host;
+    private readonly ImagingSetupContext _context;
     private readonly Action<Action> _post;
     private readonly IDisposable _subscription;
     private CancellationTokenSource? _run;
 
-    public ManualAutofocusViewModel(SideraRuntimeHost host, SequenceDraftDefaults defaults, Action<Action>? postToUi = null)
+    public ManualAutofocusViewModel(SideraRuntimeHost host, SequenceDraftDefaults defaults, ImagingSetupContext context, Action<Action>? postToUi = null)
     {
         _host = host;
+        _context = context;
+        _context.Changed += (_, _) => Refresh();
         _post = postToUi ?? (action => action());
         ExposureText = defaults.AutofocusExposureSeconds.ToString("0.###", CultureInfo.InvariantCulture);
         StepSizeText = defaults.AutofocusStepSize.ToString(CultureInfo.InvariantCulture);
@@ -54,13 +57,24 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
         Refresh();
     }
 
-    /// <summary>The rigs that can be focused: those with a focuser.</summary>
-    public ObservableCollection<Rig> Rigs { get; } = [];
-
+    /// <summary>The current imaging setup when it has a focuser; the one that is focused. Nothing is chosen on the page: the setup of the application is the setup.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasRig), nameof(DisabledText))]
+    [NotifyPropertyChangedFor(nameof(HasFocuser), nameof(HasSetup), nameof(SetupText), nameof(DisabledText))]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
-    public partial Rig? SelectedRig { get; set; }
+    public partial Rig? Setup { get; private set; }
+
+    /// <summary>There is a setup, but it has no focuser: the panel says so and offers to configure one, instead of showing a form that cannot be used.</summary>
+    public bool NeedsFocuser => _context.Current is { FocuserId: null };
+
+    /// <summary>Opens where a focuser is added. Set by the application.</summary>
+    public Action? ConfigureFocuser { get; set; }
+
+    [RelayCommand]
+    private void ConfigureFocuserHere() => ConfigureFocuser?.Invoke();
+
+    public bool HasSetup => _context.Current is not null;
+
+    public string SetupText => _context.Name;
 
     [ObservableProperty]
     public partial string ExposureText { get; set; }
@@ -106,7 +120,7 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
     [ObservableProperty]
     public partial int? BestPosition { get; private set; }
 
-    public bool HasRig => SelectedRig is not null;
+    public bool HasFocuser => Setup is not null;
 
     public bool HasResult => BestFocusText.Length > 0;
 
@@ -117,32 +131,24 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
     /// <summary>Why a run cannot start now; empty when it can.</summary>
     public string DisabledText => ProblemToStart() ?? string.Empty;
 
-    /// <summary>Reads the rigs and the focuser position again.</summary>
+    /// <summary>Reads the current setup and the focuser position again.</summary>
     public void Refresh()
     {
-        var previous = SelectedRig?.Id;
-        var focusable = _host.RigRegistry.GetAll().Where(r => r.FocuserId is not null).OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        if (!focusable.SequenceEqual(Rigs))
-        {
-            Rigs.Clear();
-            foreach (var rig in focusable)
-            {
-                Rigs.Add(rig);
-            }
-        }
-
-        SelectedRig = Rigs.FirstOrDefault(r => r.Id == previous) ?? Rigs.FirstOrDefault();
+        Setup = _context.Current is { FocuserId: not null } rig ? rig : null;
+        OnPropertyChanged(nameof(NeedsFocuser));
+        OnPropertyChanged(nameof(HasSetup));
+        OnPropertyChanged(nameof(SetupText));
         RefreshPosition();
         OnPropertyChanged(nameof(DisabledText));
         StartCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedRigChanged(Rig? value) => RefreshPosition();
+    partial void OnSetupChanged(Rig? value) => RefreshPosition();
 
-    /// <summary>Reads where the focuser of the selected rig is now.</summary>
+    /// <summary>Reads where the focuser of the current setup is now.</summary>
     public void RefreshPosition()
     {
-        PositionText = SelectedRig?.FocuserId is { } id && _host.DeviceRegistry.TryGet(id, out var device) && device is IFocuser { ConnectionState: DeviceConnectionState.Connected } focuser
+        PositionText = Setup?.FocuserId is { } id && _host.DeviceRegistry.TryGet(id, out var device) && device is IFocuser { ConnectionState: DeviceConnectionState.Connected } focuser
             ? focuser.Position.ToString(CultureInfo.InvariantCulture)
             : "—";
     }
@@ -155,9 +161,9 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
             return "Autofocus is running.";
         }
 
-        if (SelectedRig is not { } rig)
+        if (Setup is not { } rig)
         {
-            return "No rig has a focuser. Give a rig a focuser on the Equipment page.";
+            return _context.Current is null ? _context.NoSetupText : "No focuser configured. Give the setup a focuser on the Equipment page.";
         }
 
         if (_host.DeviceRegistry.TryGet(rig.CameraId, out var camera) && camera?.ConnectionState != DeviceConnectionState.Connected)
@@ -207,11 +213,11 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
         return true;
     }
 
-    /// <summary>Focuses the selected rig: samples around the current position, fits the curve, moves to the best position and checks it.</summary>
+    /// <summary>Focuses the current setup: samples around the current position, fits the curve, moves to the best position and checks it.</summary>
     [RelayCommand(CanExecute = nameof(CanStart))]
     private async Task StartAsync()
     {
-        if (SelectedRig is not { } rig)
+        if (Setup is not { } rig)
         {
             return;
         }
@@ -288,10 +294,10 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
         }
     }
 
-    // What the run publishes, for the rig that is being focused.
+    // What the run publishes, for the setup that is being focused.
     private void Apply(AutofocusProgressChanged e)
     {
-        if (!IsRunning || SelectedRig is not { } rig || e.RigId != rig.Id)
+        if (!IsRunning || Setup is not { } rig || e.RigId != rig.Id)
         {
             return;
         }

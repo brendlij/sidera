@@ -53,8 +53,12 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         options ??= new DemoOptions();
         var activity = new SessionActivity();
 
+        // The setups the application works with: the ones that were made, and the one that follows from a single camera. One of them is current; the pages follow it.
+        Setups = new Sidera.Runtime.Rigs.ImagingSetupCatalog(host.DeviceRegistry, host.RigRegistry);
+        SetupContext = new ImagingSetupContext(Setups, host.DeviceRegistry);
         Imaging = new ImagingViewModel(host.FrameAnalyzer, postToUi);
         Equipment = new EquipmentViewModel(host, postToUi, activity, Imaging, options.ManualExposure, equipmentManagement);
+        Equipment.AttachSetupContext(SetupContext);
         Runtime = new RuntimeStatusViewModel(host, [DemoSetup.CoordinationGroup]);
         var defaults = SequenceDraftDefaults.From(options, host.DeviceRegistry);
 
@@ -73,8 +77,6 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             };
         }
 
-        // The setups the sequencer works with: the ones that were made, and the one that follows from a single camera.
-        Setups = new Sidera.Runtime.Rigs.ImagingSetupCatalog(host.DeviceRegistry, host.RigRegistry);
         SequenceDraft = new SequenceDraftViewModel(
             host.DeviceRegistry, defaults, host.DeviceRegistry.GetAll().Count == 0 || !withDemoSequence ? [] : defaults.InitialSteps(),
             rigs: Setups, shared: SharedEquipmentDraft.FromRigs(Setups.GetAll(), defaults.MountId, defaults.GuiderId, host.RigRegistry.GetAll().Count == 0),
@@ -85,14 +87,16 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Imaging.AutoStretch = equipmentManagement?.Site?.Imaging.AutoStretch ?? true;
         Imaging.FitOnCapture = equipmentManagement?.Site?.Imaging.FitOnCapture ?? true;
         Imaging.SaveDirectory = () => equipmentManagement?.Site?.Imaging.SaveDirectory;
-        Imaging.Capture = new ImagingCaptureViewModel(host, Imaging, equipmentManagement?.Site?.Imaging.ManualExposureSeconds ?? 5);
-        Imaging.Autofocus = new ManualAutofocusViewModel(host, defaults, postToUi);
+        Imaging.Capture = new ImagingCaptureViewModel(host, Imaging, SetupContext, equipmentManagement?.Site?.Imaging.ManualExposureSeconds ?? 5);
+        Imaging.Autofocus = new ManualAutofocusViewModel(host, defaults, SetupContext, postToUi);
+        Imaging.Capture.CreateSetup = () => OpenEquipment(() => Equipment.BeginNewImagingSetup());
+        Imaging.Autofocus.ConfigureFocuser = () => OpenEquipment(() => Equipment.ShowFocuserSetup());
         Imaging.ExportHost = host;
         Imaging.ExportSite = () => equipmentManagement?.Site?.Site;
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
         Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site, Safety);
-        PlateSolve = new PlateSolveViewModel(host, Imaging, equipmentManagement?.Site, postToUi);
-        Framing = new FramingViewModel(host, equipmentManagement?.Site, SequenceDraft, objectCatalog, skyProviders, postToUi);
+        PlateSolve = new PlateSolveViewModel(host, Imaging, SetupContext, equipmentManagement?.Site, postToUi);
+        Framing = new FramingViewModel(host, SetupContext, equipmentManagement?.Site, SequenceDraft, objectCatalog, skyProviders, postToUi);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
         SequenceDocument = new SequenceDocumentViewModel(
@@ -103,7 +107,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
         SessionEditor = new SessionEditorViewModel(
             SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site,
-            () => SelectedPage = AppPage.Equipment);
+            () => OpenEquipment(() => Equipment.BeginNewImagingSetup()));
+        SessionEditor.CurrentSetup = () => SetupContext.Current?.Id;
+        SequenceDraft.CurrentSetup = () => SetupContext.Current?.Id;
 
         // A new session opens in the mode the settings choose (blocks unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.
         if (startWithSettingsMode && SequenceDraft.IsEmpty)
@@ -116,7 +122,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Framing.Safety = Safety;
         Sequencer.Safety = Safety;
         Dashboard = new DashboardViewModel(
-            Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, postToUi, page => SelectedPage = page);
+            Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, SetupContext, postToUi, page => SelectedPage = page);
 
         StatusBar = new StatusBarViewModel(Sequencer, Execution, postToUi);
 
@@ -139,6 +145,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         // The runtime summary and the "can the sequence start" hint follow the equipment and the sequence.
         void OnDeviceRefreshed(object? sender, EventArgs e)
         {
+            SetupContext.Refresh(); // a camera that was connected or disconnected can change which setups can image
             Runtime.Refresh();
             Sequencer.RefreshReadiness();
             Imaging.Capture?.RefreshCapabilities();
@@ -179,6 +186,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             {
                 if (change.Kind is Sidera.Desktop.Hardware.EquipmentChangeKind.RigsAdded or Sidera.Desktop.Hardware.EquipmentChangeKind.RigsChanged)
                 {
+                    SetupContext.Refresh();
                     Imaging.Capture?.Refresh();
                     OnDeviceRefreshed(this, EventArgs.Empty);
                     SessionEditor.RefreshSetups();
@@ -198,6 +206,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>The imaging setups of the sequencer: the configured ones and, for one camera, the implicit one.</summary>
     public Sidera.Runtime.Rigs.ImagingSetupCatalog Setups { get; }
+
+    /// <summary>The imaging setup that Imaging, Autofocus, Framing, Plate Solve and the equipment view of a setup work with; chosen in the sidebar when there are several.</summary>
+    public ImagingSetupContext SetupContext { get; }
 
     public DashboardViewModel Dashboard { get; }
     public EquipmentViewModel Equipment { get; }
@@ -254,8 +265,24 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         UpdateNavigation();
     }
 
+    // The equipment page starts with the current imaging setup when it is opened from the sidebar.
     private NavItemViewModel Item(AppPage page, string title, string iconKey) =>
-        new(page, title, iconKey, new RelayCommand(() => SelectedPage = page));
+        new(page, title, iconKey, new RelayCommand(() =>
+        {
+            if (page == AppPage.Equipment)
+            {
+                Equipment.ShowSetupView();
+            }
+
+            SelectedPage = page;
+        }));
+
+    // Opens the equipment page the way another page asks for it (to make a setup, to give a setup a focuser), not as the sidebar does.
+    private void OpenEquipment(Action arrange)
+    {
+        arrange();
+        SelectedPage = AppPage.Equipment;
+    }
 
     private void UpdateNavigation()
     {

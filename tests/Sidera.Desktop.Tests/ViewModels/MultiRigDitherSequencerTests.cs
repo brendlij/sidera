@@ -201,7 +201,7 @@ public class MultiRigDitherSequencerTests
             ["Narrow Rig", "Wide Rig"],
             app.Sequencer.ActiveBranches.Where(b => b.Title == "Waiting for coordinated dither").Select(b => b.BranchName).Order());
         Assert.Contains("Dither pending", app.Sequencer.SharedActivity!, StringComparison.Ordinal);
-        Assert.Contains("waiting for 1 rig", app.Sequencer.SharedActivity!, StringComparison.Ordinal);
+        Assert.Contains("waiting for 1 imaging setup", app.Sequencer.SharedActivity!, StringComparison.Ordinal);
 
         await run.WaitAsync(Bound);
     }

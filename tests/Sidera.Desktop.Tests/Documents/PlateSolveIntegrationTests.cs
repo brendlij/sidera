@@ -21,9 +21,9 @@ public sealed class PlateSolveIntegrationTests
         var rig = new Rig(new("rig"), "Rig", camera.Id); host.AddRig(rig); host.ConfigurePlateSolver(new Solver());
         using var imaging = new ImagingViewModel();
         imaging.Publish(new CameraFrame(1, 1, [1], TimeSpan.Zero), "Other camera", new DeviceId("other"));
-        using var vm = new PlateSolveViewModel(host, imaging, null, action => action());
+        using var vm = new PlateSolveViewModel(host, imaging, TestSetups.ContextFor(host), null, action => action());
         await vm.SolveLastFrameCommand.ExecuteAsync(null);
-        Assert.Contains("whose camera", vm.StatusText); Assert.Null(host.PlateSolving!.LastResult);
+        Assert.Contains("another camera", vm.StatusText); Assert.Null(host.PlateSolving!.LastResult);
     }
     private sealed class Solver : IPlateSolver
     {

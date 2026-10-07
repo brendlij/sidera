@@ -32,7 +32,7 @@ public sealed record WorkflowCompilation(
 /// the application. Compiles a <see cref="WorkflowDefinition"/> into the steps the editor, the document and the runtime already have, so nothing below it knows about workflows:
 /// <code>
 /// Prepare   →  Slew &amp; Center / Autofocus / Start Guiding / Wait, in order, with the setup's devices resolved
-/// Imaging   →  one Multi-Rig block: a Rig Track for each setup (blocks of one setup in order: a filter change and a Repeat of exposures),
+/// Imaging   →  one Multi-Rig block: a Setup Sequence for each setup (blocks of one setup in order: a filter change and a Repeat of exposures),
 ///              the dither policy of the block, the autofocus policy of each track
 /// Finish    →  Stop Guiding / Wait, in order
 /// </code>

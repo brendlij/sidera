@@ -73,7 +73,7 @@ public sealed record AutofocusDefaults
         : SampleCount < AutofocusOptions.MinimumSampleCount || SampleCount > AutofocusOptions.MaximumSampleCount || SampleCount % 2 == 0
             ? $"The number of samples must be odd, from {AutofocusOptions.MinimumSampleCount} to {AutofocusOptions.MaximumSampleCount}."
         : !double.IsFinite(PolicyIntervalMinutes) || PolicyIntervalMinutes is < 0 or > 1440 ? "The autofocus interval must be from 0 to 1440 minutes."
-        : PolicyEnabled && !PolicyAtStart && !PolicyAfterFilterChange && PolicyIntervalMinutes <= 0 ? "A workflow that focuses by itself needs a trigger: at the start, an interval, or after a filter change."
+        : PolicyEnabled && !PolicyAtStart && !PolicyAfterFilterChange && PolicyIntervalMinutes <= 0 ? "A block that focuses by itself needs a trigger: at the start, an interval, or after a filter change."
         : null;
 }
 

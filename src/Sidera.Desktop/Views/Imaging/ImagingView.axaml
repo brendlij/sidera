@@ -3,12 +3,11 @@
              xmlns:vm="using:Sidera.Desktop.ViewModels"
              xmlns:ctl="using:Sidera.Desktop.Controls"
              xmlns:imaging="using:Sidera.Desktop.Views.Imaging"
-             xmlns:rigs="using:Sidera.Core.Rigs"
-             x:Class="Sidera.Desktop.Views.Imaging.ImagingView"
+                          x:Class="Sidera.Desktop.Views.Imaging.ImagingView"
              x:DataType="vm:ImagingViewModel">
 
     <!--
-        The imaging workspace: manual capture on top (the camera of a rig, through the same acquisition pipeline as a sequence), the image taking the room with its view controls below,
+        The imaging workspace: manual capture on top (the camera of the current imaging setup, through the same acquisition pipeline as a sequence), the image taking the room with its view controls below,
         the analysis of the frame and the manual autofocus beside it. What a camera does not support is not offered; what cannot be done now says why in one line.
     -->
     <Grid RowDefinitions="Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16">
@@ -16,13 +15,14 @@
 
         <Border Grid.Row="1" Classes="panel compact" IsVisible="{Binding HasCapture}">
             <StackPanel Spacing="10" DataContext="{Binding Capture}" x:DataType="vm:ImagingCaptureViewModel">
-                <WrapPanel ItemSpacing="16" LineSpacing="10">
-                    <ctl:LabeledField Label="Imaging setup">
-                        <ComboBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" MinWidth="170" AutomationProperties.AutomationId="CaptureRig">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CaptureTarget"><TextBlock Text="{Binding Label}" /></DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
+                <!-- Several cameras and no imaging setup to tell them apart: nothing is guessed -->
+                <StackPanel Spacing="8" IsVisible="{Binding NeedsSetup}">
+                    <TextBlock Classes="secondary" Text="Multiple imaging paths are available. Create or choose an Imaging Setup." TextWrapping="Wrap" AutomationProperties.AutomationId="CaptureNeedsSetup" />
+                    <Button Content="Create Imaging Setup" Command="{Binding CreateSetupHereCommand}" HorizontalAlignment="Left" AutomationProperties.AutomationId="CaptureCreateSetup" />
+                </StackPanel>
+                <WrapPanel ItemSpacing="16" LineSpacing="10" IsVisible="{Binding !NeedsSetup}">
+                    <ctl:LabeledField Label="Camera" IsVisible="{Binding HasTarget}">
+                        <TextBlock Classes="value" Text="{Binding CameraName}" VerticalAlignment="Center" MinHeight="30" AutomationProperties.AutomationId="CaptureCamera" />
                     </ctl:LabeledField>
                     <ctl:LabeledField Label="Exposure (s)">
                         <TextBox Text="{Binding ExposureText}" Width="80" AutomationProperties.AutomationId="CaptureExposure" />
@@ -100,13 +100,12 @@
                     <Border Classes="panel compact" IsVisible="{Binding HasAutofocus}">
                         <StackPanel Spacing="10" DataContext="{Binding Autofocus}" x:DataType="vm:ManualAutofocusViewModel">
                             <TextBlock Classes="eyebrow" Text="AUTOFOCUS" />
-                            <ctl:LabeledField Label="Imaging setup">
-                                <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="AutofocusRig">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate x:DataType="rigs:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </ctl:LabeledField>
+                            <TextBlock Classes="secondary" Text="{Binding DisabledText}" TextWrapping="Wrap" IsVisible="{Binding !HasSetup}" AutomationProperties.AutomationId="AutofocusNoSetup" />
+                            <StackPanel Spacing="8" IsVisible="{Binding NeedsFocuser}">
+                                <TextBlock Classes="secondary" Text="No focuser configured" AutomationProperties.AutomationId="AutofocusNoFocuser" />
+                                <Button Content="Configure focuser" Command="{Binding ConfigureFocuserHereCommand}" HorizontalAlignment="Left" AutomationProperties.AutomationId="AutofocusConfigureFocuser" />
+                            </StackPanel>
+                            <StackPanel Spacing="10" IsVisible="{Binding HasFocuser}">
                             <ctl:InfoRow Label="Focuser position" Value="{Binding PositionText}" AutomationProperties.AutomationId="AutofocusPosition" />
                             <ctl:FieldRow Label="Exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
                             <ctl:FieldRow Label="Step size" Unit="steps"><TextBox Text="{Binding StepSizeText}" /></ctl:FieldRow>
@@ -134,6 +133,7 @@
                                 <ctl:InfoRow Label="Best focus" Value="{Binding BestFocusText}" AutomationProperties.AutomationId="AutofocusBest" />
                                 <ctl:InfoRow Label="HFR" Value="{Binding BestHfrText}" />
                                 <TextBlock Classes="meta" Text="{Binding FitText}" TextWrapping="Wrap" />
+                            </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </Border>

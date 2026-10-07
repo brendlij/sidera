@@ -176,7 +176,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         Assert.True(vm.Equipment.HasRigs);
         Assert.Equal(3, vm.Equipment.Rigs.Count);
         Assert.Equal(8, vm.SequenceDraft.Steps.Count);
-        Assert.True(vm.Dashboard.UnitsAreRigs);
+        Assert.True(vm.Dashboard.UnitsAreSetups);
         Assert.Equal(3, vm.Dashboard.Units.Count);
         Assert.True(vm.Equipment.IsLanding); // the overview, with everything that was added
         Assert.Equal(["Devices", "Main Rig", "Narrow Rig", "Wide Rig"], vm.Equipment.Contexts.Select(c => c.Title));
@@ -697,7 +697,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
 
         Assert.False(configuration.CanRemove);
         Assert.True(configuration.HasRemoveBlock);
-        Assert.Contains("part of the rig 'Main Rig'", configuration.RemoveBlockText);
+        Assert.Contains("part of the imaging setup 'Main Rig'", configuration.RemoveBlockText);
         Assert.False(configuration.RemoveCommand.CanExecute(null));
         Assert.True(configuration.CanEdit); // it can still be renamed
     }

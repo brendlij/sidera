@@ -502,7 +502,7 @@ public sealed class RotatorEquipmentTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(false, true, true, "Add the rotator to a rig")]
+    [InlineData(false, true, true, "Add the rotator to an imaging setup")]
     [InlineData(true, false, true, "No plate solver")]
     [InlineData(true, true, false, "Connect the rotator")]
     public async Task Calibrate_IsDisabled_WithTheReason(bool withRig, bool solver, bool connected, string reason)

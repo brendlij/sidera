@@ -33,7 +33,7 @@ public sealed class SequenceConfigurationException(IReadOnlyList<string> problem
 public sealed record StepDescription(string Title, string Summary);
 
 /// <summary>
-/// What a draft is checked against besides the devices: the rigs a Rig Track can select, the equipment the session
+/// What a draft is checked against besides the devices: the rigs a Setup Sequence can select, the equipment the session
 /// shares, and what autofocus measures focus with and reports its progress to. All are optional; without rigs no rig is
 /// available, without shared equipment nothing is compared, without a focus metric autofocus is not available.
 /// </summary>
@@ -102,7 +102,7 @@ public sealed record BuiltSequence(Sequence Sequence, IReadOnlyList<BuiltStep> S
 /// Turns a list of <see cref="SequenceStepDraft"/>s into a runtime <see cref="Sequence"/>: one existing step per
 /// draft step, in the draft's order; for a Repeat a <see cref="RepeatStep"/> around a <see cref="SequenceGroup"/> of
 /// its children (the repeat runs one child, the group is how that child becomes several); for a Multi-Rig block a
-/// <see cref="ParallelStep"/> with one <see cref="RigTrackStep"/> per Rig Track. Every call makes new step objects,
+/// <see cref="ParallelStep"/> with one <see cref="RigTrackStep"/> per Setup Sequence. Every call makes new step objects,
 /// so a run is never affected by a later edit. It checks everything itself and does not rely on what the editor
 /// allowed.
 /// <para>
@@ -110,7 +110,7 @@ public sealed record BuiltSequence(Sequence Sequence, IReadOnlyList<BuiltStep> S
 /// and camera are free, as the runtime defines for a dither outside a coordination group. Inside a Multi-Rig block it
 /// would have to wait for every track's exposure to be at a safe point before the shared mount moves, which this
 /// builder does not (yet) compile, so a dither, like everything else that moves the shared mount or the guider
-/// (slewing, starting and stopping guiding), is not allowed in a Rig Track. The tracks run next to each other with
+/// (slewing, starting and stopping guiding), is not allowed in a Setup Sequence. The tracks run next to each other with
 /// the camera of their rig as their only equipment, and so cannot get in each other's way.
 /// </para>
 /// <para>
@@ -125,7 +125,7 @@ public static class SequenceDraftBuilder
 {
     public const string SequenceName = "Custom";
     public const string RepeatBodyName = "Repeat body";
-    public const string MultiRigName = "Multi-Rig Imaging";
+    public const string MultiRigName = "Parallel Imaging";
 
     /// <summary>Describes a step for display. Never throws; a missing device is shown by its id or as "no camera".</summary>
     public static StepDescription Describe(
@@ -140,14 +140,14 @@ public static class SequenceDraftBuilder
                 CultureInfo.InvariantCulture,
                 $"RA {c.RightAscensionHours:0.###} h · Dec {c.DeclinationDegrees:+0.##;-0.##;0}° · within {c.ToleranceArcseconds:0.##} arcsec · {c.MaxAttempts} attempts")),
             RotateToAngleStepDraft r => new("Rotate to Angle", string.Create(
-                CultureInfo.InvariantCulture, $"{r.RigId?.Value ?? "no rig"} · sky rotation {r.SkyRotationDegrees:0.##}° · does not solve")),
+                CultureInfo.InvariantCulture, $"{r.RigId?.Value ?? "no imaging setup"} · sky rotation {r.SkyRotationDegrees:0.##}° · does not solve")),
             RotateAndVerifyStepDraft r => new("Rotate & Verify", string.Create(
-                CultureInfo.InvariantCulture, $"{r.RigId?.Value ?? "no rig"} · sky rotation {r.SkyRotationDegrees:0.##}° ± {r.ToleranceDegrees:0.##}° · {r.MaxAttempts} attempts")),
+                CultureInfo.InvariantCulture, $"{r.RigId?.Value ?? "no imaging setup"} · sky rotation {r.SkyRotationDegrees:0.##}° ± {r.ToleranceDegrees:0.##}° · {r.MaxAttempts} attempts")),
             CenterAndRotateStepDraft c => new(c.TargetName is { } rotated ? $"Center & Rotate · {rotated}" : "Center & Rotate", string.Create(
                 CultureInfo.InvariantCulture,
                 $"RA {c.RightAscensionHours:0.###} h · Dec {c.DeclinationDegrees:+0.##;-0.##;0}° · within {c.ToleranceArcseconds:0.##} arcsec · rotation {c.SkyRotationDegrees:0.##}° ± {c.RotationToleranceDegrees:0.##}°")),
             SyncMountStepDraft m => new("Sync Mount to Solved Position", $"{DeviceName(registry, m.MountId, "no mount")} · uses the last successful plate solve"),
-            PlateSolveStepDraft p => new("Plate Solve", $"{p.RigId?.Value ?? "no rig"} · {Seconds(p.ExposureSeconds)}"),
+            PlateSolveStepDraft p => new("Plate Solve", $"{p.RigId?.Value ?? "no imaging setup"} · {Seconds(p.ExposureSeconds)}"),
             ExposureStepDraft e => new("Exposure", $"{DeviceName(registry, e.CameraId, "no camera")} · {Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, e.CameraId)}"),
             RigExposureStepDraft e => new("Exposure", $"{Seconds(e.Seconds)}{AcquisitionSummary(e.Acquisition, registry, rig?.CameraId)}"),
             DelayStepDraft d => new("Delay", Seconds(d.Seconds)),
@@ -169,7 +169,7 @@ public static class SequenceDraftBuilder
             RigChangeFilterStepDraft c => new("Change Filter", RigFilterText(registry, rig, c.SlotIndex)),
             AutofocusStepDraft a => new("Autofocus", $"{AutofocusRigName(context, a.RigId)} · {AutofocusSettings(a.ExposureSeconds, a.StepSize, a.SampleCount)}"),
             RigAutofocusStepDraft a => new("Autofocus", rig is not null && rig.FocuserId is null
-                ? "the rig has no focuser"
+                ? "the imaging setup has no focuser"
                 : AutofocusSettings(a.ExposureSeconds, a.StepSize, a.SampleCount)),
             RepeatStepDraft r => new(
                 string.Create(CultureInfo.InvariantCulture, $"Repeat × {r.Count}"),
@@ -177,7 +177,7 @@ public static class SequenceDraftBuilder
                 + (r.Stop is { IsEmpty: false } stop ? "\nStops when any: " + string.Join(" or ", stop.Any.Select(c => c.Summary)) : string.Empty)),
             MultiRigStepDraft m => new(
                 MultiRigName,
-                (m.Tracks.Count == 0 ? "no rig tracks" : m.Tracks.Count == 1 ? "1 rig track" : $"{m.Tracks.Count} rig tracks")
+                (m.Tracks.Count == 0 ? "no setup sequences" : m.Tracks.Count == 1 ? "1 setup sequence" : $"{m.Tracks.Count} setup sequences")
                 + (m.DitherPolicy is { Enabled: true } policy ? "\n" + DescribePolicy(policy, context) : string.Empty)
                 + (m.MeridianFlip is { IsEnabled: true } flip
                     ? string.Create(
@@ -190,7 +190,7 @@ public static class SequenceDraftBuilder
     }
 
     /// <summary>
-    /// Describes a Rig Track: the rig's name, and its camera. A rig that is not selected, or not there, is described
+    /// Describes a Setup Sequence: the rig's name, and its camera. A rig that is not selected, or not there, is described
     /// as such, with the id it was selected by.
     /// </summary>
     public static StepDescription DescribeTrack(DeviceRegistry registry, RigTrackDraft track, SequenceDraftContext? context = null)
@@ -200,12 +200,12 @@ public static class SequenceDraftBuilder
 
         if (track.RigId is not { } rigId)
         {
-            return new("Rig Track", "no rig selected");
+            return new("Setup Sequence", "no imaging setup selected");
         }
 
         if (!TryGetRig(context, rigId, out var rig))
         {
-            return new(rigId.Value, "rig not available");
+            return new(rigId.Value, "imaging setup not available");
         }
 
         // A track whose rig focuses by itself says when; one that does not says nothing.
@@ -230,20 +230,20 @@ public static class SequenceDraftBuilder
         string.Create(CultureInfo.InvariantCulture, $"{exposureSeconds:0.##} s · step {stepSize} · {sampleCount} samples");
 
     private static string AutofocusRigName(SequenceDraftContext? context, RigId? rigId) =>
-        rigId is not { } id ? "no rig" : TryGetRig(context, id, out var rig) ? rig.Name : id.Value;
+        rigId is not { } id ? "no imaging setup" : TryGetRig(context, id, out var rig) ? rig.Name : id.Value;
 
     // "EAF Main · 18350", or what is missing: no rig known, or a rig without a focuser.
     private static string RigFocuserText(DeviceRegistry registry, Rig? rig, int position)
     {
         var text = string.Create(CultureInfo.InvariantCulture, $"{position}");
         return rig is null ? text
-            : rig.FocuserId is not { } focuser ? "the rig has no focuser"
+            : rig.FocuserId is not { } focuser ? "the imaging setup has no focuser"
             : $"{DeviceName(registry, focuser, "no focuser")} · {text}";
     }
 
     private static string RigFilterText(DeviceRegistry registry, Rig? rig, int slotIndex) =>
         rig is null ? string.Create(CultureInfo.InvariantCulture, $"slot {slotIndex}")
-        : rig.FilterWheelId is not { } wheel ? "the rig has no filter wheel"
+        : rig.FilterWheelId is not { } wheel ? "the imaging setup has no filter wheel"
         : $"{DeviceName(registry, wheel, "no filter wheel")} · {FilterName(registry, wheel, slotIndex)}";
 
     // "Dither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s"
@@ -251,7 +251,7 @@ public static class SequenceDraftBuilder
     {
         var rig = policy.TriggerRigId is { } id
             ? TryGetRig(context, id, out var found) ? found.Name : id.Value
-            : "no rig";
+            : "no imaging setup";
         var when = policy.EveryNFrames == 1 ? $"after every {rig} frame" : $"every {policy.EveryNFrames} {rig} frames";
         return string.Create(
             CultureInfo.InvariantCulture,
@@ -462,7 +462,7 @@ public static class SequenceDraftBuilder
                     for (var t = 0; t < multiRig.Tracks.Count; t++)
                     {
                         var track = multiRig.Tracks[t];
-                        Add(track.Id, Label([.. path, t]), "Rig Track");
+                        Add(track.Id, Label([.. path, t]), "Setup Sequence");
                         for (var s = 0; s < track.Steps.Count; s++)
                         {
                             AddStep(track.Steps[s], [.. path, t, s]);
@@ -503,7 +503,7 @@ public static class SequenceDraftBuilder
         }
     }
 
-    // What the autofocus policy of a Rig Track asks for, once it is known to be enabled with a trigger and the rig is known.
+    // What the autofocus policy of a Setup Sequence asks for, once it is known to be enabled with a trigger and the rig is known.
     private sealed record AutofocusPlan(
         Rig Rig, AutofocusOptions Options, bool AtTrackStart, bool AfterFilterChange, TimeSpan? Interval = null, AutofocusClock? Clock = null, TimeProvider? Time = null);
 
@@ -534,7 +534,7 @@ public static class SequenceDraftBuilder
         var description = new StepDescription(
             "Autofocus", origin switch
             {
-                AutofocusOrigin.TrackStart => "automatic · track start",
+                AutofocusOrigin.TrackStart => "automatic · at the start",
                 AutofocusOrigin.Interval => "automatic · interval",
                 _ => "automatic · after filter change",
             });
@@ -995,7 +995,7 @@ public static class SequenceDraftBuilder
         private readonly Dictionary<DeviceId, GuidingFact> _guiding = new();
         private readonly SharedEquipmentDraft? _shared = context?.Shared;
 
-        // The rig of the Rig Track that is being checked, when it is selected and registered.
+        // The rig of the Setup Sequence that is being checked, when it is selected and registered.
         private Rig? _trackRig;
 
         public DraftValidation Run(IReadOnlyList<SequenceStepDraft> steps)
@@ -1150,7 +1150,7 @@ public static class SequenceDraftBuilder
         {
             if (multiRig.Tracks.Count < (multiRig.SingleTrack ? 1 : 2))
             {
-                Report(multiRig.Id, multiRig.SingleTrack ? "Imaging needs at least one imaging setup." : "Multi-Rig Imaging needs at least two Rig Tracks.");
+                Report(multiRig.Id, multiRig.SingleTrack ? "Imaging needs at least one imaging setup." : "Parallel Imaging needs at least two Setup Sequences.");
             }
 
             DitherPolicy(multiRig, label);
@@ -1194,12 +1194,12 @@ public static class SequenceDraftBuilder
                 .ToList();
             if (onMounts.Count == 0)
             {
-                problems.Add("The meridian flip needs a setup with a mount. Give a rig a mount on the Equipment page.");
+                problems.Add("The meridian flip needs a setup with a mount. Give a setup a mount on the Equipment page.");
             }
 
             if (flip.PointingRigId is { } pointing && multiRig.Tracks.All(track => track.RigId != pointing))
             {
-                problems.Add($"The pointing setup '{pointing}' is not a track of this block.");
+                problems.Add($"The imaging setup '{pointing}' that solves for the flip is not a sequence of this block.");
             }
 
             if (flip.Settings.RecenterAfterFlip && context?.PlateSolving is null)
@@ -1253,15 +1253,15 @@ public static class SequenceDraftBuilder
 
             // A dither moves the mount of the trigger rig and uses its guider; a rig without its own uses the session's shared ones.
             var domain = DitherDomain(multiRig, policy, context);
-            var triggerName = policy.TriggerRigId is { } triggerId && TryGetRig(context, triggerId, out var triggerRig) ? $"the rig '{triggerRig.Name}'" : "the trigger rig";
+            var triggerName = policy.TriggerRigId is { } triggerId && TryGetRig(context, triggerId, out var triggerRig) ? $"the imaging setup '{triggerRig.Name}'" : "the imaging setup that counts the frames";
             if (policy.TriggerRigId is not null && domain is not null && domain.Mount is null)
             {
-                problems.Add($"Dither needs a mount: {triggerName} has none. Give the rig a mount on the Equipment page.");
+                problems.Add($"Dither needs a mount: {triggerName} has none. Give the setup a mount on the Equipment page.");
             }
 
             if (policy.TriggerRigId is not null && domain is not null && domain.Guider is null)
             {
-                problems.Add($"Dither needs a guider: {triggerName} has none. Give the rig a guider on the Equipment page.");
+                problems.Add($"Dither needs a guider: {triggerName} has none. Give the setup a guider on the Equipment page.");
             }
             else if (domain?.Guider is { } guiderId && registry.TryGet(guiderId, out var guider) && guider is IGuider)
             {
@@ -1277,15 +1277,15 @@ public static class SequenceDraftBuilder
 
             if (policy.TriggerRigId is not { } trigger)
             {
-                problems.Add("No trigger rig selected.");
+                problems.Add("No imaging setup counts the frames for the dither.");
             }
             else if (multiRig.Tracks.FirstOrDefault(track => track.RigId == trigger) is not { } triggerTrack)
             {
-                problems.Add($"The trigger rig '{trigger}' is not a track of this block.");
+                problems.Add($"The imaging setup '{trigger}' that counts the frames is not a sequence of this block.");
             }
             else if (!HasExposureToCount(triggerTrack))
             {
-                problems.Add($"The trigger rig '{trigger}' has no exposure to count: dithering would never start.");
+                problems.Add($"The imaging setup '{trigger}' that counts the frames has no exposure to count: dithering would never start.");
             }
 
             if (policy.EveryNFrames < 1)
@@ -1325,29 +1325,29 @@ public static class SequenceDraftBuilder
         {
             if (track.RigId is not { } rigId)
             {
-                Report(track.Id, "No rig selected.");
+                Report(track.Id, "No imaging setup selected.");
             }
             else if (!TryGetRig(context, rigId, out var rig))
             {
-                Report(track.Id, $"The rig '{rigId}' is not available.");
+                Report(track.Id, $"The imaging setup '{rigId}' is not available.");
             }
             else if (!rigs.Add(rigId))
             {
-                Report(track.Id, $"The rig '{rigId}' is already used by another track.");
+                Report(track.Id, $"The imaging setup '{rig.Name}' is already used by another setup sequence.");
             }
             else if (!registry.TryGet(rig.CameraId, out var camera) || camera is not ICamera)
             {
-                Report(track.Id, $"The camera '{rig.CameraId}' of rig '{rigId}' is not available.");
+                Report(track.Id, $"The camera '{rig.CameraId}' of the imaging setup '{rig.Name}' is not available.");
             }
             else if (!cameras.Add(rig.CameraId))
             {
                 // Two rigs that name the same camera would expose it twice at once.
-                Report(track.Id, $"The camera '{rig.CameraId}' is already used by another track.");
+                Report(track.Id, $"The camera '{rig.CameraId}' is already used by another setup sequence.");
             }
 
             if (track.Steps.Count == 0)
             {
-                Report(track.Id, "A Rig Track needs at least one step.");
+                Report(track.Id, "A Setup Sequence needs at least one step.");
             }
 
             _trackRig = track.RigId is { } selected && TryGetRig(context, selected, out var selectedRig) ? selectedRig : null;
@@ -1369,7 +1369,7 @@ public static class SequenceDraftBuilder
             _trackRig = null;
         }
 
-        // What a Rig Track may hold: exposures with the rig camera, delays, moves of the rig focuser, changes of the
+        // What a Setup Sequence may hold: exposures with the rig camera, delays, moves of the rig focuser, changes of the
         // rig filter wheel, and Repeats of those.
         private static void WaitUntilProblems(WaitUntilStepDraft wait, List<string> problems)
         {
@@ -1396,19 +1396,19 @@ public static class SequenceDraftBuilder
                     CheckAutofocus(_trackRig, a.ExposureSeconds, a.StepSize, a.SampleCount, problems);
                     break;
                 case AutofocusStepDraft:
-                    problems.Add("Use Autofocus of the track here: its rig is the rig of the track.");
+                    problems.Add("Use Autofocus of the setup sequence here: it focuses the imaging setup of the sequence.");
                     break;
                 case PlateSolveStepDraft or SlewAndCenterStepDraft or SyncMountStepDraft or RotateToAngleStepDraft or RotateAndVerifyStepDraft or CenterAndRotateStepDraft:
-                    problems.Add("Plate solving steps move or synchronize the shared mount and must be outside a Rig Track.");
+                    problems.Add("Plate solving steps move or synchronize the shared mount and must be outside a Setup Sequence.");
                     break;
                 case DeviceOperationStepDraft:
-                    problems.Add("Cooling, parking and tracking belong to the whole session and must be outside a Rig Track.");
+                    problems.Add("Cooling, parking and tracking belong to the whole session and must be outside a Setup Sequence.");
                     break;
                 case MoveFocuserStepDraft:
-                    problems.Add("Use Move Focuser of the track here: its focuser is the focuser of the rig.");
+                    problems.Add("Use Move Focuser of the setup sequence here: it moves the focuser of the imaging setup.");
                     break;
                 case ChangeFilterStepDraft:
-                    problems.Add("Use Change Filter of the track here: its filter wheel is the filter wheel of the rig.");
+                    problems.Add("Use Change Filter of the setup sequence here: it turns the filter wheel of the imaging setup.");
                     break;
                 case RigExposureStepDraft e:
                     CheckDuration(e.Seconds, "Exposure", problems);
@@ -1421,22 +1421,22 @@ public static class SequenceDraftBuilder
                     WaitUntilProblems(w, problems);
                     break;
                 case ExposureStepDraft:
-                    problems.Add("Use an exposure of the track here: its camera is the camera of the rig.");
+                    problems.Add("Use an exposure of the setup sequence here: it exposes with the camera of the imaging setup.");
                     break;
                 case SlewStepDraft:
-                    problems.Add("Slewing moves the shared mount and cannot be done inside a Rig Track.");
+                    problems.Add("Slewing moves the shared mount and cannot be done inside a Setup Sequence.");
                     break;
                 case StartGuidingStepDraft or StopGuidingStepDraft:
-                    problems.Add("Guiding is shared by the whole session and cannot be started or stopped inside a Rig Track.");
+                    problems.Add("Guiding is shared by the whole session and cannot be started or stopped inside a Setup Sequence.");
                     break;
                 case DitherStepDraft:
-                    problems.Add("Dither is not available inside Multi-Rig Imaging yet: it has to wait until every rig is at a safe point.");
+                    problems.Add("Dither is not available inside Parallel Imaging yet: it has to wait until every imaging setup is at a safe point.");
                     break;
                 case MultiRigStepDraft:
-                    problems.Add("Multi-Rig Imaging cannot be placed inside a Rig Track.");
+                    problems.Add("Parallel Imaging cannot be placed inside a Setup Sequence.");
                     break;
                 case RepeatStepDraft:
-                    problems.Add("A Repeat inside a Rig Track cannot contain another Repeat.");
+                    problems.Add("A Repeat inside a Setup Sequence cannot contain another Repeat.");
                     break;
                 default:
                     problems.Add($"Unsupported step '{step.GetType().Name}'.");
@@ -1465,7 +1465,7 @@ public static class SequenceDraftBuilder
                     }
 
                     if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
-                    if (c.RigId is not { } centerRigId || !TryGetRig(context, centerRigId, out var centerRig)) problems.Add("Select an available rig.");
+                    if (c.RigId is not { } centerRigId || !TryGetRig(context, centerRigId, out var centerRig)) problems.Add("Select an available imaging setup.");
                     else CheckDevice<ICamera>(centerRig.CameraId, "camera", problems);
                     break;
                 case RotateToAngleStepDraft r:
@@ -1507,7 +1507,7 @@ public static class SequenceDraftBuilder
                 case PlateSolveStepDraft p:
                     CheckDuration(p.ExposureSeconds, "Solve exposure", problems);
                     if (context?.PlateSolving is null) problems.Add("No plate solver configured.");
-                    if (p.RigId is not { } solveId || !TryGetRig(context, solveId, out var solveRig)) problems.Add("Select an available rig.");
+                    if (p.RigId is not { } solveId || !TryGetRig(context, solveId, out var solveRig)) problems.Add("Select an available imaging setup.");
                     else CheckDevice<ICamera>(solveRig.CameraId, "camera", problems);
                     break;
                 case ExposureStepDraft e:
@@ -1516,7 +1516,7 @@ public static class SequenceDraftBuilder
                     CheckAcquisition(e.Acquisition, e.CameraId, e.Seconds, problems);
                     break;
                 case RigExposureStepDraft:
-                    problems.Add("An exposure with the camera of a rig can only be used inside a Rig Track.");
+                    problems.Add("An exposure with the camera of an imaging setup can only be used inside a Setup Sequence.");
                     break;
                 case DelayStepDraft d:
                     CheckDuration(d.Seconds, "Delay", problems);
@@ -1576,11 +1576,11 @@ public static class SequenceDraftBuilder
                 case AutofocusStepDraft a:
                     if (a.RigId is not { } autofocusRigId)
                     {
-                        problems.Add("No rig selected.");
+                        problems.Add("No imaging setup selected.");
                     }
                     else if (!TryGetRig(context, autofocusRigId, out _))
                     {
-                        problems.Add($"The rig '{autofocusRigId}' is not available.");
+                        problems.Add($"The imaging setup '{autofocusRigId}' is not available.");
                     }
 
                     CheckAutofocus(
@@ -1588,16 +1588,16 @@ public static class SequenceDraftBuilder
                         a.ExposureSeconds, a.StepSize, a.SampleCount, problems);
                     break;
                 case RigAutofocusStepDraft:
-                    problems.Add("An autofocus of a rig can only be used inside a Rig Track.");
+                    problems.Add("An autofocus of an imaging setup can only be used inside a Setup Sequence.");
                     break;
                 case RigMoveFocuserStepDraft:
-                    problems.Add("A focuser move of a rig can only be used inside a Rig Track.");
+                    problems.Add("A focuser move of an imaging setup can only be used inside a Setup Sequence.");
                     break;
                 case RigChangeFilterStepDraft:
-                    problems.Add("A filter change of a rig can only be used inside a Rig Track.");
+                    problems.Add("A filter change of an imaging setup can only be used inside a Setup Sequence.");
                     break;
                 case MultiRigStepDraft:
-                    problems.Add("Multi-Rig Imaging can only be placed at the top level of a sequence.");
+                    problems.Add("Parallel Imaging can only be placed at the top level of a sequence.");
                     break;
                 default:
                     problems.Add($"Unsupported step '{step.GetType().Name}'.");
@@ -1628,7 +1628,7 @@ public static class SequenceDraftBuilder
             CheckAutofocus(_trackRig, policy.ExposureSeconds, policy.StepSize, policy.SampleCount, problems);
             if (policy.AfterFilterChange && _trackRig is { FilterWheelId: null } rig)
             {
-                problems.Add($"The rig '{rig.Id}' has no filter wheel, so Autofocus cannot follow a filter change.");
+                problems.Add($"The imaging setup '{rig.Name}' has no filter wheel, so Autofocus cannot follow a filter change.");
             }
 
             problems.ForEach(p => Report(track.Id, p));
@@ -1662,11 +1662,11 @@ public static class SequenceDraftBuilder
 
             if (rig.FocuserId is not { } focuserId)
             {
-                problems.Add($"The rig '{rig.Id}' has no focuser.");
+                problems.Add($"The imaging setup '{rig.Name}' has no focuser.");
             }
             else if (!registry.TryGet(focuserId, out var device) || device is not IFocuser focuser)
             {
-                problems.Add($"The focuser '{focuserId}' of rig '{rig.Id}' is not available.");
+                problems.Add($"The focuser '{focuserId}' of the imaging setup '{rig.Name}' is not available.");
             }
             else if (stepSize > 0 && (long)focuser.MaxPosition - focuser.MinPosition < (long)(AutofocusOptions.MinimumSampleCount - 1) * stepSize)
             {
@@ -1675,7 +1675,7 @@ public static class SequenceDraftBuilder
 
             if (!registry.TryGet(rig.CameraId, out var camera) || camera is not ICamera)
             {
-                problems.Add($"The camera '{rig.CameraId}' of rig '{rig.Id}' is not available.");
+                problems.Add($"The camera '{rig.CameraId}' of the imaging setup '{rig.Name}' is not available.");
             }
         }
 
@@ -1689,11 +1689,11 @@ public static class SequenceDraftBuilder
 
             if (rig.FocuserId is not { } focuserId)
             {
-                problems.Add($"The rig '{rig.Id}' has no focuser.");
+                problems.Add($"The imaging setup '{rig.Name}' has no focuser.");
             }
             else if (!registry.TryGet(focuserId, out var focuser) || focuser is not IFocuser)
             {
-                problems.Add($"The focuser '{focuserId}' of rig '{rig.Id}' is not available.");
+                problems.Add($"The focuser '{focuserId}' of the imaging setup '{rig.Name}' is not available.");
             }
             else
             {
@@ -1710,11 +1710,11 @@ public static class SequenceDraftBuilder
 
             if (rig.FilterWheelId is not { } wheelId)
             {
-                problems.Add($"The rig '{rig.Id}' has no filter wheel.");
+                problems.Add($"The imaging setup '{rig.Name}' has no filter wheel.");
             }
             else if (!registry.TryGet(wheelId, out var wheel) || wheel is not IFilterWheel)
             {
-                problems.Add($"The filter wheel '{wheelId}' of rig '{rig.Id}' is not available.");
+                problems.Add($"The filter wheel '{wheelId}' of the imaging setup '{rig.Name}' is not available.");
             }
             else
             {
@@ -1922,14 +1922,14 @@ public static class SequenceDraftBuilder
 
             if (rig?.MountId is { } rigMount && named is { } other && other != rigMount)
             {
-                problems.Add($"The step names the mount '{other}', but the rig '{rig.Name}' is on '{rigMount}'.");
+                problems.Add($"The step names the mount '{other}', but the imaging setup '{rig.Name}' is on '{rigMount}'.");
                 return;
             }
 
             var mount = StepScopes.EffectiveMount(rig, named, _shared);
             if (mount is null)
             {
-                problems.Add(rig is null ? "No mount selected." : $"The rig '{rig.Name}' has no mount. Give the rig a mount on the Equipment page.");
+                problems.Add(rig is null ? "No mount selected." : $"The imaging setup '{rig.Name}' has no mount. Give the setup a mount on the Equipment page.");
                 return;
             }
 
@@ -1952,19 +1952,19 @@ public static class SequenceDraftBuilder
         {
             if (rigId is not { } id || !TryGetRig(context, id, out var rig))
             {
-                problems.Add("Select an available rig.");
+                problems.Add("Select an available imaging setup.");
                 return;
             }
 
             CheckDevice<ICamera>(rig.CameraId, "camera", problems);
             if (rig.RotatorId is not { } rotatorId)
             {
-                problems.Add($"The rig '{rig.Name}' has no rotator.");
+                problems.Add($"The imaging setup '{rig.Name}' has no rotator.");
             }
             else
             {
                 CheckDevice<Sidera.Core.Rotators.IRotator>(rotatorId, "rotator", problems);
-                if (rig.RotatorModel is null) problems.Add($"The rotator of the rig '{rig.Name}' is not calibrated: calibrate it with a plate solve first.");
+                if (rig.RotatorModel is null) problems.Add($"The rotator of the imaging setup '{rig.Name}' is not calibrated: calibrate it with a plate solve first.");
             }
         }
 
@@ -2073,7 +2073,7 @@ public static class SequenceDraftBuilder
         SequenceStepKind.Autofocus or SequenceStepKind.RigAutofocus => "Autofocus",
         SequenceStepKind.Repeat => "Repeat",
         SequenceStepKind.MultiRig => MultiRigName,
-        SequenceStepKind.RigTrack => "Rig Track",
+        SequenceStepKind.RigTrack => "Setup Sequence",
         _ => kind.ToString(),
     };
 }

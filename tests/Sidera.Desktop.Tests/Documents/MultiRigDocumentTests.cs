@@ -8,7 +8,7 @@ using Sidera.Runtime;
 
 namespace Sidera.Desktop.Tests.Documents;
 
-/// <summary>Format version 2 (shared equipment, Multi-Rig Imaging), and version 1 documents next to it.</summary>
+/// <summary>Format version 2 (shared equipment, Parallel Imaging), and version 1 documents next to it.</summary>
 public sealed class MultiRigDocumentTests : IDisposable
 {
     private static readonly JsonSequenceDocumentSerializer Serializer = new();
@@ -737,7 +737,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         var track = (RigTrackDraftViewModel)app.Draft.Rows[1];
         Assert.Equal(new RigId("rig.observatory"), track.Rig.SelectedId);
         Assert.True(track.Rig.Selected!.IsMissing);
-        Assert.Equal(["The rig 'rig.observatory' is not available."], track.Problems);
+        Assert.Equal(["The imaging setup 'rig.observatory' is not available."], track.Problems);
         Assert.False(app.Draft.IsValid);
         Assert.False(app.Vm.Sequencer.CanRun);
         Assert.False(app.Document.IsDirty);

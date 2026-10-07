@@ -190,7 +190,7 @@ public sealed class RigAwareSessionTests : IAsyncLifetime
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [step], Context(host));
 
-        Assert.Contains(validation.ProblemsOf(step.Id), p => p.Contains("The rig 'Rig D' has no mount"));
+        Assert.Contains(validation.ProblemsOf(step.Id), p => p.Contains("The imaging setup 'Rig D' has no mount"));
     }
 
     [Fact]

@@ -45,6 +45,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     private const double MaximumFieldDegrees = 60;
 
     private readonly SideraRuntimeHost _host;
+    private readonly ImagingSetupContext _context;
     private readonly SiteService? _settings;
     private readonly SequenceDraftViewModel? _session;
     private readonly ICelestialObjectCatalog? _catalog;
@@ -57,10 +58,12 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     private bool _settingRotationText;
 
     public FramingViewModel(
-        SideraRuntimeHost host, SiteService? settings, SequenceDraftViewModel? session, ICelestialObjectCatalog? catalog,
+        SideraRuntimeHost host, ImagingSetupContext context, SiteService? settings, SequenceDraftViewModel? session, ICelestialObjectCatalog? catalog,
         Func<SkySurveyDescriptor, ISkySurveyProvider>? providers, Action<Action> post)
     {
         _host = host;
+        _context = context;
+        _context.Changed += (_, _) => RefreshEquipment();
         _settings = settings;
         _session = session;
         _catalog = catalog;
@@ -76,13 +79,18 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     public IReadOnlyList<SkySurveyDescriptor> Surveys { get; } = SkySurveys.Defaults;
 
-    public ObservableCollection<Rig> Rigs { get; } = [];
-
     public ObservableCollection<IMount> Mounts { get; } = [];
 
     public ObservableCollection<CelestialObject> Results { get; } = [];
 
-    [ObservableProperty] public partial Rig? SelectedRig { get; set; }
+    /// <summary>The current imaging setup: its optics give the field, its mount slews. Nothing is chosen on this page.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSetup), nameof(SetupName))]
+    public partial Rig? Setup { get; private set; }
+
+    public bool HasSetup => Setup is not null;
+
+    public string SetupName => Setup?.Name ?? string.Empty;
 
     [ObservableProperty] public partial IMount? SelectedMount { get; set; }
 
@@ -162,7 +170,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     public bool HasField => Field is not null;
 
-    public string FovText => Field is { } f ? Format($"{f.WidthDegrees:0.00}° × {f.HeightDegrees:0.00}°") : "Not known: set the focal length of the rig and connect its camera";
+    public string FovText => Field is { } f ? Format($"{f.WidthDegrees:0.00}° × {f.HeightDegrees:0.00}°") : "Not known: set the focal length of the imaging setup and connect its camera";
 
     [ObservableProperty] public partial string PixelScaleTextValue { get; private set; } = "—";
 
@@ -210,45 +218,31 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     // ---- Equipment
 
-    /// <summary>Reads the rigs and the mounts again (the page was opened, equipment came or went).</summary>
+    /// <summary>Reads the current setup and the mounts again (the page was opened, equipment came or went, another setup became the current one).</summary>
     [RelayCommand]
     public void RefreshEquipment()
     {
-        var rigId = SelectedRig?.Id;
         var mountId = SelectedMount?.Id;
-        Rigs.Clear();
-        foreach (var rig in _host.RigRegistry.GetAll().OrderBy(r => r.Id.Value, StringComparer.Ordinal))
-        {
-            Rigs.Add(rig);
-        }
-
         Mounts.Clear();
         foreach (var mount in _host.DeviceRegistry.GetAll().OfType<IMount>())
         {
             Mounts.Add(mount);
         }
 
-        SelectedRig = Rigs.FirstOrDefault(r => r.Id == rigId) ?? Rigs.FirstOrDefault();
-        SelectedMount = Mounts.FirstOrDefault(m => m.Id == mountId) ?? Mounts.FirstOrDefault();
-        RefreshField();
-        UpdateSlewState();
-    }
-
-    partial void OnSelectedRigChanged(Rig? value)
-    {
-        // The rig is on a mount of its own, or on one that it shares: that is the mount of the framing, unless the person chose another one.
-        if (value?.MountId is { } mountId && Mounts.FirstOrDefault(m => m.Id == mountId) is { } rigMount)
+        // The mount: the one of the setup; else the one that was chosen; else the only one. Never the first of several.
+        var setup = _context.Current;
+        SelectedMount = setup?.MountId is { } setupMount ? Mounts.FirstOrDefault(m => m.Id == setupMount)
+            : Mounts.FirstOrDefault(m => m.Id == mountId) ?? (Mounts.Count == 1 ? Mounts[0] : null);
+        if (!ReferenceEquals(setup, Setup))
         {
-            SelectedMount = rigMount;
+            Setup = setup;
+            if (Target is { } target)
+            {
+                Target = target.WithRig(setup?.Id);
+            }
         }
 
-        // The field follows the rig at once: nothing of it is kept in the plan.
         RefreshField();
-        if (Target is { } target)
-        {
-            Target = target.WithRig(value?.Id);
-        }
-
         UpdateSlewState();
     }
 
@@ -264,10 +258,10 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         ScheduleImageLoad();
     }
 
-    /// <summary>Reads the geometry of the selected rig: its configured optics, and what its camera reports for the rest.</summary>
+    /// <summary>Reads the geometry of the current setup: its configured optics, and what its camera reports for the rest.</summary>
     public void RefreshField()
     {
-        if (SelectedRig is not { } rig)
+        if (Setup is not { } rig)
         {
             Field = null;
             PixelScaleTextValue = "—";
@@ -346,7 +340,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     private void SetTarget(string name, CelestialCoordinates center, string? catalogId)
     {
         var rotation = Target?.DesiredRotationDegrees ?? 0;
-        Target = new FramingTarget(name, center, rotation, SelectedRig?.Id, catalogId, SelectedSurvey.Id);
+        Target = new FramingTarget(name, center, rotation, Setup?.Id, catalogId, SelectedSurvey.Id);
         UpdateSlewState();
     }
 
@@ -519,15 +513,15 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
     private PlateSolvingSettings SolveSettings => _settings?.PlateSolving ?? new PlateSolvingSettings();
 
-    // The selected rig is a snapshot; its rotator and the calibration of it can change while this page is open, so the registry is asked again.
-    private Rig? CurrentRig => SelectedRig is { } selected && _host.RigRegistry.TryGet(selected.Id, out var current) && current is not null ? current : SelectedRig;
+    // The current setup is a snapshot; its rotator and the calibration of it can change while this page is open, so the registry is asked again.
+    private Rig? CurrentRig => Setup is { } selected && _host.RigRegistry.TryGet(selected.Id, out var current) && current is not null ? current : Setup;
 
-    /// <summary>The selected rig has a rotator: the page then offers Center &amp; Rotate. Otherwise Slew &amp; Center, and a rotation that is made by hand.</summary>
+    /// <summary>The current setup has a rotator: the page then offers Center &amp; Rotate. Otherwise Slew &amp; Center, and a rotation that is made by hand.</summary>
     public bool HasRotator => CurrentRig?.RotatorId is not null;
 
     public bool HasNoRotator => !HasRotator;
 
-    /// <summary>For a rig without a rotator: how far the sky is from the desired rotation, as signed degrees to change it by; empty before a solve.</summary>
+    /// <summary>For a setup without a rotator: how far the sky is from the desired rotation, as signed degrees to change it by; empty before a solve.</summary>
     [ObservableProperty] public partial string RotationAdjustmentText { get; private set; } = string.Empty;
 
     private string RotatorProblem(Rig rig)
@@ -546,7 +540,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     {
         SlewDisabledText =
             _host.PlateSolving is null ? "No plate solver is configured."
-            : SelectedRig is null ? "Select a rig."
+            : Setup is null ? _context.NoSetupText
             : SelectedMount is null ? "No mount is available."
             : SelectedMount.ConnectionState != DeviceConnectionState.Connected ? "Connect the mount to slew."
             : Target is null ? "Choose a target first."
@@ -619,7 +613,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanSlew))]
     private async Task SlewAndCenterAsync()
     {
-        if (Target is not { } target || SelectedRig is not { } rig || SelectedMount is not { } mount || _host.PlateSolving is not { } service)
+        if (Target is not { } target || Setup is not { } rig || SelectedMount is not { } mount || _host.PlateSolving is not { } service)
         {
             return;
         }
@@ -744,16 +738,16 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private bool CanSolveAgain() => !IsBusy && Target is not null && SelectedRig is not null && _host.PlateSolving is not null;
+    private bool CanSolveAgain() => !IsBusy && Target is not null && Setup is not null && _host.PlateSolving is not null;
 
     /// <summary>
-    /// For a rig without a rotator, after the camera was turned by hand: a plate solve of what the camera sees now, to compare its rotation with the desired one. It moves nothing and
+    /// For a setup without a rotator, after the camera was turned by hand: a plate solve of what the camera sees now, to compare its rotation with the desired one. It moves nothing and
     /// synchronizes nothing.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanSolveAgain))]
     private async Task SolveAgainAsync()
     {
-        if (Target is not { } target || SelectedRig is not { } rig || _host.PlateSolving is not { } service)
+        if (Target is not { } target || Setup is not { } rig || _host.PlateSolving is not { } service)
         {
             return;
         }
@@ -810,7 +804,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
 
         // A session that is a workflow takes the target as its target; a session of explicit steps gets the steps below.
         if (_session.TargetSink?.Invoke(new Sidera.Desktop.ViewModels.SessionTargetRequest(
-                target.Name, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, target.DesiredRotationDegrees, SelectedRig?.Id)) is { } handled)
+                target.Name, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, target.DesiredRotationDegrees, Setup?.Id)) is { } handled)
         {
             StatusText = handled;
             return;
@@ -820,11 +814,11 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         // A rig with a rotator gets the step that rotates; one without gets the position and the rotation as metadata. Neither adds a Sync step.
         SequenceStepDraft step = HasRotator
             ? new CenterAndRotateStepDraft(
-                Guid.NewGuid(), SelectedMount?.Id, SelectedRig?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, solve.CenteringToleranceArcseconds,
+                Guid.NewGuid(), SelectedMount?.Id, Setup?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, solve.CenteringToleranceArcseconds,
                 solve.MaxCenteringAttempts, target.DesiredRotationDegrees, solve.RotationToleranceDegrees, solve.MaxRotationAttempts, RotationService.DefaultMaxRounds,
                 solve.ExposureSeconds, target.Name)
             : new SlewAndCenterStepDraft(
-                Guid.NewGuid(), SelectedMount?.Id, SelectedRig?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees,
+                Guid.NewGuid(), SelectedMount?.Id, Setup?.Id, target.Center.RightAscensionHours, target.Center.DeclinationDegrees,
                 solve.CenteringToleranceArcseconds, solve.MaxCenteringAttempts, solve.ExposureSeconds, target.Name, target.DesiredRotationDegrees);
         var what = HasRotator ? "Center & Rotate" : "Slew & Center";
         StatusText = _session.AddStepDraft(step)

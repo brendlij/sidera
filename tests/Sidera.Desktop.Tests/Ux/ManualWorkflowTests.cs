@@ -170,7 +170,8 @@ public sealed class ManualWorkflowTests : IAsyncLifetime
 
         // 5.-6. Imaging: a manual frame of the first rig, through the acquisition pipeline.
         var imaging = _vm.Imaging;
-        imaging.Capture!.SelectedTarget = imaging.Capture.Targets.First(t => t.RigId is not null);
+        Assert.NotNull(imaging.Capture!.SelectedTarget);
+        Assert.NotNull(imaging.Capture.SelectedTarget!.RigId); // the current imaging setup is the first of the new setups; nothing is chosen on the page
         imaging.Capture.ExposureText = "0.05";
         await imaging.Capture.CaptureCommand.ExecuteAsync(null);
         Assert.NotNull(imaging.LatestFrame);

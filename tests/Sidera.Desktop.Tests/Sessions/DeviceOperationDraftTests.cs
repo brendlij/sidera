@@ -64,7 +64,7 @@ public sealed class DeviceOperationDraftTests : IAsyncLifetime
 
         var validation = SequenceDraftBuilder.Validate(registry, [block], context);
 
-        Assert.Contains(validation.ProblemsOf(track.Steps[0].Id), p => p.Contains("outside a Rig Track", StringComparison.Ordinal));
+        Assert.Contains(validation.ProblemsOf(track.Steps[0].Id), p => p.Contains("outside a Setup Sequence", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -6,7 +6,7 @@ using Sidera.Runtime.Sequencing;
 
 namespace Sidera.Desktop.Tests;
 
-/// <summary>Multi-Rig Imaging: what a draft of it compiles to, and what is refused.</summary>
+/// <summary>Parallel Imaging: what a draft of it compiles to, and what is refused.</summary>
 public class MultiRigBuilderTests
 {
     private static readonly RigId Main = new("rig.main");
@@ -145,7 +145,7 @@ public class MultiRigBuilderTests
         var builtRepeat = Assert.Single(top.Children![0].Children!);
         Assert.Equal(repeat.Id, builtRepeat.DraftId);
         Assert.Equal(exposure.Id, Assert.Single(builtRepeat.Children!).DraftId);
-        Assert.Equal(("Multi-Rig Imaging", "2 rig tracks"), (top.Description.Title, top.Description.Summary));
+        Assert.Equal(("Parallel Imaging", "2 setup sequences"), (top.Description.Title, top.Description.Summary));
         Assert.Equal(("Main Rig", "Main Camera"), (top.Children![0].Description.Title, top.Children![0].Description.Summary));
         Assert.Equal(("Exposure", "3 s · Camera defaults"), (builtRepeat.Children![0].Description.Title, builtRepeat.Children![0].Description.Summary));
     }
@@ -197,7 +197,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [block], Context(host));
 
-        Assert.Equal(["Multi-Rig Imaging needs at least two Rig Tracks."], Problems(validation, block.Id));
+        Assert.Equal(["Parallel Imaging needs at least two Setup Sequences."], Problems(validation, block.Id));
         Assert.Throws<SequenceConfigurationException>(() => SequenceDraftBuilder.Build(host.DeviceRegistry, [block], Context(host)));
     }
 
@@ -210,8 +210,8 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [MultiRig(none, gone)], Context(host));
 
-        Assert.Equal(["No rig selected."], Problems(validation, none.Id));
-        Assert.Equal(["The rig 'rig.observatory' is not available."], Problems(validation, gone.Id));
+        Assert.Equal(["No imaging setup selected."], Problems(validation, none.Id));
+        Assert.Equal(["The imaging setup 'rig.observatory' is not available."], Problems(validation, gone.Id));
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [MultiRig(track, Track(Wide, RigExposure()))]);
 
-        Assert.Equal(["The rig 'rig.main' is not available."], Problems(validation, track.Id));
+        Assert.Equal(["The imaging setup 'rig.main' is not available."], Problems(validation, track.Id));
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class MultiRigBuilderTests
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [MultiRig(first, second)], Context(host));
 
         Assert.Empty(Problems(validation, first.Id));
-        Assert.Equal(["The rig 'rig.main' is already used by another track."], Problems(validation, second.Id));
+        Assert.Equal(["The imaging setup 'Main Rig' is already used by another setup sequence."], Problems(validation, second.Id));
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [MultiRig(first, second)], Context(host));
 
-        Assert.Equal(["The camera 'camera.main' is already used by another track."], Problems(validation, second.Id));
+        Assert.Equal(["The camera 'camera.main' is already used by another setup sequence."], Problems(validation, second.Id));
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [MultiRig(Track(Main, RigExposure()), wide)], Context(host));
 
-        Assert.Equal(["The camera 'camera.wide' of rig 'rig.wide' is not available."], Problems(validation, wide.Id));
+        Assert.Equal(["The camera 'camera.wide' of the imaging setup 'Wide Rig' is not available."], Problems(validation, wide.Id));
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [MultiRig(Track(Main, RigExposure()), empty)], Context(host));
 
-        Assert.Equal(["A Rig Track needs at least one step."], Problems(validation, empty.Id));
+        Assert.Equal(["A Setup Sequence needs at least one step."], Problems(validation, empty.Id));
     }
 
     [Fact]
@@ -319,13 +319,13 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [block], Context(host));
 
-        Assert.Equal(["Slewing moves the shared mount and cannot be done inside a Rig Track."], Problems(validation, slew.Id));
-        var guiding = "Guiding is shared by the whole session and cannot be started or stopped inside a Rig Track.";
+        Assert.Equal(["Slewing moves the shared mount and cannot be done inside a Setup Sequence."], Problems(validation, slew.Id));
+        var guiding = "Guiding is shared by the whole session and cannot be started or stopped inside a Setup Sequence.";
         Assert.Equal([guiding], Problems(validation, start.Id));
         Assert.Equal([guiding], Problems(validation, stop.Id));
-        Assert.Contains("Dither is not available inside Multi-Rig Imaging yet", Assert.Single(Problems(validation, dither.Id)));
-        Assert.Equal(["Use an exposure of the track here: its camera is the camera of the rig."], Problems(validation, camera.Id));
-        Assert.Equal(["Multi-Rig Imaging cannot be placed inside a Rig Track."], Problems(validation, nested.Id));
+        Assert.Contains("Dither is not available inside Parallel Imaging yet", Assert.Single(Problems(validation, dither.Id)));
+        Assert.Equal(["Use an exposure of the setup sequence here: it exposes with the camera of the imaging setup."], Problems(validation, camera.Id));
+        Assert.Equal(["Parallel Imaging cannot be placed inside a Setup Sequence."], Problems(validation, nested.Id));
         Assert.Throws<SequenceConfigurationException>(() => SequenceDraftBuilder.Build(host.DeviceRegistry, [block], Context(host)));
     }
 
@@ -338,7 +338,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [block], Context(host));
 
-        Assert.Equal(["Slewing moves the shared mount and cannot be done inside a Rig Track."], Problems(validation, slew.Id));
+        Assert.Equal(["Slewing moves the shared mount and cannot be done inside a Setup Sequence."], Problems(validation, slew.Id));
     }
 
     [Fact]
@@ -351,7 +351,7 @@ public class MultiRigBuilderTests
 
         var validation = SequenceDraftBuilder.Validate(host.DeviceRegistry, [top, repeat], Context(host));
 
-        var message = "An exposure with the camera of a rig can only be used inside a Rig Track.";
+        var message = "An exposure with the camera of an imaging setup can only be used inside a Setup Sequence.";
         Assert.Equal([message], Problems(validation, top.Id));
         Assert.Equal([message], Problems(validation, inside.Id));
     }

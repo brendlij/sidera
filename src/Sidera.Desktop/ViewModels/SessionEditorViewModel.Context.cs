@@ -35,6 +35,9 @@ public sealed partial class SessionEditorViewModel
     /// </summary>
     public bool IsMultiSetup => UsableRigs.Count >= 2;
 
+    /// <summary>The imaging setup the application works with now (the switcher in the sidebar): a new target starts with its sequence when several setups can image. Set by the application.</summary>
+    public Func<RigId?>? CurrentSetup { get; set; }
+
     /// <summary>The imaging path of a setup: what a sequence is bound to.</summary>
     internal static ImagingBindingId PathOf(Rig rig) => ImagingBindingId.Of(rig);
 

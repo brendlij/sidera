@@ -197,7 +197,7 @@ public class AutofocusSequencerTests
 
         var rows = app.Sequencer.Definition;
         Assert.Equal(
-            ["Autofocus", "Start Guiding", "Multi-Rig Imaging", "Main Rig", "Autofocus", "Exposure", "Wide Rig", "Exposure"],
+            ["Autofocus", "Start Guiding", "Parallel Imaging", "Main Rig", "Autofocus", "Exposure", "Wide Rig", "Exposure"],
             rows.Select(r => r.Title)); // the generated safe points are no rows
         Assert.Equal(top.Id, rows[0].DraftId);
         Assert.Equal(focus.Id, rows[4].DraftId);
