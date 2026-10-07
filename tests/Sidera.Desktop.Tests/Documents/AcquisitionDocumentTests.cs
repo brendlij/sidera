@@ -159,7 +159,7 @@ public sealed class AcquisitionDocumentTests
     [Fact]
     public async Task ANewerVersion_IsStillRejectedAsNewer()
     {
-        var ex = await Rejects(Doc(9, Exposure(string.Empty)));
+        var ex = await Rejects(Doc(10, Exposure(string.Empty)));
 
         Assert.Equal(SequenceDocumentErrorKind.NewerVersion, ex.Kind);
     }

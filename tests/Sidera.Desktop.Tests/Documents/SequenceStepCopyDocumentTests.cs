@@ -217,7 +217,7 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
         var text = await File.ReadAllTextAsync(PathOf("Plain.astraseq"));
 
         Assert.DoesNotContain("clipboard", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Equal(8, (await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Plain.astraseq"))).Steps.Count);
     }
 

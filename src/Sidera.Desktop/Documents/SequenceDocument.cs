@@ -15,7 +15,8 @@ public sealed record SequenceDocument(
     string? Name,
     IReadOnlyList<DocumentStep> Steps,
     SharedEquipmentDocument? SharedEquipment = null,
-    Sidera.Desktop.Workflows.WorkflowDefinition? Workflow = null)
+    Sidera.Desktop.Workflows.WorkflowDefinition? Workflow = null,
+    Sidera.Desktop.Sessions.SessionDefinition? Session = null)
 {
     /// <summary>The value every Sidera sequence document carries to say what it is.</summary>
     public const string FormatId = "astra-sequence";
@@ -24,10 +25,11 @@ public sealed record SequenceDocument(
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
     /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps
     /// before 3, autofocus before 4, the autofocus policy of a track before 5, the acquisition settings of an exposure before 6,
-    /// plate solving before 7, the autofocus interval of a track and the workflow before 8) is simply absent from a document read from it. A writer always writes the current version,
+    /// plate solving before 7, the autofocus interval of a track and the workflow before 8, the session (targets, lanes, blocks) and the device operations before 9) is simply absent from a document
+    /// read from it. A writer always writes the current version,
     /// so an older Sidera refuses a file that a newer one saved as newer instead of opening it as if nothing had been added; every older version is still read, as it always was.
     /// </summary>
-    public const int CurrentVersion = 8;
+    public const int CurrentVersion = 9;
 
 
 
@@ -57,6 +59,9 @@ public sealed record DelayDocumentStep(Guid Id, double DurationSeconds) : Docume
 public sealed record WaitUntilDocumentStep(Guid Id, IReadOnlyList<Sidera.Core.Conditions.WorkflowCondition> Conditions, ConditionTargetDraft? Target = null) : DocumentLeafStep(Id);
 
 public sealed record SlewDocumentStep(Guid Id, string? MountId, double RaHours, double DecDegrees) : DocumentLeafStep(Id);
+
+/// <summary>Cools or warms a camera, parks or unparks a mount, switches tracking: <see cref="Operation"/> is one of <c>coolCamera</c>, <c>warmCamera</c>, <c>park</c>, <c>unpark</c>, <c>trackingOn</c>, <c>trackingOff</c>. Added in version 9.</summary>
+public sealed record DeviceOperationDocumentStep(Guid Id, string Operation, string? DeviceId, double Celsius, double RampMinutes) : DocumentLeafStep(Id);
 
 public sealed record StartGuidingDocumentStep(Guid Id, string? GuiderId) : DocumentLeafStep(Id);
 

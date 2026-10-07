@@ -283,7 +283,7 @@ public sealed class WorkflowCompilerTests : IAsyncLifetime
         stream.Position = 0;
         var back = (await serializer.LoadAsync(stream, CancellationToken.None)).Workflow!;
 
-        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Equal(workflow.Target, back.Target);
         Assert.Equal(workflow.Dither, back.Dither);
         Assert.Equal(workflow.Prepare, back.Prepare);

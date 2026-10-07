@@ -1145,6 +1145,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         StartGuidingStepDraft g => new StartGuidingStepDraftViewModel(_registry, g),
         StopGuidingStepDraft g => new StopGuidingStepDraftViewModel(_registry, g),
         DitherStepDraft d => new DitherStepDraftViewModel(_registry, d),
+        DeviceOperationStepDraft o => new DeviceOperationStepDraftViewModel(_registry, o),
         MoveFocuserStepDraft f => new MoveFocuserStepDraftViewModel(_registry, f),
         ChangeFilterStepDraft c => new ChangeFilterStepDraftViewModel(_registry, c),
         RigMoveFocuserStepDraft f => new RigMoveFocuserStepDraftViewModel(f),

@@ -16,14 +16,16 @@ namespace Sidera.Desktop.Documents;
 public static class SequenceDocumentMapper
 {
     public static SequenceDocument ToDocument(
-        IReadOnlyList<SequenceStepDraft> steps, string? name = null, SharedEquipmentDraft? shared = null, Sidera.Desktop.Workflows.WorkflowDefinition? workflow = null)
+        IReadOnlyList<SequenceStepDraft> steps, string? name = null, SharedEquipmentDraft? shared = null, Sidera.Desktop.Workflows.WorkflowDefinition? workflow = null,
+        Sidera.Desktop.Sessions.SessionDefinition? session = null)
     {
         ArgumentNullException.ThrowIfNull(steps);
         return new SequenceDocument(
             name,
             steps.Select(ToDocumentStep).ToList(),
             shared is null ? null : new SharedEquipmentDocument(shared.MountId?.Value, shared.GuiderId?.Value),
-            workflow);
+            workflow,
+            session);
     }
 
     /// <summary>The session's shared equipment as the document has it; <c>null</c> for a document that says nothing about it.</summary>
@@ -86,6 +88,7 @@ public static class SequenceDocumentMapper
         PlateSolveStepDraft p => new PlateSolveDocumentStep(p.Id, p.RigId?.Value, p.ExposureSeconds),
         ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds, e.Acquisition.IsDefault ? null : e.Acquisition),
         RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds, r.Acquisition.IsDefault ? null : r.Acquisition),
+        DeviceOperationStepDraft o => new DeviceOperationDocumentStep(o.Id, OperationName(o.Operation), o.DeviceId?.Value, o.Celsius, o.RampMinutes),
         MoveFocuserStepDraft f => new MoveFocuserDocumentStep(f.Id, f.FocuserId?.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterDocumentStep(c.Id, c.FilterWheelId?.Value, c.SlotIndex),
         RigMoveFocuserStepDraft f => new RigMoveFocuserDocumentStep(f.Id, f.Position),
@@ -131,6 +134,7 @@ public static class SequenceDocumentMapper
         PlateSolveDocumentStep p => new PlateSolveStepDraft(p.Id, p.RigId is null ? null : new RigId(p.RigId), p.ExposureSeconds),
         ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds) { Acquisition = e.Acquisition ?? AcquisitionIntent.Default },
         RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds) { Acquisition = r.Acquisition ?? AcquisitionIntent.Default },
+        DeviceOperationDocumentStep o => new DeviceOperationStepDraft(o.Id, OperationOf(o.Operation), Device(o.DeviceId), o.Celsius, o.RampMinutes),
         MoveFocuserDocumentStep f => new MoveFocuserStepDraft(f.Id, Device(f.FocuserId), f.Position),
         ChangeFilterDocumentStep c => new ChangeFilterStepDraft(c.Id, Device(c.FilterWheelId), c.SlotIndex),
         RigMoveFocuserDocumentStep f => new RigMoveFocuserStepDraft(f.Id, f.Position),
@@ -150,6 +154,27 @@ public static class SequenceDocumentMapper
     };
 
     private static DeviceId? Device(string? id) => id is null ? null : new DeviceId(id);
+
+    // The names of the operations are part of the file format.
+    private static readonly (Sidera.Runtime.Sequencing.DeviceOperation Operation, string Name)[] Operations =
+    [
+        (Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera, "coolCamera"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.WarmCamera, "warmCamera"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.Park, "park"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.Unpark, "unpark"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.TrackingOn, "trackingOn"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.TrackingOff, "trackingOff"),
+    ];
+
+    internal static string OperationName(Sidera.Runtime.Sequencing.DeviceOperation operation) => System.Array.Find(Operations, o => o.Operation == operation).Name;
+
+    internal static Sidera.Runtime.Sequencing.DeviceOperation OperationOf(string name) =>
+        System.Array.Find(Operations, o => o.Name == name) is { Name: not null } found
+            ? found.Operation
+            : throw new SequenceDocumentException(SequenceDocumentErrorKind.Structure, $"Unknown device operation '{name}'.");
+
+    /// <summary>Whether <paramref name="name"/> is the name of a device operation of the file format.</summary>
+    internal static bool IsOperation(string name) => System.Array.Exists(Operations, o => o.Name == name);
 
     // The default policy is what a document without one means, so it is not written.
     private static DitherPolicyDocument? ToDocumentPolicy(MultiRigDitherPolicyDraft? policy) =>

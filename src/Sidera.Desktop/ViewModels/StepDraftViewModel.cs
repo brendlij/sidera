@@ -779,6 +779,64 @@ public sealed partial class DitherStepDraftViewModel : StepDraftViewModel
         ParseNumber(SettleTimeoutText, "Settle timeout", "a number of seconds", parseErrors, double.MaxValue));
 }
 
+/// <summary>An operation on a camera or a mount: cool or warm the camera, park or unpark the mount, switch tracking.</summary>
+public sealed record OperationChoice(Sidera.Runtime.Sequencing.DeviceOperation Operation, string Name);
+
+public sealed partial class DeviceOperationStepDraftViewModel : StepDraftViewModel
+{
+    public static IReadOnlyList<OperationChoice> Choices { get; } =
+    [
+        new(Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera, "Cool camera"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.WarmCamera, "Warm camera"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.Park, "Park mount"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.Unpark, "Unpark mount"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.TrackingOn, "Tracking on"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.TrackingOff, "Tracking off"),
+    ];
+
+    public DeviceOperationStepDraftViewModel(DeviceRegistry registry, DeviceOperationStepDraft draft) : base(draft.Id)
+    {
+        Camera = Picker(registry, IsCamera, draft.IsCamera ? draft.DeviceId : null);
+        Mount = Picker(registry, IsMount, draft.IsCamera ? null : draft.DeviceId);
+        SelectedOperation = Choices.First(c => c.Operation == draft.Operation);
+        CelsiusText = draft.Celsius.ToString("0.##", CultureInfo.InvariantCulture);
+        RampText = draft.RampMinutes.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    public override SequenceStepKind Kind => SequenceStepKind.DeviceOperation;
+
+    public DevicePickerViewModel Camera { get; }
+    public DevicePickerViewModel Mount { get; }
+
+    public IReadOnlyList<OperationChoice> OperationChoices => Choices;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsCamera), nameof(ShowsMount), nameof(ShowsTemperature), nameof(ShowsRamp))]
+    public partial OperationChoice SelectedOperation { get; set; }
+
+    /// <summary>The target temperature of a cooling, in degrees Celsius.</summary>
+    [ObservableProperty]
+    public partial string CelsiusText { get; set; } = string.Empty;
+
+    /// <summary>How long the set point of the cooler takes to get there, in minutes.</summary>
+    [ObservableProperty]
+    public partial string RampText { get; set; } = string.Empty;
+
+    public bool ShowsCamera => SelectedOperation.Operation is Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera or Sidera.Runtime.Sequencing.DeviceOperation.WarmCamera;
+    public bool ShowsMount => !ShowsCamera;
+    public bool ShowsTemperature => SelectedOperation.Operation == Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera;
+    public bool ShowsRamp => ShowsCamera;
+
+    partial void OnSelectedOperationChanged(OperationChoice value) => NotifyEdited();
+
+    internal override IEnumerable<DevicePickerViewModel> Pickers => [Camera, Mount];
+
+    internal override SequenceStepDraft Read(List<string> parseErrors) => new DeviceOperationStepDraft(
+        Id, SelectedOperation.Operation, ShowsCamera ? Camera.SelectedId : Mount.SelectedId,
+        ShowsTemperature ? ParseNumber(CelsiusText, "The target temperature", "a number of degrees", parseErrors, -10) : 0,
+        ShowsRamp ? ParseNumber(RampText, "The ramp", "a number of minutes", parseErrors, 0) : 0);
+}
+
 /// <summary>Moves one selected focuser to an absolute position, in focuser steps.</summary>
 public sealed partial class MoveFocuserStepDraftViewModel : StepDraftViewModel
 {

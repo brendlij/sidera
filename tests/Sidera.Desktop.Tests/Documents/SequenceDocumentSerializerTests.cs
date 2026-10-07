@@ -356,7 +356,7 @@ public class SequenceDocumentSerializerTests
     }
 
     [Theory]
-    [InlineData("9")]
+    [InlineData("10")]
     [InlineData("999")]
     public async Task ANewerVersion_IsRejectedWithItsOwnMessage_WhateverElseIsInIt(string version)
     {
@@ -642,7 +642,7 @@ public class SequenceDocumentSerializerTests
             """
             {
               "format": "astra-sequence",
-              "version": 8,
+              "version": 9,
               "name": "Demo Session",
               "sharedEquipment": {
                 "mountId": "mount.eq6",

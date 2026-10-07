@@ -58,7 +58,7 @@ public static class StepScopes
             or SequenceStepKind.Autofocus or SequenceStepKind.PlateSolve or SequenceStepKind.SlewAndCenter or SequenceStepKind.RotateToAngle
             or SequenceStepKind.RotateAndVerify or SequenceStepKind.CenterAndRotate => StepScope.RigLocal,
         SequenceStepKind.Exposure or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.Slew or SequenceStepKind.SyncMountToSolved
-            or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither => StepScope.Device,
+            or SequenceStepKind.StartGuiding or SequenceStepKind.StopGuiding or SequenceStepKind.Dither or SequenceStepKind.DeviceOperation => StepScope.Device,
         SequenceStepKind.Repeat or SequenceStepKind.MultiRig or SequenceStepKind.RigTrack or SequenceStepKind.Delay or SequenceStepKind.WaitUntil => StepScope.Session,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The kind of step has no scope."),
     };
@@ -112,6 +112,9 @@ public static class StepScopes
                 break;
             case RigExposureStepDraft:
                 Add("camera", trackRig?.CameraId);
+                break;
+            case DeviceOperationStepDraft o:
+                Add(o.IsCamera ? "camera" : "mount", o.DeviceId);
                 break;
             case MoveFocuserStepDraft f:
                 Add("focuser", f.FocuserId);

@@ -340,7 +340,7 @@ public sealed class WorkflowConditionTests : IAsyncLifetime
         Assert.Null(back.Imaging[0].StopWhen);
         Assert.Null(back.StopTargetWhen);
         Assert.Equal(WorkflowWaitMode.Duration, back.Prepare[0].WaitMode);
-        Assert.Equal(2, new SequenceDocument("T", [], null, workflow).Version - 6); // the document stays version 8
+        Assert.Equal(3, new SequenceDocument("T", [], null, workflow).Version - 6); // a workflow is still written as it was; the document is version 9
     }
 
     [Fact]
