@@ -1,8 +1,9 @@
-using Sidera.Core.Devices;
+﻿using Sidera.Core.Devices;
 using Sidera.Core.Rigs;
 using Sidera.Core.Sequencing;
 using Sidera.Desktop.ViewModels;
-using Sidera.Desktop.Workflows;
+using Sidera.Desktop.Sessions;
+using Sidera.Desktop.Tests.Sessions;
 using Sidera.Runtime;
 using Sidera.Runtime.Devices;
 using Sidera.Runtime.Focusing;
@@ -11,7 +12,7 @@ using Sidera.Runtime.Rigs;
 namespace Sidera.Desktop.Tests.Workflows;
 
 /// <summary>
-/// How devices and imaging setups are resolved, and what the workflow shows because of it: one camera needs nothing to be set up and shows nothing about several; two usable setups show the setups, what
+/// How devices and imaging setups are resolved, and what the session shows because of it: one camera needs nothing to be set up and shows nothing about several; two usable setups show the setups, what
 /// they share and run side by side; a configured camera that is not connected does not turn a single-camera session into a multi-device one; two cameras without a setup are refused instead of guessed.
 /// </summary>
 public sealed class MultiDeviceSetupTests : IAsyncLifetime
@@ -176,13 +177,15 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
         var host = TwoSetups(sameMount: true, sameGuider: true);
         await ConnectAsync(host, "camera.a");
         var vm = NewApp(host);
-        var editor = vm.Workflow;
-        editor.Load(WorkflowDefinition.NewEmpty());
-        editor.AddImagingBlockCommand.Execute(null);
+        var editor = vm.SessionEditor;
+        editor.Load(SessionDefinition.Empty);
+        editor.AddTargetCommand.Execute(null);
 
         Assert.False(editor.IsMultiSetup);
-        Assert.Equal("IMAGING", editor.ImagingHeaderText);
-        Assert.Empty(editor.SharedResources);
+        Assert.False(editor.Targets[0].ShowLaneTabs);
+        Assert.Equal(string.Empty, editor.Targets[0].ParallelText);
+        Assert.Equal(string.Empty, editor.Targets[0].SharedText);
+        Assert.Null(editor.Session!.Targets[0].Lanes[0].Setup); // "Auto": the only setup that can image
         Assert.True(vm.SequenceDraft.IsValid || vm.SequenceDraft.ValidationErrors.All(e => !e.Contains("setup", StringComparison.OrdinalIgnoreCase)), string.Join(" ", vm.SequenceDraft.ValidationErrors));
         var block = ((MultiRigStepDraft)vm.SequenceDraft.Snapshot().Single(s => s is MultiRigStepDraft)).Tracks.Single();
         Assert.Equal(new RigId("rig.main"), block.RigId); // "Auto" is the setup that can image
@@ -192,7 +195,8 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
         editor.RefreshAvailability();
         editor.RefreshAvailability();
         Assert.True(editor.IsMultiSetup);
-        Assert.Equal("PARALLEL IMAGING", editor.ImagingHeaderText);
+        Assert.True(editor.Targets[0].ShowLaneTabs);
+        Assert.Contains(editor.Problems, p => p.Contains("several imaging setups", StringComparison.Ordinal)); // the sequence has to say which one it is for
     }
 
     [Fact]
@@ -211,15 +215,14 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
         var host = TwoSetups(sameMount: true, sameGuider: true);
         await ConnectAsync(host, "camera.a", "camera.b");
         var vm = NewApp(host);
-        var editor = vm.Workflow;
-        editor.Load(WorkflowDefinition.NewEmpty());
-        editor.AddImagingBlockCommand.Execute(null);
-        editor.AddImagingBlockCommand.Execute(null);
+        var editor = vm.SessionEditor;
+        editor.Load(SessionDefinition.Empty);
+        editor.AddTargetCommand.Execute(null);
+        editor.Targets[0].AddLaneCommand.Execute(null);
 
         Assert.True(editor.IsMultiSetup);
-        Assert.Equal("PARALLEL IMAGING", editor.ImagingHeaderText);
-        Assert.Equal(["Mount · AM3 — Main 750, Wide 400", "Guider · PHD2 — Main 750, Wide 400"], editor.SharedResources);
-        Assert.True(editor.HasSharedResources);
+        Assert.Equal("Parallel imaging · Main 750 + Wide 400", editor.Targets[0].ParallelText);
+        Assert.Equal("Shared: AM3 · PHD2", editor.Targets[0].SharedText);
         var tracks = ((MultiRigStepDraft)vm.SequenceDraft.Snapshot().Single(s => s is MultiRigStepDraft)).Tracks;
         Assert.Equal([new RigId("rig.main"), new RigId("rig.wide")], tracks.Select(t => t.RigId!.Value));
     }
@@ -230,14 +233,14 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
         var host = TwoSetups(sameMount: false, sameGuider: false);
         await ConnectAsync(host, "camera.a", "camera.b");
         var vm = NewApp(host);
-        var editor = vm.Workflow;
-        editor.Load(WorkflowDefinition.NewEmpty());
-        editor.AddImagingBlockCommand.Execute(null);
-        editor.AddImagingBlockCommand.Execute(null);
+        var editor = vm.SessionEditor;
+        editor.Load(SessionDefinition.Empty);
+        editor.AddTargetCommand.Execute(null);
+        editor.Targets[0].AddLaneCommand.Execute(null);
 
         Assert.True(editor.IsMultiSetup);
-        Assert.Empty(editor.SharedResources);
-        Assert.False(editor.HasSharedResources);
+        Assert.StartsWith("Parallel imaging", editor.Targets[0].ParallelText, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, editor.Targets[0].SharedText);
     }
 
     [Fact]
@@ -248,8 +251,8 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
         AddCamera(host, "b");
         await ConnectAsync(host, "camera.a", "camera.b");
         var vm = NewApp(host);
-        var editor = vm.Workflow;
-        editor.Load(WorkflowDefinition.Empty with { Imaging = [new ImagingBlock(Guid.NewGuid(), null, null, 1, 3)] });
+        var editor = vm.SessionEditor;
+        editor.Load(SessionFixture.Session(SessionFixture.Target("M31", [SessionFixture.Lane(null, SessionFixture.Block(null, 1, 3))])));
 
         Assert.Contains(editor.Problems, p => p.Contains("no imaging setup", StringComparison.OrdinalIgnoreCase) && p.Contains("does not guess", StringComparison.Ordinal));
         Assert.False(vm.SequenceDraft.IsValid);
@@ -261,8 +264,8 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
         var host = TwoSetups(sameMount: true, sameGuider: true);
         await ConnectAsync(host, "camera.a", "camera.b");
         var vm = NewApp(host);
-        var editor = vm.Workflow;
-        editor.Load(WorkflowDefinition.Empty with { Imaging = [new ImagingBlock(Guid.NewGuid(), null, null, 1, 3)] });
+        var editor = vm.SessionEditor;
+        editor.Load(SessionFixture.Session(SessionFixture.Target("M31", [SessionFixture.Lane(null, SessionFixture.Block(null, 1, 3))])));
 
         Assert.Contains(editor.Problems, p => p.Contains("several imaging setups", StringComparison.Ordinal) && p.Contains("Main 750", StringComparison.Ordinal));
     }
@@ -270,18 +273,23 @@ public sealed class MultiDeviceSetupTests : IAsyncLifetime
     // ---- one camera, one session
 
     [Fact]
-    public async Task OneCamera_NeedsNoSetup_ForTheWorkflow_AndImagesWithTheCamera()
+    public async Task OneCamera_NeedsNoSetup_ForTheSession_AndImagesWithTheCamera()
     {
         var host = NewHost();
         AddCamera(host, "only");
         await ConnectAsync(host, "camera.only");
         var vm = NewApp(host);
-        var editor = vm.Workflow;
-        editor.StartFromTemplateCommand.Execute(null);
+        var editor = vm.SessionEditor;
+        await vm.SequenceDocument.NewCommand.ExecuteAsync(null);
+        editor.AddTargetCommand.Execute(null);
 
         Assert.False(editor.IsMultiSetup);
-        var block = editor.Definition!.Imaging.Single();
-        Assert.Null(block.Setup); // "Auto": the implicit setup is not named in the workflow
+        var block = editor.Session!.Targets[0].Lanes.Single().Blocks.Single();
+        Assert.Null(editor.Session.Targets[0].Lanes[0].Setup); // "Auto": the implicit setup is not named in the session
+        editor.SelectBlock(block.Id);
+        var drawer = Assert.IsType<BlockDrawerViewModel>(editor.Drawer);
+        drawer.ExposureText = "0.2";
+        drawer.RepeatCountText = "3";
         Assert.True(vm.SequenceDraft.IsValid, string.Join(" ", vm.SequenceDraft.ValidationErrors));
 
         vm.Sequencer.RunCommand.Execute(null);

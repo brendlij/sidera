@@ -200,7 +200,7 @@ public sealed class WorkflowMigrationTests : IAsyncLifetime
         var equipment = Equipment();
         var workflow = Night() with { Imaging = Night().Imaging.Where(b => b.Enabled).ToList() };
 
-        var old = WorkflowCompiler.Compile(workflow, equipment.Catalog);
+        var old = LegacyWorkflowCompiler.Compile(workflow, equipment.Catalog);
         var migrated = SessionCompiler.Compile(WorkflowMigration.ToSession(workflow, equipment.Catalog), equipment.Catalog);
 
         Assert.Empty(old.Problems);

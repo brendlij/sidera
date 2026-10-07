@@ -101,15 +101,17 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
         SequenceDraft.SiteProvider = () => equipmentManagement?.Site?.Site;
         SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
-        Workflow = new WorkflowEditorViewModel(SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site);
+        SessionEditor = new SessionEditorViewModel(
+            SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site,
+            () => SelectedPage = AppPage.Equipment);
 
-        // A new session opens in the mode the settings choose (a workflow unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.
+        // A new session opens in the mode the settings choose (blocks unless said otherwise), not as whatever the last editor left behind. A session that is opened from a file is its own.
         if (startWithSettingsMode && SequenceDraft.IsEmpty)
         {
-            Workflow.StartNew();
+            SessionEditor.StartNew();
         }
-        SequenceDocument.Workflow = Workflow;
-        SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, Workflow);
+        SequenceDocument.SessionSource = SessionEditor;
+        SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, SessionEditor);
         PlateSolve.Safety = Safety;
         Framing.Safety = Safety;
         Sequencer.Safety = Safety;
@@ -179,7 +181,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
                 {
                     Imaging.Capture?.Refresh();
                     OnDeviceRefreshed(this, EventArgs.Empty);
-                    Workflow.RefreshSetups();
+                    SessionEditor.RefreshSetups();
                     PlateSolve.RefreshEquipment();
                     Framing.RefreshEquipment();
                 }
@@ -203,7 +205,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public SequenceDocumentViewModel SequenceDocument { get; }
     public SequencerViewModel Sequencer { get; }
     public SessionPageViewModel SessionPage { get; }
-    public WorkflowEditorViewModel Workflow { get; }
+    /// <summary>The editor of the session: its start, targets with their blocks, and end.</summary>
+    public SessionEditorViewModel SessionEditor { get; }
 
     /// <summary>The question that comes before real equipment moves; answered by the user, never by an environment variable.</summary>
     public HardwareSafetyViewModel Safety { get; } = new();
@@ -311,6 +314,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         PlateSolve.Dispose();
         Framing.Dispose();
         StatusBar.Dispose();
+        SessionEditor.Dispose();
         Dashboard.Dispose();
         Execution.Dispose();
         Diagnostics.Dispose();

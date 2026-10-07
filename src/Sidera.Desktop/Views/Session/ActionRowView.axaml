@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             x:Class="Sidera.Desktop.Views.Session.ActionRowView"
+             x:DataType="vm:ActionRowViewModel">
+
+    <!-- One action: switch, title and what it is set to (click to open it), and the small controls. The first exposure of a block says where repeating starts. -->
+    <StackPanel>
+        <TextBlock Classes="meta accent" Text="↻  repeats from here" IsVisible="{Binding StartsRepeat}" Margin="4,8,0,2" />
+        <Border Classes="seq-row" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !IsOn}">
+            <StackPanel>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                    <CheckBox IsChecked="{Binding IsOn}" VerticalAlignment="Center" ToolTip.Tip="On / off" AutomationProperties.Name="Action on" />
+                    <Button Grid.Column="1" Classes="seq-pick" Command="{Binding SelectCommand}" AutomationProperties.Name="{Binding Title}" AutomationProperties.AutomationId="ActionRow">
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <TextBlock Classes="value" Text="{Binding Title}" />
+                            <TextBlock Classes="secondary" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Button>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0">
+                        <Button Classes="ghost" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" AutomationProperties.Name="Move action up" />
+                        <Button Classes="ghost" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" AutomationProperties.Name="Move action down" />
+                        <Button Classes="ghost" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove" AutomationProperties.Name="Remove action" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Spacing="2" IsVisible="{Binding HasStatus}" Margin="32,0,0,0">
+                    <TextBlock Classes="secondary accent" Text="{Binding StatusText}" TextWrapping="Wrap" />
+                    <TextBlock Classes="meta" Text="{Binding StatusDetail}" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" IsVisible="{Binding HasProblem}" Margin="32,0,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

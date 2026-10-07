@@ -20,12 +20,12 @@
                     <TextBlock Classes="page-title" Text="{Binding Document.DisplayName}" VerticalAlignment="Center"
                                AutomationProperties.AutomationId="SessionTitle" />
                     <ctl:StatusIndicator Kind="Warning" Text="Modified" IsVisible="{Binding Document.IsDirty}" />
-                    <!-- How the session is edited: as a workflow, or as the explicit tree of steps. Going to Advanced asks first; going back is offered only where it is exact. -->
-                    <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center" DataContext="{Binding Workflow}" x:DataType="vm:WorkflowEditorViewModel">
-                        <Button Classes="ghost" Content="Workflow" Classes.primary="{Binding IsWorkflowMode}" Command="{Binding SwitchToWorkflowCommand}"
-                                AutomationProperties.AutomationId="SessionModeWorkflow" AutomationProperties.Name="Workflow mode" />
-                        <Button Classes="ghost" Content="Advanced" Classes.primary="{Binding IsAdvancedMode}" Command="{Binding ConvertToAdvancedCommand}"
-                                AutomationProperties.AutomationId="SessionModeAdvanced" AutomationProperties.Name="Advanced mode" />
+                    <!-- How the session is edited: as blocks, or as the tree of every step. Opening the tree asks first; going back is offered only where it is exact. -->
+                    <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center" DataContext="{Binding Editor}" x:DataType="vm:SessionEditorViewModel">
+                        <Button Classes="ghost" Content="Blocks" Classes.primary="{Binding IsStructured}" Command="{Binding SwitchToStructuredCommand}"
+                                AutomationProperties.AutomationId="SessionModeBlocks" AutomationProperties.Name="Blocks view" />
+                        <Button Classes="ghost" Content="Tree" Classes.primary="{Binding IsTree}" Command="{Binding ShowTreeCommand}"
+                                AutomationProperties.AutomationId="SessionModeTree" AutomationProperties.Name="Tree view" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="0" Margin="-10,0,0,0">
@@ -51,15 +51,15 @@
 
         <!-- What needs a word, near what it is about: the document, the run -->
         <StackPanel Grid.Row="1" Spacing="8">
-            <Border Classes="notice-info" IsVisible="{Binding Workflow.IsConfirmingAdvanced, FallbackValue=False}" AutomationProperties.AutomationId="ConvertToAdvancedNotice">
+            <Border Classes="notice-info" IsVisible="{Binding Editor.IsConfirmingTree, FallbackValue=False}" AutomationProperties.AutomationId="OpenTreeNotice">
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                    <TextBlock Text="{Binding Workflow.AdvancedWarningText}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Classes="primary" Content="Convert to Advanced" Command="{Binding Workflow.ConvertToAdvancedCommand}" AutomationProperties.AutomationId="ConfirmConvertToAdvanced" />
-                    <Button Grid.Column="2" Content="Keep Workflow" Command="{Binding Workflow.CancelConvertToAdvancedCommand}" AutomationProperties.AutomationId="CancelConvertToAdvanced" />
+                    <TextBlock Text="{Binding Editor.TreeWarningText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Classes="primary" Content="Open the tree" Command="{Binding Editor.ShowTreeCommand}" AutomationProperties.AutomationId="ConfirmOpenTree" />
+                    <Button Grid.Column="2" Content="Keep the blocks" Command="{Binding Editor.CancelShowTreeCommand}" AutomationProperties.AutomationId="CancelOpenTree" />
                 </Grid>
             </Border>
-            <TextBlock Classes="secondary" Text="{Binding Workflow.WhyNotWorkflowText}" TextWrapping="Wrap" AutomationProperties.AutomationId="WhyNotWorkflow"
-                       IsVisible="{Binding Workflow.WhyNotWorkflowText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
+            <TextBlock Classes="secondary" Text="{Binding Editor.WhyNotStructuredText}" TextWrapping="Wrap" AutomationProperties.AutomationId="WhyNotBlocks"
+                       IsVisible="{Binding Editor.WhyNotStructuredText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
             <Border Classes="notice-info" IsVisible="{Binding Document.IsConfirmingDiscard}">
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                     <TextBlock Text="Discard unsaved changes?" VerticalAlignment="Center" />
@@ -77,13 +77,13 @@
                        IsVisible="{Binding Sequencer.HasReadinessHint}" />
         </StackPanel>
 
-        <!-- The workflow: the default editor of a session -->
-        <Panel Grid.Row="2" IsVisible="{Binding Workflow.IsWorkflowMode, FallbackValue=False}">
-            <session:WorkflowEditorView DataContext="{Binding Workflow}" />
+        <!-- The blocks: the default editor of a session -->
+        <Panel Grid.Row="2" IsVisible="{Binding Editor.IsStructured, FallbackValue=False}">
+            <session:SessionEditorView DataContext="{Binding Editor}" />
         </Panel>
 
-        <!-- Advanced: the explicit steps, with Parallel, Repeat and every action -->
-        <Grid Grid.Row="2" ColumnSpacing="24" IsVisible="{Binding Workflow.IsAdvancedMode, FallbackValue=True}">
+        <!-- The tree: every step, with Parallel, Repeat and every action -->
+        <Grid Grid.Row="2" ColumnSpacing="24" IsVisible="{Binding Editor.IsTree, FallbackValue=True}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

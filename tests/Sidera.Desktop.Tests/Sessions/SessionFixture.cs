@@ -82,8 +82,10 @@ public sealed class SessionFixture : IAsyncDisposable
 
         public Builder Dither(int every) => Set(b => b with { Automation = b.Automation with { Dither = new DitherAutomation(every, DitherSettings.Default) } });
 
-        public Builder Focus(bool atStart = false, double everyMinutes = 0, bool afterFilter = false) =>
-            Set(b => b with { Automation = b.Automation with { Focus = new FocusAutomation(atStart, everyMinutes, afterFilter, FocusSettings.Default) } });
+        public Builder Dither(int every, DitherSettings settings) => Set(b => b with { Automation = b.Automation with { Dither = new DitherAutomation(every, settings) } });
+
+        public Builder Focus(bool atStart = false, double everyMinutes = 0, bool afterFilter = false, FocusSettings? settings = null) =>
+            Set(b => b with { Automation = b.Automation with { Focus = new FocusAutomation(atStart, everyMinutes, afterFilter, settings ?? FocusSettings.Default) } });
 
         public Builder Limits(params Sidera.Core.Conditions.WorkflowCondition[] limits) => Set(b => b with { Limits = limits });
 

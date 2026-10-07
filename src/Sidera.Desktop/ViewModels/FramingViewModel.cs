@@ -809,7 +809,7 @@ public sealed partial class FramingViewModel : ViewModelBase, IDisposable
         }
 
         // A session that is a workflow takes the target as its target; a session of explicit steps gets the steps below.
-        if (_session.TargetSink?.Invoke(new Sidera.Desktop.ViewModels.WorkflowTargetRequest(
+        if (_session.TargetSink?.Invoke(new Sidera.Desktop.ViewModels.SessionTargetRequest(
                 target.Name, target.Center.RightAscensionHours, target.Center.DeclinationDegrees, target.DesiredRotationDegrees, SelectedRig?.Id)) is { } handled)
         {
             StatusText = handled;

@@ -58,8 +58,8 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
 
     public SequenceDraftViewModel Draft { get; }
 
-    /// <summary>The workflow editor of the session, if it has one: what a new session starts as, what is saved with the steps, and what an opened document with a workflow shows.</summary>
-    public IWorkflowSource? Workflow { get; set; }
+    /// <summary>The editor of the session, if it has one: what a new session starts as, what is saved with the steps, and what an opened document with a session shows.</summary>
+    public ISessionSource? SessionSource { get; set; }
 
     /// <summary>The file the sequence was opened from or last saved to; <c>null</c> if it has none yet.</summary>
     [ObservableProperty]
@@ -155,7 +155,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
     {
         ClearError();
         Draft.Replace([], Draft.DefaultSharedEquipment);
-        Workflow?.StartNew();
+        SessionSource?.StartNew();
         FilePath = null;
         IsDirty = true;
     }
@@ -182,7 +182,22 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
             }
 
             Draft.Replace(drafts, shared);
-            Workflow?.Load(document.Workflow);
+            if (SessionSource is { } source)
+            {
+                if (document.Session is { } session)
+                {
+                    source.Load(session);
+                }
+                else if (document.Workflow is { } workflow)
+                {
+                    source.LoadLegacy(workflow); // a file from before sessions: migrated, not changed until it is saved
+                }
+                else
+                {
+                    source.Load(null);
+                }
+            }
+
             FilePath = path;
             IsDirty = false;
             ClearError();
@@ -204,7 +219,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
             return;
         }
 
-        if (Draft.HasUnreadableFields || Workflow?.HasUnreadableFields == true)
+        if (Draft.HasUnreadableFields || SessionSource?.HasUnreadableFields == true)
         {
             ReportError("Fix the marked values before saving.");
             return;
@@ -215,7 +230,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
         try
         {
             var document = SequenceDocumentMapper.ToDocument(
-                Draft.Snapshot(), Path.GetFileNameWithoutExtension(path), Draft.SharedEquipment, Workflow?.Definition);
+                Draft.Snapshot(), Path.GetFileNameWithoutExtension(path), Draft.SharedEquipment, workflow: null, session: SessionSource?.Session);
             await _store.SaveAsync(path, document);
         }
         catch (SequenceDocumentException ex)

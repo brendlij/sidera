@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             x:Class="Sidera.Desktop.Views.Session.ActionListView"
+             x:DataType="vm:ActionListViewModel">
+
+    <!-- A list of actions with its heading; while it is empty it says what it is for. -->
+    <StackPanel Spacing="4">
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="eyebrow" Text="{Binding Title}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="ghost" Content="+ Add action" Command="{Binding AddCommand}" AutomationProperties.Name="Add action" />
+        </Grid>
+        <TextBlock Classes="meta" Text="{Binding Hint}" TextWrapping="Wrap" IsVisible="{Binding !HasRows}" />
+        <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ActionRowViewModel">
+                    <session:ActionRowView />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

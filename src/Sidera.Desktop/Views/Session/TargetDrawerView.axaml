@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             x:Class="Sidera.Desktop.Views.Session.TargetDrawerView"
+             x:DataType="vm:TargetDrawerViewModel">
+
+    <!-- A target opened: its name, where it points, its rotation, and what ends it. Slew & Center takes these; nothing repeats them. -->
+    <StackPanel Spacing="16">
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="eyebrow" Text="TARGET" />
+                <TextBox Text="{Binding NameText}" PlaceholderText="Name" AutomationProperties.AutomationId="TargetName" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="ghost" Content="✕" Command="{Binding CloseCommand}" VerticalAlignment="Top" ToolTip.Tip="Close" AutomationProperties.Name="Close" />
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+            <ctl:LabeledField Label="Right ascension (h)"><TextBox Text="{Binding RaText}" AutomationProperties.AutomationId="TargetRa" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="1" Label="Declination (°)"><TextBox Text="{Binding DecText}" AutomationProperties.AutomationId="TargetDec" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="2" Label="Rotation (°, optional)"><TextBox Text="{Binding RotationText}" AutomationProperties.AutomationId="TargetRotation" /></ctl:LabeledField>
+        </Grid>
+        <TextBlock Classes="secondary" Text="{Binding ShownCoordinates}" />
+        <TextBlock Classes="meta" Text="Decimal numbers, or hours / degrees minutes seconds (05:35:17, -05:23:28)." TextWrapping="Wrap" />
+
+        <Border Classes="divider" />
+        <StackPanel Spacing="8">
+            <TextBlock Classes="eyebrow" Text="LIMITS" />
+            <TextBlock Classes="meta" Text="Ends the imaging of every setup under this target, after their current exposure." TextWrapping="Wrap" />
+            <session:LimitFieldsView DataContext="{Binding Limits}" />
+        </StackPanel>
+
+        <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+            <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+        </Border>
+    </StackPanel>
+</UserControl>

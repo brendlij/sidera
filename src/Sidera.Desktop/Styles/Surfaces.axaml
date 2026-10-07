@@ -123,4 +123,75 @@
     <Style Selector="Border.lane-bar.ok">
         <Setter Property="Background" Value="{DynamicResource SideraOk}" />
     </Style>
+
+    <!-- The sequence of a session: a row for an action, a card for a block or a target; the one that is open in the drawer is tinted, one that is off is dimmed -->
+    <Style Selector="Border.seq-row">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraLine}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="0,4" />
+    </Style>
+    <Style Selector="Border.seq-row.selected">
+        <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+    </Style>
+    <Style Selector="Border.seq-row.off">
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Border.seq-card">
+        <Setter Property="Background" Value="{DynamicResource SideraBg2}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+        <Setter Property="Padding" Value="16,12" />
+    </Style>
+    <Style Selector="Border.seq-card.selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraAccent}" />
+    </Style>
+    <Style Selector="Border.seq-card.off">
+        <Setter Property="Opacity" Value="0.5" />
+    </Style>
+    <Style Selector="Border.seq-block">
+        <Setter Property="Background" Value="{DynamicResource SideraBg3}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Border.seq-block.selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraAccent}" />
+        <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+    </Style>
+    <Style Selector="Border.seq-block.off">
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Button.seq-pick">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.seq-pick /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.seq-pick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.seq-tab">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraTextSecondary}" />
+        <Setter Property="Padding" Value="12,6" />
+    </Style>
+    <Style Selector="Button.seq-tab /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.seq-tab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraBg3}" />
+    </Style>
+    <Style Selector="Button.seq-tab.selected">
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+    </Style>
+    <Style Selector="Button.seq-tab.selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+    </Style>
 </Styles>

@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             x:Class="Sidera.Desktop.Views.Session.LimitFieldsView"
+             x:DataType="vm:ConditionTogglesViewModel">
+
+    <!-- Any of these ends it, after the exposure that is running: a low target, dawn, a time, a duration. -->
+    <StackPanel Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox Content="Target altitude below" IsChecked="{Binding AltitudeBelowOn}" AutomationProperties.AutomationId="LimitAltitude" />
+            <TextBox Width="60" Text="{Binding AltitudeBelowText}" IsEnabled="{Binding AltitudeBelowOn}" AutomationProperties.AutomationId="LimitAltitudeValue" />
+            <TextBlock Text="°" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox IsChecked="{Binding DawnOn}" AutomationProperties.AutomationId="LimitDawn" />
+            <ComboBox ItemsSource="{x:Static vm:ConditionTogglesViewModel.TwilightNames}" SelectedItem="{Binding DawnKind}" IsEnabled="{Binding DawnOn}" Width="130" />
+            <TextBlock Text="dawn" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox Content="Time" IsChecked="{Binding TimeOn}" AutomationProperties.AutomationId="LimitTime" />
+            <TextBox Width="70" Text="{Binding TimeText}" IsEnabled="{Binding TimeOn}" AutomationProperties.AutomationId="LimitTimeValue" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox Content="Duration" IsChecked="{Binding DurationOn}" AutomationProperties.AutomationId="LimitDuration" />
+            <TextBox Width="60" Text="{Binding DurationText}" IsEnabled="{Binding DurationOn}" AutomationProperties.AutomationId="LimitDurationValue" />
+            <TextBlock Text="h" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Classes="meta" Text="{Binding ZoneText, StringFormat={}Times are read in {0}.}" TextWrapping="Wrap" />
+        <TextBlock Classes="meta" Text="{Binding ExtrasText}" IsVisible="{Binding HasExtras}" TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>

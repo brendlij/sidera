@@ -3,15 +3,15 @@ using Sidera.Desktop.Documents;
 using Sidera.Desktop.Hardware;
 using Sidera.Desktop.Settings;
 using Sidera.Desktop.ViewModels;
-using Sidera.Desktop.Workflows;
+using Sidera.Desktop.Sessions;
 using Sidera.Runtime;
 using Sidera.Runtime.Devices;
 
 namespace Sidera.Desktop.Tests.Ux;
 
 /// <summary>
-/// The session modes (a workflow unless the settings or the file say otherwise, Advanced only after a confirmed conversion, back only where it is exact), the settings that were added (stored,
-/// validated, saved by their tab), and what a workflow takes from them and what it does not.
+/// The session modes (blocks unless the settings or the file say otherwise, the tree only after a confirmed second click, back only where it is exact), the settings that were added (stored,
+/// validated, saved by their tab), and what a session takes from them and what it does not.
 /// </summary>
 public sealed class ProductSettingsTests : IAsyncLifetime
 {
@@ -110,91 +110,89 @@ public sealed class ProductSettingsTests : IAsyncLifetime
     // ---- the session mode
 
     [Fact]
-    public void ANewSession_OpensAsAWorkflow_FollowingTheApplicationsMeridianFlip()
+    public void ANewSession_OpensAsBlocks_FollowingTheApplicationsMeridianFlip()
     {
         var app = Create();
 
-        Assert.True(app.Vm.Workflow.IsWorkflowMode);
-        Assert.False(app.Vm.Workflow.IsAdvancedMode);
-        Assert.True(app.Vm.Workflow.FlipUsesDefaults);
+        Assert.True(app.Vm.SessionEditor.IsStructured);
+        Assert.False(app.Vm.SessionEditor.IsTree);
+        Assert.True(app.Vm.SessionEditor.Session!.Automation.UsesDefaultFlip);
     }
 
     [Fact]
-    public void WithAdvancedAsTheDefaultMode_ANewSessionOpensAsTheExplicitTree()
+    public void WithTheTreeAsTheDefaultMode_ANewSessionOpensAsTheExplicitTree()
     {
         var settings = NewSettings();
         Assert.Null(settings.SetSequencer(new SequencerSettings { DefaultSessionMode = SessionMode.Advanced }).Problem);
 
         var app = Create(settings);
 
-        Assert.True(app.Vm.Workflow.IsAdvancedMode);
-        Assert.False(app.Vm.Workflow.IsWorkflowMode);
+        Assert.True(app.Vm.SessionEditor.IsTree);
+        Assert.False(app.Vm.SessionEditor.IsStructured);
     }
 
     [Fact]
-    public async Task AWorkflowFile_OpensAsAWorkflow_AndALegacySequence_AsAdvanced()
+    public async Task ASessionFile_OpensAsBlocks_AndALegacySequence_AsTheTree()
     {
         var app = Create();
-        app.Vm.Workflow.StartFromTemplateCommand.Execute(null);
-        var workflow = app.Vm.Workflow.Definition!;
-        var workflowFile = Path.Combine(_directory, "workflow.astraseq");
-        await SaveAsync(workflowFile, new SequenceDocument("W", [], null, workflow));
+        app.Vm.SessionEditor.AddTargetCommand.Execute(null);
+        var sessionFile = Path.Combine(_directory, "session.astraseq");
+        await SaveAsync(sessionFile, new SequenceDocument("S", [], null, null, app.Vm.SessionEditor.Session!));
         var legacyFile = Path.Combine(_directory, "legacy.astraseq");
         await SaveAsync(legacyFile, SequenceDocumentMapper.ToDocument([new ExposureStepDraft(Guid.NewGuid(), DemoSetup.MainCameraId, 0.1)]));
 
         await OpenAsync(app, legacyFile);
-        Assert.True(app.Vm.Workflow.IsAdvancedMode);
+        Assert.True(app.Vm.SessionEditor.IsTree);
 
-        await OpenAsync(app, workflowFile);
-        Assert.True(app.Vm.Workflow.IsWorkflowMode);
+        await OpenAsync(app, sessionFile);
+        Assert.True(app.Vm.SessionEditor.IsStructured);
     }
 
     [Fact]
-    public void ConvertingToAdvanced_AsksFirst_WithTheWarning_AndThenKeepsEveryAction()
+    public void OpeningTheTree_AsksFirst_WithTheWarning_AndThenKeepsEveryStep()
     {
         var app = Create();
-        var editor = app.Vm.Workflow;
-        editor.StartFromTemplateCommand.Execute(null);
+        var editor = app.Vm.SessionEditor;
+        editor.AddTargetCommand.Execute(null);
         var before = Fingerprint(app);
 
-        editor.ConvertToAdvancedCommand.Execute(null); // the first click only asks
+        editor.ShowTreeCommand.Execute(null); // the first click only asks
 
-        Assert.True(editor.IsConfirmingAdvanced);
-        Assert.True(editor.IsWorkflowMode);
-        Assert.Equal(
-            "Converting to Advanced exposes the explicit action tree. Workflow policies will no longer be editable through the high-level workflow model.", editor.AdvancedWarningText);
+        Assert.True(editor.IsConfirmingTree);
+        Assert.True(editor.IsStructured);
+        Assert.Contains("cannot be made again", editor.TreeWarningText, StringComparison.Ordinal);
 
-        editor.CancelConvertToAdvancedCommand.Execute(null);
-        Assert.True(editor.IsWorkflowMode);
-        Assert.False(editor.IsConfirmingAdvanced);
+        editor.CancelShowTreeCommand.Execute(null);
+        Assert.True(editor.IsStructured);
+        Assert.False(editor.IsConfirmingTree);
 
-        editor.ConvertToAdvancedCommand.Execute(null);
-        editor.ConvertToAdvancedCommand.Execute(null); // the second one converts
+        editor.ShowTreeCommand.Execute(null);
+        editor.ShowTreeCommand.Execute(null); // the second one opens it
 
-        Assert.True(editor.IsAdvancedMode);
-        Assert.Equal(before, Fingerprint(app)); // not one action was lost or changed
+        Assert.True(editor.IsTree);
+        Assert.Equal(before, Fingerprint(app)); // not one step was lost or changed
     }
 
     [Fact]
-    public void AConvertedSequence_ReturnsToItsWorkflow_OnlyWhileItsStepsAreUntouched()
+    public void ATreeThatWasASession_ReturnsToItsBlocks_OnlyWhileItsStepsAreUntouched()
     {
         var app = Create();
-        var editor = app.Vm.Workflow;
-        editor.StartFromTemplateCommand.Execute(null);
-        editor.ConvertToAdvancedCommand.Execute(null);
-        editor.ConvertToAdvancedCommand.Execute(null);
+        var editor = app.Vm.SessionEditor;
+        editor.AddTargetCommand.Execute(null);
+        editor.ShowTreeCommand.Execute(null);
+        editor.ShowTreeCommand.Execute(null);
 
-        Assert.True(editor.CanReturnToWorkflow);
-        Assert.Equal(string.Empty, editor.WhyNotWorkflowText);
+        Assert.True(editor.CanReturnToStructured);
+        Assert.Equal(string.Empty, editor.WhyNotStructuredText);
 
-        app.Vm.SequenceDraft.AddStepDraft(new ExposureStepDraft(Guid.NewGuid(), DemoSetup.MainCameraId, 0.5)); // the tree is no longer what a workflow compiled to
-        Assert.False(editor.CanReturnToWorkflow);
-        Assert.Equal("This sequence cannot be represented as a Workflow.", editor.WhyNotWorkflowText);
-        Assert.False(editor.SwitchToWorkflowCommand.CanExecute(null));
+        app.Vm.SequenceDraft.AddStepDraft(new ExposureStepDraft(Guid.NewGuid(), DemoSetup.MainCameraId, 0.5)); // the tree is no longer what a session compiled to
+        Assert.False(editor.CanReturnToStructured);
+        Assert.Equal("This sequence cannot be shown as blocks: its steps are not those of a session.", editor.WhyNotStructuredText);
+        Assert.False(editor.SwitchToStructuredCommand.CanExecute(null));
     }
 
     [Fact]
-    public async Task ALegacySequence_CannotBecomeAWorkflow_AndSaysSo()
+    public async Task ALegacySequence_CannotBecomeBlocks_AndSaysSo()
     {
         var app = Create();
         var legacyFile = Path.Combine(_directory, "legacy.astraseq");
@@ -202,22 +200,22 @@ public sealed class ProductSettingsTests : IAsyncLifetime
 
         await OpenAsync(app, legacyFile);
 
-        Assert.False(app.Vm.Workflow.CanReturnToWorkflow);
-        Assert.False(app.Vm.Workflow.SwitchToWorkflowCommand.CanExecute(null));
-        Assert.Equal("This sequence cannot be represented as a Workflow.", app.Vm.Workflow.WhyNotWorkflowText);
+        Assert.False(app.Vm.SessionEditor.CanReturnToStructured);
+        Assert.False(app.Vm.SessionEditor.SwitchToStructuredCommand.CanExecute(null));
+        Assert.Equal("This sequence cannot be shown as blocks: its steps are not those of a session.", app.Vm.SessionEditor.WhyNotStructuredText);
     }
 
     [Fact]
-    public void AnEmptyAdvancedSequence_CanBecomeAWorkflow()
+    public void AnEmptyTree_CanBecomeBlocks()
     {
         var settings = NewSettings();
         settings.SetSequencer(new SequencerSettings { DefaultSessionMode = SessionMode.Advanced });
         var app = Create(settings);
 
-        Assert.True(app.Vm.Workflow.CanReturnToWorkflow);
-        app.Vm.Workflow.SwitchToWorkflowCommand.Execute(null);
+        Assert.True(app.Vm.SessionEditor.CanReturnToStructured);
+        app.Vm.SessionEditor.SwitchToStructuredCommand.Execute(null);
 
-        Assert.True(app.Vm.Workflow.IsWorkflowMode);
+        Assert.True(app.Vm.SessionEditor.IsStructured);
     }
 
     // ---- the settings
@@ -341,127 +339,133 @@ public sealed class ProductSettingsTests : IAsyncLifetime
         Assert.Equal(_directory, app.Vm.Imaging.SaveDirectory!());
     }
 
-    // ---- what a workflow takes from the settings
+    // ---- what a session takes from the settings
 
     [Fact]
-    public void ANewWorkflow_StartsFromTheGuidingDefaults_AndExistingOnesAreNotChanged()
+    public void ANewTarget_StartsFromTheGuidingDefaults_AndExistingOnesAreNotChanged()
     {
         var settings = NewSettings();
         settings.SetGuiding(new GuidingDefaults { StartBeforeImaging = false, StopWhenDone = false, DitherByDefault = true, DitherEveryNFrames = 5 });
         var app = Create(settings);
-        app.Vm.Workflow.StartFromTemplateCommand.Execute(null);
+        var editor = app.Vm.SessionEditor;
+        editor.AddTargetCommand.Execute(null);
 
-        var definition = app.Vm.Workflow.Definition!;
-        Assert.DoesNotContain(definition.Prepare, s => s.Kind == WorkflowStepKind.StartGuiding);
-        Assert.DoesNotContain(definition.Finish, s => s.Kind == WorkflowStepKind.StopGuiding);
-        Assert.True(definition.Dither.Enabled);
-        Assert.Equal(5, definition.Dither.EveryNFrames);
+        var session = editor.Session!;
+        var target = session.Targets[0];
+        Assert.DoesNotContain(target.Preparation, a => a.Kind == SessionActionKind.StartGuiding);
+        Assert.DoesNotContain(session.End, a => a.Kind == SessionActionKind.StopGuiding);
+        Assert.Equal(5, target.Lanes[0].Blocks[0].Automation.Dither!.EveryFrames);
 
         settings.SetGuiding(new GuidingDefaults()); // a later change of the defaults
 
-        var after = app.Vm.Workflow.Definition!; // the workflow is as it was
-        Assert.Equal(definition.Dither, after.Dither);
-        Assert.Equal(definition.Prepare.Select(x => x.Kind), after.Prepare.Select(x => x.Kind));
-        Assert.Equal(definition.Finish.Select(x => x.Kind), after.Finish.Select(x => x.Kind));
+        Assert.Same(session, editor.Session); // the session is as it was
     }
 
     [Fact]
-    public void ANewWorkflow_StartsFromTheAutofocusDefaults()
+    public void ANewTarget_StartsFromTheAutofocusDefaults()
     {
         var settings = NewSettings();
         settings.SetAutofocus(new AutofocusDefaults { ExposureSeconds = 3, StepSize = 123, SampleCount = 9, PolicyEnabled = true, PolicyIntervalMinutes = 30 });
         var app = Create(settings);
 
-        app.Vm.Workflow.StartFromTemplateCommand.Execute(null);
+        app.Vm.SessionEditor.AddTargetCommand.Execute(null);
 
-        var step = app.Vm.Workflow.Definition!.Prepare.First(s => s.Kind == WorkflowStepKind.Autofocus);
-        Assert.Equal(123, step.Autofocus!.StepSize);
-        Assert.Equal(9, step.Autofocus.SampleCount);
-        var policy = Assert.Single(app.Vm.Workflow.Definition.AutofocusPolicies);
-        Assert.Equal(30, policy.IntervalMinutes);
+        var target = app.Vm.SessionEditor.Session!.Targets[0];
+        var step = target.Preparation.OfType<AutofocusAction>().First();
+        Assert.Equal(123, step.Settings.StepSize);
+        Assert.Equal(9, step.Settings.SampleCount);
+        Assert.Equal(30, target.Lanes[0].Blocks[0].Automation.Focus!.EveryMinutes);
     }
 
-    // ---- the meridian flip: the defaults, and the workflow that has its own
+    // ---- the meridian flip: the defaults, and the session that has its own
 
     [Fact]
-    public void AWorkflowUsingTheDefaults_FollowsThem_WithASummary_AndSavesNoCopy()
+    public void ASessionUsingTheDefaults_FollowsThem_WithASummary_AndSavesNoCopy()
     {
         var settings = NewSettings();
         settings.SetMeridianFlip(new MeridianFlipSettings { Enabled = true, PauseBeforeMeridianMinutes = 5, FlipAfterMeridianMinutes = 2, RecenterAfterFlip = true, RestartGuidingAfterFlip = true });
         var app = Create(settings);
-        var editor = app.Vm.Workflow;
-        editor.StartFromTemplateCommand.Execute(null);
+        var editor = app.Vm.SessionEditor;
+        editor.AddTargetCommand.Execute(null);
+        editor.SelectFlip();
+        var drawer = Assert.IsType<FlipEditorViewModel>(editor.Drawer);
 
-        Assert.True(editor.FlipUsesDefaults);
-        Assert.False(editor.FlipIsCustom);
-        Assert.StartsWith("Using defaults · Hold -5m · Flip +2m", editor.FlipDefaultsSummary);
-        Assert.Contains("Recenter", editor.FlipDefaultsSummary);
-        Assert.Contains("Guiding", editor.FlipDefaultsSummary);
+        Assert.True(drawer.UsesDefaults);
+        Assert.False(drawer.IsCustom);
+        Assert.StartsWith("Using defaults · Hold \u22125m · Flip +2m", drawer.DefaultsSummary, StringComparison.Ordinal);
+        Assert.Contains("Recenter", drawer.DefaultsSummary, StringComparison.Ordinal);
+        Assert.Contains("Guiding", drawer.DefaultsSummary, StringComparison.Ordinal);
 
         settings.SetMeridianFlip(settings.MeridianFlip with { PauseBeforeMeridianMinutes = 9 });
 
-        Assert.StartsWith("Using defaults · Hold -9m", editor.FlipDefaultsSummary); // it followed
-        Assert.Null(editor.Definition!.MeridianFlip); // and nothing of it was copied into the workflow
-        Assert.True(editor.Definition.MeridianFlipUsesDefaults);
+        Assert.StartsWith("Using defaults · Hold \u22129m", drawer.DefaultsSummary, StringComparison.Ordinal); // it followed
+        Assert.Null(editor.Session!.Automation.Flip); // and nothing of it was copied into the session
+        Assert.True(editor.Session.Automation.UsesDefaultFlip);
     }
 
     [Fact]
-    public void AWorkflowWithItsOwnFlip_IsNotChangedByTheDefaults()
+    public void ASessionWithItsOwnFlip_IsNotChangedByTheDefaults()
     {
         var settings = NewSettings();
         settings.SetMeridianFlip(new MeridianFlipSettings { Enabled = true, PauseBeforeMeridianMinutes = 5 });
         var app = Create(settings);
-        var editor = app.Vm.Workflow;
-        editor.StartFromTemplateCommand.Execute(null);
+        var editor = app.Vm.SessionEditor;
+        editor.AddTargetCommand.Execute(null);
+        editor.SelectFlip();
+        var drawer = Assert.IsType<FlipEditorViewModel>(editor.Drawer);
 
-        editor.CustomizeFlipCommand.Execute(null); // starts from the defaults it followed
+        drawer.CustomizeCommand.Execute(null); // starts from the defaults it followed
 
-        Assert.True(editor.FlipIsCustom);
-        Assert.False(editor.FlipUsesDefaults);
-        Assert.True(editor.FlipEnabled);
-        Assert.Equal(5, editor.Definition!.MeridianFlip!.PauseBeforeMeridianMinutes);
+        Assert.True(drawer.IsCustom);
+        Assert.False(drawer.UsesDefaults);
+        Assert.True(drawer.Enabled);
+        Assert.Equal(5, editor.Session!.Automation.Flip!.PauseBeforeMeridianMinutes);
 
         settings.SetMeridianFlip(settings.MeridianFlip with { PauseBeforeMeridianMinutes = 11, Enabled = false });
 
-        Assert.Equal(5, editor.Definition.MeridianFlip!.PauseBeforeMeridianMinutes);
-        Assert.True(editor.Definition.MeridianFlip.Enabled);
+        Assert.Equal(5, editor.Session.Automation.Flip!.PauseBeforeMeridianMinutes);
+        Assert.True(editor.Session.Automation.Flip.Enabled);
 
-        editor.UseFlipDefaultsCommand.Execute(null); // and back: the workflow follows again
-        Assert.True(editor.FlipUsesDefaults);
-        Assert.Null(editor.Definition!.MeridianFlip);
+        drawer.UseDefaultSettingsCommand.Execute(null); // and back: the session follows again
+        Assert.True(drawer.UsesDefaults);
+        Assert.Null(editor.Session!.Automation.Flip);
     }
 
     [Fact]
-    public async Task TheChoiceOfDefaultsOrCustom_IsSavedInTheWorkflowFile_AndComesBack()
+    public async Task TheChoiceOfDefaultsOrCustom_IsSavedInTheSessionFile_AndComesBack()
     {
         var serializer = new JsonSequenceDocumentSerializer();
 
-        async Task<WorkflowDefinition> RoundTrip(WorkflowDefinition workflow)
+        async Task<SessionDefinition> RoundTrip(SessionDefinition session)
         {
             using var stream = new MemoryStream();
-            await serializer.SaveAsync(stream, new SequenceDocument("T", [], null, workflow), CancellationToken.None);
+            await serializer.SaveAsync(stream, new SequenceDocument("T", [], null, null, session), CancellationToken.None);
             stream.Position = 0;
-            return (await serializer.LoadAsync(stream, CancellationToken.None)).Workflow!;
+            return (await serializer.LoadAsync(stream, CancellationToken.None)).Session!;
         }
 
-        var followsDefaults = await RoundTrip(WorkflowDefinition.NewEmpty());
-        Assert.True(followsDefaults.MeridianFlipUsesDefaults);
-        Assert.Null(followsDefaults.MeridianFlip);
+        var followsDefaults = await RoundTrip(SessionDefinition.Empty);
+        Assert.True(followsDefaults.Automation.UsesDefaultFlip);
+        Assert.Null(followsDefaults.Automation.Flip);
 
-        var own = await RoundTrip(WorkflowDefinition.NewEmpty() with { MeridianFlipUsesDefaults = false, MeridianFlip = new MeridianFlipSettings { Enabled = true, PauseBeforeMeridianMinutes = 8 } });
-        Assert.False(own.MeridianFlipUsesDefaults);
-        Assert.Equal(8, own.MeridianFlip!.PauseBeforeMeridianMinutes);
+        var own = await RoundTrip(SessionDefinition.Empty with { Automation = new SessionAutomation(new MeridianFlipSettings { Enabled = true, PauseBeforeMeridianMinutes = 8 }) });
+        Assert.False(own.Automation.UsesDefaultFlip);
+        Assert.Equal(8, own.Automation.Flip!.PauseBeforeMeridianMinutes);
     }
 
     [Fact]
-    public void WhatTheDefaultsSay_IsWhatTheCompiledWorkflowDoes_AndACustomOneIgnoresThem()
+    public async Task WhatTheDefaultsSay_IsWhatTheCompiledSessionDoes_AndACustomOneIgnoresThem()
     {
         var flip = new MeridianFlipSettings { Enabled = true };
-        var withDefaults = WorkflowDefinition.NewEmpty();
-        var custom = WorkflowDefinition.NewEmpty() with { MeridianFlipUsesDefaults = false, MeridianFlip = new MeridianFlipSettings { Enabled = false } };
+        var lane = Sessions.SessionFixture.Lane(null, Sessions.SessionFixture.Block(null, 60, 3));
+        var withDefaults = Sessions.SessionFixture.Session(Sessions.SessionFixture.Target("M31", [lane]));
+        var custom = withDefaults with { Automation = new SessionAutomation(new MeridianFlipSettings { Enabled = false }) };
+        await using var fixture = Sessions.SessionFixture.Create();
 
-        Assert.True(withDefaults.EffectiveFlip(flip).Enabled);
-        Assert.False(custom.EffectiveFlip(flip).Enabled);
+        Assert.NotNull(Flip(SessionCompiler.Compile(withDefaults, fixture.Catalog, flip)));
+        Assert.Null(Flip(SessionCompiler.Compile(custom, fixture.Catalog, flip)));
+
+        static MeridianFlipPolicyDraft? Flip(SessionCompilation compiled) => compiled.Steps.OfType<MultiRigStepDraft>().Single().MeridianFlip;
     }
 
     // ---- the advanced tab

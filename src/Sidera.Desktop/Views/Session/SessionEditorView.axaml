@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             x:Class="Sidera.Desktop.Views.Session.SessionEditorView"
+             x:DataType="vm:SessionEditorViewModel">
+
+    <!--
+        The session as a sequence that reads from the top to the bottom: what it does by itself, the start, the targets (each with its preparation and the sequence of each imaging setup) and the end.
+        Cards say in one line what they are; the drawer on the right opens only for what is selected, and there is no panel while nothing is.
+    -->
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding ClearSelectionCommand}" />
+    </UserControl.KeyBindings>
+
+    <Panel>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="16" Margin="0,0,12,0">
+
+                    <Border Classes="notice-danger" IsVisible="{Binding HasBannerProblems}">
+                        <ItemsControl ItemsSource="{Binding BannerProblems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Classes="danger" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                    <Border Classes="notice-info" IsVisible="{Binding HasSetupNotice}" AutomationProperties.AutomationId="SetupNotice">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{Binding SetupNotice}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="primary" Content="Create Imaging Setup" Command="{Binding CreateImagingSetupCommand}" AutomationProperties.AutomationId="CreateImagingSetup" />
+                            <Button Grid.Column="2" Content="Dismiss" Command="{Binding DismissSetupNoticeCommand}" />
+                        </Grid>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Notes}" IsVisible="{Binding HasNotes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="meta" Text="{Binding}" TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- An empty session says how to begin -->
+                    <Border Classes="seq-card" IsVisible="{Binding IsEmpty}" AutomationProperties.AutomationId="SessionEmpty">
+                        <StackPanel Spacing="12" HorizontalAlignment="Left">
+                            <TextBlock Classes="section-title" Text="Create your imaging session" />
+                            <TextBlock Classes="secondary" TextWrapping="Wrap" Text="1 · Add a target.   2 · Set its imaging block: filter, exposure, frames.   3 · Add automation and limits if you want them.   4 · Run." />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Content="+ Add target" Command="{Binding AddTargetCommand}" AutomationProperties.AutomationId="AddTargetFirst" />
+                            </StackPanel>
+                            <TextBlock Classes="meta" Text="A target can also come from Framing: choose it there and use Add to Session." />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="16" IsVisible="{Binding !IsEmpty}">
+
+                        <!-- What the session does by itself -->
+                        <Border Classes="seq-card" Classes.selected="{Binding Automation.IsSelected}" AutomationProperties.AutomationId="SessionAutomation">
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="eyebrow" Text="SESSION AUTOMATION" />
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                    <TextBlock Classes="card-title" Text="Meridian Flip" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding Automation.FlipLine}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.AutomationId="FlipLine" />
+                                    <Button Grid.Column="2" Content="Edit" Command="{Binding Automation.EditCommand}" AutomationProperties.AutomationId="EditFlip" />
+                                </Grid>
+                                <TextBlock Classes="secondary accent" Text="{Binding MeridianInfoText}" IsVisible="{Binding HasMeridianInfo}" AutomationProperties.AutomationId="MeridianInfo" />
+                                <ItemsControl ItemsSource="{Binding FlipStatuses}" IsVisible="{Binding HasFlipStatus}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:MeridianFlipStatusViewModel">
+                                            <StackPanel Spacing="4" Margin="0,6,0,0">
+                                                <TextBlock Classes="card-title" Text="{Binding Title}" />
+                                                <TextBlock Classes="secondary" Text="{Binding SetupsText}" />
+                                                <TextBlock Classes="value" Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding IsActive}" AutomationProperties.AutomationId="FlipMessage" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsWaitingForDecision}">
+                                                    <Button Classes="primary" Content="Retry the flip" Command="{Binding RetryCommand}" AutomationProperties.AutomationId="FlipRetry" />
+                                                    <Button Classes="danger" Content="Abort the session" Command="{Binding AbortCommand}" AutomationProperties.AutomationId="FlipAbort" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="seq-card"><session:ActionListView DataContext="{Binding StartList}" /></Border>
+
+                        <ItemsControl ItemsSource="{Binding Targets}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TargetCardViewModel">
+                                    <session:TargetCardView />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Button Content="+ Add target" Command="{Binding AddTargetCommand}" AutomationProperties.AutomationId="AddTarget" />
+                            <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding CanRunText}" VerticalAlignment="Center" Margin="16,0,0,0" AutomationProperties.AutomationId="SessionStatus" />
+                        </Grid>
+
+                        <Border Classes="seq-card"><session:ActionListView DataContext="{Binding EndList}" /></Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- The drawer: there only while something is selected, so the sequence has the width otherwise -->
+            <Border Grid.Column="1" Classes="panel" Width="440" IsVisible="{Binding HasDrawer}" AutomationProperties.AutomationId="Drawer">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ContentControl Content="{Binding Drawer}" Margin="0,0,8,0">
+                        <ContentControl.DataTemplates>
+                            <DataTemplate DataType="{x:Type vm:BlockDrawerViewModel}"><session:BlockDrawerView /></DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:ActionEditorViewModel}"><session:ActionEditorView /></DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:TargetDrawerViewModel}"><session:TargetDrawerView /></DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:FlipEditorViewModel}"><session:FlipDrawerView /></DataTemplate>
+                        </ContentControl.DataTemplates>
+                    </ContentControl>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- The library of actions, where an action is added -->
+        <session:ActionLibraryView DataContext="{Binding Library}" IsVisible="{Binding IsOpen}" />
+    </Panel>
+</UserControl>
