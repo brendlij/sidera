@@ -35,9 +35,7 @@
                 </StackPanel>
             </ctl:LabeledField>
             <ctl:LabeledField Grid.Column="1" Label="Imaging setup">
-                <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.Name="Imaging setup">
-                    <ComboBox.ItemTemplate><DataTemplate x:DataType="rig:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-                </ComboBox>
+                <TextBlock Classes="value" Text="{Binding SetupName}" VerticalAlignment="Center" MinHeight="30" IsVisible="{Binding HasSetup}" AutomationProperties.AutomationId="FramingSetup" />
             </ctl:LabeledField>
             <ctl:LabeledField Grid.Column="2" Label="Survey">
                 <ComboBox ItemsSource="{Binding Surveys}" SelectedItem="{Binding SelectedSurvey}" HorizontalAlignment="Stretch" AutomationProperties.Name="Survey">

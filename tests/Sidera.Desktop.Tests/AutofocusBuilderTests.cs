@@ -61,7 +61,7 @@ public class AutofocusBuilderTests
         var none = SequenceDraftBuilder.Describe(host.DeviceRegistry, Top(null), Context(host));
 
         Assert.Equal(new StepDescription("Autofocus", "Main Rig · 2 s · step 300 · 7 samples"), described);
-        Assert.StartsWith("no rig ·", none.Summary, StringComparison.Ordinal);
+        Assert.StartsWith("no imaging setup ·", none.Summary, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public class AutofocusBuilderTests
     {
         await using var host = CreateHost();
 
-        Assert.Equal(["Step 1 (Autofocus): No rig selected."], Problems(host, [Top(null)]));
-        Assert.Equal(["Step 1 (Autofocus): The rig 'rig.gone' is not available."], Problems(host, [Top(new RigId("rig.gone"))]));
+        Assert.Equal(["Step 1 (Autofocus): No imaging setup selected."], Problems(host, [Top(null)]));
+        Assert.Equal(["Step 1 (Autofocus): The imaging setup 'rig.gone' is not available."], Problems(host, [Top(new RigId("rig.gone"))]));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class AutofocusBuilderTests
 
         var problems = Problems(host, [Top(new RigId("rig.bare"))]);
 
-        Assert.Equal(["Step 1 (Autofocus): The rig 'rig.bare' has no focuser."], problems);
+        Assert.Equal(["Step 1 (Autofocus): The imaging setup 'Bare Rig' has no focuser."], problems);
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public class AutofocusBuilderTests
 
         var problems = Problems(host, [block]);
 
-        Assert.Equal(["Step 1.1.1 (Autofocus): The rig 'rig.bare' has no focuser."], problems);
+        Assert.Equal(["Step 1.1.1 (Autofocus): The imaging setup 'Bare Rig' has no focuser."], problems);
         Assert.Throws<SequenceConfigurationException>(() => SequenceDraftBuilder.Build(host.DeviceRegistry, [block], Context(host)));
     }
 
@@ -275,7 +275,7 @@ public class AutofocusBuilderTests
 
         var problems = Problems(host, [Block(Track(null, Local(), Exposure()), Track(Main, Exposure()))]);
 
-        Assert.Equal(["Step 1.1 (Rig Track): No rig selected."], problems);
+        Assert.Equal(["Step 1.1 (Setup Sequence): No imaging setup selected."], problems);
     }
 
     [Fact]
@@ -299,8 +299,8 @@ public class AutofocusBuilderTests
         var inTrack = Problems(host, [Block(Track(Main, Top(Main), Exposure()), Track(Wide, Exposure()))]);
         var outside = Problems(host, [Local()]);
 
-        Assert.Contains("Step 1.1.1 (Autofocus): Use Autofocus of the track here: its rig is the rig of the track.", inTrack);
-        Assert.Equal(["Step 1 (Autofocus): An autofocus of a rig can only be used inside a Rig Track."], outside);
+        Assert.Contains("Step 1.1.1 (Autofocus): Use Autofocus of the setup sequence here: it focuses the imaging setup of the sequence.", inTrack);
+        Assert.Equal(["Step 1 (Autofocus): An autofocus of an imaging setup can only be used inside a Setup Sequence."], outside);
     }
 
     [Fact]

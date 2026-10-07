@@ -5,7 +5,7 @@
              x:Class="Sidera.Desktop.Views.Session.ExecutionTracksView"
              x:DataType="vm:ExecutionOverviewViewModel">
 
-    <!-- The Rig Tracks of a Multi-Rig run, one lane each: where the track is and what its rig does. Only what is real is shown. -->
+    <!-- The imaging setups of a run, one lane each: where the sequence of the setup is and what the setup does. Only what is real is shown. -->
     <ItemsControl ItemsSource="{Binding Lanes}">
         <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>

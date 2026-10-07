@@ -668,8 +668,10 @@ public sealed partial class EquipmentViewModel
             new EquipmentContextViewModel("Devices", StandaloneKey, null, new RelayCommand(() => SelectContext(StandaloneKey))),
             .. _rigs.Select(rig => new EquipmentContextViewModel(rig.Name, rig.RigIdText, rig, new RelayCommand(() => SelectContext(rig.RigIdText)))),
         ];
+        _implicitViews.Clear(); // they hold the device view models of before
         BuildLanding();
         BuildSections();
+        RebuildSummary();
         Apply();
     }
 
@@ -740,6 +742,10 @@ public sealed partial class EquipmentViewModel
             SelectedContext = context;
             SelectedRig = context?.Rig;
             IsLanding = context is null;
+            if (context is not null)
+            {
+                _manageAll = true; // a device or a setup was opened: that is the management of the devices, not the view of the current setup
+            }
 
             var pages = context is null ? [] : PagesOf(context);
             var page = (EquipmentPage?)null;
@@ -830,6 +836,8 @@ public sealed partial class EquipmentViewModel
         {
             _applying = false;
         }
+
+        NotifySetupView();
     }
 
     private IReadOnlyList<EquipmentPageViewModel> PagesOf(EquipmentContextViewModel context)

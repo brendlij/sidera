@@ -5,7 +5,7 @@ using Sidera.Runtime;
 
 namespace Sidera.Desktop.Tests.ViewModels;
 
-/// <summary>Multi-Rig Imaging in the editor: blocks, tracks, rigs, steps of a track, copying, and the shared equipment.</summary>
+/// <summary>Parallel Imaging in the editor: blocks, tracks, rigs, steps of a track, copying, and the shared equipment.</summary>
 public class MultiRigEditingTests
 {
     private static SideraRuntimeHost CreateHost()
@@ -113,8 +113,8 @@ public class MultiRigEditingTests
         Assert.Empty(block.Children);
         Assert.True(block.IsTopLevel);
         Assert.True(block.IsContainer);
-        Assert.Equal(("Multi-Rig Imaging", "no rig tracks"), (block.Title, block.Summary));
-        Assert.Equal(["Multi-Rig Imaging needs at least two Rig Tracks."], block.Problems);
+        Assert.Equal(("Parallel Imaging", "no setup sequences"), (block.Title, block.Summary));
+        Assert.Equal(["Parallel Imaging needs at least two Setup Sequences."], block.Problems);
         Assert.False(draft.IsValid);
     }
 
@@ -135,7 +135,7 @@ public class MultiRigEditingTests
 
         Assert.Equal(["rig.main", "rig.narrow", "rig.wide", null], new[] { first, second, third, fourth }.Select(t => t.Rig.SelectedId?.Value));
         Assert.Equal(["Main Rig", "Narrow Rig", "Wide Rig"], new[] { first, second, third }.Select(t => t.Title));
-        Assert.Equal(["No rig selected.", "A Rig Track needs at least one step."], fourth.Problems);
+        Assert.Equal(["No imaging setup selected.", "A Setup Sequence needs at least one step."], fourth.Problems);
         Assert.Equal(["1.1", "1.2", "1.3", "1.4"], block.Children.Select(c => c.NumberLabel));
     }
 
@@ -281,7 +281,7 @@ public class MultiRigEditingTests
 
         f.Wide.Rig.Selected = f.Wide.Rig.Options.Single(o => o.IdText == "rig.main");
 
-        Assert.Equal(["The rig 'rig.main' is already used by another track."], f.Wide.Problems);
+        Assert.Equal(["The imaging setup 'Main Rig' is already used by another setup sequence."], f.Wide.Problems);
         Assert.False(f.Main.HasProblems);
         Assert.False(f.Draft.IsValid);
 
@@ -301,8 +301,8 @@ public class MultiRigEditingTests
         Assert.Equal(new RigId("rig.observatory"), vm.Rig.SelectedId);
         Assert.True(vm.Rig.Selected!.IsMissing);
         Assert.Equal("rig.observatory (not available)", vm.Rig.Selected.Name);
-        Assert.Equal(["The rig 'rig.observatory' is not available."], vm.Problems);
-        Assert.Equal(("rig.observatory", "rig not available"), (vm.Title, vm.Summary));
+        Assert.Equal(["The imaging setup 'rig.observatory' is not available."], vm.Problems);
+        Assert.Equal(("rig.observatory", "imaging setup not available"), (vm.Title, vm.Summary));
         Assert.False(draft.IsValid);
 
         draft.RefreshDevices(); // looking again does not replace it
@@ -323,7 +323,7 @@ public class MultiRigEditingTests
 
         Assert.Equal(new RigId("rig.wide"), f.Wide.Rig.SelectedId);
         Assert.True(f.Wide.Rig.Selected!.IsMissing);
-        Assert.Equal(["The rig 'rig.wide' is not available."], f.Wide.Problems);
+        Assert.Equal(["The imaging setup 'rig.wide' is not available."], f.Wide.Problems);
         Assert.False(f.Draft.IsValid);
     }
 
@@ -354,11 +354,11 @@ public class MultiRigEditingTests
         var block = AddBlock(draft);
         var track = AddTrack(draft);
 
-        Assert.Equal(["A Rig Track needs at least one step."], track.Problems);
-        Assert.Contains("Multi-Rig Imaging needs at least two Rig Tracks.", block.Problems);
+        Assert.Equal(["A Setup Sequence needs at least one step."], track.Problems);
+        Assert.Contains("Parallel Imaging needs at least two Setup Sequences.", block.Problems);
         Assert.Contains("A step inside has a problem.", block.Problems);
         Assert.Equal(
-            ["Step 1 (Multi-Rig Imaging): Multi-Rig Imaging needs at least two Rig Tracks.", "Step 1.1 (Rig Track): A Rig Track needs at least one step."],
+            ["Step 1 (Parallel Imaging): Parallel Imaging needs at least two Setup Sequences.", "Step 1.1 (Setup Sequence): A Setup Sequence needs at least one step."],
             draft.ValidationErrors);
         Assert.Throws<SequenceConfigurationException>(() => draft.Build());
     }
@@ -438,7 +438,7 @@ public class MultiRigEditingTests
 
         Assert.Same(f.Wide, f.Draft.SelectedStep);
         Assert.Empty(f.Wide.Children);
-        Assert.Equal(["A Rig Track needs at least one step."], f.Wide.Problems);
+        Assert.Equal(["A Setup Sequence needs at least one step."], f.Wide.Problems);
     }
 
     [Fact]
@@ -452,7 +452,7 @@ public class MultiRigEditingTests
 
         Assert.Equal([f.Main], f.Block.Children);
         Assert.Same(f.Main, f.Draft.SelectedStep);
-        Assert.Contains("Multi-Rig Imaging needs at least two Rig Tracks.", f.Block.Problems);
+        Assert.Contains("Parallel Imaging needs at least two Setup Sequences.", f.Block.Problems);
         Assert.DoesNotContain(f.Wide, f.Draft.Rows);
         Assert.DoesNotContain(f.WideExposure, f.Draft.Rows);
     }
@@ -483,7 +483,7 @@ public class MultiRigEditingTests
             f.Draft.Rows.Select(r => r.NumberLabel));
         Assert.Equal([0d, 0d, 28d, 56d, 84d, 28d, 56d, 56d, 0d], f.Draft.Rows.Select(r => r.IndentWidth));
         Assert.Equal(
-            ["Start Guiding", "Multi-Rig Imaging", "Main Rig", "Repeat × 2", "Exposure", "Wide Rig", "Exposure", "Delay", "Stop Guiding"],
+            ["Start Guiding", "Parallel Imaging", "Main Rig", "Repeat × 2", "Exposure", "Wide Rig", "Exposure", "Delay", "Stop Guiding"],
             f.Draft.Rows.Select(r => r.Title));
         Assert.Equal([0, 0, 1, 2, 3, 1, 2, 2, 0], f.Draft.Rows.Select(r => r.Depth));
     }

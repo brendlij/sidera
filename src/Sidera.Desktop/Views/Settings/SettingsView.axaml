@@ -116,7 +116,7 @@
                     <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding StepSizeText}" AutomationProperties.Name="Autofocus step size" /></ctl:LabeledField>
                     <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding SamplesText}" AutomationProperties.Name="Autofocus samples" /></ctl:LabeledField>
                 </Grid>
-                <TextBlock Classes="eyebrow" Text="POLICY FOR NEW WORKFLOWS" />
+                <TextBlock Classes="eyebrow" Text="DEFAULTS FOR NEW BLOCKS" />
                 <CheckBox Content="New imaging setups with a focuser focus by themselves" IsChecked="{Binding PolicyEnabled}" />
                 <CheckBox Content="Focus at the start" IsChecked="{Binding PolicyAtStart}" />
                 <ctl:LabeledField Label="Refocus every (min, 0 = off)"><TextBox Text="{Binding IntervalText}" AutomationProperties.Name="Autofocus interval" /></ctl:LabeledField>
@@ -134,7 +134,7 @@
                 <TextBlock Classes="eyebrow" Text="GUIDING" />
                 <CheckBox Content="Start guiding before imaging" IsChecked="{Binding StartBeforeImaging}" />
                 <CheckBox Content="Stop guiding when the session is done" IsChecked="{Binding StopWhenDone}" />
-                <CheckBox Content="Dither in new workflows" IsChecked="{Binding DitherByDefault}" />
+                <CheckBox Content="Dither in new blocks" IsChecked="{Binding DitherByDefault}" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                     <ctl:LabeledField Label="Dither every N frames"><TextBox Text="{Binding EveryText}" AutomationProperties.Name="Dither every" /></ctl:LabeledField>
                     <ctl:LabeledField Grid.Column="1" Label="Dither amount (px)"><TextBox Text="{Binding AmplitudeText}" AutomationProperties.Name="Dither amount" /></ctl:LabeledField>
@@ -155,7 +155,7 @@
             </StackPanel>
             <StackPanel DataContext="{Binding MeridianFlip}" x:DataType="vm:MeridianFlipSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsMeridianFlip}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="MERIDIAN FLIP (APPLICATION DEFAULTS)" />
-                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="What every workflow does at the meridian unless it has settings of its own. A workflow chooses between these defaults and its own on the session page." />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="What every session does at the meridian unless it has settings of its own. A session chooses between these defaults and its own under Session Automation." />
                 <CheckBox Content="Flip at the meridian" IsChecked="{Binding Enabled}" />
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
                     <ctl:LabeledField Label="Hold new exposures (min before)"><TextBox Text="{Binding PauseBeforeText}" AutomationProperties.Name="Pause before" /></ctl:LabeledField>
@@ -187,8 +187,8 @@
             <StackPanel DataContext="{Binding Sequencer}" x:DataType="vm:SequencerSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsSequencer}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="SEQUENCER" />
                 <TextBlock Classes="secondary" TextWrapping="Wrap" Text="How a new session opens." />
-                <RadioButton GroupName="DefaultSessionMode" Content="Workflow (targets, imaging blocks and policies)" IsChecked="{Binding IsWorkflowDefault}" AutomationProperties.AutomationId="DefaultModeWorkflow" />
-                <RadioButton GroupName="DefaultSessionMode" Content="Advanced (the explicit tree of steps)" IsChecked="{Binding IsAdvancedDefault}" AutomationProperties.AutomationId="DefaultModeAdvanced" />
+                <RadioButton GroupName="DefaultSessionMode" Content="Blocks (targets, blocks, automation and limits)" IsChecked="{Binding IsWorkflowDefault}" AutomationProperties.AutomationId="DefaultModeWorkflow" />
+                <RadioButton GroupName="DefaultSessionMode" Content="Tree (the explicit steps)" IsChecked="{Binding IsAdvancedDefault}" AutomationProperties.AutomationId="DefaultModeAdvanced" />
                 <TextBlock Classes="secondary" Text="{Binding AppliesText}" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveSequencer" />

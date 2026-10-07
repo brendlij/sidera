@@ -203,9 +203,9 @@ public class HardwareStepEditingTests
         draft.AddTrackStepCommand.Execute(SequenceStepKind.MoveFocuser);
         var move = Assert.IsType<RigMoveFocuserStepDraftViewModel>(draft.SelectedStep);
 
-        Assert.Equal(["The rig 'rig.wide' has no filter wheel."], change.Problems);
+        Assert.Equal(["The imaging setup 'Wide Rig' has no filter wheel."], change.Problems);
         Assert.Empty(move.Problems);
-        Assert.Equal("the rig has no filter wheel", change.Summary);
+        Assert.Equal("the imaging setup has no filter wheel", change.Summary);
         Assert.False(draft.IsValid);
         Assert.True(change.Filter.Selected!.IsMissing); // no wheel: no names, the slot is kept
 

@@ -21,7 +21,7 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
     /// <summary>What the line says for an autofocus the policy of the track asked for.</summary>
     public static string AutomaticOrigin(AutofocusOrigin origin) => origin switch
     {
-        AutofocusOrigin.TrackStart => "Automatic · track start",
+        AutofocusOrigin.TrackStart => "Automatic · at the start",
         AutofocusOrigin.AfterFilterChange => "Automatic · after filter change",
         _ => "Automatic",
     };
@@ -42,7 +42,7 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
     public string Title { get; }
 
     /// <summary>
-    /// Why this autofocus runs: "Manual sequence step", "Automatic · track start" or "Automatic · after filter change";
+    /// Why this autofocus runs: "Manual sequence step", "Automatic · at the start" or "Automatic · after filter change";
     /// <c>null</c> when that is not known.
     /// </summary>
     [ObservableProperty]

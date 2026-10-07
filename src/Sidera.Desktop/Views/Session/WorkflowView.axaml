@@ -59,10 +59,10 @@
                         <MenuItem Header="Center &amp; Rotate" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.CenterAndRotate}" />
                         <MenuItem Header="Sync Mount to Solved Position" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.SyncMountToSolved}" />
                         <MenuItem Header="Repeat" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Repeat}" />
-                        <MenuItem Header="Multi-Rig Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />
+                        <MenuItem Header="Parallel Imaging" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MultiRig}" />
                         <Separator />
-                        <MenuItem Header="Add Rig Track" Command="{Binding Draft.AddTrackCommand}" IsVisible="{Binding Draft.IsMultiRigContext}" />
-                        <MenuItem Header="Add to selected Rig Track" IsVisible="{Binding Draft.IsMultiRigContext}">
+                        <MenuItem Header="Add Setup Sequence" Command="{Binding Draft.AddTrackCommand}" IsVisible="{Binding Draft.IsMultiRigContext}" />
+                        <MenuItem Header="Add to selected Setup Sequence" IsVisible="{Binding Draft.IsMultiRigContext}">
                             <MenuItem Header="Exposure" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Exposure}" />
                             <MenuItem Header="Delay" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Delay}" />
                             <MenuItem Header="Move Focuser" Command="{Binding Draft.AddTrackStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
@@ -160,7 +160,7 @@
             <!-- An empty session: a clear place to begin, in the middle of the space -->
             <ctl:EmptyState Icon="{StaticResource IconSession}" IsVisible="{Binding Draft.IsEmpty}" Margin="0,120"
                             Title="Create your imaging session"
-                            Message="Build a workflow from exposures, guiding, mount movement, autofocus and Multi-Rig blocks.">
+                            Message="Build a sequence from exposures, guiding, mount movement, autofocus and Parallel Imaging blocks.">
                 <StackPanel Spacing="12" HorizontalAlignment="Center">
                     <Button Classes="primary" Content="+ Add first step" Command="{Binding Draft.AddStepCommand}"
                             CommandParameter="{x:Static app:SequenceStepKind.Exposure}" HorizontalAlignment="Center" AutomationProperties.Name="Add first step" />

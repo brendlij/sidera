@@ -50,16 +50,19 @@
             </ComboBox>
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:RigPickerViewModel}" x:DataType="vm:RigPickerViewModel">
-            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:RigOption">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Name}" />
-                            <TextBlock Classes="meta" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
+            <StackPanel>
+                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch" IsVisible="{Binding HasChoice}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RigOption">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" />
+                                <TextBlock Classes="meta" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Classes="value" Text="{Binding OnlyName}" IsVisible="{Binding !HasChoice}" />
+            </StackPanel>
         </DataTemplate>
     </Application.DataTemplates>
 

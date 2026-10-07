@@ -47,7 +47,7 @@ public sealed partial class EquipmentService
     {
         if (FindRig(rigId) is not { } rig)
         {
-            return EquipmentResult.Fail("The rig is not part of the equipment.");
+            return EquipmentResult.Fail("The imaging setup is not part of the equipment.");
         }
 
         if (RigNameProblem(name, rig.Id) is { } problem)
@@ -63,7 +63,7 @@ public sealed partial class EquipmentService
     {
         if (FindRig(rigId) is not { } rig)
         {
-            return EquipmentResult.Fail("The rig is not part of the equipment.");
+            return EquipmentResult.Fail("The imaging setup is not part of the equipment.");
         }
 
         return ApplyRigChange(rig, null, "removed");
@@ -77,12 +77,12 @@ public sealed partial class EquipmentService
     {
         if (FindRig(rigId) is not { } rig)
         {
-            return EquipmentResult.Fail("The rig is not part of the equipment.");
+            return EquipmentResult.Fail("The imaging setup is not part of the equipment.");
         }
 
         if (deviceId is null && role == RigRole.Camera)
         {
-            return EquipmentResult.Fail("A rig needs a camera.");
+            return EquipmentResult.Fail("An imaging setup needs a camera.");
         }
 
         if (string.Equals(rig.DeviceFor(role), deviceId, StringComparison.OrdinalIgnoreCase))
@@ -103,7 +103,7 @@ public sealed partial class EquipmentService
     {
         if (FindRig(rigId) is not { } rig)
         {
-            return EquipmentResult.Fail("The rig is not part of the equipment.");
+            return EquipmentResult.Fail("The imaging setup is not part of the equipment.");
         }
 
         return ApplyRigChange(rig, rig with { Optics = optics }, optics is null ? "optics removed" : "optics set");
@@ -157,7 +157,7 @@ public sealed partial class EquipmentService
         if (IsExclusive(role) && _configuration.Rigs.FirstOrDefault(r =>
                 !string.Equals(r.Id, rigId, StringComparison.OrdinalIgnoreCase) && string.Equals(r.DeviceFor(role), deviceId, StringComparison.OrdinalIgnoreCase)) is { } other)
         {
-            return $"'{device.Name}' is already the {RoleName(role)} of the rig '{other.Name}'.";
+            return $"'{device.Name}' is already the {RoleName(role)} of the imaging setup '{other.Name}'.";
         }
 
         return null;
@@ -167,17 +167,17 @@ public sealed partial class EquipmentService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return "The rig needs a name.";
+            return "The imaging setup needs a name.";
         }
 
         if (name.Trim().Length > MaxRigNameLength)
         {
-            return $"The name of a rig can have at most {MaxRigNameLength} characters.";
+            return $"The name of an imaging setup can have at most {MaxRigNameLength} characters.";
         }
 
         return _configuration.Rigs.Any(r => !string.Equals(r.Id, ownId, StringComparison.OrdinalIgnoreCase)
                                             && string.Equals(r.Name, name.Trim(), StringComparison.OrdinalIgnoreCase))
-            ? $"A rig named '{name.Trim()}' already exists."
+            ? $"An imaging setup named '{name.Trim()}' already exists."
             : null;
     }
 

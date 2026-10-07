@@ -84,7 +84,7 @@ public class HardwareSequencerTests
             [move.Id, change.Id, block.Id, main.Id, rigChange.Id, rigMove.Id, exposure.Id, wide.Id, wide.Steps[0].Id],
             rows.Select(r => r.DraftId!.Value));
         Assert.Equal(
-            ["Move Focuser", "Change Filter", "Multi-Rig Imaging", "Main Rig", "Change Filter", "Move Focuser", "Exposure", "Wide Rig", "Exposure"],
+            ["Move Focuser", "Change Filter", "Parallel Imaging", "Main Rig", "Change Filter", "Move Focuser", "Exposure", "Wide Rig", "Exposure"],
             rows.Select(r => r.Title));
         Assert.All(rows, row => Assert.Equal(NodeStatus.Done, row.Status));
     }
@@ -128,7 +128,7 @@ public class HardwareSequencerTests
         var run = app.Sequencer.RunCommand.ExecuteAsync(null);
         await WaitUntil(
             () => app.Sequencer.SharedActivity?.StartsWith("Dither pending", StringComparison.Ordinal) == true
-                  && app.Sequencer.SharedActivity.Contains("waiting for 1 rig", StringComparison.Ordinal)
+                  && app.Sequencer.SharedActivity.Contains("waiting for 1 imaging setup", StringComparison.Ordinal)
                   && app.Sequencer.ActiveBranches.Any(b => b.BranchName == "Main Rig" && b.Title == "Change filter to slot 4")
                   && app.Sequencer.ActiveBranches.Any(b => b.BranchName == "Wide Rig" && b.Title == "Waiting for coordinated dither"),
             "Wide waiting for Main's filter change");

@@ -31,6 +31,7 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
     private readonly SharedEquipmentViewModel _shared;
     private readonly Action<Action> _postToUi;
     private readonly Action<AppPage> _navigate;
+    private readonly ImagingSetupContext _context;
     private Timer? _clock;
 
     public DashboardViewModel(
@@ -41,10 +42,12 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         SequenceDocumentViewModel document,
         SharedEquipmentViewModel shared,
         ExecutionOverviewViewModel execution,
+        ImagingSetupContext context,
         Action<Action>? postToUi = null,
         Action<AppPage>? navigate = null)
     {
         Runtime = runtime;
+        _context = context;
         _sequencer = sequencer;
         Imaging = imaging;
         _equipment = equipment;
@@ -66,6 +69,7 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
 
         _equipment.DeviceViewModelAdded += OnDeviceAdded;
         _equipment.DevicesChanged += OnDevicesChanged;
+        _context.Changed += OnDevicesChanged;
         Units = BuildUnits();
         Refresh();
     }
@@ -75,11 +79,11 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
     public ImagingViewModel Imaging { get; }
     public ExecutionOverviewViewModel Execution { get; }
 
-    /// <summary>What the equipment is doing, as cards: the rigs when there are any, otherwise the cameras.</summary>
+    /// <summary>What the equipment is doing, as cards: the imaging setups that can image, otherwise the cameras.</summary>
     public IReadOnlyList<object> Units { get; private set; }
 
     private IReadOnlyList<object> BuildUnits() =>
-        _equipment.HasRigs ? _equipment.Rigs.Cast<object>().ToList() : _equipment.Cameras.Cast<object>().ToList();
+        UnitsAreSetups ? _context.Options.Select(o => (object)_equipment.ViewOf(o.Setup)).ToList() : _equipment.Cameras.Cast<object>().ToList();
 
     // A device came or went: the cards are made again, and the new device is followed like the others.
     private void OnDeviceAdded(object? sender, DeviceViewModelBase device) => device.Refreshed += OnExecutionRefreshed;
@@ -88,16 +92,22 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
     {
         Units = BuildUnits();
         OnPropertyChanged(nameof(Units));
-        OnPropertyChanged(nameof(UnitsAreRigs));
+        OnPropertyChanged(nameof(UnitsAreSetups));
         OnPropertyChanged(nameof(UnitsTitle));
         OnPropertyChanged(nameof(HasUnits));
         OnPropertyChanged(nameof(ShowUnits));
     }
 
-    /// <summary>Rigs are optional: with none, the units are cameras and nothing says "rig".</summary>
-    public bool UnitsAreRigs => _equipment.HasRigs;
+    /// <summary>Imaging setups are optional: with none made, the units are the cameras and nothing says "setup".</summary>
+    public bool UnitsAreSetups => _equipment.HasRigs && _context.Options.Count > 0;
 
-    public string UnitsTitle => _equipment.HasRigs ? "Imaging setups" : "Cameras";
+    public string UnitsTitle => !UnitsAreSetups ? "Cameras" : _context.Options.Count == 1 ? "Imaging Setup" : "Imaging Setups";
+
+    /// <summary>What the lanes of a run are called: with one imaging setup nothing says that there could be several.</summary>
+    public string LanesTitle => Execution.Lanes.Count >= 2 ? "Imaging Setups" : "Imaging Setup";
+
+    /// <summary>The mount and the guider the setups share; with one setup they are the mount and the guider of the session.</summary>
+    public string SharedTitle => _context.Options.Count >= 2 || Execution.Lanes.Count >= 2 ? "Shared" : "Mount and guider";
 
     public bool HasUnits => Units.Count > 0;
 

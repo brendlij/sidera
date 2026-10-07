@@ -225,7 +225,7 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
     [ObservableProperty] public partial bool PolicyAfterFilterChange { get; set; }
     [ObservableProperty] public partial bool HoldMountStable { get; set; }
 
-    public override string AppliesText => "New workflows use it at once; a new Autofocus step and the manual autofocus from the next start. After a meridian flip: see the Meridian Flip tab.";
+    public override string AppliesText => "New blocks use it at once; a new Autofocus action and the manual autofocus from the next start. After a meridian flip: see the Meridian Flip tab.";
 
     private AutofocusDefaults? Build() =>
         TryNumber(ExposureText, out var exposure) && TryWhole(StepSizeText, out var step) && TryWhole(SamplesText, out var samples) && TryNumber(IntervalText, out var interval)
@@ -278,7 +278,7 @@ public sealed partial class GuidingSettingsViewModel : SettingsSectionViewModel
     [ObservableProperty] public partial string StableText { get; set; } = string.Empty;
     [ObservableProperty] public partial string TimeoutText { get; set; } = string.Empty;
 
-    public override string AppliesText => "New workflows use it at once. The guider is the one of the imaging setup.";
+    public override string AppliesText => "New blocks use it at once. The guider is the one of the imaging setup.";
 
     private GuidingDefaults? Build() =>
         TryWhole(EveryText, out var every) && TryNumber(AmplitudeText, out var amplitude) && TryNumber(ThresholdText, out var threshold) && TryNumber(StableText, out var stable)
@@ -345,7 +345,7 @@ public sealed partial class MeridianFlipSettingsViewModel : SettingsSectionViewM
     /// <summary>An exposure that runs when the flip comes due is let to finish: always, in this version.</summary>
     public bool FinishCurrentExposure => true;
 
-    public override string AppliesText => "Workflows that use the defaults follow them at once. A workflow with its own flip is not changed.";
+    public override string AppliesText => "Sessions that use the defaults follow them at once. A session with its own flip is not changed.";
 
     private MeridianFlipSettings? Build() =>
         TryNumber(PauseBeforeText, out var before) && TryNumber(FlipAfterText, out var after) && TryNumber(LatestText, out var latest) && TryNumber(PauseAfterText, out var pause)

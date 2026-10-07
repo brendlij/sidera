@@ -72,7 +72,7 @@ public class MultiRigDitherEditingTests
         Assert.Equal(["3", "1.5", "0.5", "1", "10"],
             [f.Block.DitherEveryText, f.Block.DitherAmplitudeText, f.Block.DitherSettleThresholdText, f.Block.DitherSettleStableText, f.Block.DitherSettleTimeoutText]);
         Assert.True(f.Draft.IsValid, string.Join(" ", f.Draft.ValidationErrors));
-        Assert.Equal(["2 rig tracks"], [f.Block.Summary]);
+        Assert.Equal(["2 setup sequences"], [f.Block.Summary]);
     }
 
     [Fact]
@@ -132,13 +132,13 @@ public class MultiRigDitherEditingTests
 
         Enable(f);
 
-        Assert.Equal("2 rig tracks\nDither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s", f.Block.Summary);
+        Assert.Equal("2 setup sequences\nDither every 3 Wide Rig frames · 1.5 px · settle ≤ 0.5 px for 1 s", f.Block.Summary);
 
         f.Block.DitherEveryText = "1";
         Assert.Contains("after every Wide Rig frame", f.Block.Summary, StringComparison.Ordinal);
 
         f.Block.DitherEnabled = false;
-        Assert.Equal("2 rig tracks", f.Block.Summary);
+        Assert.Equal("2 setup sequences", f.Block.Summary);
     }
 
     // Validation in the editor
@@ -217,7 +217,7 @@ public class MultiRigDitherEditingTests
         Assert.Equal(new RigId("rig.wide"), f.Block.TriggerRig.SelectedId); // kept, never silently replaced
         Assert.True(f.Block.TriggerRig.Selected!.IsMissing);
         Assert.False(f.Draft.IsValid);
-        Assert.Contains(f.Block.Problems, p => p.Contains("trigger rig 'rig.wide'", StringComparison.Ordinal));
+        Assert.Contains(f.Block.Problems, p => p.Contains("imaging setup 'rig.wide' that counts the frames", StringComparison.Ordinal));
 
         // Putting the track back (another one with that rig) repairs it.
         f.Draft.SelectedStep = f.Block;
@@ -226,7 +226,7 @@ public class MultiRigDitherEditingTests
         track.Rig.Selected = track.Rig.Options.Single(o => o.IdText == "rig.wide");
         f.Draft.AddTrackStepCommand.Execute(SequenceStepKind.Exposure);
 
-        Assert.DoesNotContain(f.Block.Problems, p => p.Contains("trigger rig", StringComparison.Ordinal));
+        Assert.DoesNotContain(f.Block.Problems, p => p.Contains("imaging setup", StringComparison.Ordinal));
         Assert.True(f.Draft.IsValid, string.Join(" ", f.Draft.ValidationErrors));
     }
 
@@ -241,7 +241,7 @@ public class MultiRigDitherEditingTests
 
         Assert.Equal(new RigId("rig.wide"), f.Block.TriggerRig.SelectedId);
         Assert.False(f.Draft.IsValid);
-        Assert.Contains(f.Block.Problems, p => p.Contains("not a track of this block", StringComparison.Ordinal));
+        Assert.Contains(f.Block.Problems, p => p.Contains("not a sequence of this block", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -828,7 +828,7 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
                     .Count();
                 if (busy > 0)
                 {
-                    text += $" · waiting for {busy} {(busy == 1 ? "rig" : "rigs")}";
+                    text += $" · waiting for {busy} {(busy == 1 ? "imaging setup" : "imaging setups")}";
                 }
             }
 

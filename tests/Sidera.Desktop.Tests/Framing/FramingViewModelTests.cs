@@ -110,7 +110,7 @@ public sealed class FramingViewModelTests : IAsyncLifetime
         }
     }
 
-    private sealed record Harness(FramingViewModel Framing, SideraRuntimeHost Host, SequenceDraftViewModel Session, FakeProvider Provider, ScriptedSolver Solver, SiteService Settings);
+    private sealed record Harness(FramingViewModel Framing, SideraRuntimeHost Host, SequenceDraftViewModel Session, FakeProvider Provider, ScriptedSolver Solver, SiteService Settings, Sidera.Desktop.ViewModels.ImagingSetupContext Context);
 
     private async Task<Harness> CreateAsync(bool offline = false, TimeSpan? delay = null, bool connectMount = true)
     {
@@ -134,11 +134,12 @@ public sealed class FramingViewModelTests : IAsyncLifetime
         settings.Load();
         settings.SetPlateSolving(new PlateSolvingSettings { ExposureSeconds = 0.01, MaxCenteringAttempts = 3, CenteringToleranceArcseconds = 30 });
         FakeProvider? provider = null;
-        var framing = new FramingViewModel(host, settings, session, new FakeCatalog(), survey => provider = new FakeProvider(survey, offline, delay), a => a());
+        var context = TestSetups.ContextFor(host);
+        var framing = new FramingViewModel(host, context, settings, session, new FakeCatalog(), survey => provider = new FakeProvider(survey, offline, delay), a => a());
         // The provider is made on the first use; this makes it now so that a test can look at it.
         framing.ScheduleImageLoad();
         provider ??= new FakeProvider(SkySurveys.Defaults[0]);
-        return new Harness(framing, host, session, provider, solver, settings);
+        return new Harness(framing, host, session, provider, solver, settings, context);
     }
 
     private static async Task WaitAsync(Func<bool> condition, string what)
@@ -220,11 +221,11 @@ public sealed class FramingViewModelTests : IAsyncLifetime
         var h = await CreateAsync();
         var camera = h.Host.DeviceRegistry.GetAll().OfType<ICamera>().Single();
         h.Host.AddRig(new Rig(new("rig.wide"), "Wide Rig", camera.Id, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
-        h.Framing.RefreshEquipment();
+        h.Context.Refresh();
         await SearchAsync(h.Framing, "M31");
         var narrow = h.Framing.Field!;
 
-        h.Framing.SelectedRig = h.Framing.Rigs.Single(r => r.Name == "Wide Rig");
+        h.Context.Choose("Wide Rig");
 
         Assert.True(h.Framing.Field!.WidthDegrees > 2.9 * narrow.WidthDegrees);
         Assert.Equal(new RigId("rig.wide"), h.Framing.Target!.RigId);
@@ -237,9 +238,9 @@ public sealed class FramingViewModelTests : IAsyncLifetime
         var h = await CreateAsync();
         var camera = h.Host.DeviceRegistry.GetAll().OfType<ICamera>().Single();
         h.Host.AddRig(new Rig(new("rig.bare"), "Bare Rig", new DeviceId("camera")));
-        h.Framing.RefreshEquipment();
+        h.Context.Refresh();
 
-        h.Framing.SelectedRig = h.Framing.Rigs.Single(r => r.Name == "Bare Rig");
+        h.Context.Choose("Bare Rig");
         await SearchAsync(h.Framing, "M31");
 
         Assert.False(h.Framing.HasField);
@@ -386,7 +387,7 @@ public sealed class FramingViewModelTests : IAsyncLifetime
     {
         var h = await CreateAsync();
         var failing = new FramingViewModel(
-            h.Host, h.Settings, h.Session, new FakeCatalog(), _ => new ThrowingProvider(), a => a());
+            h.Host, h.Context, h.Settings, h.Session, new FakeCatalog(), _ => new ThrowingProvider(), a => a());
 
         await SearchAsync(failing, "M31");
         await WaitAsync(() => failing.ImageNote.Length > 0, "the note");

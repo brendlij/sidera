@@ -119,7 +119,7 @@ public sealed partial class EquipmentService : IDevicePreferenceStore
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Rig {RigId} could not be created", rig.Id);
-                _problems.Add($"The rig '{rig.Name}' ({rig.Id}) could not be loaded: {ex.Message.Split('\n', 2)[0]}");
+                _problems.Add($"The imaging setup '{rig.Name}' ({rig.Id}) could not be loaded: {ex.Message.Split('\n', 2)[0]}");
             }
         }
     }
@@ -147,7 +147,7 @@ public sealed partial class EquipmentService : IDevicePreferenceStore
         return _host.RigRegistry.GetAll().FirstOrDefault(r => !IsOpticsRig(r.Id.Value, r.FocuserId, r.FilterWheelId)
                 && (r.CameraId.Value == id || r.FocuserId?.Value == id || r.FilterWheelId?.Value == id))
             is { } rig
-            ? $"It is part of the rig '{rig.Name}'."
+            ? $"It is part of the imaging setup '{rig.Name}'."
             : null;
     }
 
@@ -396,7 +396,7 @@ public sealed partial class EquipmentService : IDevicePreferenceStore
         var rig = _configuration.Rigs.FirstOrDefault(r => string.Equals(r.Id, rigId, StringComparison.OrdinalIgnoreCase));
         if (rig is null)
         {
-            return EquipmentResult.Fail("The rig is not part of the equipment.");
+            return EquipmentResult.Fail("The imaging setup is not part of the equipment.");
         }
 
         if (rig.RotatorId is null)

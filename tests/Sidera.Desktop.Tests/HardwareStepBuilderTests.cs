@@ -158,11 +158,11 @@ public class HardwareStepBuilderTests
         var inTrack = Problems(host, block);
         var outside = Problems(host, RigMove(), RigChange());
 
-        Assert.Contains("Step 1.1.1 (Move Focuser): Use Move Focuser of the track here: its focuser is the focuser of the rig.", inTrack);
-        Assert.Contains("Step 1.1.2 (Change Filter): Use Change Filter of the track here: its filter wheel is the filter wheel of the rig.", inTrack);
+        Assert.Contains("Step 1.1.1 (Move Focuser): Use Move Focuser of the setup sequence here: it moves the focuser of the imaging setup.", inTrack);
+        Assert.Contains("Step 1.1.2 (Change Filter): Use Change Filter of the setup sequence here: it turns the filter wheel of the imaging setup.", inTrack);
         Assert.Equal(
-            ["Step 1 (Move Focuser): A focuser move of a rig can only be used inside a Rig Track.",
-             "Step 2 (Change Filter): A filter change of a rig can only be used inside a Rig Track."],
+            ["Step 1 (Move Focuser): A focuser move of an imaging setup can only be used inside a Setup Sequence.",
+             "Step 2 (Change Filter): A filter change of an imaging setup can only be used inside a Setup Sequence."],
             outside);
     }
 
@@ -226,8 +226,8 @@ public class HardwareStepBuilderTests
         host.AddRig(new Rig(new RigId("rig.bare"), "Bare Rig", DemoSetup.NarrowCameraId, new OpticalTrain(250, 60, 3.76, 3.76, 6248, 4176)));
         var bare = Block(Track(new RigId("rig.bare"), RigMove(), Exposure()), Track(Main, Exposure()));
 
-        Assert.Equal(["Step 1.1.1 (Change Filter): The rig 'rig.wide' has no filter wheel."], Problems(host, block));
-        Assert.Equal(["Step 1.1.1 (Move Focuser): The rig 'rig.bare' has no focuser."], Problems(host, bare));
+        Assert.Equal(["Step 1.1.1 (Change Filter): The imaging setup 'Wide Rig' has no filter wheel."], Problems(host, block));
+        Assert.Equal(["Step 1.1.1 (Move Focuser): The imaging setup 'Bare Rig' has no focuser."], Problems(host, bare));
     }
 
     [Fact]
@@ -265,7 +265,7 @@ public class HardwareStepBuilderTests
 
         var problems = Problems(host, block);
 
-        Assert.Equal(["Step 1.1 (Rig Track): No rig selected."], problems);
+        Assert.Equal(["Step 1.1 (Setup Sequence): No imaging setup selected."], problems);
     }
 
     [Fact]
@@ -282,7 +282,7 @@ public class HardwareStepBuilderTests
 
         Assert.Equal("Narrow Focuser · 25000", move.Summary);
         Assert.Equal("Narrow Filter Wheel · Ha", change.Summary);
-        Assert.Equal("the rig has no filter wheel", noWheel.Summary);
+        Assert.Equal("the imaging setup has no filter wheel", noWheel.Summary);
         Assert.Equal("slot 1", unknown.Summary);
     }
 

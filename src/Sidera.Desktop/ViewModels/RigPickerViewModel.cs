@@ -9,7 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Sidera.Desktop.ViewModels;
 
-/// <summary>A rig a Rig Track can use: its name, its id, and its camera.</summary>
+/// <summary>An imaging setup a step can use: its name, its id, and its camera.</summary>
 /// <param name="IsMissing">The id was selected once but no rig with it is registered any more.</param>
 public sealed record RigOption(RigId Id, string Name, string CameraText, bool IsMissing = false)
 {
@@ -22,9 +22,10 @@ public sealed record RigOption(RigId Id, string Name, string CameraText, bool Is
 }
 
 /// <summary>
-/// Picks one rig from the <see cref="ISetupSource"/>. A selected rig that is not registered (any more) stays selected,
-/// shown as missing, so the user can see what the track refers to; the validation reports it, and it is never
-/// silently replaced.
+/// Picks one imaging setup from the <see cref="ISetupSource"/>. A selected setup that is not registered (any more) stays selected,
+/// shown as missing, so the user can see what the step refers to; the validation reports it, and it is never
+/// silently replaced. With one setup to image with there is nothing to pick: the step uses it, and the picker is not shown (the Tree view
+/// inherits the imaging setup like the blocks do and offers the choice only where there is one).
 /// </summary>
 public sealed partial class RigPickerViewModel : ObservableObject
 {
@@ -52,6 +53,12 @@ public sealed partial class RigPickerViewModel : ObservableObject
 
     public RigId? SelectedId => Selected?.Id;
 
+    /// <summary>There is something to choose: several setups, a selected one that is not there any more, or none selected yet (a step that names no setup has to be given one).</summary>
+    public bool HasChoice => Options.Count(o => !o.IsMissing) >= 2 || Options.Any(o => o.IsMissing) || Selected is null;
+
+    /// <summary>The setup the step uses when there is no choice; empty with a choice.</summary>
+    public string OnlyName => HasChoice ? string.Empty : Options.FirstOrDefault()?.Name ?? string.Empty;
+
     /// <summary>Raised when another rig is picked; not when the list of options is refreshed or reset.</summary>
     public event EventHandler? Changed;
 
@@ -74,6 +81,8 @@ public sealed partial class RigPickerViewModel : ObservableObject
         {
             Options = options;
             OnPropertyChanged(nameof(Options));
+            OnPropertyChanged(nameof(HasChoice));
+            OnPropertyChanged(nameof(OnlyName));
             Selected = selected is { } id ? options.First(o => o.Id == id) : null;
         }
         finally
@@ -84,6 +93,8 @@ public sealed partial class RigPickerViewModel : ObservableObject
 
     partial void OnSelectedChanged(RigOption? value)
     {
+        OnPropertyChanged(nameof(HasChoice));
+        OnPropertyChanged(nameof(OnlyName));
         if (!_refreshing)
         {
             Changed?.Invoke(this, EventArgs.Empty);

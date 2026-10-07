@@ -49,7 +49,7 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     public partial string NumberLabel { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// The container this step is in (a Repeat, a Rig Track, a Multi-Rig block), or <c>null</c> for a step of the
+    /// The container this step is in (a Repeat, a Setup Sequence, a Multi-Rig block), or <c>null</c> for a step of the
     /// sequence itself.
     /// </summary>
     public ContainerStepDraftViewModel? Parent { get; internal set; }
@@ -60,16 +60,16 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     /// <summary>How many containers the step is inside of: 0 for a step of the sequence itself.</summary>
     public int Depth => Parent is null ? 0 : Parent.Depth + 1;
 
-    /// <summary>The step holds other steps (a Repeat, a Rig Track, a Multi-Rig block).</summary>
+    /// <summary>The step holds other steps (a Repeat, a Setup Sequence, a Multi-Rig block).</summary>
     public virtual bool IsContainer => false;
 
     /// <summary>The step is a Multi-Rig block: the workflow shows it as the head of its lanes.</summary>
     public bool IsMultiRig => Kind == SequenceStepKind.MultiRig;
 
-    /// <summary>The step is a Rig Track: a lane of a Multi-Rig block.</summary>
+    /// <summary>The step is a Setup Sequence: a lane of a Multi-Rig block.</summary>
     public bool IsTrack => Kind == SequenceStepKind.RigTrack;
 
-    /// <summary>The step is inside a Rig Track, however deep: it belongs to a lane.</summary>
+    /// <summary>The step is inside a Setup Sequence, however deep: it belongs to a lane.</summary>
     public bool InTrack => Parent is { } parent && (parent.IsTrack || parent.InTrack);
 
     /// <summary>The row is shown by the view of the session that is selected (all rows are in the overview). Set by the draft.</summary>
@@ -264,7 +264,7 @@ public sealed partial class RepeatStepDraftViewModel : ContainerStepDraftViewMod
     [ObservableProperty]
     public partial string CountText { get; set; } = string.Empty;
 
-    /// <summary>The Repeat is inside a Rig Track: what it may hold is what a track may hold.</summary>
+    /// <summary>The Repeat is inside a Setup Sequence: what it may hold is what a track may hold.</summary>
     public bool IsInTrack => Parent is RigTrackDraftViewModel;
 
     internal int ReadCount(List<string> parseErrors)
@@ -285,7 +285,7 @@ public sealed partial class RepeatStepDraftViewModel : ContainerStepDraftViewMod
 }
 
 /// <summary>
-/// Imaging with several rigs at once. Its children are the Rig Tracks, one per rig; the mount and guider they share
+/// Imaging with several rigs at once. Its children are the Setup Sequences, one per rig; the mount and guider they share
 /// are those of the session, not of the block.
 /// </summary>
 public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewModel
@@ -324,7 +324,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
     /// <summary>When imaging of the whole target stops (any of them); kept as the draft had it.</summary>
     public StopConditionsDraft? TargetStop { get; }
 
-    /// <summary>The Rig Tracks as lanes: what each rig does, one summary for each, for the overview of the block.</summary>
+    /// <summary>The Setup Sequences as lanes: what each rig does, one summary for each, for the overview of the block.</summary>
     public IReadOnlyList<LaneSummary> Lanes => Children.OfType<RigTrackDraftViewModel>().Select(track => track.Lane).ToList();
 
     public bool HasLanes => Children.OfType<RigTrackDraftViewModel>().Any();
@@ -339,7 +339,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
                 return "Off";
             }
 
-            var rig = TriggerRig.Selected?.Name ?? "trigger rig";
+            var rig = TriggerRig.Selected?.Name ?? "imaging setup";
             var every = DitherEveryText?.Trim() == "1" ? $"After every {rig} frame" : $"Every {DitherEveryText?.Trim()} {rig} frames";
             return $"{every} · {DitherAmplitudeText?.Trim()} px · settle ≤ {DitherSettleThresholdText?.Trim()} px for {DitherSettleStableText?.Trim()} s";
         }
@@ -440,7 +440,7 @@ public sealed partial class MultiRigStepDraftViewModel : ContainerStepDraftViewM
 }
 
 /// <summary>
-/// One Rig Track: the rig it images with, and the steps that run on it. What a rig has (today: its camera) is what the
+/// One Setup Sequence: the rig it images with, and the steps that run on it. What a rig has (today: its camera) is what the
 /// steps of the track use, so those steps select no equipment of their own.
 /// </summary>
 public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
@@ -545,7 +545,7 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
                 }
             }
 
-            return new LaneSummary(Rig.Selected?.Name ?? "No rig selected", lines, AutofocusPolicySummary, HasProblems);
+            return new LaneSummary(Rig.Selected?.Name ?? "No imaging setup selected", lines, AutofocusPolicySummary, HasProblems);
         }
     }
 
@@ -572,7 +572,7 @@ public sealed partial class RigTrackDraftViewModel : ContainerStepDraftViewModel
         new RigTrackDraft(Id, Rig.SelectedId, [], ReadPolicy(parseErrors));
 }
 
-/// <summary>An exposure inside a Rig Track; its camera is that of the rig of the track.</summary>
+/// <summary>An exposure inside a Setup Sequence; its camera is that of the rig of the track.</summary>
 public sealed partial class RigExposureStepDraftViewModel : StepDraftViewModel
 {
     public RigExposureStepDraftViewModel(RigExposureStepDraft draft, Func<AcquisitionCameraContext>? camera = null) : base(draft.Id)
@@ -895,7 +895,7 @@ public sealed class ChangeFilterStepDraftViewModel : StepDraftViewModel
         new ChangeFilterStepDraft(Id, Wheel.SelectedId, Filter.SelectedIndex);
 }
 
-/// <summary>A focuser move inside a Rig Track: the focuser is that of the rig of the track.</summary>
+/// <summary>A focuser move inside a Setup Sequence: the focuser is that of the rig of the track.</summary>
 public sealed partial class RigMoveFocuserStepDraftViewModel : StepDraftViewModel
 {
     public RigMoveFocuserStepDraftViewModel(RigMoveFocuserStepDraft draft) : base(draft.Id)
@@ -913,7 +913,7 @@ public sealed partial class RigMoveFocuserStepDraftViewModel : StepDraftViewMode
         new RigMoveFocuserStepDraft(Id, ParseWhole(PositionText, "Focuser position", parseErrors, 0));
 }
 
-/// <summary>A filter change inside a Rig Track: the filter wheel is that of the rig of the track.</summary>
+/// <summary>A filter change inside a Setup Sequence: the filter wheel is that of the rig of the track.</summary>
 public sealed class RigChangeFilterStepDraftViewModel : StepDraftViewModel
 {
     /// <param name="slots">The slots of the filter wheel of the rig of the track this step is in; <c>null</c> when there is none.</param>
@@ -972,7 +972,7 @@ public sealed partial class AutofocusStepDraftViewModel : StepDraftViewModel
         ParseWhole(SamplesText, "Autofocus samples", parseErrors, AutofocusOptions.MinimumSampleCount));
 }
 
-/// <summary>Autofocus inside a Rig Track: it focuses the rig of the track.</summary>
+/// <summary>Autofocus inside a Setup Sequence: it focuses the rig of the track.</summary>
 public sealed partial class RigAutofocusStepDraftViewModel : StepDraftViewModel
 {
     public RigAutofocusStepDraftViewModel(RigAutofocusStepDraft draft) : base(draft.Id)

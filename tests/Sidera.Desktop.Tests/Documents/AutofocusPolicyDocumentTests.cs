@@ -9,7 +9,7 @@ using Sidera.Runtime;
 namespace Sidera.Desktop.Tests.Documents;
 
 /// <summary>
-/// Format version 5 adds the autofocus policy of a Rig Track. It changes what a sequence does, so a version 4 Sidera must
+/// Format version 5 adds the autofocus policy of a Setup Sequence. It changes what a sequence does, so a version 4 Sidera must
 /// not open it as if the policy were not there: that is why the version changes although the member is optional.
 /// </summary>
 public sealed class AutofocusPolicyDocumentTests : IDisposable

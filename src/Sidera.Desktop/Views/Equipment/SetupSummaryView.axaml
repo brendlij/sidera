@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Equipment.SetupSummaryView"
+             x:DataType="vm:EquipmentViewModel">
+
+    <!--
+        The equipment page for the current imaging setup: what it is made of with the state of each device, its optics, and the mount and guider it shares. Everything about managing devices
+        (adding, renaming, removing, choosing drivers) is behind "Manage all devices".
+    -->
+    <StackPanel Spacing="16" DataContext="{Binding Summary}" x:DataType="vm:SetupSummaryViewModel" MaxWidth="900" HorizontalAlignment="Left">
+        <StackPanel Spacing="2">
+            <TextBlock Classes="eyebrow" Text="{Binding Title}" AutomationProperties.AutomationId="SetupTitle" />
+            <TextBlock Classes="meta" IsVisible="{Binding IsImplicit}" TextWrapping="Wrap"
+                       Text="This setup follows from your camera. Nothing has to be set up for it to image." />
+        </StackPanel>
+
+        <ItemsControl ItemsSource="{Binding Own}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RigPartViewModel">
+                    <Button Classes="ghost" Command="{Binding OpenCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,8" AutomationProperties.Name="{Binding Role}">
+                        <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="12">
+                            <TextBlock Classes="secondary" Text="{Binding Role}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="value" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Classes="meta" Text="{Binding DetailText}" TextTrimming="CharacterEllipsis"
+                                           IsVisible="{Binding DetailText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                            <ctl:StatusIndicator Grid.Column="2" Kind="{Binding StatusKind}" Text="{Binding StatusText}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <ctl:WorkspaceSection Header="OPTICS">
+            <StackPanel Spacing="2">
+                <ctl:InfoRow Label="Focal length" Value="{Binding FocalLengthText}" AutomationProperties.AutomationId="SetupFocalLength" />
+                <ctl:InfoRow Label="Aperture" Value="{Binding ApertureText}" />
+                <ctl:InfoRow Label="Pixel scale" Value="{Binding PixelScaleText}" AutomationProperties.AutomationId="SetupPixelScale" />
+                <ctl:InfoRow Label="Field of view" Value="{Binding FieldOfViewText}" AutomationProperties.AutomationId="SetupFieldOfView" />
+                <TextBlock Classes="meta" Margin="0,8,0,0" TextWrapping="Wrap" Text="{Binding OpticsHint}" IsVisible="{Binding HasOpticsHint}" AutomationProperties.AutomationId="SetupOpticsHint" />
+            </StackPanel>
+        </ctl:WorkspaceSection>
+
+        <ctl:WorkspaceSection Header="SHARED EQUIPMENT" IsVisible="{Binding HasShared}">
+            <ItemsControl ItemsSource="{Binding Shared}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RigPartViewModel">
+                        <Button Classes="ghost" Command="{Binding OpenCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,8" AutomationProperties.Name="{Binding Role}">
+                            <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="12">
+                                <TextBlock Classes="secondary" Text="{Binding Role}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="value" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Classes="meta" Text="{Binding DetailText}" TextTrimming="CharacterEllipsis"
+                                               IsVisible="{Binding DetailText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                                <ctl:StatusIndicator Grid.Column="2" Kind="{Binding StatusKind}" Text="{Binding StatusText}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ctl:WorkspaceSection>
+    </StackPanel>
+</UserControl>

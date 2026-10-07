@@ -8,7 +8,7 @@ using Sidera.Runtime.Sequencing;
 
 namespace Sidera.Desktop.Tests.ViewModels;
 
-/// <summary>Multi-Rig Imaging on the simulator: the tracks really run next to each other, and the sequencer shows it.</summary>
+/// <summary>Parallel Imaging on the simulator: the tracks really run next to each other, and the sequencer shows it.</summary>
 public class MultiRigRunTests
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(15);
@@ -116,7 +116,7 @@ public class MultiRigRunTests
 
         public TimeSpan TrackEnded(string track) => Completed.Single(c => c.Path.Length == 2 && c.Path[1] == track).At;
 
-        public TimeSpan BlockEnded => Completed.Single(c => c.Path.Length == 1 && c.Path[0] == "Multi-Rig Imaging").At;
+        public TimeSpan BlockEnded => Completed.Single(c => c.Path.Length == 1 && c.Path[0] == "Parallel Imaging").At;
     }
 
     private static Sequence Build(SideraRuntimeHost host, params SequenceStepDraft[] steps) =>
@@ -317,7 +317,7 @@ public class MultiRigRunTests
         var rows = app.Sequencer.Definition;
         Assert.Equal([block.Id, main.Id, repeat.Id, exposure.Id, wide.Id, delay.Id], rows.Select(r => r.DraftId!.Value));
         Assert.Equal(
-            ["Multi-Rig Imaging", "Main Rig", "Repeat × 2", "Exposure", "Wide Rig", "Delay"],
+            ["Parallel Imaging", "Main Rig", "Repeat × 2", "Exposure", "Wide Rig", "Delay"],
             rows.Select(r => r.Title));
         Assert.Equal(["1.", "1.1", "1.1.1", "1.1.1.1", "1.2", "1.2.1"], rows.Select(r => r.NumberText));
         Assert.Equal([0d, 20d, 40d, 60d, 20d, 40d], rows.Select(r => r.IndentWidth));
@@ -619,6 +619,6 @@ public class MultiRigRunTests
         await app.Sequencer.RunCommand.ExecuteAsync(null).WaitAsync(Bound); // past the button
 
         Assert.Equal(SequenceState.Idle, app.Sequencer.State);
-        Assert.Contains("Dither is not available inside Multi-Rig Imaging yet", app.Sequencer.ErrorMessage);
+        Assert.Contains("Dither is not available inside Parallel Imaging yet", app.Sequencer.ErrorMessage);
     }
 }

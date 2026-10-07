@@ -38,7 +38,7 @@
 
             <Grid ColumnDefinitions="3*,2*" ColumnSpacing="24">
 
-                <!-- Left: lanes while a Multi-Rig sequence runs, otherwise the step that runs, and the equipment -->
+                <!-- Left: the imaging setups while a sequence with lanes runs, otherwise the step that runs, and the equipment -->
                 <StackPanel Spacing="24" MinWidth="320">
 
                     <Border Classes="notice-danger" IsVisible="{Binding HasRunError}">
@@ -46,8 +46,10 @@
                     </Border>
 
                     <StackPanel Spacing="12" IsVisible="{Binding ShowLanes}">
-                        <TextBlock Classes="eyebrow" Text="RIG TRACKS" />
+                        <TextBlock Classes="eyebrow" Text="{Binding LanesTitle, Converter={x:Static conv:UpperCaseConverter.Instance}}" AutomationProperties.AutomationId="DashboardLanesTitle" />
                         <session:ExecutionTracksView DataContext="{Binding Execution}" />
+                        <TextBlock Classes="secondary accent" Text="{Binding Execution.SharedActivity}" TextWrapping="Wrap" IsVisible="{Binding Execution.HasSharedActivity}"
+                                   AutomationProperties.AutomationId="DashboardSharedActivity" />
                     </StackPanel>
 
                     <Border Classes="panel" IsVisible="{Binding ShowActivity}">
@@ -82,7 +84,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- The equipment, as rig cards when there are rigs and as camera cards when there are none -->
+                    <!-- The equipment, as cards of the imaging setups, and as camera cards when no setup can image -->
                     <StackPanel Spacing="12" IsVisible="{Binding ShowUnits}">
                         <TextBlock Classes="eyebrow" Text="{Binding UnitsTitle, Converter={x:Static conv:UpperCaseConverter.Instance}}" />
                         <ItemsControl ItemsSource="{Binding Units}">
@@ -140,7 +142,7 @@
             <!-- What the session shares -->
             <StackPanel Spacing="12" IsVisible="{Binding HasShared}">
                 <Border Classes="divider" />
-                <TextBlock Classes="eyebrow" Text="SHARED EQUIPMENT" />
+                <TextBlock Classes="eyebrow" Text="{Binding SharedTitle, Converter={x:Static conv:UpperCaseConverter.Instance}}" AutomationProperties.AutomationId="DashboardSharedTitle" />
                 <ItemsControl ItemsSource="{Binding SharedItems}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>

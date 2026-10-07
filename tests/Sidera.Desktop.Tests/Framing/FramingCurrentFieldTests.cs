@@ -67,7 +67,7 @@ public sealed class FramingCurrentFieldTests : IAsyncLifetime
         }
     }
 
-    private sealed record Harness(FramingViewModel Framing, SideraRuntimeHost Host, SimulatedMount Mount1, SimulatedMount Mount2);
+    private sealed record Harness(FramingViewModel Framing, SideraRuntimeHost Host, SimulatedMount Mount1, SimulatedMount Mount2, Sidera.Desktop.ViewModels.ImagingSetupContext Context);
 
     // Rig A on mount 1, rig B on mount 2.
     private async Task<Harness> CreateAsync(bool connectMounts = true, TimeSpan? slew = null)
@@ -96,8 +96,9 @@ public sealed class FramingCurrentFieldTests : IAsyncLifetime
         var settings = new SiteService(new SideraSettingsStore(Path.Combine(_folder, "settings.json")));
         settings.Load();
         settings.SetPlateSolving(new PlateSolvingSettings { ExposureSeconds = 0.01, MaxCenteringAttempts = 3, CenteringToleranceArcseconds = 30 });
-        var framing = new FramingViewModel(host, settings, session, new FakeCatalog(), survey => new FakeProvider(survey), x => x());
-        return new Harness(framing, host, m1, m2);
+        var context = TestSetups.ContextFor(host);
+        var framing = new FramingViewModel(host, context, settings, session, new FakeCatalog(), survey => new FakeProvider(survey), x => x());
+        return new Harness(framing, host, m1, m2, context);
     }
 
     [Fact]
@@ -134,12 +135,12 @@ public sealed class FramingCurrentFieldTests : IAsyncLifetime
         await h.Mount1.SlewToAsync(new CelestialCoordinates(5.5, 22));
         await h.Mount2.SlewToAsync(new CelestialCoordinates(12, -30));
 
-        h.Framing.SelectedRig = h.Framing.Rigs.Single(r => r.Name == "Rig B");
+        h.Context.Choose("Rig B");
 
         Assert.Equal(new DeviceId("mount.2"), h.Framing.SelectedMount!.Id);
         Assert.Equal(new CelestialCoordinates(12, -30), h.Framing.Current!.Center);
 
-        h.Framing.SelectedRig = h.Framing.Rigs.Single(r => r.Name == "Rig A");
+        h.Context.Choose("Rig A");
 
         Assert.Equal(new DeviceId("mount.1"), h.Framing.SelectedMount!.Id);
         Assert.Equal(new CelestialCoordinates(5.5, 22), h.Framing.Current!.Center);
@@ -174,7 +175,7 @@ public sealed class FramingCurrentFieldTests : IAsyncLifetime
     {
         var h = await CreateAsync();
         await h.Mount1.SlewToAsync(new CelestialCoordinates(5.5, 22));
-        var rig = h.Framing.SelectedRig!;
+        var rig = h.Framing.Setup!;
         var solve = await h.Host.PlateSolving!.CaptureAndSolveAsync(rig, h.Mount1.Id, TimeSpan.FromMilliseconds(10), new PlateSolveDefaults());
 
         h.Framing.RefreshCurrent();
@@ -193,7 +194,7 @@ public sealed class FramingCurrentFieldTests : IAsyncLifetime
     {
         var h = await CreateAsync();
         await h.Mount1.SlewToAsync(new CelestialCoordinates(5.5, 22));
-        await h.Host.PlateSolving!.CaptureAndSolveAsync(h.Framing.SelectedRig!, h.Mount1.Id, TimeSpan.FromMilliseconds(10), new PlateSolveDefaults());
+        await h.Host.PlateSolving!.CaptureAndSolveAsync(h.Framing.Setup!, h.Mount1.Id, TimeSpan.FromMilliseconds(10), new PlateSolveDefaults());
 
         await h.Mount1.SlewToAsync(new CelestialCoordinates(8, 10));
         h.Framing.RefreshCurrent();
@@ -208,9 +209,9 @@ public sealed class FramingCurrentFieldTests : IAsyncLifetime
     {
         var h = await CreateAsync();
         await h.Mount1.SlewToAsync(new CelestialCoordinates(5.5, 22));
-        await h.Host.PlateSolving!.CaptureAndSolveAsync(h.Framing.SelectedRig!, h.Mount1.Id, TimeSpan.FromMilliseconds(10), new PlateSolveDefaults());
+        await h.Host.PlateSolving!.CaptureAndSolveAsync(h.Framing.Setup!, h.Mount1.Id, TimeSpan.FromMilliseconds(10), new PlateSolveDefaults());
 
-        h.Framing.SelectedRig = h.Framing.Rigs.Single(r => r.Name == "Rig B");
+        h.Context.Choose("Rig B");
 
         Assert.Null(h.Framing.Current!.RotationDegrees);
         Assert.Equal(CurrentViewSource.Mount, h.Framing.Current.Source);

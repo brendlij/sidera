@@ -8,7 +8,7 @@ using Sidera.Runtime.Focusing;
 
 namespace Sidera.Desktop.Tests.ViewModels;
 
-/// <summary>The autofocus policy of a Rig Track in the editor, and what the sequencer says about the autofocus it makes.</summary>
+/// <summary>The autofocus policy of a Setup Sequence in the editor, and what the sequencer says about the autofocus it makes.</summary>
 public class AutofocusPolicyEditingTests
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(60);
@@ -113,10 +113,10 @@ public class AutofocusPolicyEditingTests
 
         main.AutofocusEnabled = true;
         main.AutofocusAtStart = true;
-        Assert.Equal("Main Camera\nAutofocus: track start", main.Summary);
+        Assert.Equal("Main Camera\nAutofocus: at the start", main.Summary);
 
         main.AutofocusAfterFilterChange = true;
-        Assert.Equal("Main Camera\nAutofocus: track start + filter change", main.Summary);
+        Assert.Equal("Main Camera\nAutofocus: at the start + filter change", main.Summary);
 
         main.AutofocusEnabled = false;
         Assert.Equal("Main Camera", main.Summary);
@@ -198,7 +198,7 @@ public class AutofocusPolicyEditingTests
         wide.AutofocusAfterFilterChange = true;
 
         Assert.Equal(
-            ["The rig 'rig.wide' has no filter wheel, so Autofocus cannot follow a filter change."], wide.Problems);
+            ["The imaging setup 'Wide Rig' has no filter wheel, so Autofocus cannot follow a filter change."], wide.Problems);
 
         wide.AutofocusAfterFilterChange = false;
         wide.AutofocusAtStart = true;
@@ -220,7 +220,7 @@ public class AutofocusPolicyEditingTests
 
         main.Rig.Selected = main.Rig.Options.Single(o => o.IdText == "rig.bare");
 
-        Assert.Equal(["The rig 'rig.bare' has no focuser."], main.Problems);
+        Assert.Equal(["The imaging setup 'Bare Rig' has no focuser."], main.Problems);
     }
 
     [Fact]
@@ -430,7 +430,7 @@ public class AutofocusPolicyEditingTests
 
         await run;
         Assert.Equal(
-            ["Automatic · track start", "Automatic · after filter change", "Manual sequence step"],
+            ["Automatic · at the start", "Automatic · after filter change", "Manual sequence step"],
             origins);
         var status = Assert.Single(app.Sequencer.AutofocusStatuses);
         Assert.Equal("AUTOFOCUS · MAIN", status.Title);
@@ -451,7 +451,7 @@ public class AutofocusPolicyEditingTests
             "a sample of the automatic autofocus");
 
         var lines = app.Sequencer.AutofocusStatuses.Single().Lines;
-        Assert.Equal("Automatic · track start", lines[0]);
+        Assert.Equal("Automatic · at the start", lines[0]);
         Assert.StartsWith("Sample ", lines[1], StringComparison.Ordinal);
         Assert.StartsWith("Position ", lines[2], StringComparison.Ordinal);
         await run.WaitAsync(Bound);
@@ -501,7 +501,7 @@ public class AutofocusPolicyEditingTests
 
         var rows = app.Sequencer.Definition;
         Assert.Equal(
-            ["Start Guiding", "Multi-Rig Imaging", "Main Rig", "Change Filter", "Exposure", "Wide Rig", "Repeat × 40", "Exposure"],
+            ["Start Guiding", "Parallel Imaging", "Main Rig", "Change Filter", "Exposure", "Wide Rig", "Repeat × 40", "Exposure"],
             rows.Select(r => r.Title));
         Assert.Equal(change.Id, rows[3].DraftId);
         Assert.All(rows, row => Assert.Equal(NodeStatus.Done, row.Status));
@@ -535,6 +535,6 @@ public class AutofocusPolicyEditingTests
 
         Assert.Equal(SequenceState.Failed, app.Sequencer.State);
         Assert.Contains("Autofocus failed: no reliable focus minimum was found.", app.Sequencer.ErrorMessage);
-        Assert.Equal(["Automatic · track start", "Autofocus stopped"], app.Sequencer.AutofocusStatuses.Single().Lines);
+        Assert.Equal(["Automatic · at the start", "Autofocus stopped"], app.Sequencer.AutofocusStatuses.Single().Lines);
     }
 }

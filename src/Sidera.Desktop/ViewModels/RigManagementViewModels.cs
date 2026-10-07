@@ -28,11 +28,11 @@ public sealed partial class RigAssignmentViewModel : ObservableObject
         Title = title;
         Hint = role switch
         {
-            RigRole.Camera => "The camera on this telescope. Every rig has one.",
-            RigRole.Mount => "Optional. Points the telescope. Rigs on one telescope mount can share it.",
+            RigRole.Camera => "The camera on this telescope. Every imaging setup has one.",
+            RigRole.Mount => "Optional. Points the telescope. Imaging setups on one mount can share it.",
             RigRole.Focuser => "Optional. Needed for autofocus.",
             RigRole.FilterWheel => "Optional. Needed to change filters.",
-            RigRole.Guider => "Optional. Keeps the telescope on target. Rigs can share a guider.",
+            RigRole.Guider => "Optional. Keeps the telescope on target. Imaging setups can share a guider.",
             _ => "Optional. Turns the camera to frame the target.",
         };
         Choices = choices;
@@ -138,8 +138,8 @@ public sealed partial class RigSetupViewModel : ObservableObject
         var result = _service.SetRigDevice(_rig.RigIdText, role, deviceId);
         if (!result.Succeeded)
         {
-            _notify(result.Problem ?? "The rig could not be changed.");
-            return result.Problem ?? "The rig could not be changed.";
+            _notify(result.Problem ?? "The imaging setup could not be changed.");
+            return result.Problem ?? "The imaging setup could not be changed.";
         }
 
         return null;
@@ -153,7 +153,7 @@ public sealed partial class RigSetupViewModel : ObservableObject
         var result = _service.RenameRig(_rig.RigIdText, NameText);
         if (!result.Succeeded)
         {
-            _notify(result.Problem ?? "The rig could not be renamed.");
+            _notify(result.Problem ?? "The imaging setup could not be renamed.");
         }
     }
 
@@ -171,7 +171,7 @@ public sealed partial class RigSetupViewModel : ObservableObject
         var result = _service.RemoveRig(_rig.RigIdText);
         if (!result.Succeeded)
         {
-            _notify(result.Problem ?? "The rig could not be removed.");
+            _notify(result.Problem ?? "The imaging setup could not be removed.");
         }
     }
 
@@ -208,7 +208,7 @@ public sealed partial class AddRigViewModel : ObservableObject
     public partial AssignmentChoice? SelectedCamera { get; set; }
 
     /// <summary>Why a rig cannot be added now; empty when it can.</summary>
-    public string DisabledText => FreeCameras.Count == 0 ? "Every camera is in a rig already, and a rig needs a camera of its own. To make another rig, add another camera first." : string.Empty;
+    public string DisabledText => FreeCameras.Count == 0 ? "Every camera is in an imaging setup already, and a setup needs a camera of its own. To make another setup, add another camera first." : string.Empty;
 
     /// <summary>Reads which cameras are free.</summary>
     public void Refresh()
@@ -258,7 +258,7 @@ public sealed partial class AddRigViewModel : ObservableObject
         var result = _service.AddRig(name, SelectedCamera!.Id!);
         if (!result.Succeeded)
         {
-            _notify(result.Problem ?? "The rig could not be added.");
+            _notify(result.Problem ?? "The imaging setup could not be added.");
             return;
         }
 

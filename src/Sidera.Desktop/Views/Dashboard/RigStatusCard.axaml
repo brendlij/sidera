@@ -5,13 +5,13 @@
              x:Class="Sidera.Desktop.Views.Dashboard.RigStatusCard"
              x:DataType="vm:RigViewModel">
 
-    <!-- A rig on the dashboard: only what its devices report -->
+    <!-- An imaging setup on the dashboard: only what its devices report -->
     <Border Classes="panel">
         <StackPanel Spacing="12">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
                     <TextBlock Classes="card-title" Text="{Binding Name}" />
-                    <TextBlock Classes="meta" Text="{Binding OpticsShortText}" />
+                    <TextBlock Classes="meta" Text="{Binding OpticsShortText}" IsVisible="{Binding HasOptics}" />
                 </StackPanel>
                 <ctl:StatusIndicator Grid.Column="1" Kind="{Binding StatusKind}" Text="{Binding StatusText}" />
             </Grid>

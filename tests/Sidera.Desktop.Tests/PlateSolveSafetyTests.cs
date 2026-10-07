@@ -47,7 +47,7 @@ public sealed class PlateSolveSafetyTests : IAsyncLifetime
             await mount.SlewToAsync(new CelestialCoordinates(18.6, 38.78));
         }
 
-        var vm = new PlateSolveViewModel(host, new ImagingViewModel(null, a => a()), null, a => a());
+        var vm = new PlateSolveViewModel(host, new ImagingViewModel(null, a => a()), TestSetups.ContextFor(host), null, a => a());
         return (host, vm, mount);
     }
 

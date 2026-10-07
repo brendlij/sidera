@@ -14,7 +14,7 @@ using Sidera.Runtime;
 
 namespace Sidera.Desktop.ViewModels;
 
-/// <summary>What a manual capture can be made with: a rig (its camera), or a camera that is in no rig.</summary>
+/// <summary>What a manual capture is made with: the current imaging setup, which is the camera it images with.</summary>
 public sealed record CaptureTarget(string Label, DeviceId CameraId, RigId? RigId);
 
 /// <summary>A frame type in the capture bar: light, dark, flat or bias.</summary>
@@ -24,7 +24,7 @@ public sealed record FrameTypeChoice(string Text, FrameType Value);
 public sealed record BinningChoice(string Text, int Value);
 
 /// <summary>
-/// Manual capture on the imaging page: the camera of the selected rig takes one frame through the same acquisition pipeline as a sequence exposure (the settings of the camera, the overrides
+/// Manual capture on the imaging page: the camera of the current imaging setup takes one frame through the same acquisition pipeline as a sequence exposure (the settings of the camera, the overrides
 /// entered here, the checks against what the camera supports, the camera's resource), and the frame is shown. There is no other exposure path: nothing here talks to a driver. Only what the
 /// camera supports is offered. Cancelling asks the exposure to stop, and no frame is shown for a cancelled exposure.
 /// </summary>
@@ -32,19 +32,28 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
 {
     private readonly SideraRuntimeHost _host;
     private readonly ImagingViewModel _imaging;
+    private readonly ImagingSetupContext _context;
     private CancellationTokenSource? _exposure;
 
-    public ImagingCaptureViewModel(SideraRuntimeHost host, ImagingViewModel imaging, double defaultExposureSeconds = 5)
+    public ImagingCaptureViewModel(SideraRuntimeHost host, ImagingViewModel imaging, ImagingSetupContext context, double defaultExposureSeconds = 5)
     {
         _host = host;
         _imaging = imaging;
+        _context = context;
+        _context.Changed += (_, _) => Refresh();
         ExposureText = defaultExposureSeconds.ToString("0.###", CultureInfo.InvariantCulture);
         FrameTypes = [.. Enum.GetValues<FrameType>().Select(t => new FrameTypeChoice(t.ToString(), t))];
         SelectedFrameType = FrameTypes[0];
         Refresh();
     }
 
-    public ObservableCollection<CaptureTarget> Targets { get; } = [];
+    /// <summary>Several cameras and no setup to tell them apart: the page asks for a setup instead of a camera. Set by the application: it opens where a setup is made.</summary>
+    public Action? CreateSetup { get; set; }
+
+    public bool NeedsSetup => _context.NeedsSetup;
+
+    /// <summary>The setup the capture is for is the current one: there is nothing to choose here.</summary>
+    public string SetupText => _context.Name;
 
     public IReadOnlyList<FrameTypeChoice> FrameTypes { get; }
 
@@ -54,7 +63,7 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTarget), nameof(CameraName), nameof(DisabledText))]
     [NotifyCanExecuteChangedFor(nameof(CaptureCommand))]
-    public partial CaptureTarget? SelectedTarget { get; set; }
+    public partial CaptureTarget? SelectedTarget { get; private set; }
 
     [ObservableProperty]
     public partial string ExposureText { get; set; }
@@ -92,6 +101,9 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
 
     public string CameraName => Camera?.Name ?? "No camera";
 
+    /// <summary>"ASI2600MM", or "Main 750 mm · ASI2600MM" when the setup has a name of its own.</summary>
+    public string SourceName => SelectedTarget is not { } target ? string.Empty : string.Equals(target.Label, CameraName, StringComparison.Ordinal) ? CameraName : $"{target.Label} · {CameraName}";
+
     private ICamera? Camera => SelectedTarget is { } t && _host.DeviceRegistry.TryGet(t.CameraId, out var device) ? device as ICamera : null;
 
     private CameraCapabilities? Capabilities => (Camera as ICameraControl)?.Capabilities.Value;
@@ -107,40 +119,23 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
 
     /// <summary>Why capturing is not possible now, in a sentence; empty when it is.</summary>
     public string DisabledText =>
-        SelectedTarget is null ? "There is no camera. Add one on the Equipment page."
+        SelectedTarget is null ? _context.NoSetupText
         : !IsConnected ? $"Connect {CameraName} on the Equipment page to capture."
         : IsCapturing ? "An exposure is running."
         : string.Empty;
 
-    /// <summary>Reads the rigs and the cameras again (equipment came or went, a camera was connected) and what the selected camera supports.</summary>
+    /// <summary>Reads the current imaging setup again (the setup or the camera changed) and what its camera supports.</summary>
     public void Refresh()
     {
-        var previous = SelectedTarget?.CameraId;
-        var inRigs = new HashSet<DeviceId>();
-        var targets = new List<CaptureTarget>();
-        foreach (var rig in _host.RigRegistry.GetAll().OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            inRigs.Add(rig.CameraId);
-            targets.Add(new CaptureTarget(rig.Name, rig.CameraId, rig.Id));
-        }
-
-        foreach (var camera in _host.DeviceRegistry.GetAll().OfType<ICamera>().Where(c => !inRigs.Contains(c.Id)).OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            targets.Add(new CaptureTarget(camera.Name + " (no rig)", camera.Id, null));
-        }
-
-        if (!targets.SequenceEqual(Targets))
-        {
-            Targets.Clear();
-            foreach (var target in targets)
-            {
-                Targets.Add(target);
-            }
-        }
-
-        SelectedTarget = Targets.FirstOrDefault(t => t.CameraId == previous) ?? Targets.FirstOrDefault();
+        SelectedTarget = _context.Current is { } rig ? new CaptureTarget(rig.Name, rig.CameraId, rig.Id) : null;
+        OnPropertyChanged(nameof(NeedsSetup));
+        OnPropertyChanged(nameof(SetupText));
+        OnPropertyChanged(nameof(SourceName));
         RefreshCapabilities();
     }
+
+    [RelayCommand]
+    private void CreateSetupHere() => CreateSetup?.Invoke();
 
     partial void OnSelectedTargetChanged(CaptureTarget? value) => RefreshCapabilities();
 
@@ -165,6 +160,7 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowBinning));
         OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(DisabledText));
+        OnPropertyChanged(nameof(SourceName));
         CaptureCommand.NotifyCanExecuteChanged();
     }
 
@@ -221,7 +217,7 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
         (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value) || double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out value))
         && double.IsFinite(value);
 
-    /// <summary>Takes one frame with the camera of the selected rig and shows it on this page.</summary>
+    /// <summary>Takes one frame with the camera of the current imaging setup and shows it on this page.</summary>
     [RelayCommand(CanExecute = nameof(CanCapture))]
     private async Task CaptureAsync()
     {
@@ -246,7 +242,7 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
             var startedAt = DateTimeOffset.UtcNow;
             var frame = await _host.DeviceOperations.ExposeAsync(target.CameraId, duration, intent, source.Token);
             var capture = FrameExporter.CaptureContext(_host, target.CameraId, startedAt);
-            _imaging.Publish(frame, $"{target.Label} · {CameraName} (manual)", target.CameraId, capture);
+            _imaging.Publish(frame, $"{SourceName} (manual)", target.CameraId, capture);
             if (_imaging.FitOnCapture)
             {
                 _imaging.FitCommand.Execute(null);

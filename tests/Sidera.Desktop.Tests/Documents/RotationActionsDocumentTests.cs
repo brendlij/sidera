@@ -200,7 +200,7 @@ public sealed class RotationActionsDocumentTests
 
         var result = SequenceDraftBuilder.Validate(host.DeviceRegistry, [noRig], s.Context);
 
-        Assert.Contains(result.StepProblems[noRig.Id], p => p.Contains("Select an available rig"));
+        Assert.Contains(result.StepProblems[noRig.Id], p => p.Contains("Select an available imaging setup"));
     }
 
     [Theory]

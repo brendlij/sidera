@@ -447,7 +447,7 @@ public sealed class AutofocusDocumentTests : IDisposable
         var step = Assert.IsType<AutofocusStepDraftViewModel>(app.Draft.Rows.Single());
         Assert.Equal(new RigId("rig.observatory"), step.Rig.SelectedId);
         Assert.True(step.Rig.Selected!.IsMissing);
-        Assert.Equal(["The rig 'rig.observatory' is not available."], step.Problems);
+        Assert.Equal(["The imaging setup 'rig.observatory' is not available."], step.Problems);
         Assert.False(app.Draft.IsValid);
         Assert.False(app.Document.IsDirty);
 

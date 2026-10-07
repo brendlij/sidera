@@ -164,5 +164,5 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public string SaveNoteText => "Each tab is saved with its own Save button; nothing is applied while you type.";
 
     /// <summary>The sentence that says why nothing can be changed here yet.</summary>
-    public string NoteText => "Defaults for what is created from now on live here; what already exists (a session, a workflow with its own settings) is not changed by them. Application information is on the General tab.";
+    public string NoteText => "Defaults for what is created from now on live here; what already exists (a session with its own settings) is not changed by them. Application information is on the General tab.";
 }

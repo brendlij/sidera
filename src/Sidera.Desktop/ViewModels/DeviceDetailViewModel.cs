@@ -128,7 +128,7 @@ public sealed class CameraDetailViewModel : DeviceDetailViewModel
 
     public bool HasRig => Rig is not null;
 
-    public string RigText => Rig?.Name ?? "Not part of a rig";
+    public string RigText => Rig?.Name ?? "Not part of an imaging setup";
 
     public string ResolutionText => Rig is { } r ? $"{r.ResolutionText} (from {r.Name})" : "Not reported";
 
@@ -157,7 +157,7 @@ public sealed class FocuserDetailViewModel : DeviceDetailViewModel
     public FocuserControlViewModel? Control { get; }
     public FocuserViewModel Focuser { get; }
     public RigViewModel? Rig { get; }
-    public string RigText => Rig?.Name ?? "Not part of a rig";
+    public string RigText => Rig?.Name ?? "Not part of an imaging setup";
 
 }
 
@@ -167,7 +167,7 @@ public sealed class FilterWheelDetailViewModel(FilterWheelViewModel wheel, RigVi
 {
     public FilterWheelViewModel Wheel { get; } = wheel;
     public RigViewModel? Rig { get; } = rig;
-    public string RigText => Rig?.Name ?? "Not part of a rig";
+    public string RigText => Rig?.Name ?? "Not part of an imaging setup";
 
 }
 
@@ -215,7 +215,7 @@ public sealed partial class RotatorDetailViewModel : DeviceDetailViewModel
 
     public bool HasRig => Rig is not null;
 
-    public string RigText => Rig?.Name ?? "Not part of a rig";
+    public string RigText => Rig?.Name ?? "Not part of an imaging setup";
 
     private Sidera.Core.Rotators.RotatorSkyModel? Model => Rig?.RotatorModel;
 
@@ -243,7 +243,7 @@ public sealed partial class RotatorDetailViewModel : DeviceDetailViewModel
     public string CalibrationBlockedText =>
         _service is null || _host is null ? "Calibration is not available here."
         : _host.Rotation is null ? "No plate solver is configured."
-        : Rig is null ? "Add the rotator to a rig (on the camera page) to calibrate it."
+        : Rig is null ? "Add the rotator to an imaging setup (on the camera page) to calibrate it."
         : !Rotator.IsConnected ? "Connect the rotator to calibrate it."
         : string.Empty;
 

@@ -110,7 +110,7 @@ public class NavigationAndRigOptionalTests
         await using var app = await UxApp.Create(UxSetup.Simple);
         var dashboard = app.Vm.Dashboard;
 
-        Assert.False(dashboard.UnitsAreRigs);
+        Assert.False(dashboard.UnitsAreSetups);
         Assert.Equal("Cameras", dashboard.UnitsTitle);
         Assert.All(dashboard.Units, unit => Assert.IsType<CameraViewModel>(unit));
         Assert.False(dashboard.ShowLanes);
@@ -153,8 +153,8 @@ public class NavigationAndRigOptionalTests
         Assert.Single(equipment.Cameras);
         Assert.Single(equipment.Focusers);
         Assert.Single(equipment.FilterWheels);
-        Assert.True(app.Vm.Dashboard.UnitsAreRigs);
-        Assert.Equal("Imaging setups", app.Vm.Dashboard.UnitsTitle);
+        Assert.True(app.Vm.Dashboard.UnitsAreSetups);
+        Assert.Equal("Imaging Setup", app.Vm.Dashboard.UnitsTitle);
     }
 
     [Fact]

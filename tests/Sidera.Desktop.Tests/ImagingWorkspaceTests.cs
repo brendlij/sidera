@@ -42,7 +42,7 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
         }
     }
 
-    private sealed record Setup(SideraRuntimeHost Host, ImagingViewModel Imaging, ImagingCaptureViewModel Capture, ManualAutofocusViewModel Autofocus);
+    private sealed record Setup(SideraRuntimeHost Host, ImagingViewModel Imaging, ImagingCaptureViewModel Capture, ManualAutofocusViewModel Autofocus, ImagingSetupContext Context);
 
     // Rigs "Main" and "Wide" with their own camera and focuser, on the same mount and guider; a camera that is in no rig.
     private async Task<Setup> CreateAsync(bool connect = true)
@@ -70,12 +70,13 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
         }
 
         var imaging = new ImagingViewModel(host.FrameAnalyzer, a => a()) { ExportHost = host };
-        var capture = new ImagingCaptureViewModel(host, imaging, 0.05);
-        var autofocus = new ManualAutofocusViewModel(host, SequenceDraftDefaults.From(new DemoOptions(), host.DeviceRegistry));
+        var context = TestSetups.ContextFor(host);
+        var capture = new ImagingCaptureViewModel(host, imaging, context, 0.05);
+        var autofocus = new ManualAutofocusViewModel(host, SequenceDraftDefaults.From(new DemoOptions(), host.DeviceRegistry), context);
         imaging.Capture = capture;
         imaging.Autofocus = autofocus;
         autofocus.ExposureText = "0.04";
-        return new Setup(host, imaging, capture, autofocus);
+        return new Setup(host, imaging, capture, autofocus, context);
     }
 
     private static async Task WaitAsync(Func<bool> condition, string what)
@@ -91,21 +92,42 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
     // ---- Manual capture
 
     [Fact]
-    public async Task TheCaptureOffersTheRigs_AndTheCamerasThatAreInNone()
+    public async Task TheCapture_IsForTheCurrentSetup_AndNothingIsChosenOnThePage()
     {
         var s = await CreateAsync();
 
-        Assert.Equal(["Main Rig", "Wide Rig", "Spare Camera (no rig)"], s.Capture.Targets.Select(t => t.Label));
+        Assert.Equal(["Main Rig", "Wide Rig"], s.Context.Options.Select(o => o.Name)); // a camera that is in no setup is not one of them: several cameras are not guessed between
         Assert.Equal(new DeviceId("camera.main"), s.Capture.SelectedTarget!.CameraId);
         Assert.Equal(new RigId("rig.main"), s.Capture.SelectedTarget.RigId);
-        Assert.Null(s.Capture.Targets[2].RigId);
+
+        s.Context.Choose("Wide Rig");
+
+        Assert.Equal(new DeviceId("camera.wide"), s.Capture.SelectedTarget!.CameraId);
+        Assert.Equal("Wide Camera", s.Capture.CameraName);
+    }
+
+    [Fact]
+    public async Task SeveralCamerasAndNoSetup_AskForASetup_InsteadOfTakingTheFirstCamera()
+    {
+        var host = new SideraRuntimeHost();
+        _hosts.Add(host);
+        host.AddSimulatedCamera(new("camera.a"), "Camera A", 1);
+        host.AddSimulatedCamera(new("camera.b"), "Camera B", 2);
+        var imaging = new ImagingViewModel(host.FrameAnalyzer, a => a());
+        var capture = new ImagingCaptureViewModel(host, imaging, TestSetups.ContextFor(host), 0.05);
+
+        Assert.Null(capture.SelectedTarget);
+        Assert.True(capture.NeedsSetup);
+        Assert.Equal("Multiple imaging paths are available. Create or choose an Imaging Setup.", capture.DisabledText);
+        Assert.False(capture.CaptureCommand.CanExecute(null));
+        await Task.CompletedTask;
     }
 
     [Fact]
     public async Task ACapture_UsesTheCameraOfTheSelectedRig_AndShowsTheFrameOnThePage()
     {
         var s = await CreateAsync();
-        s.Capture.SelectedTarget = s.Capture.Targets.Single(t => t.Label == "Wide Rig");
+        s.Context.Choose("Wide Rig");
 
         await s.Capture.CaptureCommand.ExecuteAsync(null);
 
@@ -423,12 +445,23 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
     // ---- Manual autofocus
 
     [Fact]
-    public async Task OnlyRigsWithAFocuser_CanBeFocused()
+    public async Task TheAutofocus_IsForTheCurrentSetup_WhenItHasAFocuser_AndSaysSoWhenItHasNone()
     {
         var s = await CreateAsync();
 
-        Assert.Equal(["Main Rig", "Wide Rig"], s.Autofocus.Rigs.Select(r => r.Name));
+        Assert.Equal("Main Rig", s.Autofocus.Setup!.Name);
+        Assert.True(s.Autofocus.HasFocuser);
+        Assert.False(s.Autofocus.NeedsFocuser);
         Assert.Equal("19500", s.Autofocus.PositionText);
+
+        s.Host.AddRig(new Rig(new("rig.spare"), "Spare Rig", new("camera.spare"), new OpticalTrain(400)));
+        s.Context.Refresh();
+        s.Context.Choose("Spare Rig");
+
+        Assert.False(s.Autofocus.HasFocuser);
+        Assert.True(s.Autofocus.NeedsFocuser); // the panel says "No focuser configured" and offers to configure one, not a form that cannot be used
+        Assert.True(s.Autofocus.HasSetup);
+        Assert.False(s.Autofocus.StartCommand.CanExecute(null));
     }
 
     [Fact]
@@ -467,7 +500,7 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
     public async Task AutofocusCanBeSelectedForAnotherRig()
     {
         var s = await CreateAsync();
-        s.Autofocus.SelectedRig = s.Autofocus.Rigs.Single(r => r.Name == "Wide Rig");
+        s.Context.Choose("Wide Rig");
         s.Autofocus.StepSizeText = "150";
 
         await s.Autofocus.StartCommand.ExecuteAsync(null);
@@ -542,10 +575,11 @@ public sealed class ImagingWorkspaceTests : IAsyncLifetime
         _hosts.Add(host);
         host.AddSimulatedCamera(new("camera.only"), "Only Camera", 1);
         host.AddRig(new Rig(new("rig.only"), "Only Rig", new("camera.only")));
-        var autofocus = new ManualAutofocusViewModel(host, SequenceDraftDefaults.From(new DemoOptions(), host.DeviceRegistry));
+        var autofocus = new ManualAutofocusViewModel(host, SequenceDraftDefaults.From(new DemoOptions(), host.DeviceRegistry), TestSetups.ContextFor(host));
 
-        Assert.False(autofocus.HasRig);
-        Assert.Contains("No rig has a focuser", autofocus.DisabledText);
+        Assert.False(autofocus.HasFocuser);
+        Assert.True(autofocus.NeedsFocuser);
+        Assert.Contains("No focuser configured", autofocus.DisabledText);
         Assert.False(autofocus.StartCommand.CanExecute(null));
         await Task.CompletedTask;
     }

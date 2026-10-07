@@ -21,7 +21,7 @@ namespace Sidera.Desktop.ViewModels;
 
 /// <summary>
 /// The sequence the user is editing: an ordered list of steps. A Repeat holds steps of its own; a Multi-Rig block holds
-/// Rig Tracks, which hold exposures, delays and Repeats of those; nothing nests deeper than that. Steps can be added,
+/// Setup Sequences, which hold exposures, delays and Repeats of those; nothing nests deeper than that. Steps can be added,
 /// removed and moved among their siblings, and the one step whose parameters are shown is the selected one, wherever
 /// it is. The session's shared equipment (the mount and the guider) is part of the draft.
 /// It is only a draft. Nothing in it is executed: every run builds a fresh runtime sequence from a snapshot of it
@@ -166,6 +166,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     /// <summary>Takes a target of the framing into the session as a workflow; <c>null</c> when it does not (the draft then adds the steps itself). Set by the workflow editor.</summary>
     public Func<SessionTargetRequest, string?>? TargetSink { get; set; }
 
+    /// <summary>The imaging setup the application works with: a new step of the tree that needs a setup starts with it, so that the tree inherits the context like the blocks do. Set by the application.</summary>
+    public Func<RigId?>? CurrentSetup { get; set; }
+
     /// <summary>Some field holds text that is not a number. The draft can still be shown, but not saved faithfully.</summary>
     public bool HasUnreadableFields { get; private set; }
 
@@ -263,7 +266,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     {
         MountId = SharedMount.SelectedId ?? _defaults.MountId,
         GuiderId = SharedGuider.SelectedId ?? _defaults.GuiderId,
-        AutofocusRigId = _defaults.AutofocusRigId ?? FirstRigWithFocuser(),
+        AutofocusRigId = CurrentSetup?.Invoke() ?? _defaults.AutofocusRigId ?? FirstRigWithFocuser(),
     };
 
     // A new top-level autofocus starts with a rig it can focus: the first (by id) that has a focuser.
@@ -424,7 +427,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Adds a step to the end of the selected Repeat, or of the Repeat the selected step is in. Inside a Rig Track an
+    /// Adds a step to the end of the selected Repeat, or of the Repeat the selected step is in. Inside a Setup Sequence an
     /// exposure is the exposure of the rig.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddChild))]
@@ -439,7 +442,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         InsertAt(repeat, repeat.Children.Count, NewTrackLeaf(repeat.IsInTrack ? repeat.Parent as RigTrackDraftViewModel : null, kind));
     }
 
-    /// <summary>Adds a Rig Track to the selected Multi-Rig block, or to the one the selected step is in.</summary>
+    /// <summary>Adds a Setup Sequence to the selected Multi-Rig block, or to the one the selected step is in.</summary>
     [RelayCommand(CanExecute = nameof(CanAddTrack))]
     private void AddTrack()
     {
@@ -458,7 +461,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         InsertAt(multiRig, multiRig.Children.Count, new RigTrackDraft(NewId(), rig, []));
     }
 
-    /// <summary>Adds an exposure, a delay or a Repeat to the end of the selected Rig Track, or of the one the selected step is in.</summary>
+    /// <summary>Adds an exposure, a delay or a Repeat to the end of the selected Setup Sequence, or of the one the selected step is in.</summary>
     [RelayCommand(CanExecute = nameof(CanAddTrackStep))]
     private void AddTrackStep(SequenceStepKind kind)
     {
@@ -478,7 +481,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     /// Puts a copy of the selected step, with new ids, right after it, in the same list: a step of the sequence after
     /// that step, a step inside a Repeat after that step inside the Repeat, a Repeat or a Multi-Rig block with
     /// everything inside it after it. The copy is selected. It is not checked for sense: a second Start Guiding is
-    /// added, and the validation says what is wrong with it. A Rig Track is not duplicated on its own: two tracks of
+    /// added, and the validation says what is wrong with it. A Setup Sequence is not duplicated on its own: two tracks of
     /// one rig cannot run.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanDuplicate))]
@@ -506,7 +509,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     /// <summary>
     /// Pastes a copy of the clipboard, with new ids, and selects it. Where it goes: with nothing selected at the end of
-    /// the sequence; with a Rig Track selected at the end of the track; with any other step selected right after it in
+    /// the sequence; with a Setup Sequence selected at the end of the track; with any other step selected right after it in
     /// its own list, so a Repeat or a Multi-Rig block is never entered. It goes only where such a step may be: a copied
     /// Repeat cannot go inside a Repeat, an exposure with a camera not into a track, and so on. Then pasting is not
     /// available (nothing is put on another level instead).
@@ -553,7 +556,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     /// <summary>The Multi-Rig block of the selection: the selected one, or the one the selected step is in.</summary>
     public MultiRigStepDraftViewModel? MultiRigTarget => Ancestors(SelectedStep).OfType<MultiRigStepDraftViewModel>().FirstOrDefault();
 
-    /// <summary>The Rig Track of the selection: the selected one, or the one the selected step is in.</summary>
+    /// <summary>The Setup Sequence of the selection: the selected one, or the one the selected step is in.</summary>
     public RigTrackDraftViewModel? TrackTarget => Ancestors(SelectedStep).OfType<RigTrackDraftViewModel>().FirstOrDefault();
 
     /// <summary>The selection is a Multi-Rig block or something inside one: tracks and track steps can be added.</summary>
@@ -624,7 +627,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     private ObservableCollection<StepDraftViewModel> SiblingsOf(StepDraftViewModel step) => step.Parent?.Children ?? Steps;
 
     // Drag and drop. The view finds the row under the pointer and asks; the draft judges, moves, selects and says it was
-    // modified. A step moves within its own list only (the sequence, a Repeat, a Rig Track, a Multi-Rig block): to a place
+    // modified. A step moves within its own list only (the sequence, a Repeat, a Setup Sequence, a Multi-Rig block): to a place
     // that would break the structure it is refused, and to another list it is not offered.
 
     /// <summary>The step that is being dragged now, or <c>null</c>.</summary>
@@ -692,7 +695,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         {
             if (over is not ContainerStepDraftViewModel container)
             {
-                return new StepDropPlan(StepDropOutcome.Rejected, null, 0, over, null, false, "Only a Repeat, a Rig Track or a Multi-Rig block can hold steps.") { Placement = placement };
+                return new StepDropPlan(StepDropOutcome.Rejected, null, 0, over, null, false, "Only a Repeat, a Setup Sequence or a Parallel Imaging block can hold steps.") { Placement = placement };
             }
 
             // After the steps it has; an empty container has none, and this is how its first one gets there.
@@ -809,7 +812,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
             parent = Rows.FirstOrDefault(row => row.Id == id) as ContainerStepDraftViewModel;
             if (parent is null)
             {
-                return Refuse("Steps can only be put into a Repeat, a Rig Track or a Multi-Rig block.");
+                return Refuse("Steps can only be put into a Repeat, a Setup Sequence or a Parallel Imaging block.");
             }
 
             if (Ancestors(parent).Contains(step))
@@ -844,11 +847,11 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
         return step switch
         {
             RepeatStepDraftViewModel when parent is RepeatStepDraftViewModel => "A Repeat cannot be put into another Repeat.",
-            MultiRigStepDraftViewModel => "A Multi-Rig block belongs at the top level of the sequence.",
-            RigTrackDraftViewModel => "A Rig Track belongs in a Multi-Rig block.",
-            _ when rigLocal => "A rig step only exists inside a Rig Track.",
-            _ when parent is MultiRigStepDraftViewModel => "A Multi-Rig block holds Rig Tracks only.",
-            _ when inTrack => $"{step.Title} is a step of the session and cannot be part of a Rig Track.",
+            MultiRigStepDraftViewModel => "A Parallel Imaging block belongs at the top level of the sequence.",
+            RigTrackDraftViewModel => "A Setup Sequence belongs in a Parallel Imaging block.",
+            _ when rigLocal => "A step of an imaging setup only exists inside a Setup Sequence.",
+            _ when parent is MultiRigStepDraftViewModel => "A Parallel Imaging block holds Setup Sequences only.",
+            _ when inTrack => $"{step.Title} is a step of the session and cannot be part of a Setup Sequence.",
             _ => $"{step.Title} cannot be put there.",
         };
     }

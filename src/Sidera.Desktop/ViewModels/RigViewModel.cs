@@ -216,6 +216,9 @@ public sealed partial class RigViewModel : ViewModelBase
     /// <summary>The short form for a card: "750 mm · f/5".</summary>
     public string OpticsShortText => _rig.Optics is not { } o ? Unknown : Format($"{o.FocalLengthMm:0.##} mm") + FRatioText(o);
 
+    /// <summary>The optics are configured: a card shows them only then.</summary>
+    public bool HasOptics => _rig.Optics is not null;
+
     private static string FRatioText(OpticalTrain optics) => optics.FocalRatio is { } ratio ? Format($" · f/{ratio:0.#}") : string.Empty;
 
     public string FocalLengthText => _rig.Optics is { } o ? Format($"{o.FocalLengthMm:0.##} mm") : Unknown;

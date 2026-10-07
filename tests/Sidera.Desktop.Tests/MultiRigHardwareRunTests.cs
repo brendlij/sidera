@@ -12,7 +12,7 @@ using Sidera.Runtime.Sequencing;
 namespace Sidera.Desktop.Tests;
 
 /// <summary>
-/// Rig-local focuser moves and filter changes in Multi-Rig Imaging, run by the real runner on the simulator: the
+/// Rig-local focuser moves and filter changes in Parallel Imaging, run by the real runner on the simulator: the
 /// tracks stay independent, a shared focuser is kept apart by the resource manager, and a pending dither waits for the
 /// atomic hardware steps without a deadlock and without holding anyone back before it is asked for.
 /// </summary>

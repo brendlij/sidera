@@ -13,7 +13,7 @@ using Sidera.Runtime.Sequencing;
 namespace Sidera.Desktop.Tests;
 
 /// <summary>
-/// Autofocus of one rig inside Multi-Rig Imaging, run by the real runner on the simulator: the other rigs carry on, a
+/// Autofocus of one rig inside Parallel Imaging, run by the real runner on the simulator: the other rigs carry on, a
 /// pending dither waits for it, a pause takes effect after it, and a cancellation leaves nothing behind.
 /// </summary>
 public class MultiRigAutofocusRunTests
