@@ -251,7 +251,7 @@ public sealed class MultiRigDocumentTests : IDisposable
     }
 
     [Theory]
-    [InlineData("9")]
+    [InlineData("10")]
     [InlineData("100")]
     public async Task ANewerVersionThanFive_IsRejectedAsBefore(string version)
     {
@@ -475,7 +475,7 @@ public sealed class MultiRigDocumentTests : IDisposable
             """
             {
               "format": "astra-sequence",
-              "version": 8,
+              "version": 9,
               "name": "Three Telescopes",
               "sharedEquipment": {
                 "mountId": "mount.eq6",
@@ -671,7 +671,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         var text = await File.ReadAllTextAsync(PathOf("Three.astraseq"));
-        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"multiRig\"", text, StringComparison.Ordinal);
         Assert.Contains("\"mountId\": \"mount.eq6\"", text, StringComparison.Ordinal);
 
@@ -713,7 +713,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         app.Draft.Steps.OfType<RepeatStepDraftViewModel>().Single().CountText = "4";
         await app.Document.SaveCommand.ExecuteAsync(null);
         var saved = await File.ReadAllTextAsync(PathOf("Old.astraseq"));
-        Assert.Contains("\"version\": 8", saved, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", saved, StringComparison.Ordinal);
         Assert.Contains("\"count\": 4", saved, StringComparison.Ordinal);
     }
 

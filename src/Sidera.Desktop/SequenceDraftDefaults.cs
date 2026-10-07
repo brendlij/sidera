@@ -105,6 +105,7 @@ public sealed record SequenceDraftDefaults
             SequenceStepKind.Slew => new SlewStepDraft(id, MountId, TargetRightAscensionHours, TargetDeclinationDegrees),
             SequenceStepKind.StartGuiding => new StartGuidingStepDraft(id, GuiderId),
             SequenceStepKind.StopGuiding => new StopGuidingStepDraft(id, GuiderId),
+            SequenceStepKind.DeviceOperation => new DeviceOperationStepDraft(id, Sidera.Runtime.Sequencing.DeviceOperation.Park, MountId),
             SequenceStepKind.MoveFocuser => new MoveFocuserStepDraft(id, FocuserId, FocuserPosition),
             SequenceStepKind.ChangeFilter => new ChangeFilterStepDraft(id, FilterWheelId, FilterSlotIndex),
             SequenceStepKind.RigMoveFocuser => new RigMoveFocuserStepDraft(id, FocuserPosition),

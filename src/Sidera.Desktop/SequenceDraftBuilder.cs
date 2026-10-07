@@ -160,6 +160,7 @@ public static class SequenceDraftBuilder
             DitherStepDraft d => new("Dither", string.Create(
                 CultureInfo.InvariantCulture,
                 $"{d.AmplitudePixels:0.##} px · settle ≤ {d.SettleThresholdPixels:0.##} px for {d.SettleStableSeconds:0.##} s")),
+            DeviceOperationStepDraft o => DescribeOperation(registry, o),
             MoveFocuserStepDraft f => new("Move Focuser", string.Create(
                 CultureInfo.InvariantCulture, $"{DeviceName(registry, f.FocuserId, "no focuser")} · {f.Position}")),
             ChangeFilterStepDraft c => new("Change Filter",
@@ -939,6 +940,7 @@ public static class SequenceDraftBuilder
         RigExposureStepDraft e => new CameraExposureAction(
             registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
             context?.Loggers?.CreateLogger<CameraExposureAction>(), StepScopes.EffectiveMount(rig, null, context?.Shared)),
+        DeviceOperationStepDraft o => new DeviceOperationAction(registry, o.Operation, o.DeviceId!.Value, o.Celsius, o.RampMinutes),
         MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterAction(registry, c.FilterWheelId!.Value, c.SlotIndex),
         // Resolved here, at build time: the track names a rig, and the rig names its focuser and its filter wheel.
@@ -1399,6 +1401,9 @@ public static class SequenceDraftBuilder
                 case PlateSolveStepDraft or SlewAndCenterStepDraft or SyncMountStepDraft or RotateToAngleStepDraft or RotateAndVerifyStepDraft or CenterAndRotateStepDraft:
                     problems.Add("Plate solving steps move or synchronize the shared mount and must be outside a Rig Track.");
                     break;
+                case DeviceOperationStepDraft:
+                    problems.Add("Cooling, parking and tracking belong to the whole session and must be outside a Rig Track.");
+                    break;
                 case MoveFocuserStepDraft:
                     problems.Add("Use Move Focuser of the track here: its focuser is the focuser of the rig.");
                     break;
@@ -1539,6 +1544,26 @@ public static class SequenceDraftBuilder
                     break;
                 case DitherStepDraft d:
                     ValidateDither(d, problems);
+                    break;
+                case DeviceOperationStepDraft o:
+                    if (o.IsCamera)
+                    {
+                        CheckDevice<ICamera>(o.DeviceId, "camera", problems);
+                        if (o.Operation == DeviceOperation.CoolCamera && (!double.IsFinite(o.Celsius) || o.Celsius < -60 || o.Celsius > 40))
+                        {
+                            problems.Add("The target temperature must be a number from -60 to 40 degrees.");
+                        }
+
+                        if (!double.IsFinite(o.RampMinutes) || o.RampMinutes < 0 || o.RampMinutes > 180)
+                        {
+                            problems.Add("The ramp must be a number of minutes from 0 to 180.");
+                        }
+                    }
+                    else
+                    {
+                        CheckDevice<IMount>(o.DeviceId, "mount", problems);
+                    }
+
                     break;
                 case MoveFocuserStepDraft f:
                     CheckDevice<IFocuser>(f.FocuserId, "focuser", problems);
@@ -1956,6 +1981,20 @@ public static class SequenceDraftBuilder
         }
     }
 
+    private static StepDescription DescribeOperation(DeviceRegistry registry, DeviceOperationStepDraft o)
+    {
+        string Ramp() => string.Create(CultureInfo.InvariantCulture, $" · over {o.RampMinutes:0.#} min");
+        return o.Operation switch
+        {
+            DeviceOperation.CoolCamera => new("Cool Camera", string.Create(CultureInfo.InvariantCulture, $"{DeviceName(registry, o.DeviceId, "no camera")} · {o.Celsius:0.#} °C") + Ramp()),
+            DeviceOperation.WarmCamera => new("Warm Camera", DeviceName(registry, o.DeviceId, "no camera") + Ramp()),
+            DeviceOperation.Park => new("Park", DeviceName(registry, o.DeviceId, "no mount")),
+            DeviceOperation.Unpark => new("Unpark", DeviceName(registry, o.DeviceId, "no mount")),
+            DeviceOperation.TrackingOn => new("Tracking On", DeviceName(registry, o.DeviceId, "no mount")),
+            _ => new("Tracking Off", DeviceName(registry, o.DeviceId, "no mount")),
+        };
+    }
+
     private static string DeviceName(DeviceRegistry registry, DeviceId? id, string none) =>
         id is not { } deviceId
             ? none
@@ -2017,6 +2056,7 @@ public static class SequenceDraftBuilder
         SequenceStepKind.Exposure => "Exposure",
         SequenceStepKind.RigExposure => "Exposure",
         SequenceStepKind.Delay => "Delay",
+        SequenceStepKind.DeviceOperation => "Device Operation",
         SequenceStepKind.WaitUntil => "Wait Until",
         SequenceStepKind.Slew => "Slew",
         SequenceStepKind.StartGuiding => "Start Guiding",

@@ -49,6 +49,7 @@
                         <MenuItem Header="Stop Guiding" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.StopGuiding}" />
                         <MenuItem Header="Dither" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Dither}" />
                         <MenuItem Header="Move Focuser" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.MoveFocuser}" />
+                        <MenuItem Header="Device Operation" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.DeviceOperation}" />
                         <MenuItem Header="Change Filter" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.ChangeFilter}" />
                         <MenuItem Header="Autofocus" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.Autofocus}" />
                         <MenuItem Header="Plate Solve" Command="{Binding Draft.AddStepCommand}" CommandParameter="{x:Static app:SequenceStepKind.PlateSolve}" />

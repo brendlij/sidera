@@ -362,7 +362,7 @@ public sealed class StableImagingBindingTests : IAsyncLifetime
         using var stream = new MemoryStream();
         await serializer.SaveAsync(stream, original, CancellationToken.None);
         var text = Encoding.UTF8.GetString(stream.ToArray());
-        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"rig.main\"", text, StringComparison.Ordinal); // a reference by setup id is written as it was
 
         stream.Position = 0;
@@ -394,7 +394,7 @@ public sealed class StableImagingBindingTests : IAsyncLifetime
         await serializer.SaveAsync(stream, document, CancellationToken.None);
         var text = Encoding.UTF8.GetString(stream.ToArray());
 
-        Assert.Contains("\"version\": 8", text, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"imaging:auto:camera.main\"", text, StringComparison.Ordinal);
 
         stream.Position = 0;

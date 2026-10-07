@@ -56,7 +56,10 @@ public enum SequenceStepKind
     CenterAndRotate,
 
     /// <summary>Waits until all of its conditions hold: a time, an altitude of the target or the Sun, darkness.</summary>
-    WaitUntil
+    WaitUntil,
+
+    /// <summary>Cools or warms a camera, parks or unparks a mount, switches tracking. Added in version 9.</summary>
+    DeviceOperation
 }
 
 /// <summary>
@@ -116,6 +119,19 @@ public sealed record SyncMountStepDraft(Guid Id, DeviceId? MountId) : LeafStepDr
 {
     public override SequenceStepKind Kind => SequenceStepKind.SyncMountToSolved;
     public override IEnumerable<DeviceId> DeviceIds => Of(MountId);
+}
+
+/// <summary>
+/// An operation on one camera or one mount that does not move across the sky: <see cref="Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera"/> (to <see cref="Celsius"/>, in steps over
+/// <see cref="RampMinutes"/>), warm, park, unpark, tracking on or off. The device is a camera for the first two and a mount for the others. Added in version 9.
+/// </summary>
+public sealed record DeviceOperationStepDraft(Guid Id, Sidera.Runtime.Sequencing.DeviceOperation Operation, DeviceId? DeviceId, double Celsius = 0, double RampMinutes = 0) : LeafStepDraft(Id)
+{
+    public override SequenceStepKind Kind => SequenceStepKind.DeviceOperation;
+    public override IEnumerable<DeviceId> DeviceIds => Of(DeviceId);
+
+    /// <summary>The device is a camera (cool, warm); otherwise a mount.</summary>
+    public bool IsCamera => Operation is Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera or Sidera.Runtime.Sequencing.DeviceOperation.WarmCamera;
 }
 
 public sealed record PlateSolveStepDraft(Guid Id, RigId? RigId, double ExposureSeconds) : LeafStepDraft(Id)

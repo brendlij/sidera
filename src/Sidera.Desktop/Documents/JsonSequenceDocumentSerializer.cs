@@ -137,6 +137,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             WorkflowJson.Write(w, workflow);
         }
 
+        if (document.Session is { } session)
+        {
+            SessionJson.Write(w, session);
+        }
+
         w.WriteEndObject();
     }
 
@@ -159,6 +164,13 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 Header(w, WaitUntilType, wait.Id);
                 WorkflowJson.WriteConditions(w, "conditions", wait.Conditions);
                 WorkflowJson.WriteConditionTarget(w, wait.Target);
+                break;
+            case DeviceOperationDocumentStep o:
+                Header(w, "deviceOperation", o.Id);
+                w.WriteString("operation", o.Operation);
+                Device(w, "deviceId", o.DeviceId);
+                w.WriteNumber("celsius", o.Celsius);
+                w.WriteNumber("rampMinutes", o.RampMinutes);
                 break;
             case SlewDocumentStep s:
                 Header(w, SlewType, s.Id);
@@ -429,7 +441,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         return version switch
         {
-            1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 => ReadBody(root, version),
+            1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 => ReadBody(root, version),
             _ => throw new SequenceDocumentException(
                 SequenceDocumentErrorKind.NewerVersion, "This sequence was created by a newer Sidera version."),
         };
@@ -462,7 +474,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             steps.Add(ReadStep(element, Place.Top, version, ids));
         }
 
-        return new SequenceDocument(name, steps, shared, version >= 8 ? WorkflowJson.Read(root) : null);
+        return new SequenceDocument(name, steps, shared, version >= 8 ? WorkflowJson.Read(root) : null, version >= 9 ? SessionJson.Read(root) : null);
     }
 
     private static SharedEquipmentDocument? ReadSharedEquipment(JsonElement root)
@@ -510,6 +522,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             || (version >= 3 && type is MoveFocuserType or ChangeFilterType or RigMoveFocuserType or RigChangeFilterType)
             || (version >= 4 && type is AutofocusType or RigAutofocusType)
             || (version >= 8 && type is WaitUntilType)
+            || (version >= 9 && type is "deviceOperation")
             || (version >= 7 && type is "plateSolve" or "slewAndCenter" or "syncMountToSolved" or "rotateToAngle" or "rotateAndVerify" or "centerAndRotate");
         if (!known)
         {
@@ -532,6 +545,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         if (type is RigExposureType or RigMoveFocuserType or RigChangeFilterType or RigAutofocusType && !inTrack)
         {
             throw Structure($"A '{type}' step can only be used inside a rig track.");
+        }
+
+        if (inTrack && type is "deviceOperation")
+        {
+            throw Structure("A 'deviceOperation' step cannot be used inside a rig track.");
         }
 
         if (inTrack && type is ExposureType or SlewType or StartGuidingType or StopGuidingType or DitherType
@@ -567,6 +585,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 element.TryGetProperty("targetName", out var centerNameElement) && centerNameElement.ValueKind == JsonValueKind.String ? centerNameElement.GetString() : null),
             "syncMountToSolved" => new SyncMountDocumentStep(id, ReadDevice(element, type, "mountId")),
             "plateSolve" => new PlateSolveDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds")),
+            "deviceOperation" => new DeviceOperationDocumentStep(
+                id, ReadOperation(element, type), ReadDevice(element, type, "deviceId"), ReadNumber(element, type, "celsius"), ReadNumber(element, type, "rampMinutes")),
             ExposureType => new ExposureDocumentStep(
                 id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
             DelayType => new DelayDocumentStep(id, ReadNumber(element, type, "durationSeconds")),
@@ -761,6 +781,16 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
         }
 
         return (int)number;
+    }
+
+    private static string ReadOperation(JsonElement element, string type)
+    {
+        if (!element.TryGetProperty("operation", out var value) || value.ValueKind != JsonValueKind.String || value.GetString() is not { } name || !SequenceDocumentMapper.IsOperation(name))
+        {
+            throw Structure($"'operation' of a '{type}' step must be one of coolCamera, warmCamera, park, unpark, trackingOn, trackingOff.");
+        }
+
+        return name;
     }
 
     private static double ReadNumber(JsonElement element, string type, string name)

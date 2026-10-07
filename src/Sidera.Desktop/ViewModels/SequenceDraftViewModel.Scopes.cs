@@ -112,7 +112,7 @@ public sealed partial class SequenceDraftViewModel
             return string.Empty;
         }
 
-        return step.Kind is SequenceStepKind.Exposure or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter ? "Device" : "Shared";
+        return step.Kind is SequenceStepKind.Exposure or SequenceStepKind.MoveFocuser or SequenceStepKind.ChangeFilter or SequenceStepKind.DeviceOperation ? "Device" : "Shared";
     }
 
     /// <summary>Reads which views exist and which rows each shows. Called whenever the steps or the rigs change.</summary>
