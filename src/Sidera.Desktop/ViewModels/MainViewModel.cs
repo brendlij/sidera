@@ -48,7 +48,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         bool withDemoSequence = true,
         Sidera.Sky.ICelestialObjectCatalog? objectCatalog = null,
         System.Func<Sidera.Sky.SkySurveyDescriptor, Sidera.Sky.ISkySurveyProvider>? skyProviders = null,
-        bool startWithSettingsMode = false)
+        bool startWithSettingsMode = false,
+        Sidera.Desktop.Themes.IThemeApplier? themeApplier = null)
     {
         options ??= new DemoOptions();
         var activity = new SessionActivity();
@@ -94,7 +95,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Imaging.ExportHost = host;
         Imaging.ExportSite = () => equipmentManagement?.Site?.Site;
         Diagnostics = new DiagnosticsViewModel(logInfo, folderOpener, clipboard, postToUi);
-        Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site, Safety);
+        Settings = new SettingsViewModel(logInfo, equipmentManagement?.Site, Safety, themeApplier);
         PlateSolve = new PlateSolveViewModel(host, Imaging, SetupContext, equipmentManagement?.Site, postToUi);
         Framing = new FramingViewModel(host, SetupContext, equipmentManagement?.Site, SequenceDraft, objectCatalog, skyProviders, postToUi);
         Sequencer = new SequencerViewModel(

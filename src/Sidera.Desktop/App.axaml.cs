@@ -69,6 +69,10 @@ public partial class App : Application
             var settingsFile = SideraEnvironment.Get("SIDERA_SETTINGS_FILE");
             var site = new SiteService(string.IsNullOrWhiteSpace(settingsFile) ? SideraSettingsStore.CreateDefault() : new SideraSettingsStore(settingsFile));
             site.Load();
+
+            // The theme of the last start, before anything is drawn.
+            var themes = new Sidera.Desktop.Themes.AvaloniaThemeApplier(this);
+            themes.Apply(Sidera.Desktop.Themes.SideraThemes.Find(site.Appearance.ThemeId) ?? Sidera.Desktop.Themes.SideraThemes.Default);
             host.ConfigurePlateSolver(new Sidera.Astap.AstapPlateSolver(() => new Sidera.Astap.AstapConfiguration
             {
                 ExecutablePath = site.PlateSolving.ExecutablePath,
@@ -105,7 +109,7 @@ public partial class App : Application
 
             var viewModel = new MainViewModel(
                 host, action => Dispatcher.UIThread.Post(action), filePicker: filePicker, logInfo: logInfo, clipboard: clipboard,
-                equipmentManagement: management, withDemoSequence: false, objectCatalog: objectCatalog, startWithSettingsMode: true,
+                equipmentManagement: management, withDemoSequence: false, objectCatalog: objectCatalog, startWithSettingsMode: true, themeApplier: themes,
                 skyProviders: survey => new Sidera.Sky.HiPSSurveyProvider(survey, skyHttp, skyCache, skyDecoder, hipsOptions, host.LoggerFactory.CreateLogger<Sidera.Sky.HiPSSurveyProvider>()));
 
             var window = new MainWindow { DataContext = viewModel };

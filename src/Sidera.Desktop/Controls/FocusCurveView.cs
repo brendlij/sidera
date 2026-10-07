@@ -19,15 +19,12 @@ public sealed class FocusCurveView : Control
 
     public static readonly StyledProperty<int?> BestPositionProperty = AvaloniaProperty.Register<FocusCurveView, int?>(nameof(BestPosition));
 
-    private static readonly IPen LinePen = new Pen(new SolidColorBrush(Color.FromArgb(0x90, 0x8F, 0xA3, 0xC0)), 1);
-    private static readonly IPen BestPen = new Pen(new SolidColorBrush(Color.FromArgb(0xC8, 0x6F, 0xCB, 0x9F)), 1, DashStyle.Dash);
-    private static readonly IBrush PointBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xD3, 0xE2));
-    private static readonly IBrush BestBrush = new SolidColorBrush(Color.FromRgb(0x6F, 0xCB, 0x9F));
-
     static FocusCurveView()
     {
         AffectsRender<FocusCurveView>(SamplesProperty, BestPositionProperty);
     }
+
+    public FocusCurveView() => this.RedrawWithTheme();
 
     public IReadOnlyList<FocusSampleRow>? Samples { get => GetValue(SamplesProperty); set => SetValue(SamplesProperty, value); }
 
@@ -42,6 +39,10 @@ public sealed class FocusCurveView : Control
         }
 
         const double margin = 8;
+        var linePen = this.Pen("SideraTextSecondaryColor", Color.FromRgb(0x8F, 0xA3, 0xC0), 1, 0x90);
+        var bestPen = this.Pen("SideraOkColor", Color.FromRgb(0x6F, 0xCB, 0x9F), 1, 0xC8, DashStyle.Dash);
+        var pointBrush = this.Brush("SideraTextColor", Color.FromRgb(0xC8, 0xD3, 0xE2));
+        var bestBrush = this.Brush("SideraOkColor", Color.FromRgb(0x6F, 0xCB, 0x9F));
         var minX = samples.Min(s => s.Position);
         var maxX = samples.Max(s => s.Position);
         if (BestPosition is { } best)
@@ -59,23 +60,23 @@ public sealed class FocusCurveView : Control
 
         if (BestPosition is { } bestPosition)
         {
-            context.DrawLine(BestPen, new Point(X(bestPosition), margin), new Point(X(bestPosition), Bounds.Height - margin));
+            context.DrawLine(bestPen, new Point(X(bestPosition), margin), new Point(X(bestPosition), Bounds.Height - margin));
         }
 
         var points = samples.Select(s => new Point(X(s.Position), Y(s.Hfr))).ToList();
         for (var i = 1; i < points.Count; i++)
         {
-            context.DrawLine(LinePen, points[i - 1], points[i]);
+            context.DrawLine(linePen, points[i - 1], points[i]);
         }
 
         foreach (var point in points)
         {
-            context.DrawEllipse(PointBrush, null, point, 3, 3);
+            context.DrawEllipse(pointBrush, null, point, 3, 3);
         }
 
         if (BestPosition is { } marked && samples.OrderBy(s => Math.Abs(s.Position - marked)).First() is { } nearest)
         {
-            context.DrawEllipse(BestBrush, null, new Point(X(nearest.Position), Y(nearest.Hfr)), 4, 4);
+            context.DrawEllipse(bestBrush, null, new Point(X(nearest.Position), Y(nearest.Hfr)), 4, 4);
         }
     }
 }

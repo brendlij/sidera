@@ -23,15 +23,14 @@ public sealed class StarOverlay : Control
     public static readonly StyledProperty<double> FrameHeightProperty =
         AvaloniaProperty.Register<StarOverlay, double>(nameof(FrameHeight));
 
-    // Thin and a little transparent: the overlay marks the stars, it does not compete with them.
-    private static readonly IPen UsablePen = new Pen(new SolidColorBrush(Color.FromArgb(0xC8, 0x6F, 0xCB, 0x9F)), 1);
-    private static readonly IPen SkippedPen = new Pen(new SolidColorBrush(Color.FromArgb(0xC8, 0xE3, 0xB2, 0x5E)), 1);
 
     static StarOverlay()
     {
         AffectsRender<StarOverlay>(StarsProperty, FrameWidthProperty, FrameHeightProperty);
         IsHitTestVisibleProperty.OverrideDefaultValue<StarOverlay>(false);
     }
+
+    public StarOverlay() => this.RedrawWithTheme();
 
     public IReadOnlyList<DetectedStar>? Stars
     {
@@ -59,6 +58,9 @@ public sealed class StarOverlay : Control
             return;
         }
 
+        // Thin and a little transparent: the overlay marks the stars, it does not compete with them.
+        var usablePen = this.Pen("SideraOnPreviewOkColor", Color.FromRgb(0x6F, 0xCB, 0x9F), 1, 0xC8);
+        var skippedPen = this.Pen("SideraOnPreviewWarnColor", Color.FromRgb(0xE3, 0xB2, 0x5E), 1, 0xC8);
         var scale = Math.Min(Bounds.Width / FrameWidth, Bounds.Height / FrameHeight);
         var offsetX = (Bounds.Width - FrameWidth * scale) / 2;
         var offsetY = (Bounds.Height - FrameHeight * scale) / 2;
@@ -67,7 +69,7 @@ public sealed class StarOverlay : Control
             // Pixel centres are at +0.5 in the picture; the analysis counts them at whole numbers.
             var centre = new Point(offsetX + (star.X + 0.5) * scale, offsetY + (star.Y + 0.5) * scale);
             var radius = Math.Max(star.Hfr * scale, 4);
-            context.DrawEllipse(null, star.IsUsable ? UsablePen : SkippedPen, centre, radius, radius);
+            context.DrawEllipse(null, star.IsUsable ? usablePen : skippedPen, centre, radius, radius);
         }
     }
 }

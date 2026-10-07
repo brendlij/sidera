@@ -54,6 +54,8 @@ public sealed class SkyView : Control
         FocusableProperty.OverrideDefaultValue<SkyView>(true);
     }
 
+    public SkyView() => this.RedrawWithTheme();
+
     public SkyImage? Image { get => GetValue(ImageProperty); set => SetValue(ImageProperty, value); }
 
     /// <summary>The view the picture was made for; the picture is drawn in its place even when the view has moved on since.</summary>
@@ -104,7 +106,7 @@ public sealed class SkyView : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.FillRectangle(new SolidColorBrush(Color.FromRgb(8, 9, 14)), new Rect(Bounds.Size));
+        context.FillRectangle(this.Brush("SideraPreviewColor", Color.FromRgb(8, 9, 14)), new Rect(Bounds.Size));
         if (Layout() is not { } layout || Viewport is not { } view)
         {
             return;
@@ -182,7 +184,7 @@ public sealed class SkyView : Control
             return;
         }
 
-        var accent = new SolidColorBrush(Color.FromRgb(124, 126, 255));
+        var accent = this.Brush("SideraOnPreviewAccentColor", Color.FromRgb(124, 126, 255));
         if (view.ToPixel(target.Center) is { } middle)
         {
             var c = ToControl(middle, layout);
@@ -249,7 +251,7 @@ public sealed class SkyView : Control
             return;
         }
 
-        var red = new SolidColorBrush(Color.FromRgb(232, 80, 80));
+        var red = this.Brush("SideraOnPreviewDangerColor", Color.FromRgb(232, 80, 80));
         if (view.ToPixel(current.Center) is { } middle)
         {
             var c = ToControl(middle, layout);
@@ -299,7 +301,7 @@ public sealed class SkyView : Control
         var note = Image is null || Image.HasNoImagery ? (Note is { Length: > 0 } n ? n : "No imagery for this view") : Note;
         if (!string.IsNullOrEmpty(note))
         {
-            Text(context, note, new SolidColorBrush(Color.FromRgb(160, 163, 180)), new Point(Bounds.Width / 2, Bounds.Height - 16), centered: true);
+            Text(context, note, this.Brush("SideraOnPreviewTextColor", Color.FromRgb(160, 163, 180)), new Point(Bounds.Width / 2, Bounds.Height - 16), centered: true);
         }
     }
 
@@ -320,7 +322,7 @@ public sealed class SkyView : Control
         if (backdrop)
         {
             // A dark plate behind the words, so that they can be read on a bright part of the sky.
-            context.DrawRectangle(new SolidColorBrush(Color.FromArgb(150, 8, 9, 14)), null, new Rect(origin.X - 4, origin.Y - 1, text.Width + 8, text.Height + 2), 3, 3);
+            context.DrawRectangle(this.Brush("SideraPreviewColor", Color.FromRgb(8, 9, 14), 150), null, new Rect(origin.X - 4, origin.Y - 1, text.Width + 8, text.Height + 2), 3, 3);
         }
 
         context.DrawText(text, origin);

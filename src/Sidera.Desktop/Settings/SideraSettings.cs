@@ -19,6 +19,7 @@ public sealed record SideraSettings(ObservingSite? Site)
     public PlateSolvingSettings PlateSolving { get; init; } = new();
     public SkyAtlasSettings SkyAtlas { get; init; } = new();
     public SequencerSettings Sequencer { get; init; } = new();
+    public AppearanceSettings Appearance { get; init; } = new();
     public ImagingSettings Imaging { get; init; } = new();
     public AutofocusDefaults Autofocus { get; init; } = new();
     public GuidingDefaults Guiding { get; init; } = new();
@@ -53,6 +54,10 @@ public static class SideraSettingsSerializer
             // The sections that came later are written by hand, with names that do not depend on a class: a file that has none of them means the defaults.
             w.WriteStartObject("sequencer");
             w.WriteString("defaultSessionMode", settings.Sequencer.DefaultSessionMode == SessionMode.Advanced ? "advanced" : "workflow");
+            w.WriteEndObject();
+
+            w.WriteStartObject("appearance");
+            w.WriteString("theme", settings.Appearance.ThemeId);
             w.WriteEndObject();
 
             w.WriteStartObject("imaging");
@@ -216,6 +221,18 @@ public static class SideraSettingsSerializer
             }
 
             settings = settings with { Sequencer = new SequencerSettings { DefaultSessionMode = mode == "advanced" ? SessionMode.Advanced : SessionMode.Workflow } };
+        }
+
+        if (Section("appearance", "appearance") is { } appearance)
+        {
+            var theme = appearance.TryGetProperty("theme", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
+            if (appearance.TryGetProperty("theme", out _) && theme is null)
+            {
+                throw new SideraSettingsException("The theme must be the name of a theme.");
+            }
+
+            var next = new AppearanceSettings { ThemeId = theme ?? new AppearanceSettings().ThemeId };
+            settings = settings with { Appearance = next.Problem is { } problem ? throw new SideraSettingsException(problem) : next };
         }
 
         if (Section("imaging", "imaging") is { } imaging)
@@ -383,6 +400,7 @@ public sealed class SiteService
     public SkyAtlasSettings SkyAtlas => _settings.SkyAtlas;
 
     public SequencerSettings Sequencer => _settings.Sequencer;
+    public AppearanceSettings Appearance => _settings.Appearance;
     public ImagingSettings Imaging => _settings.Imaging;
     public AutofocusDefaults Autofocus => _settings.Autofocus;
     public GuidingDefaults Guiding => _settings.Guiding;
@@ -391,6 +409,7 @@ public sealed class SiteService
     public MeridianFlipSettings MeridianFlip => _settings.MeridianFlip;
 
     public SiteResult SetSequencer(SequencerSettings settings) => settings.Problem is { } problem ? SiteResult.Fail(problem) : Save(_settings with { Sequencer = settings });
+    public SiteResult SetAppearance(AppearanceSettings settings) => settings.Problem is { } problem ? SiteResult.Fail(problem) : Save(_settings with { Appearance = settings });
     public SiteResult SetImaging(ImagingSettings settings) => settings.Problem is { } problem ? SiteResult.Fail(problem) : Save(_settings with { Imaging = settings });
     public SiteResult SetAutofocus(AutofocusDefaults settings) => settings.Problem is { } problem ? SiteResult.Fail(problem) : Save(_settings with { Autofocus = settings });
     public SiteResult SetGuiding(GuidingDefaults settings) => settings.Problem is { } problem ? SiteResult.Fail(problem) : Save(_settings with { Guiding = settings });

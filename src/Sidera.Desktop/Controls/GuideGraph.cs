@@ -38,6 +38,8 @@ public sealed class GuideGraph : Control
         AffectsRender<GuideGraph>(HistoryProperty, WindowSecondsProperty, VersionProperty, InArcsecondsProperty);
     }
 
+    public GuideGraph() => this.RedrawWithTheme();
+
     public GuidingHistory? History
     {
         get => GetValue(HistoryProperty);

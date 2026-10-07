@@ -68,8 +68,7 @@
         <Setter Property="Template">
             <ControlTemplate>
                 <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360">
-                    <PathIcon Data="{TemplateBinding Icon}" Width="28" Height="28" Foreground="{DynamicResource SideraLineStrong}"
-                              HorizontalAlignment="Center" Margin="0,0,0,4" />
+                    <PathIcon Data="{TemplateBinding Icon}" Width="28" Height="28" HorizontalAlignment="Center" Margin="0,0,0,4" />
                     <TextBlock Text="{TemplateBinding Title}" Classes="card-title" HorizontalAlignment="Center" TextAlignment="Center" />
                     <TextBlock Text="{TemplateBinding Message}" Classes="secondary" HorizontalAlignment="Center"
                                TextAlignment="Center" TextWrapping="Wrap" />
@@ -77,6 +76,20 @@
                 </StackPanel>
             </ControlTemplate>
         </Setter>
+    </Style>
+
+    <Style Selector="ctl|EmptyState /template/ PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraLineStrong}" />
+    </Style>
+    <!-- On the dark preview surface (an image is shown there, in every theme) -->
+    <Style Selector="ctl|EmptyState.on-preview /template/ PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnPreviewLine}" />
+    </Style>
+    <Style Selector="ctl|EmptyState.on-preview /template/ TextBlock.card-title">
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnPreviewStrong}" />
+    </Style>
+    <Style Selector="ctl|EmptyState.on-preview /template/ TextBlock.secondary">
+        <Setter Property="Foreground" Value="{DynamicResource SideraOnPreviewText}" />
     </Style>
 
     <Style Selector="ctl|PageHeader">

@@ -66,7 +66,7 @@
                                          IsActualSize="{Binding IsActualSize, Mode=TwoWay}" IsCustomView="{Binding IsCustomView, Mode=TwoWay}"
                                          ZoomText="{Binding ZoomText, Mode=OneWayToSource}" IsVisible="{Binding HasFrame}"
                                          AutomationProperties.AutomationId="ImagingViewer" />
-                        <ctl:EmptyState Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}"
+                        <ctl:EmptyState Classes="on-preview" Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}"
                                         Title="No frame yet"
                                         Message="Capture an exposure to preview and analyze it." />
                     </Grid>

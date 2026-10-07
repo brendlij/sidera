@@ -292,7 +292,7 @@ public sealed class ProductSettingsTests : IAsyncLifetime
         var app = Create();
 
         Assert.Equal(
-            ["General", "Observatory", "Imaging", "Autofocus", "Guiding", "Plate solving", "Framing", "Meridian Flip", "Sequencer", "Advanced"],
+            ["General", "Appearance", "Observatory", "Imaging", "Autofocus", "Guiding", "Plate solving", "Framing", "Meridian Flip", "Sequencer", "Advanced"],
             app.Vm.Settings.Tabs.Select(t => t.Title));
         app.Vm.Settings.SelectTab(SettingsViewModel.MeridianFlipTab);
         Assert.True(app.Vm.Settings.IsMeridianFlip);

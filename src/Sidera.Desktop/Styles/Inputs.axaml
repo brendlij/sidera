@@ -100,4 +100,27 @@
     <Style Selector="RadioButton.tab:checked /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
     </Style>
+
+    <!-- A choice shown as a card (the themes): quiet outline, the chosen one in the accent -->
+    <Style Selector="RadioButton.card">
+        <Setter Property="Background" Value="{DynamicResource SideraBg2}" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraText}" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Root" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource SideraLine}" BorderThickness="2"
+                        CornerRadius="{StaticResource RadiusMd}" Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.card:pointerover /template/ Border#Root">
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraLineStrong}" />
+    </Style>
+    <Style Selector="RadioButton.card:checked /template/ Border#Root">
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraAccent}" />
+        <Setter Property="Background" Value="{DynamicResource SideraAccentTint}" />
+    </Style>
 </Styles>
