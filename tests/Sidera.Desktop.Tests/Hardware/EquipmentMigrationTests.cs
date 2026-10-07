@@ -1,6 +1,6 @@
-using Sidera.Core.Rigs;
+﻿using Sidera.Core.Rigs;
 using Sidera.Desktop.Hardware;
-using Sidera.Desktop.Workflows;
+using Sidera.Desktop.Sessions;
 using Sidera.Runtime;
 using Sidera.Runtime.Rigs;
 
@@ -132,15 +132,16 @@ public sealed class EquipmentMigrationTests : IDisposable
     public void ASessionThatNamesASetup_FindsItById_AndOneThatIsGone_IsRefusedInsteadOfBoundToAnother()
     {
         var (host, _) = Load(OldFile);
-        var block = new ImagingBlock(Guid.NewGuid(), new RigId("rig.wide"), null, 60, 3);
-        var found = WorkflowCompiler.Compile(WorkflowDefinition.Empty with { Imaging = [block] }, host.RigRegistry);
+        var catalog = new ImagingSetupCatalog(host.DeviceRegistry, host.RigRegistry);
+        var lane = Sessions.SessionFixture.Lane(new RigId("rig.wide"), Sessions.SessionFixture.Block(null, 60, 3));
+        var found = SessionCompiler.Compile(Sessions.SessionFixture.Session(Sessions.SessionFixture.Target("M31", [lane])), catalog);
 
-        Assert.DoesNotContain(found.Problems, p => p.ElementId == block.Id);
+        Assert.DoesNotContain(found.Problems, p => p.ElementId == lane.Id);
 
-        var missing = block with { Setup = new RigId("rig.removed") };
-        var refused = WorkflowCompiler.Compile(WorkflowDefinition.Empty with { Imaging = [missing] }, host.RigRegistry);
+        var missing = lane with { Setup = new RigId("rig.removed") };
+        var refused = SessionCompiler.Compile(Sessions.SessionFixture.Session(Sessions.SessionFixture.Target("M31", [missing])), catalog);
 
-        var problem = Assert.Single(refused.Problems, p => p.ElementId == block.Id);
+        var problem = Assert.Single(refused.Problems, p => p.ElementId == lane.Id);
         Assert.Contains("'rig.removed' does not exist any more", problem.Message, StringComparison.Ordinal);
         Assert.Empty(refused.Steps.OfType<MultiRigStepDraft>()); // it did not image with the other setup instead
     }

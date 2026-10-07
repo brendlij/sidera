@@ -11,16 +11,16 @@ public sealed class SessionPageViewModel(
     SequencerViewModel sequencer,
     SharedEquipmentViewModel shared,
     ExecutionOverviewViewModel execution,
-    WorkflowEditorViewModel? workflow = null) : ViewModelBase
+    SessionEditorViewModel? editor = null) : ViewModelBase
 {
     /// <summary>
-    /// The default editor of the session: a workflow of a target, Prepare, Imaging and Finish. <c>null</c> where the session has none (tests of other pages). The draft is what the workflow
-    /// compiles to and what the Advanced editor shows.
+    /// The default editor of the session: a start, targets with their blocks, and an end. <c>null</c> where the session has none (tests of other pages). The draft is what the session compiles to and
+    /// what the tree of steps shows.
     /// </summary>
-    public WorkflowEditorViewModel? Workflow { get; } = workflow;
+    public SessionEditorViewModel? Editor { get; } = editor;
 
-    /// <summary>The Advanced editor (the tree of explicit steps) is shown: the session is not a workflow, or it was converted.</summary>
-    public bool ShowsAdvanced => Workflow is null || Workflow.IsAdvancedMode;
+    /// <summary>The tree of explicit steps is shown: the sequence is not a session of blocks, or it was opened as a tree.</summary>
+    public bool ShowsTree => Editor is null || Editor.IsTree;
 
     public SequenceDocumentViewModel Document { get; } = document;
 

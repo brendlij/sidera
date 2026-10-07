@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             x:Class="Sidera.Desktop.Views.Session.WaitFieldsView"
+             x:DataType="vm:ConditionTogglesViewModel">
+
+    <!-- All of these must hold: the sky (darkness, the target above an altitude) and the time. -->
+    <StackPanel Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox IsChecked="{Binding DarknessOn}" AutomationProperties.AutomationId="WaitDarkness" />
+            <ComboBox ItemsSource="{x:Static vm:ConditionTogglesViewModel.TwilightNames}" SelectedItem="{Binding DarknessKind}" IsEnabled="{Binding DarknessOn}" Width="130" />
+            <TextBlock Text="darkness" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox Content="Target altitude above" IsChecked="{Binding AltitudeAboveOn}" AutomationProperties.AutomationId="WaitAltitude" />
+            <TextBox Width="60" Text="{Binding AltitudeAboveText}" IsEnabled="{Binding AltitudeAboveOn}" AutomationProperties.AutomationId="WaitAltitudeValue" />
+            <TextBlock Text="°" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <CheckBox Content="Time" IsChecked="{Binding TimeOn}" AutomationProperties.AutomationId="WaitTime" />
+            <TextBox Width="70" Text="{Binding TimeText}" IsEnabled="{Binding TimeOn}" AutomationProperties.AutomationId="WaitTimeValue" />
+        </StackPanel>
+        <TextBlock Classes="meta" Text="{Binding ZoneText, StringFormat={}Times are read in {0}.}" TextWrapping="Wrap" />
+        <TextBlock Classes="meta" Text="{Binding ExtrasText}" IsVisible="{Binding HasExtras}" TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>

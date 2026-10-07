@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             x:Class="Sidera.Desktop.Views.Session.TargetCardView"
+             x:DataType="vm:TargetCardViewModel">
+
+    <!-- A target: where it points, what is prepared once for it, the sequence of each imaging setup (tabs with several), what ends it. -->
+    <Border Classes="seq-card" Classes.selected="{Binding IsSelected}" Classes.off="{Binding !IsOn}">
+        <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                <CheckBox IsChecked="{Binding IsOn}" VerticalAlignment="Center" ToolTip.Tip="On / off" AutomationProperties.Name="Target on" />
+                <Button Grid.Column="1" Classes="seq-pick" Command="{Binding SelectCommand}" AutomationProperties.Name="{Binding Name}" AutomationProperties.AutomationId="TargetCard">
+                    <StackPanel Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Classes="eyebrow" Text="TARGET" VerticalAlignment="Center" />
+                            <TextBlock Classes="section-title" Text="{Binding Name}" />
+                        </StackPanel>
+                        <TextBlock Classes="secondary" Text="{Binding Coordinates}" AutomationProperties.AutomationId="TargetCoordinates" />
+                    </StackPanel>
+                </Button>
+                <ctl:StatusIndicator Grid.Column="2" Kind="{Binding StatusKind}" Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                    <Button Classes="ghost" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" AutomationProperties.Name="Move target up" />
+                    <Button Classes="ghost" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" AutomationProperties.Name="Move target down" />
+                    <Button Classes="ghost" Content="⧉" Command="{Binding DuplicateCommand}" ToolTip.Tip="Duplicate" AutomationProperties.Name="Duplicate target" />
+                    <Button Classes="ghost" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove" AutomationProperties.Name="Remove target" />
+                </StackPanel>
+            </Grid>
+            <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" IsVisible="{Binding HasProblem}" TextWrapping="Wrap" />
+
+            <session:ActionListView DataContext="{Binding Preparation}" />
+
+            <!-- Imaging: one sequence, or one for each imaging setup -->
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="eyebrow" Text="IMAGING" VerticalAlignment="Center" IsVisible="{Binding !ShowLaneTabs}" />
+                    <ItemsControl ItemsSource="{Binding Lanes}" IsVisible="{Binding ShowLaneTabs}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LaneViewModel">
+                                <Button Classes="seq-tab" Classes.selected="{Binding IsSelected}" Content="{Binding SetupName}" Command="{Binding SelectCommand}"
+                                        AutomationProperties.AutomationId="LaneTab" AutomationProperties.Name="{Binding SetupName}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Classes="ghost" Content="+" Command="{Binding AddLaneCommand}" ToolTip.Tip="Another imaging setup, side by side" IsVisible="{Binding ShowLaneTabs}"
+                                AutomationProperties.Name="Add imaging setup sequence" AutomationProperties.AutomationId="AddLane" />
+                        <Button Classes="ghost" Content="+ Another imaging setup" Command="{Binding AddLaneCommand}" IsVisible="{Binding !ShowLaneTabs}"
+                                ToolTip.Tip="Image with a second setup at the same time" AutomationProperties.AutomationId="AddLaneSingle" />
+                    </StackPanel>
+                </Grid>
+
+                <ContentControl Content="{Binding SelectedLane}">
+                    <ContentControl.DataTemplates>
+                        <DataTemplate x:DataType="vm:LaneViewModel">
+                            <StackPanel Spacing="8">
+                                <StackPanel Spacing="6" IsVisible="{Binding NeedsSetupChoice}">
+                                    <TextBlock Classes="secondary" Text="Choose the imaging setup of this sequence." />
+                                    <ComboBox ItemsSource="{Binding SetupChoices}" SelectedItem="{Binding SelectedSetup}" HorizontalAlignment="Left" MinWidth="260" PlaceholderText="Imaging setup"
+                                              AutomationProperties.AutomationId="LaneSetup">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SetupChoice">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" />
+                                                    <TextBlock Classes="meta" Text="{Binding Detail}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                                <TextBlock Classes="secondary danger" Text="{Binding ProblemText}" IsVisible="{Binding HasProblem}" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding Blocks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BlockCardViewModel">
+                                            <session:BlockCardView />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="+ Imaging block" Command="{Binding AddBlockCommand}" AutomationProperties.Name="Add imaging block" AutomationProperties.AutomationId="AddBlock" />
+                                    <Button Classes="ghost" Content="Remove this sequence" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ContentControl.DataTemplates>
+                </ContentControl>
+
+                <!-- With no sequence yet: the first imaging block makes one -->
+                <Button Content="+ Imaging block" Command="{Binding AddBlockCommand}" HorizontalAlignment="Left" IsVisible="{Binding SelectedLane, Converter={x:Static ObjectConverters.IsNull}}"
+                        AutomationProperties.AutomationId="AddFirstBlock" />
+
+                <StackPanel Spacing="2" IsVisible="{Binding HasParallel}">
+                    <TextBlock Classes="secondary accent" Text="{Binding ParallelText}" AutomationProperties.AutomationId="ParallelText" />
+                    <TextBlock Classes="meta" Text="{Binding SharedText}" IsVisible="{Binding HasShared}" AutomationProperties.AutomationId="SharedText" />
+                </StackPanel>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="secondary" Text="{Binding LimitsText}" VerticalAlignment="Center" AutomationProperties.AutomationId="TargetLimits" />
+                <Button Grid.Column="1" Classes="ghost" Content="Edit limits" Command="{Binding SelectCommand}" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

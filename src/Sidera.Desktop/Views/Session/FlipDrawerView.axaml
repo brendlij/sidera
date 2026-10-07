@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Session.FlipDrawerView"
+             x:DataType="vm:FlipEditorViewModel">
+
+    <!-- The meridian flip of the session: the application's settings, or a flip of its own. One flip for the session, run for every mount. -->
+    <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="eyebrow" Text="MERIDIAN FLIP" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="ghost" Content="✕" Command="{Binding CloseCommand}" ToolTip.Tip="Close" AutomationProperties.Name="Close" />
+        </Grid>
+
+        <StackPanel Spacing="6">
+            <RadioButton GroupName="SessionFlipMode" Content="Use application defaults" IsChecked="{Binding UsesDefaults, Mode=OneWay}" Command="{Binding UseDefaultSettingsCommand}"
+                         AutomationProperties.AutomationId="FlipUseDefaults" />
+            <RadioButton GroupName="SessionFlipMode" Content="Custom for this session" IsChecked="{Binding IsCustom, Mode=OneWay}" Command="{Binding CustomizeCommand}"
+                         AutomationProperties.AutomationId="FlipCustom" />
+        </StackPanel>
+        <TextBlock Classes="secondary" Text="{Binding DefaultsSummary}" TextWrapping="Wrap" IsVisible="{Binding UsesDefaults}" AutomationProperties.AutomationId="FlipDefaultsSummary" />
+        <CheckBox Content="Flip at the meridian" IsChecked="{Binding Enabled}" IsVisible="{Binding IsCustom}" AutomationProperties.AutomationId="FlipEnabled" />
+
+        <StackPanel Spacing="12" IsVisible="{Binding FieldsVisible}">
+            <TextBlock Classes="meta" Text="TIMING (minutes from the moment the target is on the meridian)" />
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                <ctl:LabeledField Label="Hold new exposures before"><TextBox Text="{Binding PauseBeforeText}" AutomationProperties.AutomationId="FlipPauseBefore" /></ctl:LabeledField>
+                <ctl:LabeledField Grid.Column="1" Label="Flip after"><TextBox Text="{Binding AfterText}" AutomationProperties.AutomationId="FlipAfter" /></ctl:LabeledField>
+                <ctl:LabeledField Grid.Column="2" Label="Latest allowed flip"><TextBox Text="{Binding LatestText}" AutomationProperties.AutomationId="FlipLatest" /></ctl:LabeledField>
+            </Grid>
+            <TextBlock Classes="secondary" TextWrapping="Wrap" Text="{Binding Summary}" />
+            <TextBlock Classes="meta" Text="BEFORE THE FLIP" />
+            <WrapPanel ItemSpacing="20" LineSpacing="4">
+                <CheckBox Content="Finish the current exposure" IsChecked="{Binding FinishCurrentExposure, Mode=OneWay}" IsEnabled="False" ToolTip.Tip="Always on: an exposure is never aborted for a flip." />
+                <CheckBox Content="Stop guiding" IsChecked="{Binding StopGuiding}" />
+            </WrapPanel>
+            <TextBlock Classes="meta" Text="AFTER THE FLIP" />
+            <WrapPanel ItemSpacing="20" LineSpacing="4">
+                <CheckBox Content="Recenter" IsChecked="{Binding Recenter}" AutomationProperties.AutomationId="FlipRecenter" />
+                <CheckBox Content="Verify rotation" IsChecked="{Binding Rotation}" />
+                <CheckBox Content="Autofocus" IsChecked="{Binding Autofocus}" AutomationProperties.AutomationId="FlipAutofocus" />
+                <CheckBox Content="Restart guiding" IsChecked="{Binding RestartGuiding}" />
+                <CheckBox Content="Dither" IsChecked="{Binding Dither}" AutomationProperties.AutomationId="FlipDither" />
+            </WrapPanel>
+            <WrapPanel ItemSpacing="16" LineSpacing="8">
+                <ctl:LabeledField Label="Pause after (min)"><TextBox Text="{Binding PauseAfterText}" Width="90" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Attempts"><TextBox Text="{Binding AttemptsText}" Width="70" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Centering tolerance (&quot;)"><TextBox Text="{Binding ToleranceText}" Width="90" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Centering attempts"><TextBox Text="{Binding CenterAttemptsText}" Width="90" /></ctl:LabeledField>
+            </WrapPanel>
+            <CheckBox Content="If the flip fails, hold the setups of that mount and ask me (off: end the session)" IsChecked="{Binding PauseOnFailure}" />
+            <TextBlock Classes="meta" TextWrapping="Wrap"
+                       Text="In this order: stop guiding, flip, center, rotate, autofocus, restart guiding and settle, dither, pause. The mount is never synchronized. The flip happens once for every setup on a mount." />
+        </StackPanel>
+
+        <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+            <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -185,6 +185,7 @@ public static class SessionCompiler
 
             var ditherPolicy = DitherOf(target, lanes);
             var flip = FlipOf(target, rigs, lanes, ditherPolicy);
+            _origins[Derive(target.Id, "imaging")] = target.Id;
             _steps.Add(new MultiRigStepDraft(
                 Derive(target.Id, "imaging"), tracks, ditherPolicy, SingleTrack: true, MeridianFlip: flip,
                 TargetStop: target.Limits.Count > 0 ? new StopConditionsDraft(target.Limits, conditionTarget) : null));
@@ -219,6 +220,11 @@ public static class SessionCompiler
                 else if (block.Repeat.Count is < 1)
                 {
                     Problem(block.Id, "A block needs at least 1 frame.");
+                }
+
+                if (block.Automation.Focus is { IsActive: false })
+                {
+                    Problem(block.Id, $"Autofocus of {rig.Name} is on but has no trigger. Choose when it should focus.");
                 }
 
                 var focus = block.Automation.Focus is { IsActive: true } f ? f : null;

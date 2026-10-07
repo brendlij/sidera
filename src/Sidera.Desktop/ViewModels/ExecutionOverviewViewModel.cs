@@ -207,6 +207,9 @@ public sealed partial class ExecutionOverviewViewModel : ViewModelBase, IDisposa
     /// <summary>A sequence is running (also while it is pausing or paused).</summary>
     public bool IsRunning => _sequencer.IsRunning;
 
+    /// <summary>The last run is over: it completed, failed or was cancelled.</summary>
+    public bool HasEnded => _sequencer.State is Sidera.Core.Sequencing.SequenceState.Completed or Sidera.Core.Sequencing.SequenceState.Failed or Sidera.Core.Sequencing.SequenceState.Cancelled;
+
     /// <summary>The steps of the sequence in order with what each is at (pending, active, done); a flat list, with the depth in each.</summary>
     public IReadOnlyList<SequenceNodeViewModel> Nodes => _sequencer.Definition;
 

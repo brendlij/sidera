@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:session="using:Sidera.Desktop.Views.Session"
+             x:Class="Sidera.Desktop.Views.Session.ActionEditorView"
+             x:DataType="vm:ActionEditorViewModel">
+
+    <!-- One action opened: only the values it has. It never asks for a device: it works with the imaging setup it is in. -->
+    <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="eyebrow" Text="ACTION" />
+                <TextBlock Classes="section-title" Text="{Binding Title}" AutomationProperties.AutomationId="ActionTitle" />
+                <TextBlock Classes="secondary" Text="{Binding Description}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="ghost" Content="{Binding BackText}" Command="{Binding BackToBlockCommand}" VerticalAlignment="Top" AutomationProperties.Name="Back" />
+        </Grid>
+        <CheckBox Content="On" IsChecked="{Binding IsOn}" />
+
+        <ctl:LabeledField Label="{Binding SecondsLabel, StringFormat={}{0} (s)}" IsVisible="{Binding ShowsSeconds}">
+            <TextBox Text="{Binding SecondsText}" AutomationProperties.AutomationId="ActionSeconds" />
+        </ctl:LabeledField>
+
+        <ctl:LabeledField Label="Position (focuser steps)" IsVisible="{Binding ShowsPosition}">
+            <TextBox Text="{Binding PositionText}" />
+        </ctl:LabeledField>
+
+        <StackPanel Spacing="4" IsVisible="{Binding ShowsFilter}">
+            <ctl:LabeledField Label="Filter">
+                <ComboBox ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ActionFilter">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:FilterChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+            </ctl:LabeledField>
+            <TextBlock Classes="meta" Text="The imaging setup has no filter wheel." IsVisible="{Binding !HasFilters}" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12" IsVisible="{Binding ShowsFocus}">
+            <ctl:LabeledField Label="Exposure (s)"><TextBox Text="{Binding FocusExposureText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding FocusStepText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding FocusSamplesText}" /></ctl:LabeledField>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8" IsVisible="{Binding ShowsDither}">
+            <ctl:LabeledField Label="Amplitude (px)"><TextBox Text="{Binding DitherAmplitudeText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="1" Label="Settle ≤ (px)"><TextBox Text="{Binding DitherThresholdText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="2" Label="for (s)"><TextBox Text="{Binding DitherStableText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="3" Label="timeout (s)"><TextBox Text="{Binding DitherTimeoutText}" /></ctl:LabeledField>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12" IsVisible="{Binding ShowsCentering}">
+            <ctl:LabeledField Label="Tolerance (&quot;)"><TextBox Text="{Binding ToleranceText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="1" Label="Attempts"><TextBox Text="{Binding AttemptsText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="2" Label="Solve exposure (s)"><TextBox Text="{Binding SolveExposureText}" /></ctl:LabeledField>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="12" IsVisible="{Binding ShowsRamp}">
+            <ctl:LabeledField Label="Temperature (°C)" IsVisible="{Binding ShowsCooling}"><TextBox Text="{Binding CelsiusText}" /></ctl:LabeledField>
+            <ctl:LabeledField Grid.Column="1" Label="Over (min)"><TextBox Text="{Binding RampText}" /></ctl:LabeledField>
+        </Grid>
+
+        <CheckBox Content="Tracking on" IsChecked="{Binding TrackingOn}" IsVisible="{Binding ShowsTracking}" />
+
+        <StackPanel Spacing="8" IsVisible="{Binding ShowsConditions}">
+            <TextBlock Classes="secondary" Text="Waits until all of these hold:" />
+            <session:WaitFieldsView DataContext="{Binding Conditions}" />
+        </StackPanel>
+
+        <TextBlock Classes="meta" Text="Nothing to set." IsVisible="{Binding HasNothingToSet}" />
+        <TextBlock Classes="meta" Text="Works with the imaging setup of this sequence." IsVisible="{Binding InBlock}" />
+
+        <StackPanel Spacing="4" IsVisible="{Binding ShowsOverride}">
+            <Border Classes="divider" />
+            <ctl:LabeledField Label="Use setup (advanced)">
+                <ComboBox ItemsSource="{Binding OverrideChoices}" SelectedItem="{Binding SelectedOverride}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ActionSetupOverride">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:SetupChoice"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+            </ctl:LabeledField>
+            <TextBlock Classes="meta" Text="Only when this action should work with one setup and not with all that are imaged." TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
+            <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ActionProblem" />
+        </Border>
+
+        <Button Classes="danger" Content="Remove" Command="{Binding RemoveCommand}" HorizontalAlignment="Left" />
+    </StackPanel>
+</UserControl>

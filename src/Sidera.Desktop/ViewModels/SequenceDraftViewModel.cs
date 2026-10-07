@@ -164,7 +164,7 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public void MarkModified() => Modified?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Takes a target of the framing into the session as a workflow; <c>null</c> when it does not (the draft then adds the steps itself). Set by the workflow editor.</summary>
-    public Func<WorkflowTargetRequest, string?>? TargetSink { get; set; }
+    public Func<SessionTargetRequest, string?>? TargetSink { get; set; }
 
     /// <summary>Some field holds text that is not a number. The draft can still be shown, but not saved faithfully.</summary>
     public bool HasUnreadableFields { get; private set; }

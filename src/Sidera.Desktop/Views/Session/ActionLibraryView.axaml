@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             x:Class="Sidera.Desktop.Views.Session.ActionLibraryView"
+             x:DataType="vm:ActionLibraryViewModel">
+
+    <!-- The library of actions: only what can go where it was opened, narrowed by a group or by what is typed; a click or Enter adds. -->
+    <Border Classes="panel" Width="460" MaxHeight="560" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0" Padding="16,14"
+            AutomationProperties.AutomationId="ActionLibrary">
+        <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="card-title" Text="{Binding Heading}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="ghost" Content="✕" Command="{Binding CloseCommand}" ToolTip.Tip="Close (Esc)" AutomationProperties.Name="Close library" />
+            </Grid>
+            <TextBox x:Name="SearchBox" Text="{Binding Search}" PlaceholderText="Search actions" AutomationProperties.AutomationId="ActionSearch">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding ChooseSelectedCommand}" />
+                    <KeyBinding Gesture="Escape" Command="{Binding CloseCommand}" />
+                </TextBox.KeyBindings>
+            </TextBox>
+            <ItemsControl ItemsSource="{Binding Categories}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CategoryChip">
+                        <Button Classes="seq-tab" Classes.selected="{Binding IsSelected}" Content="{Binding Name}" Padding="10,4" Command="{Binding SelectCommand}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ListBox x:Name="Items" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" MaxHeight="340" AutomationProperties.AutomationId="ActionItems">
+                <ListBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding ChooseSelectedCommand}" />
+                    <KeyBinding Gesture="Escape" Command="{Binding CloseCommand}" />
+                </ListBox.KeyBindings>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ActionItem">
+                        <Button Classes="seq-pick" Command="{Binding $parent[UserControl].((vm:ActionLibraryViewModel)DataContext).ChooseCommand}" CommandParameter="{Binding}"
+                                AutomationProperties.Name="{Binding Title}">
+                            <Grid ColumnDefinitions="90,*" ColumnSpacing="8">
+                                <TextBlock Classes="meta" Text="{Binding CategoryText}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="1">
+                                    <TextBlock Classes="value" Text="{Binding Title}" />
+                                    <TextBlock Classes="meta" Text="{Binding Description}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Classes="secondary" Text="Nothing matches." IsVisible="{Binding !HasItems}" />
+        </StackPanel>
+    </Border>
+</UserControl>
