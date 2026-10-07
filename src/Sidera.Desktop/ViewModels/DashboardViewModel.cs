@@ -97,7 +97,7 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
     /// <summary>Rigs are optional: with none, the units are cameras and nothing says "rig".</summary>
     public bool UnitsAreRigs => _equipment.HasRigs;
 
-    public string UnitsTitle => _equipment.HasRigs ? "Rigs" : "Cameras";
+    public string UnitsTitle => _equipment.HasRigs ? "Imaging setups" : "Cameras";
 
     public bool HasUnits => Units.Count > 0;
 

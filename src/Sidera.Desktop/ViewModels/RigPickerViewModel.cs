@@ -15,8 +15,8 @@ public sealed record RigOption(RigId Id, string Name, string CameraText, bool Is
 {
     public string IdText => Id.Value;
 
-    /// <summary>The id and the primary camera, shown under the name.</summary>
-    public string DetailText => IsMissing ? string.Empty : $"{Id.Value} · {CameraText}";
+    /// <summary>What is shown under the name: the camera of the setup, or, for the setup that a single camera is on its own, that it is one. Never the id.</summary>
+    public string DetailText => IsMissing ? string.Empty : Id.Value.StartsWith("setup.implicit", StringComparison.Ordinal) ? "The camera on its own, no imaging setup made" : CameraText;
 
     public bool HasDetail => !IsMissing;
 }

@@ -35,8 +35,8 @@
             <StackPanel Spacing="20" Margin="0,0,12,0">
 
                 <!-- Why it cannot run, or that it can -->
-                <Border Classes="notice-danger" IsVisible="{Binding HasProblems}">
-                    <ItemsControl ItemsSource="{Binding Problems}">
+                <Border Classes="notice-danger" IsVisible="{Binding HasBannerProblems}">
+                    <ItemsControl ItemsSource="{Binding BannerProblems}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
                                 <TextBlock Classes="danger" Text="{Binding}" TextWrapping="Wrap" />
@@ -356,10 +356,6 @@
                     <!-- Wait -->
                     <session:WaitStepView IsVisible="{Binding ShowsWait}" />
 
-
-                    <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
-                        <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
-                    </Border>
 
                     <!-- The autofocus policy of the setup of an imaging block -->
                     <StackPanel Spacing="10" IsVisible="{Binding $parent[UserControl].((vm:WorkflowEditorViewModel)DataContext).HasPolicy}"

@@ -56,6 +56,6 @@ public static class WorkflowBindings
     /// <summary>The sentence for a reference that does not resolve, with what may have happened and what to do.</summary>
     public static string Unavailable(ImagingBindingId binding) =>
         binding.TryGetCamera(out var camera)
-            ? $"The imaging setup of camera '{camera}' is not available: the camera was removed or replaced, or it is one of several cameras and has no imaging setup. Choose another one."
+            ? $"The imaging setup of camera '{camera}' is not available (camera removed or replaced). Choose another one."
             : $"The imaging setup '{binding}' does not exist any more. Choose another one.";
 }

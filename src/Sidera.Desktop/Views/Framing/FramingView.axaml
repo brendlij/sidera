@@ -7,7 +7,7 @@
         Framing: choose an object, a rig and a survey; the field of the rig is drawn on the sky and can be dragged and turned. The plan touches no hardware;
         Slew and Center is the existing centering and never synchronizes the mount.
     -->
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{StaticResource InsetPage}" RowSpacing="12" MaxWidth="1600" HorizontalAlignment="Stretch">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{StaticResource InsetPage}" RowSpacing="12" HorizontalAlignment="Stretch">
         <ctl:PageHeader Title="Framing" />
 
         <Grid Grid.Row="1" ColumnDefinitions="2*,*,*" ColumnSpacing="12">
@@ -34,8 +34,8 @@
                     <ProgressBar IsIndeterminate="True" Height="3" IsVisible="{Binding IsSearching}" />
                 </StackPanel>
             </ctl:LabeledField>
-            <ctl:LabeledField Grid.Column="1" Label="Rig">
-                <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.Name="Rig">
+            <ctl:LabeledField Grid.Column="1" Label="Imaging setup">
+                <ComboBox ItemsSource="{Binding Rigs}" SelectedItem="{Binding SelectedRig}" HorizontalAlignment="Stretch" AutomationProperties.Name="Imaging setup">
                     <ComboBox.ItemTemplate><DataTemplate x:DataType="rig:Rig"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
                 </ComboBox>
             </ctl:LabeledField>

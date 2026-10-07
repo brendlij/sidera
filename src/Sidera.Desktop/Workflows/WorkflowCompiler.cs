@@ -91,7 +91,7 @@ public static class WorkflowCompiler
                     ? WorkflowBindings.Unavailable(missing)
                     : pool.Count > 1
                         ? $"There are several imaging setups ({string.Join(", ", pool.Select(r => r.Name))}): choose the one for this block."
-                        : "There is no imaging setup to image with. Connect a camera, or make an imaging setup on the Equipment page (needed when there is more than one camera: Sidera does not guess which one you mean)."));
+                        : "No imaging setup. Connect a camera or add a setup on the Equipment page; with several cameras Sidera does not guess."));
                 continue;
             }
 

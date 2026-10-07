@@ -116,6 +116,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Dashboard = new DashboardViewModel(
             Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, postToUi, page => SelectedPage = page);
 
+        StatusBar = new StatusBarViewModel(Sequencer, Execution, postToUi);
+
         PrimaryNavigation =
         [
             Item(AppPage.Dashboard, "Dashboard", "IconDashboard"),
@@ -206,6 +208,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The question that comes before real equipment moves; answered by the user, never by an environment variable.</summary>
     public HardwareSafetyViewModel Safety { get; } = new();
     public ExecutionOverviewViewModel Execution { get; }
+
+    /// <summary>The bar at the bottom of the window: what Sidera is doing now.</summary>
+    public StatusBarViewModel StatusBar { get; }
     public ImagingViewModel Imaging { get; }
     public RuntimeStatusViewModel Runtime { get; }
     public DiagnosticsViewModel Diagnostics { get; }
@@ -305,6 +310,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     {
         PlateSolve.Dispose();
         Framing.Dispose();
+        StatusBar.Dispose();
         Dashboard.Dispose();
         Execution.Dispose();
         Diagnostics.Dispose();

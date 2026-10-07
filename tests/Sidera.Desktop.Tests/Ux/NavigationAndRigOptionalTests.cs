@@ -154,7 +154,7 @@ public class NavigationAndRigOptionalTests
         Assert.Single(equipment.Focusers);
         Assert.Single(equipment.FilterWheels);
         Assert.True(app.Vm.Dashboard.UnitsAreRigs);
-        Assert.Equal("Rigs", app.Vm.Dashboard.UnitsTitle);
+        Assert.Equal("Imaging setups", app.Vm.Dashboard.UnitsTitle);
     }
 
     [Fact]

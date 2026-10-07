@@ -355,7 +355,7 @@ public sealed class MeridianFlipWorkflowTests : IAsyncLifetime
 
         vm.Sequencer.RunCommand.Execute(null);
         await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
-        await WaitAsync(() => editor.ImagingRows.Any(r => r.HasProgress), "frames on the imaging rows");
+        await WaitAsync(() => editor.ImagingRows.Any(r => r.ProgressText.StartsWith("Frame", StringComparison.Ordinal)), "frames on the imaging rows");
         clock.SetHourAngle(3);
         var seen = new HashSet<MeridianFlipState>();
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
@@ -386,7 +386,7 @@ public sealed class MeridianFlipWorkflowTests : IAsyncLifetime
 
         vm.Sequencer.RunCommand.Execute(null);
         await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
-        await WaitAsync(() => editor.ImagingRows.Any(r => r.HasProgress), "frames on the imaging rows");
+        await WaitAsync(() => editor.ImagingRows.Any(r => r.ProgressText.StartsWith("Frame", StringComparison.Ordinal)), "frames on the imaging rows");
         clock.SetHourAngle(3);
         await WaitAsync(() => editor.FlipStatuses.Single().Refresh_IsWaiting(), "the failed flip to wait");
 

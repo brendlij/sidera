@@ -21,7 +21,8 @@
                 <ctl:LabeledField Label="for (s)"><TextBox Text="{Binding DitherStableText}" Width="70" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
                 <ctl:LabeledField Label="timeout (s)"><TextBox Text="{Binding DitherTimeoutText}" Width="80" IsEnabled="{Binding IsEditable}" /></ctl:LabeledField>
             </WrapPanel>
-            <TextBlock Classes="secondary" Text="{Binding DitherSummary}" TextWrapping="Wrap" AutomationProperties.AutomationId="WorkflowDitherSummary" />
+            <TextBlock Classes="secondary" Text="{Binding DitherSummary}" TextWrapping="Wrap" IsVisible="{Binding DitherSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       AutomationProperties.AutomationId="WorkflowDitherSummary" />
         </StackPanel>
     </Border>
 

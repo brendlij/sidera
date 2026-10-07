@@ -97,6 +97,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         if (_execution is not null)
         {
             _execution.PropertyChanged += OnExecutionChanged;
+            _execution.Refreshed += OnExecutionRefreshed;
         }
     }
 
@@ -115,6 +116,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         if (_execution is not null)
         {
             _execution.PropertyChanged -= OnExecutionChanged;
+            _execution.Refreshed -= OnExecutionRefreshed;
         }
 
         foreach (var lane in _wiredLanes)
@@ -175,8 +177,15 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     public bool HasProblems => Problems.Count > 0;
 
-    /// <summary>Why the workflow cannot run yet, or what it will do.</summary>
-    public string CanRunText => HasProblems ? Problems[0] : IsEmpty ? "Add an imaging block to start." : ImagingRows.Count == 0 ? "Add an imaging block: the workflow images nothing yet." : "The workflow is complete.";
+    /// <summary>The problems that no row shows: they are about the target, the dither, the policies or the flip, or about nothing in particular. The ones of a row are said at the row, once.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBannerProblems))]
+    public partial IReadOnlyList<string> BannerProblems { get; private set; } = [];
+
+    public bool HasBannerProblems => BannerProblems.Count > 0;
+
+    /// <summary>Why the workflow cannot run yet (how many things to fix; they are said where they are), or what it will do.</summary>
+    public string CanRunText => HasProblems ? (Problems.Count == 1 ? "1 problem to fix." : string.Create(CultureInfo.InvariantCulture, $"{Problems.Count} problems to fix.")) : IsEmpty ? "Add an imaging block to start." : ImagingRows.Count == 0 ? "Add an imaging block: the workflow images nothing yet." : "The workflow is complete.";
 
     // ---- the target
 
@@ -232,7 +241,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         {
             if (!DitherEnabled)
             {
-                return "Off";
+                return string.Empty; // the checkbox says it
             }
 
             var counted = SelectedCounted?.IsAuto == false ? SelectedCounted.Name : ImagingRows.FirstOrDefault()?.SetupLabel ?? "the first setup";
@@ -1451,6 +1460,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         var definition = BuildDefinition();
         Definition = definition;
         var compilation = WorkflowCompiler.Compile(definition, _rigs, _defaults, ApplicationFlip, UsableIds);
+        _origins = compilation.Origins;
 
         var parse = AllRows.SelectMany(r => r.ParseProblems.Select(p => $"{LabelOf(r.Id)}: {p}")).Concat(_targetProblems).Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).Concat(_targetStopProblems).ToList();
         _unreadable = _targetProblems.Count > 0 || _ditherProblems.Count > 0 || _policyProblems.Count > 0 || _flipProblems.Count > 0;
@@ -1461,11 +1471,16 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         // The problems of the sequence that the compiled steps have, said at the row they came from.
         var perRow = AllRows.ToDictionary(r => r.Id, r => new List<string>(r.ParseProblems));
         var shown = new List<string>(parse);
+        var banner = new List<string>(_targetProblems.Concat(_ditherProblems).Concat(_policyProblems).Concat(_flipProblems).Concat(_targetStopProblems));
         foreach (var problem in compilation.Problems)
         {
             if (problem.ElementId is { } id && perRow.TryGetValue(id, out var list))
             {
                 list.Add(problem.Message);
+            }
+            else
+            {
+                banner.Add(problem.ElementId is { } other ? $"{LabelOf(other)}: {problem.Message}" : problem.Message);
             }
 
             shown.Add(problem.ElementId is { } known ? $"{LabelOf(known)}: {problem.Message}" : problem.Message);
@@ -1492,6 +1507,7 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         }
 
         Problems = shown.Distinct().ToList();
+        BannerProblems = banner.Distinct().ToList();
         UpdateLabels(definition, compilation);
         OnPropertyChanged(nameof(HasUnreadableFields));
         OnPropertyChanged(nameof(IsEmpty));
@@ -1738,7 +1754,15 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
 
     private void OnLaneChanged(object? sender, PropertyChangedEventArgs e) => RefreshProgress();
 
-    /// <summary>Shows what each setup is doing on its imaging rows: its frames, what it is at, and an autofocus it is running.</summary>
+    private void OnExecutionRefreshed(object? sender, EventArgs e) => RefreshProgress();
+
+    // What the compiler made each step of the sequence from: a step of the sequence to the block of the workflow it belongs to.
+    private IReadOnlyDictionary<Guid, Guid> _origins = new Dictionary<Guid, Guid>();
+
+    /// <summary>
+    /// Shows what each imaging row is doing, row by row: the block a setup is at shows its frame, what it is at and an autofocus it is running; a block that is done says so; the blocks that follow it on
+    /// the same setup wait (the blocks of one setup run one after another; only different setups run at the same time).
+    /// </summary>
     public void RefreshProgress()
     {
         if (_execution is null)
@@ -1747,13 +1771,66 @@ public sealed partial class WorkflowEditorViewModel : ViewModelBase, IWorkflowSo
         }
 
         SharedActivityText = _execution.IsRunning ? _execution.SharedActivity ?? string.Empty : string.Empty;
+
+        // The repetition of the frames of each block, in the sequence that runs.
+        var repeatOf = new Dictionary<Guid, SequenceNodeViewModel>();
+        foreach (var node in _execution.Nodes)
+        {
+            if (node.Kind == SequenceNodeKind.Repeat && node.DraftId is { } draft && _origins.TryGetValue(draft, out var block) && !repeatOf.ContainsKey(block))
+            {
+                repeatOf[block] = node;
+            }
+        }
+
+        // The block a setup is at: the first of its blocks whose frames are not all made.
+        var current = new Dictionary<RigId, Guid>();
+        foreach (var row in ImagingRows.Where(r => r.Block!.Enabled))
+        {
+            if (ResolvedSetup(row.Block!.Setup) is { } at && !current.ContainsKey(at.Id) && !(repeatOf.TryGetValue(row.Block.Id, out var repeat) && repeat.Status == NodeStatus.Done))
+            {
+                current[at.Id] = row.Block.Id;
+            }
+        }
+
         foreach (var row in ImagingRows)
         {
-            var rig = ResolvedSetup(row.Block!.Setup);
+            var block = row.Block!;
+            var rig = ResolvedSetup(block.Setup);
             var lane = rig is null || !_execution.IsRunning ? null : _execution.Lanes.FirstOrDefault(l => l.RigId == rig.Id);
-            row.ProgressText = lane?.FrameText ?? string.Empty;
-            row.ProgressFraction = lane?.FrameProgress ?? 0;
-            row.ActivityText = lane is null ? string.Empty : lane.HasFocus ? lane.FocusText : lane.CurrentStep;
+            if (lane is null || !block.Enabled || !repeatOf.TryGetValue(block.Id, out var node))
+            {
+                row.ProgressText = string.Empty;
+                row.ProgressFraction = 0;
+                row.ActivityText = string.Empty;
+                continue;
+            }
+
+            var count = (node.Node.Step as Sidera.Core.Sequencing.RepeatStep)?.Count ?? block.Frames;
+            if (node.Status == NodeStatus.Done)
+            {
+                row.ProgressText = string.Create(CultureInfo.InvariantCulture, $"{count} / {count} frames");
+                row.ProgressFraction = 1;
+                row.ActivityText = string.Empty;
+            }
+            else if (node.Status == NodeStatus.Failed)
+            {
+                row.ProgressText = "Failed";
+                row.ProgressFraction = 0;
+                row.ActivityText = string.Empty;
+            }
+            else if (current.TryGetValue(rig!.Id, out var at) && at == block.Id)
+            {
+                var frame = node.Status == NodeStatus.Active ? node.Iteration : null;
+                row.ProgressText = frame is { } made ? string.Create(CultureInfo.InvariantCulture, $"Frame {made} / {count}") : "Starting";
+                row.ProgressFraction = frame is { } started && count > 0 ? (double)(started - 1) / count : 0;
+                row.ActivityText = lane.HasFocus ? lane.FocusText : lane.CurrentStep;
+            }
+            else
+            {
+                row.ProgressText = "Queued";
+                row.ProgressFraction = 0;
+                row.ActivityText = string.Empty;
+            }
         }
     }
 

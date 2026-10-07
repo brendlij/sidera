@@ -179,7 +179,7 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Slew &amp; Center" />
                 </StackPanel>
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <ctl:InfoRow Label="Mount" Value="{Binding MountText}" />
                 <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding RightAscensionText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding DeclinationText}" /></ctl:FieldRow>
@@ -198,7 +198,7 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Rotate to Angle" />
                 </StackPanel>
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <ctl:FieldRow Label="Sky rotation" Unit="°"><TextBox Text="{Binding AngleText}" /></ctl:FieldRow>
                 <TextBlock Classes="secondary" Text="Turns the rotator by the calibration of the rig. Does not solve and does not check the result; the mount is never synchronized." TextWrapping="Wrap" />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
@@ -211,7 +211,7 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Rotate &amp; Verify" />
                 </StackPanel>
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <ctl:FieldRow Label="Sky rotation" Unit="°"><TextBox Text="{Binding AngleText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Tolerance" Unit="°"><TextBox Text="{Binding ToleranceText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Attempts"><TextBox Text="{Binding MaxAttemptsText}" /></ctl:FieldRow>
@@ -227,7 +227,7 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Center &amp; Rotate" />
                 </StackPanel>
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <ctl:InfoRow Label="Mount" Value="{Binding MountText}" />
                 <ctl:FieldRow Label="Right ascension" Unit="h"><TextBox Text="{Binding RightAscensionText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Declination" Unit="°"><TextBox Text="{Binding DeclinationText}" /></ctl:FieldRow>
@@ -261,7 +261,7 @@
         <DataTemplate DataType="{x:Type vm:PlateSolveStepDraftViewModel}" x:DataType="vm:PlateSolveStepDraftViewModel">
             <StackPanel Spacing="16">
                 <TextBlock Classes="section-title" Text="Plate Solve" />
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <ctl:FieldRow Label="Solve exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
                 <TextBlock Classes="secondary" Text="Captures and solves with the configured backend and solver defaults." />
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />
@@ -273,7 +273,7 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}STEP {0}}" />
                     <TextBlock Classes="section-title" Text="Autofocus" />
                 </StackPanel>
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <ctl:FieldRow Label="Exposure" Unit="s"><TextBox Text="{Binding ExposureText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Step size" Unit="steps"><TextBox Text="{Binding StepSizeText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Samples"><TextBox Text="{Binding SamplesText}" /></ctl:FieldRow>
@@ -325,7 +325,7 @@
                     <TextBlock Classes="eyebrow" Text="{Binding NumberLabel, StringFormat={}RIG TRACK {0}}" />
                     <TextBlock Classes="section-title" Text="{Binding Title}" />
                 </StackPanel>
-                <ctl:LabeledField Label="Rig"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Imaging setup"><ContentControl Content="{Binding Rig}" /></ctl:LabeledField>
                 <TextBlock Classes="secondary" Text="{Binding Summary}" TextWrapping="Wrap" />
 
                 <Border Classes="divider" />
