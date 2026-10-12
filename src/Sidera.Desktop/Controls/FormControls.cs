@@ -104,6 +104,16 @@ public sealed class PageHeader : ContentControl
     public static readonly StyledProperty<string?> SubtitleProperty =
         AvaloniaProperty.Register<PageHeader, string?>(nameof(Subtitle));
 
+    public static readonly StyledProperty<string?> HelpContextProperty =
+        AvaloniaProperty.Register<PageHeader, string?>(nameof(HelpContext));
+
+    /// <summary>Where the "?" of the header leads (see <c>HelpContexts</c>: "session", "settings:platesolving"); empty for a page that has no "?".</summary>
+    public string? HelpContext
+    {
+        get => GetValue(HelpContextProperty);
+        set => SetValue(HelpContextProperty, value);
+    }
+
     public string? Title
     {
         get => GetValue(TitleProperty);

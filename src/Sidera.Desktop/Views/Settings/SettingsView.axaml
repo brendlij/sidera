@@ -10,7 +10,7 @@
     <!-- Settings: the groups they will live in, and what is decided today. No switch that does nothing. -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="760" HorizontalAlignment="Left">
-            <ctl:PageHeader Title="Settings" />
+            <ctl:PageHeader Title="Settings" HelpContext="{Binding HelpContext}" />
             <Border Classes="notice-info">
                 <StackPanel Spacing="4">
                     <TextBlock Classes="secondary" Text="{Binding NoteText}" TextWrapping="Wrap" />

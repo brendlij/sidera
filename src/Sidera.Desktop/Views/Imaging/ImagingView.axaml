@@ -11,7 +11,7 @@
         the analysis of the frame and the manual autofocus beside it. What a camera does not support is not offered; what cannot be done now says why in one line.
     -->
     <Grid RowDefinitions="Auto,Auto,*" Margin="{StaticResource InsetPage}" RowSpacing="16">
-        <ctl:PageHeader Title="Imaging" Subtitle="{Binding SourceText}" />
+        <ctl:PageHeader Title="Imaging" Subtitle="{Binding SourceText}" HelpContext="imaging" />
 
         <Border Grid.Row="1" Classes="panel compact" IsVisible="{Binding HasCapture}">
             <StackPanel Spacing="10" DataContext="{Binding Capture}" x:DataType="vm:ImagingCaptureViewModel">

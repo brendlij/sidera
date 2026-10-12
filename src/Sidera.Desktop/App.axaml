@@ -9,6 +9,7 @@
              xmlns:equipment="using:Sidera.Desktop.Views.Equipment"
              xmlns:diagnostics="using:Sidera.Desktop.Views.Diagnostics"
              xmlns:settings="using:Sidera.Desktop.Views.Settings"
+             xmlns:help="using:Sidera.Desktop.Views.Help"
              RequestedThemeVariant="Dark">
 
     <!--
@@ -24,6 +25,7 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><settings:SettingsView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:PlateSolveViewModel}"><imaging:PlateSolveView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:FramingViewModel}"><framing:FramingView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:HelpViewModel}"><help:HelpView /></DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:DevicePickerViewModel}" x:DataType="vm:DevicePickerViewModel">
             <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" HorizontalAlignment="Stretch">

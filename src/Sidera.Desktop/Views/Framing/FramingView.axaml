@@ -8,7 +8,7 @@
         Slew and Center is the existing centering and never synchronizes the mount.
     -->
     <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{StaticResource InsetPage}" RowSpacing="12" HorizontalAlignment="Stretch">
-        <ctl:PageHeader Title="Framing" />
+        <ctl:PageHeader Title="Framing" HelpContext="framing" />
 
         <Grid Grid.Row="1" ColumnDefinitions="2*,*,*" ColumnSpacing="12">
             <ctl:LabeledField Label="Search an object (M31, NGC 7000, IC 434)">

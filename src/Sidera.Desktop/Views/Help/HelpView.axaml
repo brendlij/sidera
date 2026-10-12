@@ -1,0 +1,184 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             xmlns:help="using:Sidera.Desktop.Help"
+             xmlns:conv="using:Sidera.Desktop.Converters"
+             x:Class="Sidera.Desktop.Views.Help.HelpView"
+             x:DataType="vm:HelpViewModel">
+
+    <!--
+        Help: a tree of articles with a search on the left, the article on the right. An article is short: what to do, in steps; a picture with numbered markers; what to know; buttons that go to the page
+        it is about; and the articles that belong with it. The "?" in the header of a page opens the article of that page.
+    -->
+    <Grid ColumnDefinitions="296,*">
+        <Border Classes="panel" Margin="24,24,0,24" Padding="16">
+            <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+                <TextBlock Classes="page-title" Text="Help" />
+                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                    <TextBox Text="{Binding SearchText}" PlaceholderText="Search the help" AutomationProperties.Name="Search the help" AutomationProperties.AutomationId="HelpSearch" />
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding ClearSearchCommand}" IsVisible="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                            AutomationProperties.Name="Clear the search" ToolTip.Tip="Clear the search">
+                        <PathIcon Width="12" Height="12" Data="{StaticResource IconClose}" />
+                    </Button>
+                </Grid>
+                <TextBlock Grid.Row="2" Classes="meta" Text="{Binding ResultsText}" IsVisible="{Binding HasResultsText}" AutomationProperties.AutomationId="HelpResults" />
+                <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Groups}" AutomationProperties.AutomationId="HelpTree">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HelpGroupViewModel">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="eyebrow" Text="{Binding Title, Converter={x:Static conv:UpperCaseConverter.Instance}}" Margin="8,0,0,4" />
+                                    <ItemsControl ItemsSource="{Binding Links}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Spacing="0" /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:HelpLinkViewModel">
+                                                <Button Classes="seq-tab" Classes.selected="{Binding IsSelected}" Command="{Binding OpenCommand}" Content="{Binding Title}"
+                                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" AutomationProperties.Name="{Binding Title}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="900" HorizontalAlignment="Left" DataContext="{Binding Article}" x:DataType="vm:HelpArticleViewModel">
+
+                <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="‹ Back" Command="{Binding $parent[UserControl].((vm:HelpViewModel)DataContext).BackCommand}" AutomationProperties.AutomationId="HelpBack" />
+                        <Button Classes="ghost" Content="Close Help" Command="{Binding $parent[UserControl].((vm:HelpViewModel)DataContext).ReturnCommand}" AutomationProperties.AutomationId="HelpClose"
+                                ToolTip.Tip="Back to the page you came from" />
+                    </StackPanel>
+                    <TextBlock Classes="eyebrow" Text="{Binding SectionTitle, Converter={x:Static conv:UpperCaseConverter.Instance}}" Margin="0,16,0,0" />
+                    <TextBlock Classes="page-title" Text="{Binding Title}" TextWrapping="Wrap" AutomationProperties.AutomationId="HelpTitle" />
+                    <TextBlock Classes="secondary" Text="{Binding Intro}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border Classes="notice-info" IsVisible="{Binding $parent[UserControl].((vm:HelpViewModel)DataContext).HasNotice}">
+                    <TextBlock Text="{Binding $parent[UserControl].((vm:HelpViewModel)DataContext).NoticeText}" TextWrapping="Wrap" />
+                </Border>
+
+                <!-- A problem: what is wrong, why it usually is, what to check -->
+                <StackPanel Spacing="16" IsVisible="{Binding HasProblem}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="eyebrow" Text="PROBLEM" />
+                        <TextBlock Classes="value" Text="{Binding Problem.Problem}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="eyebrow" Text="LIKELY REASON" />
+                        <TextBlock Text="{Binding Problem.Reason}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="eyebrow" Text="WHAT TO CHECK" />
+                        <ItemsControl ItemsSource="{Binding Checks}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                        <TextBlock Classes="meta" Text="•" Margin="4,2,0,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Spacing="12" IsVisible="{Binding HasScreenshot}">
+                    <ctl:CalloutImage Resource="{Binding Screenshot.Resource}" Callouts="{Binding Callouts}" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Screenshot.Caption}" />
+                    <TextBlock Classes="meta" Text="{Binding Screenshot.Caption}" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Callouts}" IsVisible="{Binding HasCallouts}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="help:HelpCallout">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <Border Width="24" Height="24" CornerRadius="12" Background="{DynamicResource SideraAccent}">
+                                        <TextBlock Text="{Binding Number}" Foreground="{DynamicResource SideraOnAccent}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="12" IsVisible="{Binding HasSteps}">
+                    <TextBlock Classes="eyebrow" Text="STEPS" />
+                    <ItemsControl ItemsSource="{Binding Steps}" AutomationProperties.AutomationId="HelpSteps">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HelpStepLine">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+                                    <TextBlock Classes="value" Text="{Binding Number}" MinWidth="16" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="12" IsVisible="{Binding HasNotes}">
+                    <TextBlock Classes="eyebrow" Text="GOOD TO KNOW" />
+                    <ItemsControl ItemsSource="{Binding Notes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                    <TextBlock Classes="meta" Text="•" Margin="4,2,0,0" />
+                                    <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding}" TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="12" IsVisible="{Binding HasActions}">
+                    <TextBlock Classes="eyebrow" Text="GO TO" />
+                    <ItemsControl ItemsSource="{Binding Actions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HelpActionViewModel">
+                                <Button Classes="primary" Content="{Binding Label}" Command="{Binding GoCommand}" Margin="0,0,8,8" AutomationProperties.Name="{Binding Label}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="12" IsVisible="{Binding HasRelated}">
+                    <TextBlock Classes="eyebrow" Text="RELATED" />
+                    <ItemsControl ItemsSource="{Binding Related}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HelpRelatedViewModel">
+                                <Button Content="{Binding Title}" Command="{Binding OpenCommand}" Margin="0,0,8,8" AutomationProperties.Name="{Binding Title}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

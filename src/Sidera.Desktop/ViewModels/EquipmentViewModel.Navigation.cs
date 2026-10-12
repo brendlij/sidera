@@ -431,7 +431,24 @@ public sealed partial class EquipmentViewModel
 
     /// <summary>The section that is shown.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HelpContext))]
     public partial EquipmentSection SelectedSection { get; private set; }
+
+    /// <summary>Where the "?" of the page leads: the equipment, or the domes, or the imaging setups, whichever is open.</summary>
+    public string HelpContext => SelectedSection switch
+    {
+        EquipmentSection.Domes => "equipment:dome",
+        EquipmentSection.ImagingSetups => "equipment:setups",
+        _ => "equipment",
+    };
+
+    /// <summary>Shows a section (from a button of Help). A section that is not there (the imaging setups, while there are none) is replaced by the overview, and <c>false</c> says so.</summary>
+    public bool ShowSection(EquipmentSection section)
+    {
+        var shown = Sections.Any(s => s.Section == section) ? section : EquipmentSection.Overview;
+        SelectSection(shown);
+        return shown == section;
+    }
 
     /// <summary>The imaging setups are shown: their list, and the overview of the selected one.</summary>
     public bool IsImagingSetupsSection => SelectedSection == EquipmentSection.ImagingSetups;

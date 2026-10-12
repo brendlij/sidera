@@ -22,6 +22,7 @@ public enum AppPage
     PlateSolve,
     Equipment,
     Diagnostics,
+    Help,
     Settings
 }
 
@@ -131,6 +132,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, SetupContext, postToUi, page => SelectedPage = page);
 
         StatusBar = new StatusBarViewModel(Sequencer, Execution, postToUi);
+        Help = new HelpViewModel(NavigateTo, () => SelectedPage = _pageBeforeHelp);
 
         // What happens is said in one place: the messages at the top right.
         foreach (var talker in new ViewModelBase[] { SequenceDocument, Sequencer, Diagnostics, PlateSolve, Imaging.Autofocus!, Equipment })
@@ -155,6 +157,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         SecondaryNavigation =
         [
             Item(AppPage.Diagnostics, "Diagnostics", "IconDiagnostics"),
+            Item(AppPage.Help, "Help", "IconHelp"),
             Item(AppPage.Settings, "Settings", "IconSettings"),
         ];
         UpdateNavigation();
@@ -241,7 +244,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public ExecutionOverviewViewModel Execution { get; }
 
     /// <summary>The messages of the application: what happened, said at the top right of the window.</summary>
-    public Sidera.Desktop.Notifications.NotificationService Notifications { get; }
+    public new Sidera.Desktop.Notifications.NotificationService Notifications { get; }
 
     /// <summary>The bar at the bottom of the window: what Sidera is doing now.</summary>
     public StatusBarViewModel StatusBar { get; }
@@ -250,6 +253,11 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public DiagnosticsViewModel Diagnostics { get; }
     public SettingsViewModel Settings { get; }
     public PlateSolveViewModel PlateSolve { get; }
+
+    /// <summary>The Help page: articles with pictures and buttons, and the "?" of every page.</summary>
+    public HelpViewModel Help { get; }
+
+    private AppPage _pageBeforeHelp = AppPage.Dashboard;
     public FramingViewModel Framing { get; }
 
     /// <summary>The sidebar entries of the work: dashboard, session, imaging, equipment.</summary>
@@ -272,11 +280,58 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         AppPage.Equipment => Equipment,
         AppPage.Diagnostics => Diagnostics,
         AppPage.Settings => Settings,
+        AppPage.Help => Help,
         _ => Dashboard,
     };
 
     /// <summary>The name of the current page, as the sidebar names it.</summary>
     public string PageTitle => SelectedPage == AppPage.PlateSolve ? "Plate Solve" : SelectedPage.ToString();
+
+    partial void OnSelectedPageChanging(AppPage oldValue, AppPage newValue)
+    {
+        if (newValue == AppPage.Help && oldValue != AppPage.Help)
+        {
+            _pageBeforeHelp = oldValue;
+        }
+    }
+
+    /// <summary>Opens Help at the article of a context (see <see cref="Sidera.Desktop.Help.HelpContexts"/>): what the "?" of a page does.</summary>
+    public void OpenHelp(string? context)
+    {
+        Help.OpenFor(context);
+        SelectedPage = AppPage.Help;
+    }
+
+    // What a button of an article does: goes to the page, the settings tab or the section of the equipment. False when there is nothing to go to.
+    private bool NavigateTo(Sidera.Desktop.Help.HelpTarget target)
+    {
+        switch (target)
+        {
+            case Sidera.Desktop.Help.HelpPageTarget page:
+                if (page.Page == AppPage.Equipment)
+                {
+                    Equipment.ShowSetupView();
+                }
+
+                SelectedPage = page.Page;
+                return true;
+            case Sidera.Desktop.Help.HelpSettingsTarget settings:
+                if (Settings.Tabs.All(t => t.Key != settings.Tab))
+                {
+                    return false;
+                }
+
+                Settings.SelectTab(settings.Tab);
+                SelectedPage = AppPage.Settings;
+                return true;
+            case Sidera.Desktop.Help.HelpEquipmentTarget equipment:
+                var shown = Equipment.ShowSection(equipment.Section);
+                SelectedPage = AppPage.Equipment;
+                return shown;
+            default:
+                return false;
+        }
+    }
 
     partial void OnSelectedPageChanged(AppPage value)
     {

@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Sidera.Desktop.Controls.HelpButton">
+
+    <!-- The "?" of a page: opens Help at the article of that page. -->
+    <Button Classes="icon" Click="OnClick" ToolTip.Tip="Help for this page" AutomationProperties.Name="Help for this page" AutomationProperties.AutomationId="HelpButton">
+        <PathIcon Width="16" Height="16" Data="{StaticResource IconHelp}" />
+    </Button>
+</UserControl>

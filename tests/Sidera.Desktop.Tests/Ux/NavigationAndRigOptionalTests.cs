@@ -12,9 +12,9 @@ public class NavigationAndRigOptionalTests
 
         Assert.Equal(
             [AppPage.Dashboard, AppPage.Session, AppPage.Imaging, AppPage.Framing, AppPage.PlateSolve, AppPage.Equipment], app.Vm.PrimaryNavigation.Select(i => i.Page));
-        Assert.Equal([AppPage.Diagnostics, AppPage.Settings], app.Vm.SecondaryNavigation.Select(i => i.Page));
+        Assert.Equal([AppPage.Diagnostics, AppPage.Help, AppPage.Settings], app.Vm.SecondaryNavigation.Select(i => i.Page));
         Assert.Equal(
-            ["Dashboard", "Session", "Imaging", "Framing", "Plate Solve", "Equipment", "Diagnostics", "Settings"],
+            ["Dashboard", "Session", "Imaging", "Framing", "Plate Solve", "Equipment", "Diagnostics", "Help", "Settings"],
             app.Vm.PrimaryNavigation.Concat(app.Vm.SecondaryNavigation).Select(i => i.Title));
         Assert.DoesNotContain(app.Vm.PrimaryNavigation.Concat(app.Vm.SecondaryNavigation), i => i.Title == "Sequencer");
         Assert.All(app.Vm.PrimaryNavigation.Concat(app.Vm.SecondaryNavigation), i => Assert.StartsWith("Icon", i.IconKey));

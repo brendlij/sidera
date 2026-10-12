@@ -145,8 +145,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<SettingsTabViewModel> Tabs { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGeneral), nameof(IsAppearance), nameof(IsObservatory), nameof(IsPlateSolving), nameof(IsFraming), nameof(IsImaging), nameof(IsAutofocus), nameof(IsGuiding), nameof(IsMeridianFlip), nameof(IsSequencer), nameof(IsAdvanced))]
+    [NotifyPropertyChangedFor(nameof(HelpContext), nameof(IsGeneral), nameof(IsAppearance), nameof(IsObservatory), nameof(IsPlateSolving), nameof(IsFraming), nameof(IsImaging), nameof(IsAutofocus), nameof(IsGuiding), nameof(IsMeridianFlip), nameof(IsSequencer), nameof(IsAdvanced))]
     public partial string SelectedTabKey { get; private set; } = GeneralTab;
+
+    /// <summary>Where the "?" of the page leads: the settings and the tab that is open ("settings:platesolving").</summary>
+    public string HelpContext => "settings:" + SelectedTabKey;
 
     public bool IsGeneral => SelectedTabKey == GeneralTab;
     public bool IsAppearance => SelectedTabKey == AppearanceTab;

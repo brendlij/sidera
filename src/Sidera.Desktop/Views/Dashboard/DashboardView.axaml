@@ -28,7 +28,7 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="1600">
 
-            <ctl:PageHeader Title="{Binding Title}">
+            <ctl:PageHeader Title="{Binding Title}" HelpContext="dashboard">
                 <StackPanel Orientation="Horizontal" Spacing="20" VerticalAlignment="Center">
                     <TextBlock Classes="value-large" Text="{Binding ElapsedText}" IsVisible="{Binding HasElapsed}"
                                AutomationProperties.AutomationId="DashboardElapsed" />

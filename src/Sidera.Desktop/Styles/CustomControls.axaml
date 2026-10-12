@@ -101,8 +101,11 @@
                         <TextBlock Text="{TemplateBinding Subtitle}" Classes="secondary" TextTrimming="CharacterEllipsis"
                                    IsVisible="{Binding Subtitle, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
-                    <ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                                      VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center" />
+                        <ctl:HelpButton Context="{TemplateBinding HelpContext}" VerticalAlignment="Center"
+                                        IsVisible="{Binding HelpContext, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
                 </Grid>
             </ControlTemplate>
         </Setter>

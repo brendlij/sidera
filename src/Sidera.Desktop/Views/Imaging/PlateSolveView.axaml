@@ -3,7 +3,7 @@
  xmlns:mount="using:Sidera.Core.Mounts"
  x:Class="Sidera.Desktop.Views.Imaging.PlateSolveView" x:DataType="vm:PlateSolveViewModel">
  <ScrollViewer><StackPanel Margin="{StaticResource InsetPage}" Spacing="16" MaxWidth="950" HorizontalAlignment="Left">
-  <ctl:PageHeader Title="Plate Solve" />
+  <ctl:PageHeader Title="Plate Solve" HelpContext="platesolve" />
   <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
    <ctl:LabeledField Grid.Column="1" Label="Mount" IsVisible="{Binding HasMountChoice}"><ComboBox ItemsSource="{Binding Mounts}" SelectedItem="{Binding SelectedMount}" AutomationProperties.AutomationId="PlateSolveMount">
     <ComboBox.ItemTemplate><DataTemplate x:DataType="mount:IMount"><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>

@@ -107,6 +107,11 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   after eight, an error stays until it is closed; at most three are shown, the others wait; the same message while it is shown counts up (×3) instead of stacking; pointing at one holds its clock. A message can
   have a button ("Open Diagnostics" after a failed run), a close button, and Escape closes the one that has the focus. Each severity has its own icon and word, so Red Night (one hue) is still readable. The last
   ten are listed on the Diagnostics page. A value that was typed wrongly is still told next to its field, and the status bar still says what Sidera is doing now.
+- **Help:** the Help entry of the sidebar (above Settings) holds the manual of the application: a tree of topics (Start Here, Sequencing, Imaging, Astrometry, Mount & Guiding, Observatory, Troubleshooting, Reference)
+  and a search over titles and text. Articles number what they show: a picture of the real page with numbered markers, and a list that says what each number is. An article can link to another article and
+  open the page it is about ("Open Equipment"). Every page and every tab of Settings has a "?" that opens the article of what you are looking at; the troubleshooting articles say Problem, Likely reason,
+  What to check and a button to the page where it is fixed. Help only describes what Sidera does today. The content is plain data in `Help/` (articles, contexts), the pictures are in `Assets/Help`,
+  and `tools/help-screenshots` takes them again.
 - **Themes:** Settings → Appearance: Sidera Dark (the default), Midnight, Graphite, Red Night (black and red only, for night vision at the telescope) and Light. A theme is shown as soon as you choose it; Save keeps it
   for the next start, Discard goes back to the saved one. Each theme is one palette file in `Styles/Themes`; views and styles take their colours from the tokens, so a theme changes nothing but colours.
 - **Settings:** tabs for General, Appearance, Observatory, Imaging, Autofocus, Guiding, Plate solving, Framing, Meridian Flip, Sequencer and Advanced. Each editable tab is saved with its own Save

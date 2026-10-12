@@ -8,7 +8,7 @@
     <!-- Diagnostics: the facts of this session, compactly, and the way to its log. No log viewer. -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="760" HorizontalAlignment="Left">
-            <ctl:PageHeader Title="Diagnostics" Subtitle="The log of this session. Attach the file to a bug report." />
+            <ctl:PageHeader Title="Diagnostics" Subtitle="The log of this session. Attach the file to a bug report." HelpContext="diagnostics" />
 
             <StackPanel Spacing="12">
                 <TextBlock Classes="eyebrow" Text="SESSION" />

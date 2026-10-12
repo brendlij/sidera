@@ -38,6 +38,7 @@
 
             <!-- The run: its state, and its controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                <ctl:HelpButton Context="session" VerticalAlignment="Center" />
                 <ctl:StatusIndicator Kind="{Binding Sequencer.StateKind}" Text="{Binding Sequencer.StateText}" />
                 <Border Width="1" Height="24" Background="{DynamicResource SideraLine}" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
