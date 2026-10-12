@@ -8,5 +8,6 @@ public enum DeviceType
     FilterWheel,
     Guider,
     Rotator,
-    Weather
+    Weather,
+    Dome
 }

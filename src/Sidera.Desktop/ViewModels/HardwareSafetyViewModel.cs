@@ -16,6 +16,7 @@ public enum MovingEquipment
 {
     Mount,
     Rotator,
+    Dome,
 }
 
 /// <summary>One piece of real equipment that an operation moves.</summary>
@@ -23,7 +24,12 @@ public sealed record MovementNotice(MovingEquipment Kind, DeviceId Device, strin
 {
     public string Key => $"{Kind}:{Device.Value}";
 
-    public string Text => Kind == MovingEquipment.Mount ? $"the mount ({DeviceName})" : $"the rotator ({DeviceName})";
+    public string Text => Kind switch
+    {
+        MovingEquipment.Mount => $"the mount ({DeviceName})",
+        MovingEquipment.Dome => $"the dome ({DeviceName})",
+        _ => $"the rotator ({DeviceName})",
+    };
 }
 
 /// <summary>
@@ -53,7 +59,9 @@ public sealed partial class HardwareSafetyViewModel : ObservableObject
 
     public string SafetyText => "Ensure the equipment can move safely.";
 
-    public string RememberText => "You are not asked again for this equipment until Sidera is closed.";
+    private bool _remembering = true;
+
+    public string RememberText => _remembering ? "You are not asked again for this equipment until Sidera is closed." : "You are asked each time for this.";
 
     /// <summary>How many pieces of equipment have been answered for in this run of Sidera.</summary>
     public int AnsweredCount => _answered.Count;
@@ -66,8 +74,13 @@ public sealed partial class HardwareSafetyViewModel : ObservableObject
             return null;
         }
 
-        var simulated = device is SimulatedMount or SimulatedRotator;
-        var right = kind == MovingEquipment.Mount ? device is IMount : device is IRotator;
+        var simulated = device is SimulatedMount or SimulatedRotator or SimulatedDome;
+        var right = kind switch
+        {
+            MovingEquipment.Mount => device is IMount,
+            MovingEquipment.Dome => device is Sidera.Core.Domes.IDome,
+            _ => device is IRotator,
+        };
         return simulated || !right ? null : new MovementNotice(kind, id, device.Name);
     }
 
@@ -75,10 +88,13 @@ public sealed partial class HardwareSafetyViewModel : ObservableObject
     /// Asks whether <paramref name="what"/> may go on, if it moves equipment that was not answered for yet. Returns at once with <c>true</c> when nothing is to be asked. <c>false</c> means the
     /// user cancelled: the caller does nothing.
     /// </summary>
-    public Task<bool> ConfirmAsync(string what, IEnumerable<MovementNotice?> equipment)
+    /// <param name="what">The title of the question.</param>
+    /// <param name="equipment">What moves.</param>
+    /// <param name="remember">The answer counts for this equipment until Sidera is closed (the default); with <c>false</c> it is asked every time (opening the shutter of a dome).</param>
+    public Task<bool> ConfirmAsync(string what, IEnumerable<MovementNotice?> equipment, bool remember = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(what);
-        var needed = equipment.OfType<MovementNotice>().DistinctBy(n => n.Key).Where(n => !_answered.Contains(n.Key)).ToList();
+        var needed = equipment.OfType<MovementNotice>().DistinctBy(n => n.Key).Where(n => !remember || !_answered.Contains(n.Key)).ToList();
         if (needed.Count == 0)
         {
             return Task.FromResult(true);
@@ -87,6 +103,8 @@ public sealed partial class HardwareSafetyViewModel : ObservableObject
         // A second question while one is open: the first one is answered "no", so that nothing waits forever.
         _pending?.TrySetResult(false);
         _asking = needed;
+        _remembering = remember;
+        OnPropertyChanged(nameof(RememberText));
         Title = what;
         Message = $"This operation will move {string.Join(" and ", needed.Select(n => n.Text))}.";
         _pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -100,9 +118,12 @@ public sealed partial class HardwareSafetyViewModel : ObservableObject
     [RelayCommand]
     private void Continue()
     {
-        foreach (var notice in _asking)
+        if (_remembering)
         {
-            _answered.Add(notice.Key);
+            foreach (var notice in _asking)
+            {
+                _answered.Add(notice.Key);
+            }
         }
 
         OnPropertyChanged(nameof(AnsweredCount));

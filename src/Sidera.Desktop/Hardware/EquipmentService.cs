@@ -587,6 +587,23 @@ public sealed partial class EquipmentService : IDevicePreferenceStore
             }
         }
 
+        if (configuration.Backend == DeviceBackend.Alpaca)
+        {
+            if (configuration.Type != DeviceType.Dome)
+            {
+                return "Sidera has Alpaca for domes only; there is no Alpaca " + configuration.Type + " yet.";
+            }
+
+            try
+            {
+                Sidera.Alpaca.AlpacaEndpoint.FromSettings(configuration.Settings);
+            }
+            catch (FormatException ex)
+            {
+                return ex.Message;
+            }
+        }
+
         return null;
     }
 

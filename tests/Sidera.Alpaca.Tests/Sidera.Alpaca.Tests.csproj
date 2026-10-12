@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Alpaca slice: protocol, discovery and the dome. Almost everything runs against a fake of the Alpaca server (no network). The tests against the ASCOM Alpaca simulators (OmniSim)
+    skip themselves unless SIDERA_ALPACA_TESTS=1, and they refuse every address but this computer's own (see AlpacaSimulatorFactAttribute).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sidera.Alpaca\Sidera.Alpaca.csproj" />
+    <ProjectReference Include="..\..\src\Sidera.Core\Sidera.Core.csproj" />
+  </ItemGroup>
+
+</Project>

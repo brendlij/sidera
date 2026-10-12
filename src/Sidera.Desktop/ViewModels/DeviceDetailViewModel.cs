@@ -335,6 +335,30 @@ public sealed class MountDetailViewModel : DeviceDetailViewModel
 
 }
 
+/// <summary>The dome, or the roll-off roof: the state of its shutter and the moves it supports. A dome belongs to the observatory, not to an imaging setup.</summary>
+public sealed class DomeDetailViewModel : DeviceDetailViewModel
+{
+    public DomeDetailViewModel(DomeViewModel dome, DeviceConfigurationViewModel? configuration = null)
+        : base(dome, configuration)
+    {
+        Dome = dome;
+        dome.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(DomeViewModel.IsRoof) or nameof(DomeViewModel.DriverText))
+            {
+                OnPropertyChanged(nameof(SectionTitle));
+                OnPropertyChanged(nameof(HasDriverText));
+            }
+        };
+    }
+
+    public DomeViewModel Dome { get; }
+
+    public string SectionTitle => Dome.IsRoof ? "ROLL-OFF ROOF" : "DOME";
+
+    public bool HasDriverText => Dome.DriverText.Length > 0;
+}
+
 /// <summary>The guider: whether it guides, start and stop; dither defaults, settling and the backend will be its settings.</summary>
 public sealed class GuiderDetailViewModel(GuiderViewModel guider, DeviceConfigurationViewModel? configuration = null)
     : DeviceDetailViewModel(guider, configuration)

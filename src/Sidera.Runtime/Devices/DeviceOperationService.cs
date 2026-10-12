@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Sidera.Core.Devices;
+using Sidera.Core.Domes;
 using Sidera.Core.FilterWheels;
 using Sidera.Core.Focusers;
 using Sidera.Core.Guiding;
@@ -168,6 +169,88 @@ public sealed class DeviceOperationService
         var rotator = DeviceLookup.Resolve<IRotatorControl>(_registry, rotatorId, "rotator");
         _logger.LogInformation("Halting rotator {DeviceId}", rotatorId);
         await Run("Rotator halt", rotatorId, () => rotator.HaltAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Opens the shutter of a dome (or the roof of a roll-off roof) and completes when it reports open. Takes the dome resource: nothing else moves it meanwhile. Explicit only: nothing in Sidera
+    /// opens a dome by itself.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The device is not registered or is not a dome.</exception>
+    public async Task OpenDomeShutterAsync(DeviceId domeId, CancellationToken cancellationToken = default)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, domeId, "dome");
+        _logger.LogInformation("Opening the shutter of dome {DeviceId} (it is {State})", domeId, dome.ShutterState);
+        await Run("Dome shutter open", domeId, async () =>
+        {
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(domeId)], cancellationToken))
+            {
+                await dome.OpenShutterAsync(cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Closes the shutter of a dome and completes when it reports closed; see <see cref="OpenDomeShutterAsync"/>.</summary>
+    public async Task CloseDomeShutterAsync(DeviceId domeId, CancellationToken cancellationToken = default)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, domeId, "dome");
+        _logger.LogInformation("Closing the shutter of dome {DeviceId} (it is {State})", domeId, dome.ShutterState);
+        await Run("Dome shutter close", domeId, async () =>
+        {
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(domeId)], cancellationToken))
+            {
+                await dome.CloseShutterAsync(cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Turns a dome to an azimuth (degrees) and completes when it has arrived.</summary>
+    public async Task SlewDomeToAsync(DeviceId domeId, double azimuthDegrees, CancellationToken cancellationToken = default)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, domeId, "dome");
+        _logger.LogInformation("Turning dome {DeviceId} to azimuth {Azimuth:0.##}°", domeId, azimuthDegrees);
+        await Run("Dome slew", domeId, async () =>
+        {
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(domeId)], cancellationToken))
+            {
+                await dome.SlewToAzimuthAsync(azimuthDegrees, cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Parks a dome and completes when it is parked.</summary>
+    public async Task ParkDomeAsync(DeviceId domeId, CancellationToken cancellationToken = default)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, domeId, "dome");
+        _logger.LogInformation("Parking dome {DeviceId}", domeId);
+        await Run("Dome park", domeId, async () =>
+        {
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(domeId)], cancellationToken))
+            {
+                await dome.ParkAsync(cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Sends a dome to its home position and completes when it is there.</summary>
+    public async Task FindDomeHomeAsync(DeviceId domeId, CancellationToken cancellationToken = default)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, domeId, "dome");
+        _logger.LogInformation("Sending dome {DeviceId} home", domeId);
+        await Run("Dome find home", domeId, async () =>
+        {
+            using (await _resources.AcquireAsync([ResourceId.ForDevice(domeId)], cancellationToken))
+            {
+                await dome.FindHomeAsync(cancellationToken);
+            }
+        });
+    }
+
+    /// <summary>Asks a dome to stop everything that moves (shutter and azimuth together). Takes no resource: a halt must work while an operation holds the dome.</summary>
+    public async Task HaltDomeAsync(DeviceId domeId, CancellationToken cancellationToken = default)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, domeId, "dome");
+        _logger.LogInformation("Halting dome {DeviceId}", domeId);
+        await Run("Dome halt", domeId, () => dome.HaltAsync(cancellationToken));
     }
 
     /// <summary>

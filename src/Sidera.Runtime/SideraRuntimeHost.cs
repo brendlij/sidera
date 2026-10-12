@@ -268,6 +268,14 @@ public sealed class SideraRuntimeHost : IAsyncDisposable
         return rotator;
     }
 
+    /// <summary>Creates a simulated dome (or, with <paramref name="shutterOnly"/>, a roll-off roof) and registers it. A dome belongs to the observatory, not to a rig.</summary>
+    public SimulatedDome AddSimulatedDome(DeviceId id, string name, bool shutterOnly = false, TimeSpan? shutterTime = null)
+    {
+        var dome = new SimulatedDome(id, name, EventBus, shutterOnly, shutterTime);
+        AddDevice(dome);
+        return dome;
+    }
+
     public SimulatedFocuser AddSimulatedFocuser(
         DeviceId id,
         string name,

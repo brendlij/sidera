@@ -151,7 +151,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     [InlineData("""{ "id": "bad id", "name": "A", "type": "Camera", "backend": "Simulator" }""", "not valid")]
     [InlineData("""{ "id": "camera.a", "type": "Camera", "backend": "Simulator" }""", "has no 'name'")]
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Telescope", "backend": "Simulator" }""", "unknown type 'Telescope'")]
-    [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "Alpaca" }""", "unknown backend 'Alpaca'")]
+    [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "Zigbee" }""", "unknown backend 'Zigbee'")]
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "ASCOM" }""", "has no ProgId")]
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "ASCOM", "settings": { "progId": " " } }""", "has no ProgId")]
     [InlineData("""{ "id": "wheel.a", "name": "A", "type": "FilterWheel", "backend": "ASCOM", "settings": { "progId": "X.Wheel" } }""", "does not support yet")]

@@ -21,11 +21,15 @@ public sealed record DriverChoice(string Group, string Text, DeviceBackend? Back
 
     public bool IsPhd2 => Backend == DeviceBackend.Phd2;
 
+    public bool IsAlpaca => Backend == DeviceBackend.Alpaca;
+
     public static DriverChoice None(string text) => new(string.Empty, text, null, null, null);
 
     public static DriverChoice Simulator => new("Sidera", "Simulator", DeviceBackend.Simulator, null, null);
 
     public static DriverChoice Phd2 => new("PHD2", "PHD2", DeviceBackend.Phd2, null, null);
+
+    public static DriverChoice Alpaca => new("Alpaca", "ASCOM Alpaca (network)", DeviceBackend.Alpaca, null, null);
 
     public static DriverChoice Ascom(string progId, string name) => new("ASCOM", name, DeviceBackend.Ascom, progId, name);
 
@@ -37,8 +41,15 @@ public sealed record DriverChoice(string Group, string Text, DeviceBackend? Back
     {
         DeviceBackend.Ascom => DeviceConfiguration.Ascom(id, Text, type, ProgId!, DriverName),
         DeviceBackend.Phd2 => new DeviceConfiguration(id, Text, type, DeviceBackend.Phd2, settings ?? Sidera.Phd2.Phd2Endpoint.Default.ToSettings()),
+        DeviceBackend.Alpaca => new DeviceConfiguration(id, Text, type, DeviceBackend.Alpaca, settings ?? throw new ArgumentException("An Alpaca device needs the address of its server.", nameof(settings))),
         _ => DeviceConfiguration.Simulator(id, Text, type),
     };
+}
+
+/// <summary>A dome that an Alpaca server says it has: what the list of the search shows, and what choosing it fills in.</summary>
+public sealed record AlpacaFoundDome(string Name, string Host, int Port, int Number, string? ServerName)
+{
+    public string Text => ServerName is { Length: > 0 } ? $"{Name}  ·  {Host}:{Port}/{Number}  ·  {ServerName}" : $"{Name}  ·  {Host}:{Port}/{Number}";
 }
 
 /// <summary>
@@ -119,9 +130,19 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
     partial void OnSelectedChoiceChanged(DriverChoice? value)
     {
         OnPropertyChanged(nameof(IsPhd2Selected));
+        OnPropertyChanged(nameof(IsAlpacaSelected));
         SavePhd2Command.NotifyCanExecuteChanged();
+        UseAlpacaCommand.NotifyCanExecuteChanged();
+        SearchHostCommand.NotifyCanExecuteChanged();
+        SearchNetworkCommand.NotifyCanExecuteChanged();
         if (_syncing || value is null)
         {
+            return;
+        }
+
+        if (value.IsAlpaca)
+        {
+            // There is no address to guess: choosing Alpaca shows where to enter or search for it, and the device is made by "Use this dome".
             return;
         }
 
@@ -169,6 +190,9 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
         SetupCommand.NotifyCanExecuteChanged();
         RescanCommand.NotifyCanExecuteChanged();
         SavePhd2Command.NotifyCanExecuteChanged();
+        UseAlpacaCommand.NotifyCanExecuteChanged();
+        SearchHostCommand.NotifyCanExecuteChanged();
+        SearchNetworkCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>Reads the equipment again: the device of the slot and the choice that matches it.</summary>
@@ -184,6 +208,11 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
             {
                 Choices.Add(DriverChoice.Phd2);
             }
+
+            if (Type == DeviceType.Dome)
+            {
+                Choices.Add(DriverChoice.Alpaca);
+            }
         }
 
         var configuration = Device is null ? null : _management?.Service.ConfigurationOf(Device.DeviceIdText);
@@ -195,6 +224,16 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
             Phd2PortText = endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
             _phd2Filling = false;
         }
+        if (configuration is { Backend: DeviceBackend.Alpaca } && !_alpacaEdited && AlpacaEndpointOf(configuration) is { } alpacaEndpoint)
+        {
+            _alpacaFilling = true;
+            AlpacaHost = alpacaEndpoint.Host;
+            AlpacaPortText = alpacaEndpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            AlpacaNumberText = alpacaEndpoint.DeviceNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            AlpacaName = configuration.Name;
+            _alpacaFilling = false;
+        }
+
         DriverChoice? match = null;
         if (configuration is not null)
         {
@@ -448,6 +487,248 @@ public sealed partial class DeviceSlotViewModel : ViewModelBase
     }
 
     private bool CanSavePhd2() => _management is not null && !IsDeviceInUse && Device is not null && SelectedChoice is { IsPhd2: true };
+
+    // ---- ASCOM Alpaca: a dome on the network, at an address that is entered or found
+
+    /// <summary>The host of the Alpaca server as typed: a name or an address.</summary>
+    [ObservableProperty]
+    public partial string AlpacaHost { get; set; } = string.Empty;
+
+    /// <summary>The port of the Alpaca server as typed (11111 is the usual one of ASCOM Remote; simulators often use 32323).</summary>
+    [ObservableProperty]
+    public partial string AlpacaPortText { get; set; } = "11111";
+
+    /// <summary>The number of the device on that server: 0 for the first dome.</summary>
+    [ObservableProperty]
+    public partial string AlpacaNumberText { get; set; } = "0";
+
+    /// <summary>The name the dome is given in Sidera; what the search found, or what was typed.</summary>
+    [ObservableProperty]
+    public partial string AlpacaName { get; set; } = string.Empty;
+
+    /// <summary>What the search said: that it is asking, how many domes it found, or why it found none.</summary>
+    [ObservableProperty]
+    public partial string AlpacaSearchText { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool IsAlpacaSearching { get; private set; }
+
+    /// <summary>The domes that answered the last search; choosing one fills in the address.</summary>
+    public ObservableCollection<AlpacaFoundDome> AlpacaFound { get; } = [];
+
+    [ObservableProperty]
+    public partial AlpacaFoundDome? SelectedAlpacaFound { get; set; }
+
+    public bool IsAlpacaSelected => SelectedChoice is { IsAlpaca: true };
+
+    public bool HasAlpacaFound => AlpacaFound.Count > 0;
+
+    private bool _alpacaEdited;
+    private bool _alpacaFilling;
+    private int _alpacaVersion;
+
+    partial void OnAlpacaHostChanged(string value) => AlpacaChanged();
+
+    partial void OnAlpacaPortTextChanged(string value) => AlpacaChanged();
+
+    partial void OnAlpacaNumberTextChanged(string value) => AlpacaChanged();
+
+    partial void OnIsAlpacaSearchingChanged(bool value)
+    {
+        SearchHostCommand.NotifyCanExecuteChanged();
+        SearchNetworkCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedAlpacaFoundChanged(AlpacaFoundDome? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        _alpacaFilling = true;
+        AlpacaHost = value.Host;
+        AlpacaPortText = value.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        AlpacaNumberText = value.Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        AlpacaName = value.Name;
+        _alpacaFilling = false;
+        _alpacaEdited = true;
+        UseAlpacaCommand.NotifyCanExecuteChanged();
+    }
+
+    private void AlpacaChanged()
+    {
+        _alpacaEdited |= !_alpacaFilling;
+        UseAlpacaCommand.NotifyCanExecuteChanged();
+    }
+
+    private static Sidera.Alpaca.AlpacaEndpoint? AlpacaEndpointOf(DeviceConfiguration configuration)
+    {
+        try
+        {
+            return Sidera.Alpaca.AlpacaEndpoint.FromSettings(configuration.Settings);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    private bool TryAlpacaEndpoint(out Sidera.Alpaca.AlpacaEndpoint endpoint, out string problem)
+    {
+        endpoint = null!;
+        var host = AlpacaHost?.Trim() ?? string.Empty;
+        if (!int.TryParse(AlpacaPortText?.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out _))
+        {
+            problem = "The port must be a number from 1 to 65535.";
+            return false;
+        }
+
+        if (host.Contains(':', StringComparison.Ordinal) && !host.StartsWith('['))
+        {
+            host = "[" + host + "]"; // an IPv6 address
+        }
+
+        var number = string.IsNullOrWhiteSpace(AlpacaNumberText) ? "0" : AlpacaNumberText.Trim();
+        if (!Sidera.Alpaca.AlpacaEndpoint.TryParse($"{host}:{AlpacaPortText!.Trim()}/{number}", out var parsed, out var invalid))
+        {
+            problem = invalid ?? "The address of the Alpaca server is not valid.";
+            return false;
+        }
+
+        endpoint = parsed!;
+        problem = string.Empty;
+        return true;
+    }
+
+    /// <summary>Makes the dome of this slot the one at the address: a new dome, or the address of the Alpaca dome that is there (which must be disconnected). Connects nothing.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAlpaca))]
+    private void UseAlpaca()
+    {
+        ProblemText = string.Empty;
+        if (_management is null)
+        {
+            return;
+        }
+
+        if (!TryAlpacaEndpoint(out var endpoint, out var problem))
+        {
+            ProblemText = problem;
+            return;
+        }
+
+        var service = _management.Service;
+        var current = Device;
+        var configuration = current is null ? null : service.ConfigurationOf(current.DeviceIdText);
+        var name = string.IsNullOrWhiteSpace(AlpacaName) ? "Alpaca dome" : AlpacaName.Trim();
+        if (configuration is { Backend: DeviceBackend.Alpaca })
+        {
+            var updated = service.Update(configuration with { Settings = endpoint.ToSettings(), Name = name });
+            if (!updated.Succeeded)
+            {
+                ProblemText = updated.Problem ?? "The address could not be saved.";
+                return;
+            }
+
+            _alpacaEdited = false;
+            return;
+        }
+
+        // A dome of another driver is replaced, with the same id; if the new one cannot be made, the old one stays.
+        if (current is not null && _owner.Remove(current) is { } cannot)
+        {
+            Fail(cannot);
+            return;
+        }
+
+        var id = configuration?.Id ?? FreshId();
+        var wanted = new DeviceConfiguration(id, name, Type, DeviceBackend.Alpaca, endpoint.ToSettings());
+        var added = service.Add(configuration is null ? wanted with { Name = _owner.UniqueName(Type, name) } : wanted);
+        if (!added.Succeeded)
+        {
+            if (configuration is not null)
+            {
+                service.Add(configuration);
+            }
+
+            Fail(added.Problem ?? "The dome could not be set up.");
+            return;
+        }
+
+        _alpacaEdited = false;
+    }
+
+    private bool CanUseAlpaca() => _management is not null && !IsDeviceInUse && SelectedChoice is { IsAlpaca: true };
+
+    /// <summary>Asks the host that is typed whether an Alpaca server is there (one message to that host only) and lists its domes.</summary>
+    [RelayCommand(CanExecute = nameof(CanSearchAlpaca))]
+    private Task SearchHostAsync() => SearchAlpacaAsync(broadcast: false);
+
+    /// <summary>
+    /// Asks every device of the local network (one broadcast message) and lists the domes of the Alpaca servers that answer. Nothing is connected or moved; it is a question, and a server that
+    /// is not asked directly is only asked this way.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSearchAlpaca))]
+    private Task SearchNetworkAsync() => SearchAlpacaAsync(broadcast: true);
+
+    private bool CanSearchAlpaca() => _management?.Alpaca is not null && !IsAlpacaSearching && SelectedChoice is { IsAlpaca: true };
+
+    private async Task SearchAlpacaAsync(bool broadcast)
+    {
+        if (_management?.Alpaca is not { } discovery)
+        {
+            return;
+        }
+
+        var host = AlpacaHost?.Trim().Trim('[', ']') ?? string.Empty;
+        if (!broadcast && host.Length == 0)
+        {
+            AlpacaSearchText = "Enter the name or address of the computer or device to ask.";
+            return;
+        }
+
+        var version = ++_alpacaVersion;
+        IsAlpacaSearching = true;
+        AlpacaSearchText = broadcast ? "Asking the local network…" : $"Asking {host}…";
+        AlpacaFound.Clear();
+        OnPropertyChanged(nameof(HasAlpacaFound));
+        try
+        {
+            var request = new Sidera.Alpaca.AlpacaDiscoveryRequest { Hosts = broadcast ? [] : [host], Broadcast = broadcast, Timeout = TimeSpan.FromSeconds(broadcast ? 3 : 2) };
+            var result = await discovery.DiscoverAsync(request);
+            if (!broadcast && result.Servers.Count == 0 && int.TryParse(AlpacaPortText?.Trim(), out var port) && port is >= 1 and <= 65535)
+            {
+                // A server may not answer discovery (ASCOM Remote behind a router, for one) and still be there: ask it directly at the port that is typed.
+                result = await discovery.ProbeAsync(host, port);
+            }
+
+            if (version != _alpacaVersion)
+            {
+                return;
+            }
+
+            foreach (var server in result.Servers)
+            {
+                foreach (var dome in server.Domes)
+                {
+                    AlpacaFound.Add(new AlpacaFoundDome(dome.Name, server.Host, server.Port, dome.DeviceNumber, server.ServerName));
+                }
+            }
+
+            OnPropertyChanged(nameof(HasAlpacaFound));
+            AlpacaSearchText = AlpacaFound.Count > 0
+                ? AlpacaFound.Count == 1 ? "Found 1 dome. Choose it to fill in the address." : $"Found {AlpacaFound.Count} domes. Choose one to fill in the address."
+                : result.Servers.Count > 0 ? "An Alpaca server answered, but it has no dome."
+                : result.Problem ?? (broadcast ? "No Alpaca server answered on the local network." : $"No Alpaca server answered at {host}.");
+        }
+        finally
+        {
+            if (version == _alpacaVersion)
+            {
+                IsAlpacaSearching = false;
+            }
+        }
+    }
 
     private void Fail(string problem)
     {

@@ -78,7 +78,7 @@ public class NavigationAndRigOptionalTests
 
         equipment.Contexts[0].SelectCommand.Execute(null);
 
-        Assert.Equal(["Camera", "Focuser", "Filter Wheel", "Rotator", "Mount", "Guider"], equipment.Pages.Select(p => p.Title)); // every kind has its page: the first focuser is added there
+        Assert.Equal(["Camera", "Focuser", "Filter Wheel", "Rotator", "Mount", "Guider", "Dome"], equipment.Pages.Select(p => p.Title)); // every kind has its page: the first focuser is added there
     }
 
     [Fact]
@@ -207,10 +207,10 @@ public class NavigationAndRigOptionalTests
         equipment.Contexts.Single(c => c.IsStandalone).SelectCommand.Execute(null);
 
         Assert.Equal(
-            [EquipmentPage.Camera, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Rotator, EquipmentPage.Mount, EquipmentPage.Guider],
+            [EquipmentPage.Camera, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Rotator, EquipmentPage.Mount, EquipmentPage.Guider, EquipmentPage.Dome],
             equipment.Pages.Select(p => p.Page));
         var seen = 0;
-        foreach (var page in equipment.Pages.Where(p => p.Page != EquipmentPage.Rotator).ToList())
+        foreach (var page in equipment.Pages.Where(p => p.Page is not (EquipmentPage.Rotator or EquipmentPage.Dome)).ToList())
         {
             page.SelectCommand.Execute(null);
             var kind = equipment.SelectedDevice!.GetType();

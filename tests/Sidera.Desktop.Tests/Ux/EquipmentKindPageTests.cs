@@ -71,7 +71,7 @@ public sealed class EquipmentKindPageTests : IAsyncLifetime
         var (vm, _) = CreateApp();
         var equipment = vm.Equipment;
 
-        Assert.Equal(["Overview", "Cameras", "Focusers", "Filter Wheels", "Rotators", "Mounts", "Guiders"], equipment.Sections.Select(s => s.Title));
+        Assert.Equal(["Overview", "Cameras", "Focusers", "Filter Wheels", "Rotators", "Mounts", "Guiders", "Domes"], equipment.Sections.Select(s => s.Title));
         Assert.True(equipment.ShowSections); // the first device is added on the page of its kind
 
         Show(equipment, EquipmentSection.Cameras);

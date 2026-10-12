@@ -17,6 +17,9 @@ public enum DeviceBackend
 
     /// <summary>PHD2, guiding through the TCP server of a running PHD2; the settings are its host and port.</summary>
     Phd2,
+
+    /// <summary>ASCOM Alpaca: a device on the network, reached by the address of its server and its number.</summary>
+    Alpaca,
 }
 
 public static class DeviceBackends
@@ -25,6 +28,7 @@ public static class DeviceBackends
     {
         DeviceBackend.Ascom => "ASCOM",
         DeviceBackend.Phd2 => "PHD2",
+        DeviceBackend.Alpaca => "Alpaca",
         _ => "Simulator",
     };
 
@@ -40,6 +44,9 @@ public static class DeviceBackends
                 return true;
             case "PHD2":
                 backend = DeviceBackend.Phd2;
+                return true;
+            case "Alpaca":
+                backend = DeviceBackend.Alpaca;
                 return true;
             default:
                 backend = default;

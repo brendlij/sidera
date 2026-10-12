@@ -811,7 +811,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         var (vm, _, _) = CreateApp();
         var equipment = vm.Equipment;
 
-        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider", "Rotator"], equipment.Slots.Select(sl => sl.Title));
+        Assert.Equal(["Camera", "Mount", "Focuser", "Filter Wheel", "Guider", "Rotator", "Dome"], equipment.Slots.Select(sl => sl.Title));
         Assert.Null(equipment.SelectedSlot);
         Assert.All(equipment.Slots, sl =>
         {

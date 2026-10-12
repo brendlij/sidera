@@ -292,6 +292,23 @@ public static class EquipmentConfigurationSerializer
             }
         }
 
+        if (backend == DeviceBackend.Alpaca)
+        {
+            if (type != DeviceType.Dome)
+            {
+                throw new EquipmentConfigurationException($"The device '{id}' is an Alpaca {type}, which Sidera does not support yet.");
+            }
+
+            try
+            {
+                Sidera.Alpaca.AlpacaEndpoint.FromSettings(settings);
+            }
+            catch (FormatException ex)
+            {
+                throw new EquipmentConfigurationException($"The Alpaca device '{id}': {ex.Message}");
+            }
+        }
+
         return new DeviceConfiguration(id, name, type, backend, settings) { Preferences = preferences };
     }
 

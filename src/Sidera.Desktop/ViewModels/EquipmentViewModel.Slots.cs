@@ -29,6 +29,7 @@ public sealed partial class EquipmentViewModel
             new DeviceSlotViewModel(this, _management, EquipmentPage.FilterWheel, DeviceType.FilterWheel, "Filter Wheel", "No filter wheel"),
             new DeviceSlotViewModel(this, _management, EquipmentPage.Guider, DeviceType.Guider, "Guider", "No guider"),
             new DeviceSlotViewModel(this, _management, EquipmentPage.Rotator, DeviceType.Rotator, "Rotator", "No rotator"),
+            new DeviceSlotViewModel(this, _management, EquipmentPage.Dome, DeviceType.Dome, "Dome", "No dome"),
         ];
         foreach (var slot in Slots)
         {
@@ -70,6 +71,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.Focuser => DeviceType.Focuser,
         EquipmentPage.FilterWheel => DeviceType.FilterWheel,
         EquipmentPage.Rotator => DeviceType.Rotator,
+        EquipmentPage.Dome => DeviceType.Dome,
         _ => DeviceType.Guider,
     };
 
@@ -80,6 +82,7 @@ public sealed partial class EquipmentViewModel
         FocuserViewModel => DeviceType.Focuser,
         FilterWheelViewModel => DeviceType.FilterWheel,
         RotatorViewModel => DeviceType.Rotator,
+        DomeViewModel => DeviceType.Dome,
         _ => DeviceType.Guider,
     };
 
@@ -91,6 +94,7 @@ public sealed partial class EquipmentViewModel
         DeviceType.FilterWheel => _filterWheels.FirstOrDefault(),
         DeviceType.Guider => _guiders.FirstOrDefault(),
         DeviceType.Rotator => _rotators.FirstOrDefault(),
+        DeviceType.Dome => _domes.FirstOrDefault(),
         _ => null,
     };
 

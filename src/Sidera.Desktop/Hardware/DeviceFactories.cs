@@ -30,6 +30,9 @@ public sealed class SimulatorDeviceFactory(DemoOptions? options = null) : IDevic
     public const string MaxPositionKey = "maxPosition";
     public const string FiltersKey = "filters";
 
+    /// <summary>For a simulated dome: it is a roll-off roof (a shutter and no azimuth).</summary>
+    public const string ShutterOnlyKey = "shutterOnly";
+
     public static IReadOnlyList<string> DefaultFilters { get; } = ["L", "R", "G", "B", "Ha", "OIII", "SII"];
 
     private readonly DemoOptions _options = options ?? new DemoOptions();
@@ -56,6 +59,7 @@ public sealed class SimulatorDeviceFactory(DemoOptions? options = null) : IDevic
             DeviceType.FilterWheel => host.AddSimulatedFilterWheel(
                 id, name, Slots(configuration), moveDuration: _options.FilterWheelMoveDuration),
             DeviceType.Rotator => host.AddSimulatedRotator(id, name),
+            DeviceType.Dome => host.AddSimulatedDome(id, name, shutterOnly: string.Equals(configuration.Setting(ShutterOnlyKey), "true", StringComparison.OrdinalIgnoreCase)),
             _ => throw new NotSupportedException($"There is no simulated {configuration.Type}."),
         };
     }
@@ -106,6 +110,28 @@ public sealed class Phd2BackendFactory(Microsoft.Extensions.Logging.ILoggerFacto
             configuration.DeviceId, configuration.Name, endpoint, host.EventBus, loggers?.CreateLogger($"Sidera.Phd2.{configuration.Id}"));
         host.AddDevice(guider);
         return guider;
+    }
+}
+
+/// <summary>
+/// ASCOM Alpaca: a dome (or roll-off roof) on the network, at the host, port and device number of its settings. Creating it never connects and never sends anything: the first request goes out when
+/// the user connects the device.
+/// </summary>
+public sealed class AlpacaBackendFactory(Microsoft.Extensions.Logging.ILoggerFactory? loggers = null) : IDeviceFactory
+{
+    public DeviceBackend Backend => DeviceBackend.Alpaca;
+
+    public IDevice CreateAndAdd(SideraRuntimeHost host, DeviceConfiguration configuration)
+    {
+        if (configuration.Type != DeviceType.Dome)
+        {
+            throw new NotSupportedException($"Sidera has Alpaca for domes only; there is no Alpaca {configuration.Type} yet.");
+        }
+
+        var endpoint = Sidera.Alpaca.AlpacaEndpoint.FromSettings(configuration.Settings);
+        var dome = new Sidera.Alpaca.AlpacaDome(configuration.DeviceId, configuration.Name, endpoint, host.EventBus, loggers?.CreateLogger($"Sidera.Alpaca.{configuration.Id}"));
+        host.AddDevice(dome);
+        return dome;
     }
 }
 

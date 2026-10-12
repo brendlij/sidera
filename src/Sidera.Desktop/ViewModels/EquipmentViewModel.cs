@@ -22,7 +22,8 @@ namespace Sidera.Desktop.ViewModels;
 /// discovery of ASCOM drivers and the driver setup dialogs. Without it the page only shows what the host has (the tests of
 /// the pages, a host that is composed in code).
 /// </summary>
-public sealed record EquipmentManagement(EquipmentService Service, IAscomDiscovery Discovery, IAscomSetupService Setup, Sidera.Desktop.Settings.SiteService? Site = null);
+public sealed record EquipmentManagement(
+    EquipmentService Service, IAscomDiscovery Discovery, IAscomSetupService Setup, Sidera.Desktop.Settings.SiteService? Site = null, Sidera.Alpaca.IAlpacaDiscovery? Alpaca = null);
 
 /// <summary>
 /// The equipment page: a workspace with a browser on the left and the detail of what is selected on the right, in two
@@ -57,6 +58,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     private readonly List<RotatorViewModel> _rotators;
     private readonly List<MountViewModel> _mounts;
     private readonly List<GuiderViewModel> _guiders;
+    private readonly List<DomeViewModel> _domes;
     private readonly List<RigViewModel> _rigs;
     private bool _addingMany;
 
@@ -83,6 +85,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         _rotators = [.. devices.OfType<IRotator>().Select(r => new RotatorViewModel(r, host, postToUi, activity))];
         _mounts = [.. devices.OfType<IMount>().Select(m => new MountViewModel(m, host, postToUi, activity))];
         _guiders = [.. devices.OfType<IGuider>().Select(g => new GuiderViewModel(g, host, postToUi, activity))];
+        _domes = [.. devices.OfType<Sidera.Core.Domes.IDome>().Select(CreateDome)];
         _rigs = [];
         BuildRigs();
 
@@ -108,6 +111,10 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
     public IReadOnlyList<RotatorViewModel> Rotators => _rotators;
     public IReadOnlyList<MountViewModel> Mounts => _mounts;
     public IReadOnlyList<GuiderViewModel> Guiders => _guiders;
+    public IReadOnlyList<DomeViewModel> Domes => _domes;
+
+    /// <summary>The question that comes before real equipment moves; set by the shell. A dome that moves real equipment asks it first.</summary>
+    public HardwareSafetyViewModel? Safety { get; set; }
 
     /// <summary>Rigs are optional: nothing about them is shown when none is configured.</summary>
     public bool HasRigs => _rigs.Count > 0;
@@ -120,7 +127,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
 
     /// <summary>Every device, in display order.</summary>
     public IEnumerable<DeviceViewModelBase> Devices => _cameras.Cast<DeviceViewModelBase>()
-        .Concat(_focusers).Concat(_filterWheels).Concat(_rotators).Concat(_mounts).Concat(_guiders);
+        .Concat(_focusers).Concat(_filterWheels).Concat(_rotators).Concat(_mounts).Concat(_guiders).Concat(_domes);
 
     /// <summary>A device was added, replaced or removed, or rigs were added: pages that built something from the lists build it again.</summary>
     public event EventHandler? DevicesChanged;
@@ -147,9 +154,12 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                 () => _management?.Site?.PlateSolving ?? new Sidera.Desktop.Settings.PlateSolvingSettings()),
             MountViewModel mount => new MountDetailViewModel(mount, configuration, preferences, poll, _management?.Site),
             GuiderViewModel guider => new GuiderDetailViewModel(guider, configuration),
+            DomeViewModel dome => new DomeDetailViewModel(dome, configuration),
             _ => throw new NotSupportedException($"No detail for {device.GetType().Name}."),
         };
     }
+
+    private DomeViewModel CreateDome(Sidera.Core.Domes.IDome dome) => new(dome, _host, _postToUi, _activity, () => Safety);
 
     private CameraViewModel CreateCamera(ICamera camera) =>
         new(camera, _host, _postToUi, _activity, _imaging, _manualExposure);
@@ -162,6 +172,7 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         IRotator rotator => new RotatorViewModel(rotator, _host, _postToUi, _activity),
         IMount mount => new MountViewModel(mount, _host, _postToUi, _activity),
         IGuider guider => new GuiderViewModel(guider, _host, _postToUi, _activity),
+        Sidera.Core.Domes.IDome dome => CreateDome(dome),
         _ => null,
     };
 
@@ -412,6 +423,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
             case GuiderViewModel guider:
                 _guiders.Remove(guider);
                 break;
+            case DomeViewModel dome:
+                _domes.Remove(dome);
+                break;
         }
 
         if (_details.Remove(device, out var removedDetail))
@@ -451,6 +465,9 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
                 break;
             case GuiderViewModel guider:
                 Insert(_guiders, guider);
+                break;
+            case DomeViewModel dome:
+                Insert(_domes, dome);
                 break;
         }
     }

@@ -45,6 +45,34 @@
                 <Button Grid.Column="2" Content="Save" Command="{Binding SavePhd2Command}" VerticalAlignment="Bottom" AutomationProperties.Name="Save PHD2 settings"
                         ToolTip.Tip="Keeps the host and the port; the guider must be disconnected" />
             </Grid>
+            <!-- An Alpaca device is on the network: its address is entered, or found by asking the host or the local network. Nothing is connected or moved by any of it. -->
+            <StackPanel Spacing="8" IsVisible="{Binding IsAlpacaSelected}">
+                <Grid ColumnDefinitions="*,120,120" ColumnSpacing="8">
+                    <ctl:LabeledField Label="Alpaca host"><TextBox Text="{Binding AlpacaHost}" IsEnabled="{Binding CanChoose}" PlaceholderText="192.168.1.20 or a name" AutomationProperties.Name="Alpaca host" AutomationProperties.AutomationId="AlpacaHost" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Port"><TextBox Text="{Binding AlpacaPortText}" IsEnabled="{Binding CanChoose}" AutomationProperties.Name="Alpaca port" AutomationProperties.AutomationId="AlpacaPort" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="2" Label="Device number"><TextBox Text="{Binding AlpacaNumberText}" IsEnabled="{Binding CanChoose}" AutomationProperties.Name="Alpaca device number" AutomationProperties.AutomationId="AlpacaNumber" /></ctl:LabeledField>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Use this dome" Command="{Binding UseAlpacaCommand}" AutomationProperties.AutomationId="UseAlpaca"
+                            ToolTip.Tip="Sets up the dome at this address. Nothing is connected until you press Connect" />
+                    <Button Content="Ask this host" Command="{Binding SearchHostCommand}" AutomationProperties.AutomationId="SearchAlpacaHost"
+                            ToolTip.Tip="Sends one discovery message to the host above only and lists the domes that answer" />
+                    <Button Content="Search the network" Command="{Binding SearchNetworkCommand}" AutomationProperties.AutomationId="SearchAlpacaNetwork"
+                            ToolTip.Tip="Sends one discovery message to every device of the local network. Alpaca servers answer; nothing is connected or moved" />
+                </StackPanel>
+                <TextBlock Classes="meta" Text="{Binding AlpacaSearchText}" TextWrapping="Wrap" AutomationProperties.AutomationId="AlpacaSearchText"
+                           IsVisible="{Binding AlpacaSearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <ListBox ItemsSource="{Binding AlpacaFound}" SelectedItem="{Binding SelectedAlpacaFound, Mode=TwoWay}" MaxHeight="160" AutomationProperties.AutomationId="AlpacaFound"
+                         IsVisible="{Binding HasAlpacaFound}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AlpacaFoundDome">
+                            <TextBlock Text="{Binding Text}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock Classes="meta" TextWrapping="Wrap"
+                           Text="A roll-off roof is a dome with a shutter and no azimuth: it is set up the same way, and only shows what it can do." />
+            </StackPanel>
             <Border Classes="notice-danger" IsVisible="{Binding HasProblem}">
                 <TextBlock Classes="danger" Text="{Binding ProblemText}" TextWrapping="Wrap" />
             </Border>

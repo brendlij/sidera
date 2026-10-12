@@ -45,7 +45,7 @@ public partial class App : Application
             // start has none; the equipment page offers to add devices (ASCOM or simulated) or the simulated demo.
             var drivers = new ComAscomDriverFactory();
             var factories = new DeviceFactoryRegistry(
-                [new SimulatorDeviceFactory(), new AscomBackendFactory(new AscomDeviceFactory(drivers, host.LoggerFactory)), new Phd2BackendFactory(host.LoggerFactory)]);
+                [new SimulatorDeviceFactory(), new AscomBackendFactory(new AscomDeviceFactory(drivers, host.LoggerFactory)), new Phd2BackendFactory(host.LoggerFactory), new AlpacaBackendFactory(host.LoggerFactory)]);
             var equipmentFile = SideraEnvironment.Get("SIDERA_EQUIPMENT_FILE");
             if (string.IsNullOrWhiteSpace(equipmentFile))
             {
@@ -90,7 +90,8 @@ public partial class App : Application
                 equipment,
                 new AscomDiscovery(host.LoggerFactory.CreateLogger<AscomDiscovery>()),
                 new AscomSetupService(drivers, host.LoggerFactory.CreateLogger<AscomSetupService>()),
-                site);
+                site,
+                new Sidera.Alpaca.AlpacaDiscovery(host.LoggerFactory.CreateLogger<Sidera.Alpaca.AlpacaDiscovery>()));
 
             var filePicker = new AvaloniaSequenceFilePicker();
             var clipboard = new AvaloniaClipboardService();

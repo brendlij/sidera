@@ -21,6 +21,12 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   cooling controls; frames shown on the Imaging page.
 - **Mount:** slew, tracking, sync, park, hold-to-move pad, and a Stop that is always there. A large slew asks for confirmation.
 - **Focuser:** absolute and relative moves, halt, temperature.
+- **Dome and roll-off roof (ASCOM Alpaca):** Equipment → Domes. A dome is a shared device of the observatory, not part of an imaging setup. Choose *ASCOM Alpaca (network)*, enter the host, the port and the number of the
+  device, or ask a host (one discovery message to that host only, then its management API) or the whole local network (one broadcast; only when you press that button) and choose the dome that answers. Sidera speaks
+  Alpaca directly over HTTP (`src/Sidera.Alpaca`): no ASCOM Platform and no COM, and it contacts exactly the address you gave it. Creating the device and connecting it move nothing. The page shows only what the
+  device supports: a roll-off roof (a shutter and no azimuth) has the shutter and a halt; a dome also turns, parks and finds home. Opening the shutter of real equipment asks every time; turning, parking and going
+  home ask once per dome; closing the shutter and halting never ask. A shutter that was stopped halfway reports an error in most drivers: it can then be closed, not opened. While connected the state is read every
+  two seconds (a roof that closes by its own rain sensor shows as closed), and a dome that stops answering is shown as faulted. Sequencer actions for the dome are not there yet.
 - **Rotator:** absolute and relative moves, halt, sync and reverse where the driver supports them (the page shows only what the rotator can do). A rotator belongs to
   an imaging setup, which is optional. Its position is the mechanical angle of the driver and is never taken for the rotation of the sky in the image: that is a calibration of the
   setup, measured by one plate solve and kept with it. Rotating to a sky angle, verifying it with a solve and centering while rotating are described below.
@@ -125,6 +131,7 @@ The tests need no hardware: devices are simulators or fakes of the ASCOM drivers
 |---|---|
 | `src/Sidera.Core` | Device abstractions, capability model, acquisition model |
 | `src/Sidera.Runtime` | Runtime host, simulators, sequencing, autofocus |
+| `src/Sidera.Alpaca` | ASCOM Alpaca over HTTP: the protocol client, discovery (unicast per host, broadcast only on request), `AlpacaDome` |
 | `src/Sidera.Ascom` | ASCOM adapters: discovery, one STA thread per device, camera, mount, focuser |
 | `src/Sidera.Sky` | Sky surveys (HiPS), their disk cache and the object catalogs of the framing workspace |
 | `src/Sidera.Phd2` | PHD2 as a guider: the TCP event server protocol, `Phd2Guider`; nothing of the protocol leaves this project |
@@ -151,6 +158,7 @@ Tests that touch real devices are skipped unless you opt in with environment var
 | `SIDERA_ASCOM_MOUNT_TRACKING_OK=1`, `_SLEW_OK=1`, `_AXIS_OK=1` | Tracking toggle, a small slew and stop, a slow axis move |
 | `SIDERA_ASCOM_AUTOFOCUS_OK=1` | A real autofocus run (needs a star field) |
 | `SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1` | Writes the site that the mount reports back to it, unchanged (reading and validating the site needs no gate) |
+| `SIDERA_ALPACA_TESTS=1` | Tests against an ASCOM Alpaca simulator (OmniSim) at `SIDERA_ALPACA_SERVER` (default `127.0.0.1:32323`); they refuse every host except this computer. Start it bound to the loopback: `ascom.alpaca.simulators.exe --urls=http://127.0.0.1:32323` |
 | `SIDERA_PHD2_TESTS=1` | Connects to a running PHD2 (`SIDERA_PHD2_HOST`, `SIDERA_PHD2_PORT`, default 127.0.0.1:4400) and reads its state; moves nothing |
 | `SIDERA_PHD2_GUIDING_OK=1` | Starts and stops real guiding in PHD2 (its equipment must be connected, a guide star needed) |
 | `SIDERA_PHD2_DITHER_OK=1` | One real dither with its settle |

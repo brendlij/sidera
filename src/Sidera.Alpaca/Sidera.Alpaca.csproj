@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ASCOM Alpaca for Sidera: the REST API of ASCOM devices over the network (HTTP, JSON), spoken directly with HttpClient, with no ASCOM Platform and no COM, so it is not Windows-only.
+    Everything of the protocol stays in this project; Core, Runtime and Desktop only see the device types of Core. It contacts exactly the address it is given: discovery asks only the
+    hosts it is told to ask (or, when it is asked to, the local network), and nothing is followed to another host.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sidera.Core\Sidera.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sidera.Alpaca.Tests" />
+  </ItemGroup>
+
+</Project>

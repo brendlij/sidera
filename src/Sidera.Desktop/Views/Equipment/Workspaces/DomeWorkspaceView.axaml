@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Sidera.Desktop.ViewModels"
+             xmlns:ctl="using:Sidera.Desktop.Controls"
+             x:Class="Sidera.Desktop.Views.Equipment.Workspaces.DomeWorkspaceView"
+             x:DataType="vm:DomeDetailViewModel">
+
+    <!--
+        A dome, or a roll-off roof (a shutter and no azimuth): where its shutter stands, and the moves it supports. Only what the device says it supports is shown, so a roof has no azimuth,
+        no park and no home. Nothing here moves by itself; every move is a press of a button, and real equipment asks first.
+    -->
+    <StackPanel Spacing="8">
+        <WrapPanel>
+            <ctl:WorkspaceSection Header="{Binding SectionTitle}">
+                <StackPanel Spacing="2">
+                    <ctl:InfoRow Label="Type" Value="{Binding Dome.KindText}" />
+                    <ctl:InfoRow Label="Shutter" Value="{Binding Dome.ShutterText}" IsVisible="{Binding Dome.ShowShutter}" AutomationProperties.AutomationId="DomeShutter" />
+                    <ctl:InfoRow Label="Azimuth" Value="{Binding Dome.AzimuthText}" IsVisible="{Binding Dome.ShowAzimuth}" AutomationProperties.AutomationId="DomeAzimuth" />
+                    <ctl:InfoRow Label="Motion" Value="{Binding Dome.MotionText}" />
+                    <ctl:InfoRow Label="Park" Value="{Binding Dome.ParkText}" IsVisible="{Binding Dome.ShowPark}" />
+                    <ctl:InfoRow Label="Home" Value="{Binding Dome.HomeText}" IsVisible="{Binding Dome.ShowHome}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="SHUTTER" IsVisible="{Binding Dome.ShowShutter}">
+                <StackPanel Spacing="16" MaxWidth="360">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="primary" Content="Open" Command="{Binding Dome.OpenShutterCommand}" AutomationProperties.AutomationId="DomeOpenShutter" AutomationProperties.Name="Open shutter"
+                                ToolTip.Tip="Opens the shutter and waits until the dome reports it open" />
+                        <Button Content="Close" Command="{Binding Dome.CloseShutterCommand}" AutomationProperties.AutomationId="DomeCloseShutter" AutomationProperties.Name="Close shutter"
+                                ToolTip.Tip="Closes the shutter and waits until the dome reports it closed" />
+                    </StackPanel>
+                    <TextBlock Classes="meta" TextWrapping="Wrap" Text="Opening asks you first for real equipment, every time. Closing and stopping never ask." />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="TURN" IsVisible="{Binding Dome.ShowAzimuth}">
+                <StackPanel Spacing="16">
+                    <ctl:FieldRow Label="Azimuth" Unit="°"><TextBox Text="{Binding Dome.TargetInput}" AutomationProperties.Name="Dome azimuth" AutomationProperties.AutomationId="DomeAzimuthInput" /></ctl:FieldRow>
+                    <WrapPanel>
+                        <Button Classes="primary" Content="Turn" Command="{Binding Dome.SlewCommand}" Margin="0,0,8,8" AutomationProperties.Name="Turn dome" AutomationProperties.AutomationId="DomeTurn" />
+                        <Button Content="Park" Command="{Binding Dome.ParkCommand}" IsVisible="{Binding Dome.ShowPark}" Margin="0,0,8,8" AutomationProperties.Name="Park dome" />
+                        <Button Content="Find home" Command="{Binding Dome.FindHomeCommand}" IsVisible="{Binding Dome.ShowHome}" Margin="0,0,8,8" AutomationProperties.Name="Find home" />
+                    </WrapPanel>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="STOP" IsVisible="{Binding Dome.ShowHalt}">
+                <StackPanel Spacing="16">
+                    <Button Classes="danger" Content="Halt" Command="{Binding Dome.HaltCommand}" HorizontalAlignment="Left" AutomationProperties.AutomationId="DomeHalt" AutomationProperties.Name="Halt dome"
+                            ToolTip.Tip="Asks the dome to stop everything that moves: the shutter and the azimuth together" />
+                    <TextBlock Classes="meta" TextWrapping="Wrap" MaxWidth="360" Text="A dome has one stop for the shutter and the azimuth together. A shutter that is stopped halfway may report an error; it can then be closed, not opened." />
+                    <Border Classes="notice-danger" IsVisible="{Binding Dome.HasError}">
+                        <TextBlock Classes="danger" Text="{Binding Dome.ErrorMessage}" TextWrapping="Wrap" MaxWidth="360" />
+                    </Border>
+                </StackPanel>
+            </ctl:WorkspaceSection>
+
+            <ctl:WorkspaceSection Header="DRIVER" IsVisible="{Binding HasDriverText}">
+                <StackPanel Spacing="8" MaxWidth="420">
+                    <ctl:InfoRow Label="Reported by the device" Value="{Binding Dome.DriverText}" />
+                    <TextBlock Classes="meta" TextWrapping="Wrap" Text="{Binding Dome.NotesText}" IsVisible="{Binding Dome.NotesText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </ctl:WorkspaceSection>
+        </WrapPanel>
+    </StackPanel>
+</UserControl>

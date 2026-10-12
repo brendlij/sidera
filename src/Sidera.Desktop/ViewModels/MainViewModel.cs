@@ -122,6 +122,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         SequenceDocument.SessionSource = SessionEditor;
         SessionPage = new SessionPageViewModel(SequenceDocument, SequenceDraft, Sequencer, shared, Execution, SessionEditor);
         PlateSolve.Safety = Safety;
+        Equipment.Safety = Safety;
         Framing.Safety = Safety;
         Sequencer.Safety = Safety;
         Dashboard = new DashboardViewModel(

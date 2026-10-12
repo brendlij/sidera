@@ -21,6 +21,7 @@ public enum EquipmentPage
     FilterWheel,
     Guider,
     Rotator,
+    Dome,
 }
 
 /// <summary>
@@ -36,6 +37,7 @@ public enum EquipmentSection
     Rotators,
     Mounts,
     Guiders,
+    Domes,
     ImagingSetups,
 }
 
@@ -448,6 +450,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.Rotator => "Rotators",
         EquipmentPage.Mount => "Mounts",
         EquipmentPage.Guider => "Guiders",
+        EquipmentPage.Dome => "Domes",
         _ => "Overview",
     };
 
@@ -459,6 +462,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.Rotator => EquipmentSection.Rotators,
         EquipmentPage.Mount => EquipmentSection.Mounts,
         EquipmentPage.Guider => EquipmentSection.Guiders,
+        EquipmentPage.Dome => EquipmentSection.Domes,
         _ => EquipmentSection.Overview,
     };
 
@@ -624,12 +628,13 @@ public sealed partial class EquipmentViewModel
         FocuserViewModel => EquipmentPage.Focuser,
         FilterWheelViewModel => EquipmentPage.FilterWheel,
         RotatorViewModel => EquipmentPage.Rotator,
+        DomeViewModel => EquipmentPage.Dome,
         _ => EquipmentPage.Guider,
     };
 
     // The kinds in the order the equipment is described in: camera, focuser, filter wheel, rotator, mount, guider.
     private static readonly EquipmentPage[] KindPages =
-        [EquipmentPage.Camera, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Rotator, EquipmentPage.Mount, EquipmentPage.Guider];
+        [EquipmentPage.Camera, EquipmentPage.Focuser, EquipmentPage.FilterWheel, EquipmentPage.Rotator, EquipmentPage.Mount, EquipmentPage.Guider, EquipmentPage.Dome];
 
     private static string TitleOf(EquipmentPage page) => page switch
     {
@@ -639,6 +644,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.Focuser => "Focuser",
         EquipmentPage.FilterWheel => "Filter Wheel",
         EquipmentPage.Rotator => "Rotator",
+        EquipmentPage.Dome => "Dome",
         _ => "Guider",
     };
 
@@ -650,6 +656,7 @@ public sealed partial class EquipmentViewModel
         EquipmentPage.FilterWheel => _filterWheels,
         EquipmentPage.Rotator => _rotators,
         EquipmentPage.Guider => _guiders,
+        EquipmentPage.Dome => _domes,
         _ => [],
     };
 

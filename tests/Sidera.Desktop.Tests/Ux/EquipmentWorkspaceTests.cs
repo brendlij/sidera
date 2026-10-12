@@ -72,11 +72,11 @@ public class EquipmentWorkspaceTests
         Context(equipment, "Devices").SelectCommand.Execute(null);
 
         // No rotator is configured, and there is still a page for it: it is where the first one is added.
-        Assert.Equal(["Camera", "Focuser", "Filter Wheel", "Rotator", "Mount", "Guider"], equipment.Pages.Select(p => p.Title));
+        Assert.Equal(["Camera", "Focuser", "Filter Wheel", "Rotator", "Mount", "Guider", "Dome"], equipment.Pages.Select(p => p.Title));
         Assert.Equal(EquipmentPage.Camera, equipment.SelectedPage);
         Assert.True(equipment.IsDeviceWorkspace);
         Assert.Equal(["Cameras"], equipment.Breadcrumb.Select(b => b.Title).Skip(1));
-        Assert.Equal(["Overview", "Cameras", "Focusers", "Filter Wheels", "Rotators", "Mounts", "Guiders", "Imaging Setups"], equipment.Sections.Select(s => s.Title));
+        Assert.Equal(["Overview", "Cameras", "Focusers", "Filter Wheels", "Rotators", "Mounts", "Guiders", "Domes", "Imaging Setups"], equipment.Sections.Select(s => s.Title));
     }
 
     [Fact]

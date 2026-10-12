@@ -21,6 +21,7 @@ public sealed class DeviceWorkspaceTemplate : IDataTemplate
         MountDetailViewModel => new MountWorkspaceView(),
         GuiderDetailViewModel => new GuiderWorkspaceView(),
         RotatorDetailViewModel => new RotatorWorkspaceView(),
+        DomeDetailViewModel => new DomeWorkspaceView(),
         null => null,
         _ => new TextBlock { Text = $"No workspace for {param.GetType().Name}." },
     };
