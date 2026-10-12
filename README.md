@@ -69,7 +69,7 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   autofocus, restart guiding and wait until it settles, dither, pause. Every step after the flip is switchable; the settle is the guider's own, never a fixed delay, and the pause is
   additional. The mount is never synchronized. Setups on other mounts keep imaging and flip on their own. A failed flip (after its attempts) holds the setups of that mount until you retry
   or abort, or ends the session, as chosen. A target that is already past the meridian when imaging starts needs no flip. The status shows the countdown and, during the flip, what it
-  is doing. A real flip is only tested by hand with `SIDERA_MERIDIAN_FLIP_OK=1` (see `MeridianFlipHardwareTests`).
+  is doing. A real flip is only tested by hand (see `MeridianFlipHardwareTests` and `SIDERA_MERIDIAN_FLIP_TARGET`).
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
   with policies, plate solving, and multiple imaging setups in one sequence. Sequences are saved as `.astraseq` files. Steps of a setup choose an imaging setup, not a camera and a focuser; each step
   uses the mount and guider of its setup, and a new step of the tree starts with the current setup (the choice is shown only where there is one). With more than one setup the tree can be seen as Overview, one tab per setup, or Shared: the same steps, filtered. Setups on different
@@ -157,25 +157,19 @@ read by the application; a test is skipped unless its variable is set.
 
 ## Real-hardware tests
 
-Tests that touch real devices are skipped unless you opt in with environment variables. Reading is separate from moving:
+A test of a real device runs when you name the device; there is no second switch for moving it. Only run them when the area around the equipment is clear: a test with a gate that is open moves the device
+(a small, reversible move). A gate of the `_OK` kind is open unless it is set to `0`, `false`, `no` or `off`, and then the part that moves is left out.
 
 | Variable | Enables |
 |---|---|
-| `SIDERA_ASCOM_TESTS=1` | Tests against the ASCOM simulators (needs the ASCOM Platform) |
-| `SIDERA_ASCOM_ROTATOR` | The ProgId of a real rotator; connects and reads it |
-| `SIDERA_ASCOM_ROTATOR_OK=1` | A real rotator moves two degrees and back |
-| `SIDERA_ASCOM_CAMERA`, `SIDERA_ASCOM_FOCUSER`, `SIDERA_ASCOM_MOUNT` | The ProgId of the device; connects and reads it, short exposures, small focuser moves |
-| `SIDERA_ASCOM_CAMERA_STOP_OK=1` | Stop-exposure test |
-| `SIDERA_ASCOM_CAMERA_COOLING_OK=1` | Short cooling check |
-| `SIDERA_ASCOM_MOUNT_TRACKING_OK=1`, `_SLEW_OK=1`, `_AXIS_OK=1` | Tracking toggle, a small slew and stop, a slow axis move |
-| `SIDERA_ASCOM_AUTOFOCUS_OK=1` | A real autofocus run (needs a star field) |
-| `SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1` | Writes the site that the mount reports back to it, unchanged (reading and validating the site needs no gate) |
-| `SIDERA_ALPACA_TESTS=1` | Tests against an ASCOM Alpaca simulator (OmniSim) at `SIDERA_ALPACA_SERVER` (default `127.0.0.1:32323`); they refuse every host except this computer. Start it bound to the loopback: `ascom.alpaca.simulators.exe --urls=http://127.0.0.1:32323` |
-| `SIDERA_PHD2_TESTS=1` | Connects to a running PHD2 (`SIDERA_PHD2_HOST`, `SIDERA_PHD2_PORT`, default 127.0.0.1:4400) and reads its state; moves nothing |
-| `SIDERA_PHD2_GUIDING_OK=1` | Starts and stops real guiding in PHD2 (its equipment must be connected, a guide star needed) |
-| `SIDERA_PHD2_DITHER_OK=1` | One real dither with its settle |
-
-Every physical action has its own gate: no gate, no movement. Only run mount tests when the area around the mount is clear.
+| `SIDERA_ASCOM_CAMERA`, `SIDERA_ASCOM_FOCUSER`, `SIDERA_ASCOM_MOUNT`, `SIDERA_ASCOM_ROTATOR` | The ProgId of a real device: connects and reads it, short exposures, small focuser moves, a rotator move of two degrees and back, a short slew and stop, tracking and axis moves, stop-exposure, cooling, writing back the site it reports, a real autofocus (needs the camera and a focuser, and a star field) |
+| `SIDERA_MERIDIAN_FLIP_TARGET=<ra hours>,<dec degrees>` | With `SIDERA_ASCOM_MOUNT`: the flip test slews to this target (a target just past the meridian, mechanics clear). Without it the test only reads and reports where the meridian is |
+| `…_OK=0` | Leaves out what moves: `SIDERA_ASCOM_MOUNT_SLEW_OK`, `_TRACKING_OK`, `_AXIS_OK`, `_SITE_WRITE_OK`, `SIDERA_ASCOM_ROTATOR_OK`, `SIDERA_ASCOM_CAMERA_STOP_OK`, `_COOLING_OK`, `SIDERA_ASCOM_AUTOFOCUS_OK`, `SIDERA_MERIDIAN_FLIP_OK`, `SIDERA_PHD2_GUIDING_OK`, `SIDERA_PHD2_DITHER_OK` |
+| `SIDERA_ASCOM_TESTS=0` | Skips the tests against the ASCOM simulators; they run when the ASCOM Platform is installed |
+| `SIDERA_ALPACA_SERVER` | The Alpaca simulator (OmniSim) to test against, default `127.0.0.1:32323`; the tests run when it answers, and refuse every host except this computer. Start it bound to the loopback: `ascom.alpaca.simulators.exe --urls=http://127.0.0.1:32323`. `SIDERA_ALPACA_TESTS=0` skips them |
+| `SIDERA_PHD2_HOST`, `SIDERA_PHD2_PORT` | A running PHD2 (default 127.0.0.1:4400): the tests run when it answers; they read its state, and start and stop real guiding and one dither (its equipment must be connected, a guide star needed). `SIDERA_PHD2_TESTS=0` skips them |
+| `SIDERA_ASCOM_MANUAL=1` | The tests that open a dialog and wait for a person |
+| `SIDERA_ASTAP_TESTS=1` | The tests against the real ASTAP of this computer |
 
 ## Your data
 

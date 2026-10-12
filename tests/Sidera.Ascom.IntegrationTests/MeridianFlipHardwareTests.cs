@@ -10,8 +10,8 @@ namespace Sidera.Ascom.IntegrationTests;
 
 /// <summary>
 /// The physical part of a meridian flip on a real mount, for a person at the telescope. It runs only with <c>SIDERA_ASCOM_MOUNT=&lt;ProgId&gt;</c> and does nothing that moves the mount
-/// without <c>SIDERA_MERIDIAN_FLIP_OK=1</c> and a target that the person chose with <c>SIDERA_MERIDIAN_FLIP_TARGET=&lt;ra hours&gt;,&lt;dec degrees&gt;</c> (a target that is just past the meridian, with
-/// the mechanics clear). Without the gate it only reads and reports where the target is: its hour angle, the side of the pier, and when it crosses. With the gate it slews to the target, once,
+/// without a target that the person chose with <c>SIDERA_MERIDIAN_FLIP_TARGET=&lt;ra hours&gt;,&lt;dec degrees&gt;</c> (a target that is just past the meridian, with
+/// the mechanics clear). Without a target it only reads and reports where the target is: its hour angle, the side of the pier, and when it crosses. With one it slews (unless <c>SIDERA_MERIDIAN_FLIP_OK=0</c>) to the target, once,
 /// and reports the side of the pier before and after; plate solving, centering and guiding are not part of it (they have their own tests), and the mount is never synchronized.
 /// </summary>
 public sealed class MeridianFlipHardwareTests(ITestOutputHelper output)
@@ -52,9 +52,9 @@ public sealed class MeridianFlipHardwareTests(ITestOutputHelper output)
             var hourAngle = MeridianFlipTiming.HourAngleHours(target.Ra, DateTime.UtcNow, site!.LongitudeDegrees);
             output.WriteLine($"target RA {target.Ra:0.####} h Dec {target.Dec:0.###}°: hour angle {hourAngle * 60:0.#} min ({(hourAngle < 0 ? "crosses the meridian in" : "crossed the meridian")} {Math.Abs(hourAngle) * 60:0.#} min)");
 
-            if (Env("SIDERA_MERIDIAN_FLIP_OK") != "1")
+            if (!TestGates.Allowed("SIDERA_MERIDIAN_FLIP_OK"))
             {
-                output.WriteLine("SIDERA_MERIDIAN_FLIP_OK=1 is not set: the mount is not moved.");
+                output.WriteLine("SIDERA_MERIDIAN_FLIP_OK=0: the mount is not moved.");
                 return;
             }
 

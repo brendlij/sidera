@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace Sidera.Alpaca.Tests;
 
 /// <summary>
-/// A test against the ASCOM Alpaca simulators (OmniSim, or SkyHub Core with a simulator). It runs only with <c>SIDERA_ALPACA_TESTS=1</c> and talks to the address in
+/// A test against the ASCOM Alpaca simulators (OmniSim, or SkyHub Core with a simulator). It runs when a simulator answers (and not with <c>SIDERA_ALPACA_TESTS=0</c>), and talks to the address in
 /// <c>SIDERA_ALPACA_SERVER</c> (default <c>127.0.0.1:32323</c>). It refuses every host but this computer and the one address that belongs to the owner of this repository: a test never
 /// touches other equipment on the network, whatever the variable says. Start the simulator bound to the loopback: <c>ascom.alpaca.simulators.exe --urls=http://127.0.0.1:32323</c>.
 /// </summary>
@@ -20,13 +20,31 @@ public sealed class AlpacaSimulatorFactAttribute : FactAttribute
 
     public AlpacaSimulatorFactAttribute()
     {
-        if (SideraEnvironment.Get(Variable) != "1")
+        if (SideraEnvironment.Get(Variable)?.Trim().ToLowerInvariant() is "0" or "false" or "no" or "off")
         {
-            Skip = $"Needs an Alpaca simulator on this computer. Set {Variable}=1 to run it.";
+            Skip = $"{Variable}=0.";
         }
         else if (!AlpacaEndpoint.TryParse(Server(), out var endpoint, out _) || !AllowedHosts.Contains(endpoint!.Host, StringComparer.OrdinalIgnoreCase))
         {
             Skip = $"{ServerVariable} must name this computer ({string.Join(", ", AllowedHosts)}); the tests do not touch other devices.";
+        }
+        else if (!Answers(endpoint))
+        {
+            Skip = "Needs an Alpaca simulator on this computer: ascom.alpaca.simulators.exe --urls=http://127.0.0.1:32323";
+        }
+    }
+
+    // Only the allowed host is ever contacted, and only after it was checked above.
+    private static bool Answers(AlpacaEndpoint endpoint)
+    {
+        try
+        {
+            using var client = new System.Net.Sockets.TcpClient();
+            return client.ConnectAsync(endpoint.Host, endpoint.Port).Wait(TimeSpan.FromMilliseconds(500)) && client.Connected;
+        }
+        catch
+        {
+            return false;
         }
     }
 

@@ -295,7 +295,7 @@ public sealed class HardwareValidationTests(ITestOutputHelper output)
         }
     }
 
-    private static bool Gate(string name) => Env(name) == "1";
+    private static bool Gate(string name) => TestGates.Allowed(name);
 
     [HardwareFact("SIDERA_ASCOM_CAMERA")]
     public async Task TheRealCamera_Stop_KeepsTheImage_AndTheCameraIsUsableAfterwards_OnlyWithItsGate()
@@ -472,7 +472,7 @@ public sealed class HardwareValidationTests(ITestOutputHelper output)
                 $"temperature {t.CcdTemperature}, cooler on {s.CoolerOn}, target {s.TargetTemperature}, power {t.CoolerPower}");
             if (!Gate("SIDERA_ASCOM_CAMERA_COOLING_OK"))
             {
-                output.WriteLine("cooling commands NOT TESTED: SIDERA_ASCOM_CAMERA_COOLING_OK is not set");
+                output.WriteLine("cooling commands NOT TESTED: SIDERA_ASCOM_CAMERA_COOLING_OK=0");
                 return;
             }
 

@@ -2,27 +2,44 @@ using Sidera.Core;
 namespace Sidera.Ascom.IntegrationTests;
 
 /// <summary>
-/// A test that needs the installed ASCOM Platform and its simulators. It runs only when
-/// <c>SIDERA_ASCOM_TESTS=1</c> is set, so that the normal run of the tests needs neither the platform nor a Windows
-/// desktop session with drivers.
+/// A test that needs the installed ASCOM Platform and its simulators. It runs when the Platform is installed on this computer, and not when
+/// <c>SIDERA_ASCOM_TESTS=0</c> is set.
 /// </summary>
 public sealed class AscomFactAttribute : FactAttribute
 {
     public const string Variable = "SIDERA_ASCOM_TESTS";
 
+    private static readonly bool PlatformInstalled = IsPlatformInstalled();
+
+    private static bool IsPlatformInstalled()
+    {
+        try
+        {
+            return ASCOM.Com.PlatformUtilities.IsPlatformInstalled();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public AscomFactAttribute()
     {
-        if (SideraEnvironment.Get(Variable) != "1")
+        if (!TestGates.Allowed(Variable))
         {
-            Skip = $"Needs the ASCOM Platform and its simulators. Set {Variable}=1 to run it.";
+            Skip = $"{Variable}=0.";
+        }
+        else if (!PlatformInstalled)
+        {
+            Skip = "Needs the ASCOM Platform and its simulators; it is not installed on this computer.";
         }
     }
 }
 
 /// <summary>
 /// A test against real hardware. It runs only when the variable that names the device is set, for example
-/// <c>SIDERA_ASCOM_FOCUSER=ASCOM.EAF.Focuser</c>. Each test says what it does to the device and keeps it small and
-/// reversible; none of them is run by accident.
+/// <c>SIDERA_ASCOM_FOCUSER=ASCOM.EAF.Focuser</c>; that is the only thing to set. Each test says what it does to the device and keeps it small and
+/// reversible; a part of it that moves something is only left out when its own variable (<c>…_OK</c>) is set to 0.
 /// </summary>
 public sealed class HardwareFactAttribute : FactAttribute
 {

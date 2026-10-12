@@ -458,11 +458,11 @@ public sealed class HardwareFocuserHaltDiagnostics(ITestOutputHelper output)
 
 public sealed class HardwareCameraStopDiagnostics(ITestOutputHelper output)
 {
-    // What the driver itself does after StopExposure: observed, not assumed. Needs SIDERA_ASCOM_CAMERA_STOP_OK=1 besides the camera.
+    // What the driver itself does after StopExposure: observed, not assumed. Runs with the camera unless SIDERA_ASCOM_CAMERA_STOP_OK=0.
     [HardwareFact("SIDERA_ASCOM_CAMERA")]
     public async Task TheRealCamera_RawStopExposure_WhatTheDriverDoes()
     {
-        if (SideraEnvironment.Get("SIDERA_ASCOM_CAMERA_STOP_OK") != "1")
+        if (!TestGates.Allowed("SIDERA_ASCOM_CAMERA_STOP_OK"))
         {
             return;
         }

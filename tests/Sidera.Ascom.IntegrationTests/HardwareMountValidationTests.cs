@@ -9,11 +9,11 @@ using Xunit.Abstractions;
 namespace Sidera.Ascom.IntegrationTests;
 
 /// <summary>
-/// The real mount. Reading is safe and runs with <c>SIDERA_ASCOM_MOUNT</c>. Every physical action has a gate of its own and does
-/// nothing without it: <c>SIDERA_ASCOM_MOUNT_TRACKING_OK=1</c> (switches tracking once and puts it back),
-/// <c>SIDERA_ASCOM_MOUNT_SLEW_OK=1</c> (a slew of a fraction of a degree, and one that is stopped part of the way),
-/// <c>SIDERA_ASCOM_MOUNT_AXIS_OK=1</c> (the slowest rate of one axis for a second), <c>SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1</c> (writes the site the mount reports back to it, unchanged). Sync, park, unpark and find-home have no real
-/// test: they change the mount's model or its state and are only tested against the ASCOM simulator. Even with a gate set a test
+/// The real mount. Reading is safe and runs with <c>SIDERA_ASCOM_MOUNT</c>. Every physical action has a gate of its own that is open unless it is set to 0:
+/// <c>SIDERA_ASCOM_MOUNT_TRACKING_OK</c> (switches tracking once and puts it back),
+/// <c>SIDERA_ASCOM_MOUNT_SLEW_OK</c> (a slew of a fraction of a degree, and one that is stopped part of the way),
+/// <c>SIDERA_ASCOM_MOUNT_AXIS_OK</c> (the slowest rate of one axis for a second), <c>SIDERA_ASCOM_MOUNT_SITE_WRITE_OK</c> (writes the site the mount reports back to it, unchanged). Sync, park, unpark and find-home have no real
+/// test: they change the mount's model or its state and are only tested against the ASCOM simulator. Even with a gate open a test
 /// first checks that the driver's state looks alive: a mount that is not powered or linked answers with zeros and a standing clock.
 /// </summary>
 public sealed class HardwareMountValidationTests(ITestOutputHelper output)
@@ -22,7 +22,7 @@ public sealed class HardwareMountValidationTests(ITestOutputHelper output)
 
     private static string Env(string name) => SideraEnvironment.Get(name) ?? string.Empty;
 
-    private static bool Gate(string name) => Env(name) == "1";
+    private static bool Gate(string name) => TestGates.Allowed(name);
 
     private AscomMount NewMount() => new(new DeviceId("mount.real"), "Real Mount", Env("SIDERA_ASCOM_MOUNT"), Drivers, logger: new OutputLogger(output));
 
@@ -122,7 +122,7 @@ public sealed class HardwareMountValidationTests(ITestOutputHelper output)
     {
         if (!Gate("SIDERA_ASCOM_MOUNT_SITE_WRITE_OK"))
         {
-            output.WriteLine("NOT RUN: set SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=1 to write the site that the mount reports back to it.");
+            output.WriteLine("NOT RUN: SIDERA_ASCOM_MOUNT_SITE_WRITE_OK=0.");
             return;
         }
 

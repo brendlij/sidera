@@ -173,9 +173,9 @@ public sealed class RotatorSimulatorTests(ITestOutputHelper output)
     [HardwareFact("SIDERA_ASCOM_ROTATOR")]
     public async Task TheRealRotator_MovesTwoDegreesAndBack_OnlyWithItsGate()
     {
-        if (Env("SIDERA_ASCOM_ROTATOR_OK") != "1")
+        if (!TestGates.Allowed("SIDERA_ASCOM_ROTATOR_OK"))
         {
-            output.WriteLine("SIDERA_ASCOM_ROTATOR_OK=1 is not set: the rotator is not moved.");
+            output.WriteLine("SIDERA_ASCOM_ROTATOR_OK=0: the rotator is not moved.");
             return;
         }
 

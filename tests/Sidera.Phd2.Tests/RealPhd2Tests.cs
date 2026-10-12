@@ -5,22 +5,41 @@ using Xunit.Abstractions;
 
 namespace Sidera.Phd2.Tests;
 
-/// <summary>A test against a real PHD2; it runs only when its gate is set (<c>SIDERA_PHD2_TESTS=1</c> and so on).</summary>
+/// <summary>A test against a real PHD2; it runs when a PHD2 answers at its host and port, and not when its gate (<c>SIDERA_PHD2_TESTS</c> and so on) is set to 0.</summary>
 public sealed class Phd2FactAttribute : FactAttribute
 {
     public Phd2FactAttribute(string gate)
     {
-        if (SideraEnvironment.Get(gate) != "1")
+        if (!TestGates.Allowed(gate))
         {
-            Skip = $"Needs a running PHD2 with its server enabled. Set {gate}=1 to run it.";
+            Skip = $"{gate}=0.";
+        }
+        else if (!Answers())
+        {
+            Skip = "Needs a running PHD2 with its server enabled (SIDERA_PHD2_HOST and SIDERA_PHD2_PORT, 127.0.0.1:4400 by default).";
+        }
+    }
+
+    private static bool Answers()
+    {
+        var host = SideraEnvironment.Get("SIDERA_PHD2_HOST") ?? Phd2Endpoint.DefaultHost;
+        var port = int.TryParse(SideraEnvironment.Get("SIDERA_PHD2_PORT"), out var p) ? p : Phd2Endpoint.DefaultPort;
+        try
+        {
+            using var client = new System.Net.Sockets.TcpClient();
+            return client.ConnectAsync(host, port).Wait(TimeSpan.FromMilliseconds(500)) && client.Connected;
+        }
+        catch
+        {
+            return false;
         }
     }
 }
 
 /// <summary>
 /// The PHD2 guider against a real PHD2 (host and port from <c>SIDERA_PHD2_HOST</c> and <c>SIDERA_PHD2_PORT</c>, 127.0.0.1:4400 by default).
-/// <c>SIDERA_PHD2_TESTS=1</c> only connects and reads; it moves nothing. Guiding needs <c>SIDERA_PHD2_GUIDING_OK=1</c> (the equipment of PHD2
-/// connected, a star field to guide on) and a dither needs <c>SIDERA_PHD2_DITHER_OK=1</c>. A sky without a guide star is no failure of Sidera:
+/// The first test only connects and reads; it moves nothing. Guiding (the equipment of PHD2 connected, a star field to guide on) and a dither run too, unless
+/// <c>SIDERA_PHD2_GUIDING_OK=0</c> or <c>SIDERA_PHD2_DITHER_OK=0</c>. A sky without a guide star is no failure of Sidera:
 /// the test says that it could not run and why.
 /// </summary>
 public sealed class RealPhd2Tests(ITestOutputHelper output)

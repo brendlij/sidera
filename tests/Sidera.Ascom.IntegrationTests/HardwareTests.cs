@@ -17,14 +17,14 @@ namespace Sidera.Ascom.IntegrationTests;
 /// <summary>
 /// Real hardware, in the order of the manual validation: focuser, mount, camera, camera and the frame analysis, and
 /// camera with focuser in an autofocus. Every test is off until its variable names a ProgId, and every test keeps to small,
-/// reversible actions: the focuser moves a few hundred steps and comes back; the mount is only read unless a small
-/// slew is allowed explicitly; nothing is ever unparked.
+/// reversible actions: the focuser moves a few hundred steps and comes back; the mount slews a small way unless
+/// its gate is set to 0; nothing is ever unparked.
 /// <list type="bullet">
 /// <item><c>SIDERA_ASCOM_FOCUSER</c> the ProgId of a focuser: connects, reads, moves 200 steps and back.</item>
-/// <item><c>SIDERA_ASCOM_MOUNT</c> the ProgId of a mount: connects and reads its state. With <c>SIDERA_ASCOM_MOUNT_SLEW_OK=1</c>
-/// (the mount is in a safe place, clear of obstacles, not parked) it also slews 0.05 h east and back.</item>
+/// <item><c>SIDERA_ASCOM_MOUNT</c> the ProgId of a mount: connects and reads its state. Unless <c>SIDERA_ASCOM_MOUNT_SLEW_OK=0</c>
+/// (the mount must be in a safe place, clear of obstacles, not parked) it also slews 0.05 h east and back.</item>
 /// <item><c>SIDERA_ASCOM_CAMERA</c> the ProgId of a camera: connects, exposes 1 s, analyses the frame.</item>
-/// <item><c>SIDERA_ASCOM_CAMERA</c> and <c>SIDERA_ASCOM_FOCUSER</c> with <c>SIDERA_ASCOM_AUTOFOCUS_OK=1</c> (the telescope points
+/// <item><c>SIDERA_ASCOM_CAMERA</c> and <c>SIDERA_ASCOM_FOCUSER</c> unless <c>SIDERA_ASCOM_AUTOFOCUS_OK=0</c> (the telescope points
 /// at stars and the focuser is within reach of focus): an autofocus run with the unchanged algorithm.</item>
 /// </list>
 /// </summary>
@@ -148,7 +148,7 @@ public class HardwareTests(Xunit.Abstractions.ITestOutputHelper output)
     [HardwareFact("SIDERA_ASCOM_MOUNT")]
     public async Task TheRealMount_SlewsAShortWayAndBack_OnlyWhenTheUserSaidItIsSafe()
     {
-        if (Env("SIDERA_ASCOM_MOUNT_SLEW_OK") != "1")
+        if (!TestGates.Allowed("SIDERA_ASCOM_MOUNT_SLEW_OK"))
         {
             return; // reading is always safe; a slew is not: it needs the explicit word
         }
@@ -207,12 +207,12 @@ public class HardwareTests(Xunit.Abstractions.ITestOutputHelper output)
         }
     }
 
-    [HardwareFact("SIDERA_ASCOM_AUTOFOCUS_OK")]
+    [HardwareFact("SIDERA_ASCOM_FOCUSER")]
     public async Task TheRealCameraAndFocuser_RunTheUnchangedAutofocus()
     {
         var cameraProgId = Env("SIDERA_ASCOM_CAMERA");
         var focuserProgId = Env("SIDERA_ASCOM_FOCUSER");
-        if (cameraProgId.Length == 0 || focuserProgId.Length == 0 || Env("SIDERA_ASCOM_AUTOFOCUS_OK") != "1")
+        if (cameraProgId.Length == 0 || focuserProgId.Length == 0 || !TestGates.Allowed("SIDERA_ASCOM_AUTOFOCUS_OK"))
         {
             return;
         }
