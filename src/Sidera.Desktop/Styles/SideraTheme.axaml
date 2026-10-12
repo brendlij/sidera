@@ -12,4 +12,5 @@
     <StyleInclude Source="avares://Sidera.Desktop/Styles/Inputs.axaml" />
     <StyleInclude Source="avares://Sidera.Desktop/Styles/Lists.axaml" />
     <StyleInclude Source="avares://Sidera.Desktop/Styles/CustomControls.axaml" />
+    <StyleInclude Source="avares://Sidera.Desktop/Styles/Notifications.axaml" />
 </Styles>

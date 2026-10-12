@@ -33,6 +33,34 @@
                 </Border>
             </StackPanel>
 
+            <StackPanel Spacing="12" IsVisible="{Binding HasMessages}">
+                <TextBlock Classes="eyebrow" Text="RECENT MESSAGES" />
+                <Border Classes="panel">
+                    <StackPanel Spacing="12">
+                        <ItemsControl ItemsSource="{Binding RecentMessages}" AutomationProperties.AutomationId="DiagnosticsMessages">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MessageRow">
+                                    <Grid ColumnDefinitions="64,Auto,*" ColumnSpacing="12">
+                                        <TextBlock Classes="meta" Text="{Binding TimeText}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                        <ctl:StatusIndicator Grid.Column="1" Kind="{Binding Kind}" Text="{Binding SeverityText}" VerticalAlignment="Top" />
+                                        <StackPanel Grid.Column="2" Spacing="2">
+                                            <TextBlock Classes="value" Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="secondary" Text="{Binding Detail}" TextWrapping="Wrap" IsVisible="{Binding HasDetail}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="meta" Text="The latest ten, from this run of Sidera. Messages that were closed are still here." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
             <StackPanel Spacing="12" IsVisible="{Binding HasSummary}">
                 <TextBlock Classes="eyebrow" Text="WARNINGS AND ERRORS" />
                 <Border Classes="panel">

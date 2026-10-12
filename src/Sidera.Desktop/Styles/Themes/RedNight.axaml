@@ -42,6 +42,12 @@
     <Color x:Key="SideraOnPreviewDangerColor">#FF5545</Color>
     <Color x:Key="SideraOnPreviewStrongColor">#F06C58</Color>
     <Color x:Key="SideraOnPreviewLineColor">#381010</Color>
+
+    <!-- The messages: the colour of the stripe and the icon of each severity -->
+    <Color x:Key="SideraNoticeInfoColor">#B04A3B</Color>
+    <Color x:Key="SideraNoticeSuccessColor">#D45E4B</Color>
+    <Color x:Key="SideraNoticeWarningColor">#F09050</Color>
+    <Color x:Key="SideraNoticeErrorColor">#FF5545</Color>
     <Color x:Key="SideraScrimColor">#B2040000</Color>
 
     <!-- What the Fluent controls take as their accent -->

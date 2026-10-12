@@ -141,10 +141,31 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
     public partial bool IsSelected { get; set; }
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
-    private Task ConnectAsync() => RunAsync(() => Host.DeviceOperations.ConnectAsync(Id));
+    private async Task ConnectAsync()
+    {
+        if (await RunAsync(() => Host.DeviceOperations.ConnectAsync(Id)))
+        {
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, $"{Name} connected", key: "connect:" + DeviceIdText);
+        }
+        else if (ErrorMessage is { } problem)
+        {
+            // The device page shows the reason where the device is; the message tells it wherever the person is.
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Error, $"{Name} could not connect", problem, key: "connect-failed:" + DeviceIdText);
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanDisconnect))]
-    private Task DisconnectAsync() => RunAsync(() => Host.DeviceOperations.DisconnectAsync(Id));
+    private async Task DisconnectAsync()
+    {
+        if (await RunAsync(() => Host.DeviceOperations.DisconnectAsync(Id)))
+        {
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, $"{Name} disconnected", key: "disconnect:" + DeviceIdText);
+        }
+        else if (ErrorMessage is { } problem)
+        {
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Error, $"{Name} could not disconnect", problem, key: "disconnect-failed:" + DeviceIdText);
+        }
+    }
 
     protected virtual bool CanConnect() => !IsSequenceRunning && ConnectionState is DeviceConnectionState.Disconnected or DeviceConnectionState.Faulted;
 
@@ -189,12 +210,15 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
     }
 
     /// <summary>Runs a manual operation: clears the previous error, and shows a failure as a sentence instead of letting it escape.</summary>
-    protected async Task RunAsync(Func<Task> operation)
+    /// <summary>Runs a manual operation; <c>true</c> when it completed (not when it failed or was cancelled).</summary>
+    protected async Task<bool> RunAsync(Func<Task> operation)
     {
         ClearError();
+        var done = false;
         try
         {
             await operation();
+            done = true;
         }
         catch (OperationCanceledException)
         {
@@ -208,6 +232,8 @@ public abstract partial class DeviceViewModelBase : ViewModelBase, IDisposable
         {
             Refresh();
         }
+
+        return done;
     }
 
     private void OnActivityChanged(object? sender, EventArgs e) => RefreshCommands();

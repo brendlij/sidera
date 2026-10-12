@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:n="using:Sidera.Desktop.Notifications"
+             xmlns:conv="using:Sidera.Desktop.Converters"
+             x:Class="Sidera.Desktop.Views.Shell.NotificationHostView"
+             x:DataType="n:INotificationService">
+
+    <!--
+        The messages of the application, over the page at the top right: at most three, the newest on top. They are drawn over the content and never move it. A message does not take the focus; it can be
+        closed with its button, and with Escape when it has the focus (Tab reaches it). Pointing at a message holds the clock that closes it.
+    -->
+    <ItemsControl ItemsSource="{Binding Visible}" Width="380" AutomationProperties.AutomationId="Notifications" AutomationProperties.Name="Messages">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="n:NotificationViewModel">
+                <Border Classes="toast" Classes.success="{Binding IsSuccess}" Classes.warning="{Binding IsWarning}" Classes.error="{Binding IsError}"
+                        AutomationProperties.AutomationId="Notification" AutomationProperties.Name="{Binding AutomationText}" AutomationProperties.LiveSetting="{Binding LiveSetting}"
+                        PointerEntered="OnPointerEntered" PointerExited="OnPointerExited" KeyDown="OnKeyDown">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Border Classes="toast-stripe" />
+                        <Grid Grid.Column="1" ColumnDefinitions="Auto,*,Auto" Margin="12,12,8,12" ColumnSpacing="12">
+                            <PathIcon Classes="toast-icon" Data="{Binding IconKey, Converter={x:Static conv:IconConverter.Instance}}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Classes="toast-kind" Text="{Binding SeverityText}" />
+                                    <TextBlock Classes="meta" Text="{Binding CountText}" IsVisible="{Binding HasCount}" />
+                                </StackPanel>
+                                <TextBlock Classes="value" Text="{Binding Title}" TextWrapping="Wrap" />
+                                <TextBlock Classes="secondary" Text="{Binding Detail}" TextWrapping="Wrap" IsVisible="{Binding HasDetail}" />
+                                <Button Classes="primary" Content="{Binding ActionLabel}" Command="{Binding RunActionCommand}" IsVisible="{Binding HasAction}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                        AutomationProperties.AutomationId="NotificationAction" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="icon" Command="{Binding DismissCommand}" VerticalAlignment="Top" AutomationProperties.Name="Close message" AutomationProperties.AutomationId="NotificationClose"
+                                    ToolTip.Tip="Close">
+                                <PathIcon Width="12" Height="12" Data="{StaticResource IconClose}" />
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

@@ -49,8 +49,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Sidera.Sky.ICelestialObjectCatalog? objectCatalog = null,
         System.Func<Sidera.Sky.SkySurveyDescriptor, Sidera.Sky.ISkySurveyProvider>? skyProviders = null,
         bool startWithSettingsMode = false,
-        Sidera.Desktop.Themes.IThemeApplier? themeApplier = null)
+        Sidera.Desktop.Themes.IThemeApplier? themeApplier = null,
+        Sidera.Desktop.Notifications.INotificationScheduler? notificationScheduler = null)
     {
+        Notifications = new Sidera.Desktop.Notifications.NotificationService(postToUi, notificationScheduler);
         options ??= new DemoOptions();
         var activity = new SessionActivity();
 
@@ -129,6 +131,17 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, SetupContext, postToUi, page => SelectedPage = page);
 
         StatusBar = new StatusBarViewModel(Sequencer, Execution, postToUi);
+
+        // What happens is said in one place: the messages at the top right.
+        foreach (var talker in new ViewModelBase[] { SequenceDocument, Sequencer, Diagnostics, PlateSolve, Imaging.Autofocus!, Equipment })
+        {
+            talker.Notifications = Notifications;
+        }
+
+        Settings.UseNotifications(Notifications);
+        Diagnostics.UseMessages(Notifications);
+        Equipment.NotificationsChanged();
+        Sequencer.OpenDiagnostics = () => SelectedPage = AppPage.Diagnostics;
 
         PrimaryNavigation =
         [
@@ -226,6 +239,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The question that comes before real equipment moves; answered by the user, never by an environment variable.</summary>
     public HardwareSafetyViewModel Safety { get; } = new();
     public ExecutionOverviewViewModel Execution { get; }
+
+    /// <summary>The messages of the application: what happened, said at the top right of the window.</summary>
+    public Sidera.Desktop.Notifications.NotificationService Notifications { get; }
 
     /// <summary>The bar at the bottom of the window: what Sidera is doing now.</summary>
     public StatusBarViewModel StatusBar { get; }
@@ -355,6 +371,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        Notifications.Dispose();
         PlateSolve.Dispose();
         Framing.Dispose();
         StatusBar.Dispose();

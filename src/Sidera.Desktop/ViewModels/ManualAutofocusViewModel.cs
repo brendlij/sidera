@@ -260,16 +260,19 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
                     CultureInfo.InvariantCulture,
                     $"Fitted HFR {found.FittedHfr:0.00} px · {(found.Verification is { } check ? $"check at {check.FocuserPosition}: HFR {check.Hfr:0.00} px · " : string.Empty)}{found.Attempts} {(found.Attempts == 1 ? "pass" : "passes")} · from {found.InitialPosition}");
                 StatusText = $"Focused at {found.BestPosition}";
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Autofocus done", $"Best focus at {found.BestPosition} (HFR {found.BestHfr:0.00} px).", key: "autofocus-done");
             }
         }
         catch (OperationCanceledException)
         {
             StatusText = "Cancelled.";
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, "Autofocus cancelled", key: "autofocus-cancelled");
         }
         catch (Exception ex)
         {
             ErrorText = ex is AggregateException { InnerException: { } inner } ? inner.Message : ex.Message;
             StatusText = "Autofocus failed.";
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Error, "Autofocus failed", ErrorText, key: "autofocus-failed");
         }
         finally
         {

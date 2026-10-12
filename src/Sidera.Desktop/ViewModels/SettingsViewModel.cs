@@ -123,6 +123,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public GuidingSettingsViewModel? Guiding { get; }
     public MeridianFlipSettingsViewModel? MeridianFlip { get; }
     public SequencerSettingsViewModel? Sequencer { get; }
+
+    /// <summary>Lets every tab say what it did (a Save, a Discard) as a message.</summary>
+    public void UseNotifications(Sidera.Desktop.Notifications.INotificationService notifications)
+    {
+        Notifications = notifications;
+        foreach (var tab in new ViewModelBase?[] { Appearance, Imaging, Autofocus, Guiding, MeridianFlip, Sequencer, Advanced, Site, PlateSolving, SkyAtlas })
+        {
+            if (tab is not null)
+            {
+                tab.Notifications = notifications;
+            }
+        }
+    }
     public AppearanceSettingsViewModel? Appearance { get; }
     public AdvancedSettingsViewModel? Advanced { get; }
 

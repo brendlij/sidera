@@ -558,6 +558,32 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         RunCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Goes to the page that has the log (set by the shell): what the message of a failed run offers.</summary>
+    public Action? OpenDiagnostics { get; set; }
+
+    partial void OnStateChanged(SequenceState oldValue, SequenceState newValue)
+    {
+        if (oldValue is not (SequenceState.Running or SequenceState.Paused))
+        {
+            return;
+        }
+
+        switch (newValue)
+        {
+            case SequenceState.Completed:
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "The sequence finished", key: "run-ended");
+                break;
+            case SequenceState.Cancelled:
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, "The sequence was stopped", key: "run-ended");
+                break;
+            case SequenceState.Failed:
+                Announce(
+                    Sidera.Desktop.Notifications.NotificationSeverity.Error, "The sequence failed", ErrorMessage, key: "run-failed",
+                    action: OpenDiagnostics is { } open ? new Sidera.Desktop.Notifications.NotificationAction("Open Diagnostics", open) : null);
+                break;
+        }
+    }
+
     /// <summary>What asks before real equipment moves; <c>null</c> where nothing is asked (tests of other pages). Set by the main view model.</summary>
     public HardwareSafetyViewModel? Safety { get; set; }
 

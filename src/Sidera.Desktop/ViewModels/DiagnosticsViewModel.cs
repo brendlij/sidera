@@ -13,6 +13,12 @@ using Microsoft.Extensions.Logging;
 namespace Sidera.Desktop.ViewModels;
 
 /// <summary>One recent warning or error, as the diagnostics page lists it.</summary>
+/// <summary>One of the recent messages of the application, as the list on the Diagnostics page shows it.</summary>
+public sealed record MessageRow(string TimeText, StatusKind Kind, string SeverityText, string Title, string? Detail)
+{
+    public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
+}
+
 public sealed record ProblemRow(string TimeText, string LevelText, StatusKind Kind, string Source, string Message);
 
 /// <summary>
@@ -57,6 +63,33 @@ public sealed partial class DiagnosticsViewModel : ViewModelBase, IDisposable
     public string SessionText => _info?.SessionId ?? string.Empty;
 
     public string VersionText => SideraLogging.DisplayVersion();
+
+    // The messages that were said
+
+    /// <summary>The last messages of the application (what was said at the top right of the window), newest first; at most ten are shown.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMessages))]
+    public partial IReadOnlyList<MessageRow> RecentMessages { get; private set; } = [];
+
+    public bool HasMessages => RecentMessages.Count > 0;
+
+    /// <summary>Lists the messages that <paramref name="service"/> says, as they come.</summary>
+    public void UseMessages(Sidera.Desktop.Notifications.INotificationService service)
+    {
+        Notifications = service;
+        service.HistoryChanged += (_, _) => _postToUi(() => ReadMessages(service));
+        ReadMessages(service);
+    }
+
+    private void ReadMessages(Sidera.Desktop.Notifications.INotificationService service) =>
+        RecentMessages = service.History.Take(10).Select(m => new MessageRow(
+            m.Time.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture), m.Severity switch
+            {
+                Sidera.Desktop.Notifications.NotificationSeverity.Success => StatusKind.Ok,
+                Sidera.Desktop.Notifications.NotificationSeverity.Warning => StatusKind.Warning,
+                Sidera.Desktop.Notifications.NotificationSeverity.Error => StatusKind.Error,
+                _ => StatusKind.Neutral,
+            }, m.Severity.ToString(), m.Title, m.Detail)).ToList();
 
     // Warnings and errors
 
@@ -133,10 +166,11 @@ public sealed partial class DiagnosticsViewModel : ViewModelBase, IDisposable
         try
         {
             await _clipboard.SetTextAsync(_info!.CurrentFile ?? _info.Directory);
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Path copied", "The path of the log file is on the clipboard.", key: "path-copied");
         }
         catch (Exception ex)
         {
-            ReportError("The path could not be copied.", ex);
+            ReportProblem("The path was not copied", "The path could not be copied.", ex);
         }
     }
 

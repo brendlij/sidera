@@ -176,8 +176,18 @@ public sealed partial class EquipmentViewModel : ViewModelBase, IDisposable, IDe
         _ => null,
     };
 
+    /// <summary>The messages were connected (after the page was made): every device says what happens to it there.</summary>
+    internal void NotificationsChanged()
+    {
+        foreach (var device in Devices)
+        {
+            device.Notifications = Notifications;
+        }
+    }
+
     private void Attach(DeviceViewModelBase device)
     {
+        device.Notifications = Notifications;
         device.OpenCommand = new RelayCommand(() => OpenDevice(device));
         _details[device] = CreateDetail(device);
     }

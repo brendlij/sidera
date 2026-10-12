@@ -1,0 +1,78 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        The messages that slide in at the top right: a raised surface with a stripe in the colour of the severity. The stripe, the icon and the word of the severity say it together, so that a theme
+        with one hue (Red Night) can still be read. A message enters from the right in a fifth of a second; it never moves what is under it.
+    -->
+    <Style Selector="Border.toast">
+        <Setter Property="Background" Value="{DynamicResource SideraBg3}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraLineStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="BoxShadow" Value="0 8 24 0 #40000000" />
+        <Setter Property="RenderTransform" Value="translateX(0px)" />
+        <Style.Animations>
+            <Animation Duration="0:0:0.2" Easing="CubicEaseOut" FillMode="Backward">
+                <KeyFrame Cue="0%">
+                    <Setter Property="Opacity" Value="0" />
+                    <Setter Property="TranslateTransform.X" Value="48" />
+                </KeyFrame>
+                <KeyFrame Cue="100%">
+                    <Setter Property="Opacity" Value="1" />
+                    <Setter Property="TranslateTransform.X" Value="0" />
+                </KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+    <Style Selector="Border.toast:focus-visible">
+        <Setter Property="BorderBrush" Value="{DynamicResource SideraAccent}" />
+    </Style>
+
+    <Style Selector="Border.toast-stripe">
+        <Setter Property="Width" Value="4" />
+        <Setter Property="Background" Value="{DynamicResource SideraNoticeInfo}" />
+    </Style>
+    <Style Selector="Border.toast.success Border.toast-stripe">
+        <Setter Property="Background" Value="{DynamicResource SideraNoticeSuccess}" />
+    </Style>
+    <Style Selector="Border.toast.warning Border.toast-stripe">
+        <Setter Property="Background" Value="{DynamicResource SideraNoticeWarning}" />
+    </Style>
+    <Style Selector="Border.toast.error Border.toast-stripe">
+        <Setter Property="Background" Value="{DynamicResource SideraNoticeError}" />
+    </Style>
+
+    <Style Selector="Border.toast PathIcon.toast-icon">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeInfo}" />
+    </Style>
+    <Style Selector="Border.toast.success PathIcon.toast-icon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeSuccess}" />
+    </Style>
+    <Style Selector="Border.toast.warning PathIcon.toast-icon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeWarning}" />
+    </Style>
+    <Style Selector="Border.toast.error PathIcon.toast-icon">
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeError}" />
+    </Style>
+
+    <Style Selector="Border.toast TextBlock.toast-kind">
+        <Setter Property="FontSize" Value="{StaticResource FontMeta}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeInfo}" />
+    </Style>
+    <Style Selector="Border.toast.success TextBlock.toast-kind">
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeSuccess}" />
+    </Style>
+    <Style Selector="Border.toast.warning TextBlock.toast-kind">
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeWarning}" />
+    </Style>
+    <Style Selector="Border.toast.error TextBlock.toast-kind">
+        <Setter Property="Foreground" Value="{DynamicResource SideraNoticeError}" />
+    </Style>
+</Styles>

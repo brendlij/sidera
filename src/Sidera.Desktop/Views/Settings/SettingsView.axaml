@@ -54,7 +54,7 @@
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardAppearance" />
                     <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyAppearance" />
                 </StackPanel>
-                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultAppearance" /></Border>
+                <Border Classes="notice-danger" IsVisible="{Binding ResultIsProblem}"><TextBlock Classes="danger" Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultAppearance" /></Border>
             </StackPanel>
 
             <!-- The observing site: one place for the whole application, unknown until it is entered -->
@@ -135,7 +135,7 @@
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardImaging" />
                     <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyImaging" />
                 </StackPanel>
-                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultImaging" /></Border>
+                <Border Classes="notice-danger" IsVisible="{Binding ResultIsProblem}"><TextBlock Classes="danger" Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultImaging" /></Border>
             </StackPanel>
             <StackPanel DataContext="{Binding Autofocus}" x:DataType="vm:AutofocusSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsAutofocus}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="AUTOFOCUS" />
@@ -156,7 +156,7 @@
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardAutofocus" />
                     <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyAutofocus" />
                 </StackPanel>
-                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultAutofocus" /></Border>
+                <Border Classes="notice-danger" IsVisible="{Binding ResultIsProblem}"><TextBlock Classes="danger" Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultAutofocus" /></Border>
             </StackPanel>
             <StackPanel DataContext="{Binding Guiding}" x:DataType="vm:GuidingSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsGuiding}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="GUIDING" />
@@ -179,7 +179,7 @@
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardGuiding" />
                     <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyGuiding" />
                 </StackPanel>
-                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultGuiding" /></Border>
+                <Border Classes="notice-danger" IsVisible="{Binding ResultIsProblem}"><TextBlock Classes="danger" Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultGuiding" /></Border>
             </StackPanel>
             <StackPanel DataContext="{Binding MeridianFlip}" x:DataType="vm:MeridianFlipSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsMeridianFlip}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="MERIDIAN FLIP (APPLICATION DEFAULTS)" />
@@ -210,7 +210,7 @@
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardMeridianFlip" />
                     <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtyMeridianFlip" />
                 </StackPanel>
-                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultMeridianFlip" /></Border>
+                <Border Classes="notice-danger" IsVisible="{Binding ResultIsProblem}"><TextBlock Classes="danger" Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultMeridianFlip" /></Border>
             </StackPanel>
             <StackPanel DataContext="{Binding Sequencer}" x:DataType="vm:SequencerSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsSequencer}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="SEQUENCER" />
@@ -223,7 +223,7 @@
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardSequencer" />
                     <TextBlock Classes="meta" VerticalAlignment="Center" Text="{Binding DirtyText}" AutomationProperties.AutomationId="DirtySequencer" />
                 </StackPanel>
-                <Border Classes="notice-info" IsVisible="{Binding HasResult}"><TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultSequencer" /></Border>
+                <Border Classes="notice-danger" IsVisible="{Binding ResultIsProblem}"><TextBlock Classes="danger" Text="{Binding ResultText}" TextWrapping="Wrap" AutomationProperties.AutomationId="ResultSequencer" /></Border>
             </StackPanel>
             <StackPanel DataContext="{Binding Advanced}" x:DataType="vm:AdvancedSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsAdvanced}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="ADVANCED" />

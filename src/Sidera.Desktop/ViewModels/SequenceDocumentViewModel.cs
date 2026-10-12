@@ -177,7 +177,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
 
             if (!Draft.IsEditable)
             {
-                ReportError("A sequence is running. Open it again when it has ended.");
+                ReportProblem("The session was not opened", "A sequence is running. Open it again when it has ended.");
                 return;
             }
 
@@ -201,14 +201,15 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
             FilePath = path;
             IsDirty = false;
             ClearError();
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Session opened", Path.GetFileName(path), key: "session-opened");
         }
         catch (SequenceDocumentException ex)
         {
-            ReportError(ex.Message, ex);
+            ReportProblem("The session could not be opened", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ReportError("Could not open sequence.", ex);
+            ReportProblem("The session could not be opened", "Could not open sequence.", ex);
         }
     }
 
@@ -221,7 +222,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
 
         if (Draft.HasUnreadableFields || SessionSource?.HasUnreadableFields == true)
         {
-            ReportError("Fix the marked values before saving.");
+            ReportProblem("The session was not saved", "Fix the marked values before saving.");
             return;
         }
 
@@ -235,12 +236,12 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
         }
         catch (SequenceDocumentException ex)
         {
-            ReportError(ex.Message, ex);
+            ReportProblem("The session was not saved", ex.Message, ex);
             return;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ReportError("Could not save sequence.", ex);
+            ReportProblem("The session was not saved", "Could not save sequence.", ex);
             return;
         }
 
@@ -251,6 +252,7 @@ public sealed partial class SequenceDocumentViewModel : ViewModelBase
         }
 
         ClearError();
+        Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Session saved", Path.GetFileName(path), key: "session-saved");
     }
 
     private void OnDraftModified(object? sender, EventArgs e)

@@ -90,6 +90,9 @@ public abstract partial class SettingsSectionViewModel : ViewModelBase
         if (problem is null)
         {
             Refresh();
+
+            // The result of a Save is said as a message; a problem stays here, next to the fields that have to be put right.
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Saved", AppliesText.Length > 0 ? AppliesText : null, key: "settings-saved");
         }
     }
 
@@ -100,6 +103,7 @@ public abstract partial class SettingsSectionViewModel : ViewModelBase
         Refresh();
         ResultText = string.Empty;
         ResultIsProblem = false;
+        Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, "Changes discarded", "The tab is back to what is saved.", key: "settings-discarded");
     }
 
     // ---- reading what was typed

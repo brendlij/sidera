@@ -34,7 +34,11 @@ public sealed partial class DomeViewModel : DeviceViewModelBase
         {
             if (e.DeviceId == dome.Id)
             {
-                postToUi(Refresh);
+                postToUi(() =>
+                {
+                    Refresh();
+                    SayShutter(e);
+                });
             }
 
             return Task.CompletedTask;
@@ -49,6 +53,28 @@ public sealed partial class DomeViewModel : DeviceViewModelBase
             return Task.CompletedTask;
         });
         Refresh();
+    }
+
+    // The shutter reached a state that matters: open and closed are said, and so is an error. Moving is not (it is on the page), and neither is the first reading after a connect.
+    private void SayShutter(DomeShutterStateChanged change)
+    {
+        if (change.PreviousState == DomeShutterState.Unknown)
+        {
+            return;
+        }
+
+        switch (change.NewState)
+        {
+            case DomeShutterState.Open:
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, $"{Name}: the shutter is open", key: "shutter-open:" + DeviceIdText);
+                break;
+            case DomeShutterState.Closed:
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, $"{Name}: the shutter is closed", key: "shutter-closed:" + DeviceIdText);
+                break;
+            case DomeShutterState.Error:
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Error, $"{Name}: the shutter reports an error", "Check the dome before you move it. It can be closed, not opened.", key: "shutter-error:" + DeviceIdText);
+                break;
+        }
     }
 
     private DomeCapabilities? Capabilities => (_dome as IDomeControl)?.Capabilities.Value;

@@ -207,6 +207,14 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
             TimeSpan.FromSeconds(ExposureSeconds), Defaults, progress: progress, cancellationToken: token);
         if (service.LastResult is { } solve) ShowResult(service, solve);
         StatusText = result.Success ? "Centered" : result.Message ?? "Centering failed.";
+        if (result.Success)
+        {
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Centered", "The target is in the middle of the frame.", key: "centered");
+        }
+        else
+        {
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Warning, "Centering failed", result.Message, key: "centering-failed");
+        }
     });
     /// <summary>Explicit only: tells the mount where the last solve found it. Never done by a solve, a sequence or centering.</summary>
     [RelayCommand] private Task SyncMountAsync() => RunAsync(async (service, rig, token) =>
@@ -214,6 +222,7 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
         var mount = SelectedMount ?? throw new InvalidOperationException("Choose a mount.");
         await service.SyncMountToSolvedPositionAsync(mount.Id, token);
         StatusText = "Mount synchronized to the solved position.";
+        Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Mount synchronized", "It now has the solved position.", key: "mount-synced");
     });
     [RelayCommand] private void Cancel() => _cancel?.Cancel();
     private async Task RunAsync(Func<PlateSolveService, Rig, CancellationToken, Task> body)
@@ -226,14 +235,29 @@ public sealed partial class PlateSolveViewModel : ViewModelBase, IDisposable
             var rig = Setup ?? throw new InvalidOperationException(_context.NoSetupText);
             await body(service, rig, _cancel.Token);
         }
-        catch (OperationCanceledException) { StatusText = "Cancelled"; }
-        catch (Exception ex) { StatusText = ex.Message; }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Cancelled";
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Info, "Cancelled", key: "plate-cancelled");
+        }
+        catch (Exception ex)
+        {
+            StatusText = ex.Message;
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Error, "Plate solving failed", ex.Message, key: "plate-failed");
+        }
         finally { _cancel.Dispose(); _cancel = null; IsBusy = false; RefreshHints(); SlewAndCenterCommand.NotifyCanExecuteChanged(); }
     }
     private void ShowResult(PlateSolveService service, PlateSolveResult result)
     {
         StatusText = result.Success ? "Solved" : result.Message ?? "No solution.";
-        if (!result.Success) { ResultText = StatusText; return; }
+        if (!result.Success)
+        {
+            ResultText = StatusText;
+            Announce(Sidera.Desktop.Notifications.NotificationSeverity.Warning, "Plate solve failed", StatusText, key: "plate-solve-failed");
+            return;
+        }
+
+        Announce(Sidera.Desktop.Notifications.NotificationSeverity.Success, "Plate solve done", key: "plate-solved");
         var d = PlateSolveDiagnostics.From(service.LastRequest!, result);
         var error = service.LastRequest?.ApproximateCenter is { } mount && result.Center is { } center
             ? SkyMath.DegreesToArcseconds(SkyMath.AngularSeparationDegrees(mount, center)) : (double?)null;

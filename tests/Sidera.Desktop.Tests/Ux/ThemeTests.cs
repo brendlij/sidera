@@ -172,6 +172,25 @@ public sealed partial class ThemeTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("dark")]
+    [InlineData("midnight")]
+    [InlineData("graphite")]
+    [InlineData("rednight")]
+    [InlineData("light")]
+    public void TheMessages_CanBeSeenOnTheirSurface_InEveryTheme(string theme)
+    {
+        var p = Palette(theme);
+
+        foreach (var severity in new[] { "Info", "Success", "Warning", "Error" })
+        {
+            Assert.True(Contrast(p[$"SideraNotice{severity}Color"], p["SideraBg3Color"]) >= 3, $"{theme}: the {severity} of a message on its surface");
+        }
+
+        // The four are told apart without the hue as well: they are not all the same colour.
+        Assert.Equal(4, new[] { "Info", "Success", "Warning", "Error" }.Select(severity => p[$"SideraNotice{severity}Color"]).Distinct().Count());
+    }
+
     [Fact]
     public void RedNight_HasNoBlueAndNoGreen_Anywhere()
     {

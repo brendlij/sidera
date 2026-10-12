@@ -67,9 +67,6 @@
                     <Button Grid.Column="2" Content="Cancel" Command="{Binding Document.CancelDiscardCommand}" />
                 </Grid>
             </Border>
-            <Border Classes="notice-danger" IsVisible="{Binding Document.HasError}">
-                <TextBlock Classes="danger" Text="{Binding Document.ErrorMessage}" TextWrapping="Wrap" />
-            </Border>
             <Border Classes="notice-danger" IsVisible="{Binding Sequencer.HasError}">
                 <TextBlock Classes="danger" Text="{Binding Sequencer.ErrorMessage}" TextWrapping="Wrap" />
             </Border>
