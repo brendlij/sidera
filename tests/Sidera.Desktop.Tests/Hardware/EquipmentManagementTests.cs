@@ -21,6 +21,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
             [AscomDeviceKind.Camera] = new(true, [new AscomDriverInfo("ASCOM.Simulator.Camera", "Camera V3 simulator"), new AscomDriverInfo("ASCOM.ZWO.Camera", "ZWO Camera")], null),
             [AscomDeviceKind.Focuser] = new(true, [new AscomDriverInfo("ASCOM.Simulator.Focuser", "ASCOM Simulator Focuser Driver")], null),
             [AscomDeviceKind.Mount] = new(true, [new AscomDriverInfo("ASCOM.Simulator.Telescope", "Telescope Simulator")], null),
+            [AscomDeviceKind.FilterWheel] = new(true, [new AscomDriverInfo("ASCOM.Simulator.FilterWheel", "Filter Wheel Simulator")], null),
         };
 
         public List<AscomDeviceKind> Asked { get; } = [];
@@ -262,7 +263,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         var editor = await OpenAscom(vm.Equipment);
 
         Assert.True(editor.IsAscom);
-        Assert.Equal(new[] { "Camera", "Focuser", "Mount", "Rotator" }, editor.TypeChoices.Select(t => t.Title).Order()); // no filter wheel, no guider; a rotator is ASCOM too
+        Assert.Equal(new[] { "Camera", "Filter Wheel", "Focuser", "Mount", "Rotator" }, editor.TypeChoices.Select(t => t.Title).Order()); // no guider: PHD2 is its own backend
         Assert.Equal(["ASCOM Simulator Focuser Driver"], editor.Drivers.Select(d => d.Name));
         Assert.Equal("ASCOM.Simulator.Focuser", editor.ProgId);
         Assert.Equal("ASCOM Simulator Focuser Driver", editor.NameInput); // the driver names the device until the user does
@@ -316,16 +317,16 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
     {
         var (vm, _, _) = CreateApp();
         var editor = Open(vm.Equipment);
-        editor.SelectedType = editor.TypeChoices.Single(t => t.Type == DeviceType.FilterWheel);
+        editor.SelectedType = editor.TypeChoices.Single(t => t.Type == DeviceType.Guider);
 
         editor.SelectedBackend = editor.BackendChoices.Single(b => b.Backend == DeviceBackend.Ascom);
         await UxWait(() => !editor.IsDiscovering);
 
         Assert.Equal(DeviceType.Camera, editor.SelectedType.Type);
-        Assert.DoesNotContain(editor.TypeChoices, t => t.Type is DeviceType.FilterWheel or DeviceType.Guider);
+        Assert.DoesNotContain(editor.TypeChoices, t => t.Type == DeviceType.Guider);
 
         editor.SelectedBackend = editor.BackendChoices.Single(b => b.Backend == DeviceBackend.Simulator);
-        Assert.Contains(editor.TypeChoices, t => t.Type == DeviceType.FilterWheel);
+        Assert.Contains(editor.TypeChoices, t => t.Type == DeviceType.Guider);
         Assert.Empty(editor.Drivers);
     }
 
@@ -822,7 +823,8 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
             Assert.Contains(sl.Choices, c => c.Text == "Simulator");
         });
         await UxWait(() => Slot(equipment, DeviceType.Camera).Choices.Any(c => c.IsAscom));
-        Assert.DoesNotContain(Slot(equipment, DeviceType.FilterWheel).Choices, c => c.IsAscom); // no ASCOM adapter for it
+        await UxWait(() => Slot(equipment, DeviceType.FilterWheel).Choices.Any(c => c.IsAscom));
+        Assert.DoesNotContain(Slot(equipment, DeviceType.Guider).Choices, c => c.IsAscom); // no ASCOM adapter for it
     }
 
     [Fact]

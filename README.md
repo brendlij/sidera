@@ -8,7 +8,7 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 > **Status:** under active development. Camera and focuser have been validated against real hardware (ZWO ASI2600MC Pro, ZWO EAF).
 > The mount's real movement commands (slew, abort, axis moves, tracking) are implemented and tested against simulators, but not yet
 > verified on a real mount. Guiding through PHD2 is implemented and tested against an in-memory PHD2 (and its connection and state against a real
-> PHD2 without equipment); a real guided session and a real dither are not yet verified. Plate solving and an ASCOM filter wheel are not implemented yet.
+> PHD2 without equipment); a real guided session and a real dither are not yet verified. An ASCOM filter wheel is tested against a fake driver only, not yet on a real one.
 
 ## What it does today
 
@@ -144,7 +144,7 @@ The tests need no hardware: devices are simulators or fakes of the ASCOM drivers
 | `src/Sidera.Core` | Device abstractions, capability model, acquisition model |
 | `src/Sidera.Runtime` | Runtime host, simulators, sequencing, autofocus |
 | `src/Sidera.Alpaca` | ASCOM Alpaca over HTTP: the protocol client, discovery (unicast per host, broadcast only on request), `AlpacaDome` |
-| `src/Sidera.Ascom` | ASCOM adapters: discovery, one STA thread per device, camera, mount, focuser |
+| `src/Sidera.Ascom` | ASCOM adapters: discovery, one STA thread per device, camera, mount, focuser, rotator, filter wheel |
 | `src/Sidera.Sky` | Sky surveys (HiPS), their disk cache and the object catalogs of the framing workspace |
 | `src/Sidera.Phd2` | PHD2 as a guider: the TCP event server protocol, `Phd2Guider`; nothing of the protocol leaves this project |
 | `src/Sidera.Desktop` | The Avalonia application |

@@ -23,6 +23,11 @@ public sealed record AscomTimings
 
     public TimeSpan RotatorMoveTimeout { get; init; } = TimeSpan.FromSeconds(180);
 
+    public TimeSpan FilterWheelPollInterval { get; init; } = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>A filter wheel cannot be halted, so this is how long Sidera waits for it to arrive.</summary>
+    public TimeSpan FilterWheelMoveTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
     public TimeSpan MountPollInterval { get; init; } = TimeSpan.FromMilliseconds(500);
 
     /// <summary>How long Sidera waits for a mount to report the tracking state it was told to take.</summary>

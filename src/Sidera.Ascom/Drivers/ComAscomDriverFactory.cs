@@ -25,6 +25,8 @@ public sealed class ComAscomDriverFactory : IAscomDriverFactory
 
     public IAscomRotatorDriver CreateRotator(string progId) => new ComRotator(new Rotator(progId));
 
+    public IAscomFilterWheelDriver CreateFilterWheel(string progId) => new ComFilterWheel(new FilterWheel(progId));
+
     public IAscomCameraDriver CreateCamera(string progId) => new ComCamera(new Camera(progId));
 
     // What the driver says about itself; each member may be missing, which is no reason to fail.
@@ -83,6 +85,29 @@ public sealed class ComAscomDriverFactory : IAscomDriverFactory
         public void Move(int positionOrSteps) => inner.Move(positionOrSteps);
 
         public void Halt() => inner.Halt();
+
+        public void SetupDialog() => inner.SetupDialog();
+
+        public void Dispose() => inner.Dispose();
+    }
+
+    private sealed class ComFilterWheel(FilterWheel inner) : IAscomFilterWheelDriver
+    {
+        public bool Connected
+        {
+            get => inner.Connected;
+            set => inner.Connected = value;
+        }
+
+        public DriverMetadata Identity => ComAscomDriverFactory.Identity(inner);
+
+        public int Position
+        {
+            get => inner.Position;
+            set => inner.Position = (short)value;
+        }
+
+        public IReadOnlyList<string> Names => inner.Names ?? [];
 
         public void SetupDialog() => inner.SetupDialog();
 

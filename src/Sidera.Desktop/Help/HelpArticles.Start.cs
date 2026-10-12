@@ -12,7 +12,7 @@ public static partial class HelpCatalog
             Steps =
             [
                 "Connect your camera: open Equipment, go to Cameras, choose the driver of your camera (or Simulator to try Sidera) and press Connect. Nothing moves when a device connects.",
-                "Add the rest of your equipment the same way: focuser, mount, guider and, if you have one, a dome or a roll-off roof. A real filter wheel is not supported yet: Sidera has a simulated one.",
+                "Add the rest of your equipment the same way: focuser, mount, guider and, if you have one, a dome or a roll-off roof.",
                 "Enter the focal length of your telescope on the camera page, under Optical train. Framing, Plate Solve and the pixel scale use it.",
                 "Set up plate solving in Settings → Plate solving. Sidera uses ASTAP: it needs the program and a star database such as D50.",
                 "Enter your observing site in Settings → Observatory. Altitudes, darkness and the meridian are worked out from it.",

@@ -56,7 +56,7 @@ public static partial class HelpCatalog
         {
             Steps =
             [
-                "Connect the filter wheel on Equipment → Filter Wheels. Its filters are listed by slot and name. Sidera has a simulated filter wheel; an ASCOM filter wheel is not supported yet.",
+                "Connect the filter wheel on Equipment → Filter Wheels. Its filters are listed by slot and name. Choose the driver of your filter wheel, or Simulator to try Sidera. The names of the filters come from the driver: change them in its setup dialog.",
                 "In a block add the action Set Filter and choose the filter. Put it before the exposure.",
                 "Duplicate the block for the next filter and change the Set Filter action of the copy.",
             ],

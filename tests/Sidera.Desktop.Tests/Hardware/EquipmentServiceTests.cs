@@ -268,7 +268,7 @@ public sealed class EquipmentServiceTests : IAsyncLifetime
         var (service, host, _) = Create();
 
         var without = service.Add(new DeviceConfiguration("camera.a", "A", DeviceType.Camera, DeviceBackend.Ascom, DeviceConfiguration.NoSettings));
-        var wheel = service.Add(DeviceConfiguration.Ascom("wheel.a", "W", DeviceType.FilterWheel, "X.Wheel"));
+        var wheel = service.Add(DeviceConfiguration.Ascom("guider.a", "G", DeviceType.Guider, "X.Guider"));
         var noName = service.Add(DeviceConfiguration.Simulator("camera.b", " ", DeviceType.Camera));
 
         Assert.Contains("ProgId", without.Problem);

@@ -259,6 +259,77 @@ public sealed class FakeFocuserDriver(CallLog log) : FakeDriver(log), IAscomFocu
     }
 }
 
+public sealed class FakeFilterWheelDriver(CallLog log) : FakeDriver(log), IAscomFilterWheelDriver
+{
+    private readonly object _gate = new();
+    private int _position = 1;
+    private int _target;
+    private int _polls;
+    private bool _moving;
+
+    public List<string> NameList { get; set; } = ["L", "R", "G", "B", "Ha"];
+
+    /// <summary>How many times Position is read (as -1) before the wheel has arrived.</summary>
+    public int MovePolls { get; set; } = 2;
+
+    /// <summary>The wheel keeps turning until <see cref="Arrive"/> is called.</summary>
+    public bool HoldMove { get; set; }
+
+    /// <summary>The wheel arrives at this position instead of the one it was told to go to.</summary>
+    public int? ArriveAt { get; set; }
+
+    /// <summary>The position the wheel reports from the start (-1 is "moving").</summary>
+    public int StartPosition { get => _position; set => _position = value; }
+
+    public Exception? MoveThrows { get; set; }
+
+    public IReadOnlyList<string> Names => NameList;
+
+    public int Position
+    {
+        get
+        {
+            Log.Add("get Position");
+            lock (_gate)
+            {
+                if (_moving && !HoldMove && ++_polls >= MovePolls)
+                {
+                    _moving = false;
+                    _position = ArriveAt ?? _target;
+                }
+
+                return _moving ? -1 : _position;
+            }
+        }
+        set
+        {
+            Log.Add($"Position = {value}");
+            if (MoveThrows is not null)
+            {
+                throw MoveThrows;
+            }
+
+            lock (_gate)
+            {
+                _target = value;
+                _polls = 0;
+                _moving = true;
+            }
+        }
+    }
+
+    public void Arrive()
+    {
+        lock (_gate)
+        {
+            HoldMove = false;
+            _moving = false;
+            _position = ArriveAt ?? _target;
+        }
+    }
+
+}
+
 public sealed class FakeRotatorDriver(CallLog log) : FakeDriver(log), IAscomRotatorDriver
 {
     private readonly object _gate = new();
@@ -1067,6 +1138,8 @@ public sealed class FakeDriverFactory(CallLog log) : IAscomDriverFactory
     public List<FakeMountDriver> Mounts { get; } = [];
     public List<FakeCameraDriver> Cameras { get; } = [];
     public List<FakeRotatorDriver> Rotators { get; } = [];
+    public List<FakeFilterWheelDriver> FilterWheels { get; } = [];
+    public Action<FakeFilterWheelDriver>? ConfigureFilterWheel { get; set; }
     public Action<FakeRotatorDriver>? ConfigureRotator { get; set; }
     public Action<FakeFocuserDriver>? ConfigureFocuser { get; set; }
     public Action<FakeMountDriver>? ConfigureMount { get; set; }
@@ -1084,6 +1157,20 @@ public sealed class FakeDriverFactory(CallLog log) : IAscomDriverFactory
         var driver = new FakeFocuserDriver(Log);
         ConfigureFocuser?.Invoke(driver);
         Focusers.Add(driver);
+        return driver;
+    }
+
+    public IAscomFilterWheelDriver CreateFilterWheel(string progId)
+    {
+        Log.Add($"create {progId}");
+        if (CreateThrows is not null)
+        {
+            throw CreateThrows;
+        }
+
+        var driver = new FakeFilterWheelDriver(Log);
+        ConfigureFilterWheel?.Invoke(driver);
+        FilterWheels.Add(driver);
         return driver;
     }
 
@@ -1143,6 +1230,8 @@ public static class FastTimings
             FocuserMoveTimeout = moveTimeout ?? TimeSpan.FromSeconds(10),
             RotatorPollInterval = TimeSpan.FromMilliseconds(5),
             RotatorMoveTimeout = moveTimeout ?? TimeSpan.FromSeconds(10),
+            FilterWheelPollInterval = TimeSpan.FromMilliseconds(5),
+            FilterWheelMoveTimeout = moveTimeout ?? TimeSpan.FromSeconds(10),
             MountPollInterval = TimeSpan.FromMilliseconds(5),
             MountSlewTimeout = slewTimeout ?? TimeSpan.FromSeconds(10),
             CameraPollInterval = TimeSpan.FromMilliseconds(5),

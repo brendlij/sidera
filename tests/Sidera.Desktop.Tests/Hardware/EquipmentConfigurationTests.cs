@@ -154,7 +154,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "Zigbee" }""", "unknown backend 'Zigbee'")]
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "ASCOM" }""", "has no ProgId")]
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "ASCOM", "settings": { "progId": " " } }""", "has no ProgId")]
-    [InlineData("""{ "id": "wheel.a", "name": "A", "type": "FilterWheel", "backend": "ASCOM", "settings": { "progId": "X.Wheel" } }""", "does not support yet")]
+    [InlineData("""{ "id": "guider.a", "name": "A", "type": "Guider", "backend": "ASCOM", "settings": { "progId": "X.Wheel" } }""", "does not support yet")]
     [InlineData("""{ "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator", "settings": { "k": 5 } }""", "must be text")]
     public void ABrokenDevice_IsRefused_WithTheReason(string device, string expected)
     {

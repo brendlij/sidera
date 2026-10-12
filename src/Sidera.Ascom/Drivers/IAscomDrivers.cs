@@ -55,6 +55,15 @@ public interface IAscomFocuserDriver : IAscomDriver
     void Halt();
 }
 
+public interface IAscomFilterWheelDriver : IAscomDriver
+{
+    /// <summary>The zero-based position of the wheel, or -1 while it is turning. Setting it starts a move (a driver may block until it is over).</summary>
+    int Position { get; set; }
+
+    /// <summary>The names of the filters, in the order of the positions; a slot without a name may be empty.</summary>
+    IReadOnlyList<string> Names { get; }
+}
+
 public interface IAscomRotatorDriver : IAscomDriver
 {
     /// <summary>The position in degrees, 0 to 360, in the frame of MoveAbsolute (it may include a synchronization offset).</summary>
@@ -277,6 +286,8 @@ public interface IAscomDriverFactory
     IAscomMountDriver CreateMount(string progId);
 
     IAscomRotatorDriver CreateRotator(string progId);
+
+    IAscomFilterWheelDriver CreateFilterWheel(string progId);
 
     IAscomCameraDriver CreateCamera(string progId);
 }

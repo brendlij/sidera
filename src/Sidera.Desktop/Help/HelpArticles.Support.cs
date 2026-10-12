@@ -333,7 +333,7 @@ public static partial class HelpCatalog
             [
                 "Camera and focuser have been validated against real hardware. The movement of a real mount, a real guided session and a real dither are implemented and tested against simulators but not yet verified on real equipment.",
                 "A dome or roof is tested against an Alpaca simulator; test your own with the shutter closed first.",
-                "An ASCOM filter wheel is not implemented yet.",
+                "An ASCOM filter wheel is tested against a fake driver only. A filter wheel cannot be stopped: cancelling waits until it has stopped turning.",
             ],
             Actions = [Page("Open Diagnostics", AppPage.Diagnostics)],
             Related = ["getting-started", "logs-and-diagnostics"],
