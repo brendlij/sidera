@@ -569,8 +569,12 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
         // A sequence that slews a real mount or turns a real rotator asks once for each of them; no is no movement and no run.
         if (Safety is not null && Draft is not null)
         {
-            var notices = Draft.MovingEquipment().Select(m => HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, m.Kind, m.Device));
-            if (!await Safety.ConfirmAsync("Run the sequence", notices))
+            var notices = Draft.MovingEquipment().Select(m => HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, m.Kind, m.Device)).ToList();
+
+            // A dome that is moved by the sequence asks too, and a sequence that opens a shutter asks every time it is run.
+            var domes = Draft.DomeMoves();
+            notices.AddRange(domes.Select(m => HardwareSafetyViewModel.NoticeFor(_host.DeviceRegistry, ViewModels.MovingEquipment.Dome, m.Device)));
+            if (!await Safety.ConfirmAsync("Run the sequence", notices, remember: !domes.Any(m => m.Opens)))
             {
                 ReadinessHint = "Cancelled: nothing was moved.";
                 return;

@@ -171,6 +171,11 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
                 Device(w, "deviceId", o.DeviceId);
                 w.WriteNumber("celsius", o.Celsius);
                 w.WriteNumber("rampMinutes", o.RampMinutes);
+                if (o.Operation == "turnDome")
+                {
+                    w.WriteNumber("azimuthDegrees", o.AzimuthDegrees);
+                }
+
                 break;
             case SlewDocumentStep s:
                 Header(w, SlewType, s.Id);
@@ -586,7 +591,8 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
             "syncMountToSolved" => new SyncMountDocumentStep(id, ReadDevice(element, type, "mountId")),
             "plateSolve" => new PlateSolveDocumentStep(id, ReadDevice(element, type, "rigId"), ReadNumber(element, type, "exposureSeconds")),
             "deviceOperation" => new DeviceOperationDocumentStep(
-                id, ReadOperation(element, type), ReadDevice(element, type, "deviceId"), ReadNumber(element, type, "celsius"), ReadNumber(element, type, "rampMinutes")),
+                id, ReadOperation(element, type), ReadDevice(element, type, "deviceId"), ReadNumber(element, type, "celsius"), ReadNumber(element, type, "rampMinutes"),
+                element.TryGetProperty("azimuthDegrees", out _) ? ReadNumber(element, type, "azimuthDegrees") : 0),
             ExposureType => new ExposureDocumentStep(
                 id, ReadDevice(element, type, "cameraId"), ReadNumber(element, type, "exposureSeconds"), ReadAcquisition(element, type, version)),
             DelayType => new DelayDocumentStep(id, ReadNumber(element, type, "durationSeconds")),

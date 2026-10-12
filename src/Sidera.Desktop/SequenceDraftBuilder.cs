@@ -399,6 +399,28 @@ public static class SequenceDraftBuilder
         return found.Distinct().ToList();
     }
 
+    /// <summary>The domes that this sequence moves on purpose, and whether it opens a shutter: opening is what asks every time, because a roof that is opened by a sequence is the one thing that must never be a surprise.</summary>
+    public static IReadOnlyList<(DeviceId Device, bool Opens)> DomeMoves(IEnumerable<SequenceStepDraft> steps)
+    {
+        var found = new List<(DeviceId Device, bool Opens)>();
+
+        void Visit(SequenceStepDraft step)
+        {
+            switch (step)
+            {
+                case DeviceOperationStepDraft { IsDome: true, DeviceId: { } id } o:
+                    found.Add((id, o.Operation == DeviceOperation.OpenDome));
+                    break;
+                case RepeatStepDraft repeat:
+                    repeat.Children.ToList().ForEach(Visit);
+                    break;
+            }
+        }
+
+        steps.ToList().ForEach(Visit);
+        return found;
+    }
+
     /// <summary>
     /// What a Multi-Rig dither policy moves and uses: the mount and the guider of its trigger rig (for a rig that names none, the session's shared ones), and the tracks it affects: the ones whose
     /// claims conflict with the dither's (the stability of that mount, that guider), which is to say the tracks on the same mount or guided by the same guider. Tracks that share neither are not
@@ -940,7 +962,7 @@ public static class SequenceDraftBuilder
         RigExposureStepDraft e => new CameraExposureAction(
             registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
             context?.Loggers?.CreateLogger<CameraExposureAction>(), StepScopes.EffectiveMount(rig, null, context?.Shared)),
-        DeviceOperationStepDraft o => new DeviceOperationAction(registry, o.Operation, o.DeviceId!.Value, o.Celsius, o.RampMinutes),
+        DeviceOperationStepDraft o => new DeviceOperationAction(registry, o.Operation, o.DeviceId!.Value, o.Celsius, o.RampMinutes, azimuthDegrees: o.AzimuthDegrees),
         MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterAction(registry, c.FilterWheelId!.Value, c.SlotIndex),
         // Resolved here, at build time: the track names a rig, and the rig names its focuser and its filter wheel.
@@ -1402,7 +1424,7 @@ public static class SequenceDraftBuilder
                     problems.Add("Plate solving steps move or synchronize the shared mount and must be outside a Setup Sequence.");
                     break;
                 case DeviceOperationStepDraft:
-                    problems.Add("Cooling, parking and tracking belong to the whole session and must be outside a Setup Sequence.");
+                    problems.Add("Cooling, parking, tracking and the dome belong to the whole session and must be outside a Setup Sequence.");
                     break;
                 case MoveFocuserStepDraft:
                     problems.Add("Use Move Focuser of the setup sequence here: it moves the focuser of the imaging setup.");
@@ -1557,6 +1579,14 @@ public static class SequenceDraftBuilder
                         if (!double.IsFinite(o.RampMinutes) || o.RampMinutes < 0 || o.RampMinutes > 180)
                         {
                             problems.Add("The ramp must be a number of minutes from 0 to 180.");
+                        }
+                    }
+                    else if (o.IsDome)
+                    {
+                        CheckDevice<Sidera.Core.Domes.IDome>(o.DeviceId, "dome", problems);
+                        if (o.Operation == DeviceOperation.TurnDome && (!double.IsFinite(o.AzimuthDegrees) || o.AzimuthDegrees < 0 || o.AzimuthDegrees >= 360))
+                        {
+                            problems.Add("The azimuth of the dome must be a number of degrees from 0 up to 360.");
                         }
                     }
                     else
@@ -1991,6 +2021,11 @@ public static class SequenceDraftBuilder
             DeviceOperation.Park => new("Park", DeviceName(registry, o.DeviceId, "no mount")),
             DeviceOperation.Unpark => new("Unpark", DeviceName(registry, o.DeviceId, "no mount")),
             DeviceOperation.TrackingOn => new("Tracking On", DeviceName(registry, o.DeviceId, "no mount")),
+            DeviceOperation.OpenDome => new("Open Dome", DeviceName(registry, o.DeviceId, "no dome")),
+            DeviceOperation.CloseDome => new("Close Dome", DeviceName(registry, o.DeviceId, "no dome")),
+            DeviceOperation.TurnDome => new("Turn Dome", string.Create(CultureInfo.InvariantCulture, $"{DeviceName(registry, o.DeviceId, "no dome")} · {o.AzimuthDegrees:0.#}°")),
+            DeviceOperation.ParkDome => new("Park Dome", DeviceName(registry, o.DeviceId, "no dome")),
+            DeviceOperation.FindDomeHome => new("Dome Home", DeviceName(registry, o.DeviceId, "no dome")),
             _ => new("Tracking Off", DeviceName(registry, o.DeviceId, "no mount")),
         };
     }

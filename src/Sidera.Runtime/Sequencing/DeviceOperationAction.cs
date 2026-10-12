@@ -1,5 +1,6 @@
 using System.Globalization;
 using Sidera.Core.Devices;
+using Sidera.Core.Domes;
 using Sidera.Core.Mounts;
 using Sidera.Core.Resources;
 using Sidera.Core.Sequencing;
@@ -23,10 +24,26 @@ public enum DeviceOperation
     TrackingOn,
 
     TrackingOff,
+
+    /// <summary>Opens the shutter of a dome (or the roof of a roll-off roof) and waits until it reports open.</summary>
+    OpenDome,
+
+    /// <summary>Closes the shutter and waits until it reports closed.</summary>
+    CloseDome,
+
+    /// <summary>Turns a dome to an azimuth.</summary>
+    TurnDome,
+
+    /// <summary>Parks a dome.</summary>
+    ParkDome,
+
+    /// <summary>Sends a dome to its home position.</summary>
+    FindDomeHome,
 }
 
 /// <summary>
-/// An operation on one camera or one mount that is not a move across the sky: cool or warm the camera, park or unpark the mount, switch tracking. Each checks the capability of the device first and refuses what
+/// An operation on one camera, one mount or one dome that is not a move across the sky: cool or warm the camera, park or unpark the mount, switch tracking, open or close the shutter of a dome, turn, park or
+/// home it. Each checks the capability of the device first and refuses what
 /// the device cannot do; none is retried. The camera is cooled and warmed <b>gently</b>: the set point moves in steps over the ramp so that the sensor is never shocked, and a cooling action waits (for a
 /// while) until the sensor has got there. Parking, unparking and tracking hold the mount and its stability, so exposures on that mount do not run through them.
 /// </summary>
@@ -42,9 +59,11 @@ public sealed class DeviceOperationAction : IResourceAwareSequenceStep, IClaimin
     private readonly DeviceId _deviceId;
     private readonly double _celsius;
     private readonly double _rampMinutes;
+    private readonly double _azimuthDegrees;
     private readonly TimeSpan _stepInterval;
 
-    public DeviceOperationAction(DeviceRegistry registry, DeviceOperation operation, DeviceId deviceId, double celsius = 0, double rampMinutes = 0, TimeSpan? stepInterval = null)
+    public DeviceOperationAction(
+        DeviceRegistry registry, DeviceOperation operation, DeviceId deviceId, double celsius = 0, double rampMinutes = 0, TimeSpan? stepInterval = null, double azimuthDegrees = 0)
     {
         ArgumentNullException.ThrowIfNull(registry);
         _registry = registry;
@@ -52,6 +71,7 @@ public sealed class DeviceOperationAction : IResourceAwareSequenceStep, IClaimin
         _deviceId = deviceId;
         _celsius = celsius;
         _rampMinutes = Math.Max(0, rampMinutes);
+        _azimuthDegrees = azimuthDegrees;
         _stepInterval = stepInterval ?? TimeSpan.FromSeconds(15);
     }
 
@@ -64,12 +84,19 @@ public sealed class DeviceOperationAction : IResourceAwareSequenceStep, IClaimin
         DeviceOperation.Park => "Park mount",
         DeviceOperation.Unpark => "Unpark mount",
         DeviceOperation.TrackingOn => "Tracking on",
-        _ => "Tracking off",
+        DeviceOperation.TrackingOff => "Tracking off",
+        DeviceOperation.OpenDome => "Open dome",
+        DeviceOperation.CloseDome => "Close dome",
+        DeviceOperation.TurnDome => string.Create(CultureInfo.InvariantCulture, $"Turn dome to {_azimuthDegrees:0.#}°"),
+        DeviceOperation.ParkDome => "Park dome",
+        _ => "Find dome home",
     };
+
+    private bool IsDome => Operation is DeviceOperation.OpenDome or DeviceOperation.CloseDome or DeviceOperation.TurnDome or DeviceOperation.ParkDome or DeviceOperation.FindDomeHome;
 
     public IReadOnlyCollection<ResourceId> RequiredResources => [ResourceId.ForDevice(_deviceId)];
 
-    public IReadOnlyCollection<ResourceClaim> Claims => Operation is DeviceOperation.CoolCamera or DeviceOperation.WarmCamera
+    public IReadOnlyCollection<ResourceClaim> Claims => Operation is DeviceOperation.CoolCamera or DeviceOperation.WarmCamera || IsDome
         ? [ResourceClaim.Exclusive(ResourceId.ForDevice(_deviceId))]
         : [ResourceClaim.Exclusive(ResourceId.ForDevice(_deviceId)), ResourceClaim.Exclusive(ResourceId.ForMountStability(_deviceId))];
 
@@ -82,6 +109,9 @@ public sealed class DeviceOperationAction : IResourceAwareSequenceStep, IClaimin
                 break;
             case DeviceOperation.WarmCamera:
                 await WarmAsync(cancellationToken);
+                break;
+            case var _ when IsDome:
+                await DomeAsync(cancellationToken);
                 break;
             default:
                 await MountAsync(cancellationToken);
@@ -152,6 +182,55 @@ public sealed class DeviceOperationAction : IResourceAwareSequenceStep, IClaimin
             {
                 await Task.Delay(_stepInterval, cancellationToken);
             }
+        }
+    }
+
+    // ---- dome
+
+    private async Task DomeAsync(CancellationToken cancellationToken)
+    {
+        var dome = DeviceLookup.Resolve<IDomeControl>(_registry, _deviceId, "dome");
+        if (dome.ConnectionState != DeviceConnectionState.Connected)
+        {
+            throw new InvalidOperationException($"Dome '{_deviceId}' is not connected.");
+        }
+
+        var capabilities = dome.Capabilities.Value;
+        switch (Operation)
+        {
+            case DeviceOperation.OpenDome:
+            case DeviceOperation.CloseDome:
+                if (capabilities is not { CanSetShutter: true })
+                {
+                    throw new InvalidOperationException($"Dome '{_deviceId}' cannot open or close its shutter.");
+                }
+
+                await (Operation == DeviceOperation.OpenDome ? dome.OpenShutterAsync(cancellationToken) : dome.CloseShutterAsync(cancellationToken));
+                break;
+            case DeviceOperation.TurnDome:
+                if (capabilities is not { CanSetAzimuth: true })
+                {
+                    throw new InvalidOperationException($"Dome '{_deviceId}' cannot be turned: it has no azimuth.");
+                }
+
+                await dome.SlewToAzimuthAsync(_azimuthDegrees, cancellationToken);
+                break;
+            case DeviceOperation.ParkDome:
+                if (capabilities is not { CanPark: true })
+                {
+                    throw new InvalidOperationException($"Dome '{_deviceId}' cannot park.");
+                }
+
+                await dome.ParkAsync(cancellationToken);
+                break;
+            default:
+                if (capabilities is not { CanFindHome: true })
+                {
+                    throw new InvalidOperationException($"Dome '{_deviceId}' cannot find its home position.");
+                }
+
+                await dome.FindHomeAsync(cancellationToken);
+                break;
         }
     }
 

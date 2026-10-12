@@ -240,7 +240,8 @@ public sealed partial class SessionEditorViewModel : ViewModelBase, ISessionSour
         }
 
         _lastUsable = UsableRigs.Select(r => r.Id).ToHashSet(); // the setups the cards are made with: a change of them is what RefreshAvailability looks for
-        var compilation = SessionCompiler.Compile(session, _rigs, ApplicationFlip, UsableIds);
+        var domes = _registry.GetAll().Where(d => d is Sidera.Core.Domes.IDome).Select(d => d.Id).OrderBy(id => id.Value, StringComparer.Ordinal).ToList();
+        var compilation = SessionCompiler.Compile(session, _rigs, ApplicationFlip, UsableIds, domes);
         _origins = compilation.Origins;
         _notes = compilation.Notes;
         _draft.ExternalProblems = compilation.Problems.Select(p => p.ElementId is { } id ? $"{LabelOf(id)}: {p.Message}" : p.Message).ToList();

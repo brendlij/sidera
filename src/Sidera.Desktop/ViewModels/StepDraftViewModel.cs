@@ -220,6 +220,7 @@ public abstract partial class StepDraftViewModel : ViewModelBase
     protected static bool IsCamera(IDevice device) => device is ICamera;
     protected static bool IsMount(IDevice device) => device is IMount;
     protected static bool IsGuider(IDevice device) => device is IGuider;
+    protected static bool IsDome(IDevice device) => device is Sidera.Core.Domes.IDome;
 }
 
 /// <summary>A step that holds other steps. Its <see cref="Children"/> have it as their <see cref="StepDraftViewModel.Parent"/>.</summary>
@@ -792,13 +793,20 @@ public sealed partial class DeviceOperationStepDraftViewModel : StepDraftViewMod
         new(Sidera.Runtime.Sequencing.DeviceOperation.Unpark, "Unpark mount"),
         new(Sidera.Runtime.Sequencing.DeviceOperation.TrackingOn, "Tracking on"),
         new(Sidera.Runtime.Sequencing.DeviceOperation.TrackingOff, "Tracking off"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.OpenDome, "Open dome"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.CloseDome, "Close dome"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.TurnDome, "Turn dome"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.ParkDome, "Park dome"),
+        new(Sidera.Runtime.Sequencing.DeviceOperation.FindDomeHome, "Dome home"),
     ];
 
     public DeviceOperationStepDraftViewModel(DeviceRegistry registry, DeviceOperationStepDraft draft) : base(draft.Id)
     {
         Camera = Picker(registry, IsCamera, draft.IsCamera ? draft.DeviceId : null);
-        Mount = Picker(registry, IsMount, draft.IsCamera ? null : draft.DeviceId);
+        Mount = Picker(registry, IsMount, draft.IsCamera || draft.IsDome ? null : draft.DeviceId);
+        Dome = Picker(registry, IsDome, draft.IsDome ? draft.DeviceId : null);
         SelectedOperation = Choices.First(c => c.Operation == draft.Operation);
+        AzimuthText = draft.AzimuthDegrees.ToString("0.##", CultureInfo.InvariantCulture);
         CelsiusText = draft.Celsius.ToString("0.##", CultureInfo.InvariantCulture);
         RampText = draft.RampMinutes.ToString("0.##", CultureInfo.InvariantCulture);
     }
@@ -807,11 +815,12 @@ public sealed partial class DeviceOperationStepDraftViewModel : StepDraftViewMod
 
     public DevicePickerViewModel Camera { get; }
     public DevicePickerViewModel Mount { get; }
+    public DevicePickerViewModel Dome { get; }
 
     public IReadOnlyList<OperationChoice> OperationChoices => Choices;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsCamera), nameof(ShowsMount), nameof(ShowsTemperature), nameof(ShowsRamp))]
+    [NotifyPropertyChangedFor(nameof(ShowsCamera), nameof(ShowsMount), nameof(ShowsDome), nameof(ShowsAzimuth), nameof(ShowsTemperature), nameof(ShowsRamp))]
     public partial OperationChoice SelectedOperation { get; set; }
 
     /// <summary>The target temperature of a cooling, in degrees Celsius.</summary>
@@ -823,18 +832,27 @@ public sealed partial class DeviceOperationStepDraftViewModel : StepDraftViewMod
     public partial string RampText { get; set; } = string.Empty;
 
     public bool ShowsCamera => SelectedOperation.Operation is Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera or Sidera.Runtime.Sequencing.DeviceOperation.WarmCamera;
-    public bool ShowsMount => !ShowsCamera;
+    public bool ShowsDome => SelectedOperation.Operation is Sidera.Runtime.Sequencing.DeviceOperation.OpenDome or Sidera.Runtime.Sequencing.DeviceOperation.CloseDome
+        or Sidera.Runtime.Sequencing.DeviceOperation.TurnDome or Sidera.Runtime.Sequencing.DeviceOperation.ParkDome or Sidera.Runtime.Sequencing.DeviceOperation.FindDomeHome;
+    public bool ShowsMount => !ShowsCamera && !ShowsDome;
+    public bool ShowsAzimuth => SelectedOperation.Operation == Sidera.Runtime.Sequencing.DeviceOperation.TurnDome;
+
+    /// <summary>The azimuth a dome is turned to, in degrees.</summary>
+    [ObservableProperty]
+    public partial string AzimuthText { get; set; } = "0";
+
     public bool ShowsTemperature => SelectedOperation.Operation == Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera;
     public bool ShowsRamp => ShowsCamera;
 
     partial void OnSelectedOperationChanged(OperationChoice value) => NotifyEdited();
 
-    internal override IEnumerable<DevicePickerViewModel> Pickers => [Camera, Mount];
+    internal override IEnumerable<DevicePickerViewModel> Pickers => [Camera, Mount, Dome];
 
     internal override SequenceStepDraft Read(List<string> parseErrors) => new DeviceOperationStepDraft(
-        Id, SelectedOperation.Operation, ShowsCamera ? Camera.SelectedId : Mount.SelectedId,
+        Id, SelectedOperation.Operation, ShowsCamera ? Camera.SelectedId : ShowsDome ? Dome.SelectedId : Mount.SelectedId,
         ShowsTemperature ? ParseNumber(CelsiusText, "The target temperature", "a number of degrees", parseErrors, -10) : 0,
-        ShowsRamp ? ParseNumber(RampText, "The ramp", "a number of minutes", parseErrors, 0) : 0);
+        ShowsRamp ? ParseNumber(RampText, "The ramp", "a number of minutes", parseErrors, 0) : 0,
+        ShowsAzimuth ? ParseNumber(AzimuthText, "The azimuth", "a number of degrees", parseErrors, 0) : 0);
 }
 
 /// <summary>Moves one selected focuser to an absolute position, in focuser steps.</summary>

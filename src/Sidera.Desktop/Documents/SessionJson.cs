@@ -37,6 +37,11 @@ internal static class SessionJson
         (SessionActionKind.Park, "park"),
         (SessionActionKind.Unpark, "unpark"),
         (SessionActionKind.SetTracking, "setTracking"),
+        (SessionActionKind.OpenDome, "openDome"),
+        (SessionActionKind.CloseDome, "closeDome"),
+        (SessionActionKind.TurnDome, "turnDome"),
+        (SessionActionKind.ParkDome, "parkDome"),
+        (SessionActionKind.FindDomeHome, "findDomeHome"),
     ];
 
     private static SequenceDocumentException Structure(string message) => new(SequenceDocumentErrorKind.Structure, "Invalid session: " + message);
@@ -234,6 +239,9 @@ internal static class SessionJson
                 case SetTrackingAction tracking:
                     w.WriteBoolean("on", tracking.On);
                     break;
+                case TurnDomeAction turn:
+                    w.WriteNumber("azimuthDegrees", turn.AzimuthDegrees);
+                    break;
             }
 
             w.WriteEndObject();
@@ -352,6 +360,11 @@ internal static class SessionJson
                 SessionActionKind.Park => new ParkAction(id),
                 SessionActionKind.Unpark => new UnparkAction(id),
                 SessionActionKind.SetTracking => new SetTrackingAction(id, Flag(e, "on", true)),
+                SessionActionKind.OpenDome => new OpenDomeAction(id),
+                SessionActionKind.CloseDome => new CloseDomeAction(id),
+                SessionActionKind.TurnDome => new TurnDomeAction(id, NumOr(e, "azimuthDegrees", 0)),
+                SessionActionKind.ParkDome => new ParkDomeAction(id),
+                SessionActionKind.FindDomeHome => new FindDomeHomeAction(id),
                 _ => throw Structure($"unknown action '{type}'."),
             };
 

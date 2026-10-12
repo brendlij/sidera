@@ -26,7 +26,9 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   Alpaca directly over HTTP (`src/Sidera.Alpaca`): no ASCOM Platform and no COM, and it contacts exactly the address you gave it. Creating the device and connecting it move nothing. The page shows only what the
   device supports: a roll-off roof (a shutter and no azimuth) has the shutter and a halt; a dome also turns, parks and finds home. Opening the shutter of real equipment asks every time; turning, parking and going
   home ask once per dome; closing the shutter and halting never ask. A shutter that was stopped halfway reports an error in most drivers: it can then be closed, not opened. While connected the state is read every
-  two seconds (a roof that closes by its own rain sensor shows as closed), and a dome that stops answering is shown as faulted. Sequencer actions for the dome are not there yet.
+  two seconds (a roof that closes by its own rain sensor shows as closed), and a dome that stops answering is shown as faulted.
+  In the sequencer the group *Dome* has Open Dome, Close Dome, Turn Dome (an azimuth), Park Dome and Dome Home, for the start and the end of the session and the preparation of a target. They work with the domes of
+  the observatory, not with an imaging setup, and a roof refuses Turn, Park and Home when the step runs. A session that opens a real shutter asks before it runs, every time; a dome that is not connected stops the run from starting.
 - **Rotator:** absolute and relative moves, halt, sync and reverse where the driver supports them (the page shows only what the rotator can do). A rotator belongs to
   an imaging setup, which is optional. Its position is the mechanical angle of the driver and is never taken for the rotation of the sky in the image: that is a calibration of the
   setup, measured by one plate solve and kept with it. Rotating to a sky angle, verifying it with a solve and centering while rotating are described below.

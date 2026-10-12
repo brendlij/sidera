@@ -114,7 +114,7 @@ public static class StepScopes
                 Add("camera", trackRig?.CameraId);
                 break;
             case DeviceOperationStepDraft o:
-                Add(o.IsCamera ? "camera" : "mount", o.DeviceId);
+                Add(o.IsCamera ? "camera" : o.IsDome ? "dome" : "mount", o.DeviceId);
                 break;
             case MoveFocuserStepDraft f:
                 Add("focuser", f.FocuserId);

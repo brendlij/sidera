@@ -102,6 +102,8 @@ public sealed class SessionJsonTests
             [SessionActionKind.DitherNow] = "ditherNow", [SessionActionKind.Slew] = "slew", [SessionActionKind.SlewAndCenter] = "slewAndCenter", [SessionActionKind.PlateSolve] = "plateSolve",
             [SessionActionKind.CenterAndRotate] = "centerAndRotate", [SessionActionKind.SyncMount] = "syncMount", [SessionActionKind.CoolCamera] = "coolCamera",
             [SessionActionKind.WarmCamera] = "warmCamera", [SessionActionKind.Park] = "park", [SessionActionKind.Unpark] = "unpark", [SessionActionKind.SetTracking] = "setTracking",
+            [SessionActionKind.OpenDome] = "openDome", [SessionActionKind.CloseDome] = "closeDome", [SessionActionKind.TurnDome] = "turnDome", [SessionActionKind.ParkDome] = "parkDome",
+            [SessionActionKind.FindDomeHome] = "findDomeHome",
         };
 
         Assert.Equal(types.Keys.Order(), ActionCatalog.Entries.Select(e => e.Kind).Order()); // the library offers exactly the actions the file knows

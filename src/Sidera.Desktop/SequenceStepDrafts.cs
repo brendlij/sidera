@@ -125,13 +125,18 @@ public sealed record SyncMountStepDraft(Guid Id, DeviceId? MountId) : LeafStepDr
 /// An operation on one camera or one mount that does not move across the sky: <see cref="Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera"/> (to <see cref="Celsius"/>, in steps over
 /// <see cref="RampMinutes"/>), warm, park, unpark, tracking on or off. The device is a camera for the first two and a mount for the others. Added in version 9.
 /// </summary>
-public sealed record DeviceOperationStepDraft(Guid Id, Sidera.Runtime.Sequencing.DeviceOperation Operation, DeviceId? DeviceId, double Celsius = 0, double RampMinutes = 0) : LeafStepDraft(Id)
+public sealed record DeviceOperationStepDraft(
+    Guid Id, Sidera.Runtime.Sequencing.DeviceOperation Operation, DeviceId? DeviceId, double Celsius = 0, double RampMinutes = 0, double AzimuthDegrees = 0) : LeafStepDraft(Id)
 {
     public override SequenceStepKind Kind => SequenceStepKind.DeviceOperation;
     public override IEnumerable<DeviceId> DeviceIds => Of(DeviceId);
 
-    /// <summary>The device is a camera (cool, warm); otherwise a mount.</summary>
+    /// <summary>The device is a camera (cool, warm); a dome for the dome operations; otherwise a mount.</summary>
     public bool IsCamera => Operation is Sidera.Runtime.Sequencing.DeviceOperation.CoolCamera or Sidera.Runtime.Sequencing.DeviceOperation.WarmCamera;
+
+    /// <summary>The device is a dome or a roll-off roof (open, close, turn, park, home). <see cref="AzimuthDegrees"/> is the azimuth of a turn.</summary>
+    public bool IsDome => Operation is Sidera.Runtime.Sequencing.DeviceOperation.OpenDome or Sidera.Runtime.Sequencing.DeviceOperation.CloseDome
+        or Sidera.Runtime.Sequencing.DeviceOperation.TurnDome or Sidera.Runtime.Sequencing.DeviceOperation.ParkDome or Sidera.Runtime.Sequencing.DeviceOperation.FindDomeHome;
 }
 
 public sealed record PlateSolveStepDraft(Guid Id, RigId? RigId, double ExposureSeconds) : LeafStepDraft(Id)

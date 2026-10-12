@@ -240,6 +240,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
     public IReadOnlyList<(MovingEquipment Kind, DeviceId Device)> MovingEquipment() =>
         SequenceDraftBuilder.MovingEquipment(Snapshot(), Context).Select(m => (m.IsRotator ? ViewModels.MovingEquipment.Rotator : ViewModels.MovingEquipment.Mount, m.Device)).ToList();
 
+    /// <summary>The domes that this sequence moves, and whether it opens a shutter (see <see cref="SequenceDraftBuilder.DomeMoves"/>).</summary>
+    public IReadOnlyList<(DeviceId Device, bool Opens)> DomeMoves() => SequenceDraftBuilder.DomeMoves(Snapshot());
+
     /// <summary>The observing site of the application, for what needs the sky (the meridian flip); <c>null</c> where there is none.</summary>
     public Func<Sidera.Core.Location.ObservingSite?>? SiteProvider { get; set; }
 

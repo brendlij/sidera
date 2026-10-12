@@ -61,6 +61,8 @@
 
         <CheckBox Content="Tracking on" IsChecked="{Binding TrackingOn}" IsVisible="{Binding ShowsTracking}" />
 
+        <ctl:LabeledField Label="Azimuth (°)" IsVisible="{Binding ShowsAzimuth}"><TextBox Text="{Binding AzimuthText}" AutomationProperties.AutomationId="ActionAzimuth" /></ctl:LabeledField>
+
         <StackPanel Spacing="8" IsVisible="{Binding ShowsConditions}">
             <TextBlock Classes="secondary" Text="Waits until all of these hold:" />
             <session:WaitFieldsView DataContext="{Binding Conditions}" />

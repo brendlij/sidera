@@ -27,6 +27,11 @@ public enum SessionActionKind
     Park,
     Unpark,
     SetTracking,
+    OpenDome,
+    CloseDome,
+    TurnDome,
+    ParkDome,
+    FindDomeHome,
 }
 
 /// <summary>The groups the action library shows.</summary>
@@ -37,6 +42,7 @@ public enum ActionCategory
     Focus,
     Guiding,
     Mount,
+    Dome,
     Astrometry,
     Control,
 }
@@ -175,6 +181,34 @@ public sealed record UnparkAction(Guid Id) : SessionAction(Id)
     public override SessionActionKind Kind => SessionActionKind.Unpark;
 }
 
+/// <summary>Opens the shutter of the dome, or the roof of a roll-off roof, and waits until it reports open. Works with the dome of the observatory, not with an imaging setup.</summary>
+public sealed record OpenDomeAction(Guid Id) : SessionAction(Id)
+{
+    public override SessionActionKind Kind => SessionActionKind.OpenDome;
+}
+
+/// <summary>Closes the shutter of the dome, or the roof, and waits until it reports closed.</summary>
+public sealed record CloseDomeAction(Guid Id) : SessionAction(Id)
+{
+    public override SessionActionKind Kind => SessionActionKind.CloseDome;
+}
+
+/// <summary>Turns the dome to an azimuth (0 to 360, north is 0, east 90). A roof has no azimuth and refuses it.</summary>
+public sealed record TurnDomeAction(Guid Id, double AzimuthDegrees = 0) : SessionAction(Id)
+{
+    public override SessionActionKind Kind => SessionActionKind.TurnDome;
+}
+
+public sealed record ParkDomeAction(Guid Id) : SessionAction(Id)
+{
+    public override SessionActionKind Kind => SessionActionKind.ParkDome;
+}
+
+public sealed record FindDomeHomeAction(Guid Id) : SessionAction(Id)
+{
+    public override SessionActionKind Kind => SessionActionKind.FindDomeHome;
+}
+
 public sealed record SetTrackingAction(Guid Id, bool On = true) : SessionAction(Id)
 {
     public override SessionActionKind Kind => SessionActionKind.SetTracking;
@@ -206,6 +240,12 @@ public static class ActionCatalog
         new(SessionActionKind.Park, "Park", ActionCategory.Mount, "Parks the mount.", ActionScope.Session | ActionScope.Preparation, id => new ParkAction(id)),
         new(SessionActionKind.Unpark, "Unpark", ActionCategory.Mount, "Unparks the mount.", ActionScope.Session | ActionScope.Preparation, id => new UnparkAction(id)),
         new(SessionActionKind.SetTracking, "Set Tracking", ActionCategory.Mount, "Switches tracking on or off.", ActionScope.Session | ActionScope.Preparation, id => new SetTrackingAction(id)),
+
+        new(SessionActionKind.OpenDome, "Open Dome", ActionCategory.Dome, "Opens the shutter of the dome or the roof and waits until it is open.", ActionScope.Session | ActionScope.Preparation, id => new OpenDomeAction(id)),
+        new(SessionActionKind.CloseDome, "Close Dome", ActionCategory.Dome, "Closes the shutter of the dome or the roof and waits until it is closed.", ActionScope.Session | ActionScope.Preparation, id => new CloseDomeAction(id)),
+        new(SessionActionKind.TurnDome, "Turn Dome", ActionCategory.Dome, "Turns the dome to an azimuth. A roof has no azimuth.", ActionScope.Session | ActionScope.Preparation, id => new TurnDomeAction(id)),
+        new(SessionActionKind.ParkDome, "Park Dome", ActionCategory.Dome, "Parks the dome.", ActionScope.Session | ActionScope.Preparation, id => new ParkDomeAction(id)),
+        new(SessionActionKind.FindDomeHome, "Dome Home", ActionCategory.Dome, "Sends the dome to its home position.", ActionScope.Session | ActionScope.Preparation, id => new FindDomeHomeAction(id)),
 
         new(SessionActionKind.PlateSolve, "Plate Solve", ActionCategory.Astrometry, "Solves the field with a frame.", ActionScope.Preparation, id => new PlateSolveAction(id)),
         new(SessionActionKind.CenterAndRotate, "Center & Rotate", ActionCategory.Astrometry, "Centers the target and turns the rotator to the rotation of the target.", ActionScope.Preparation, id => new CenterAndRotateAction(id)),

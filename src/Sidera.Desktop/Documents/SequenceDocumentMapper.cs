@@ -88,7 +88,7 @@ public static class SequenceDocumentMapper
         PlateSolveStepDraft p => new PlateSolveDocumentStep(p.Id, p.RigId?.Value, p.ExposureSeconds),
         ExposureStepDraft e => new ExposureDocumentStep(e.Id, e.CameraId?.Value, e.Seconds, e.Acquisition.IsDefault ? null : e.Acquisition),
         RigExposureStepDraft r => new RigExposureDocumentStep(r.Id, r.Seconds, r.Acquisition.IsDefault ? null : r.Acquisition),
-        DeviceOperationStepDraft o => new DeviceOperationDocumentStep(o.Id, OperationName(o.Operation), o.DeviceId?.Value, o.Celsius, o.RampMinutes),
+        DeviceOperationStepDraft o => new DeviceOperationDocumentStep(o.Id, OperationName(o.Operation), o.DeviceId?.Value, o.Celsius, o.RampMinutes, o.AzimuthDegrees),
         MoveFocuserStepDraft f => new MoveFocuserDocumentStep(f.Id, f.FocuserId?.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterDocumentStep(c.Id, c.FilterWheelId?.Value, c.SlotIndex),
         RigMoveFocuserStepDraft f => new RigMoveFocuserDocumentStep(f.Id, f.Position),
@@ -134,7 +134,7 @@ public static class SequenceDocumentMapper
         PlateSolveDocumentStep p => new PlateSolveStepDraft(p.Id, p.RigId is null ? null : new RigId(p.RigId), p.ExposureSeconds),
         ExposureDocumentStep e => new ExposureStepDraft(e.Id, Device(e.CameraId), e.ExposureSeconds) { Acquisition = e.Acquisition ?? AcquisitionIntent.Default },
         RigExposureDocumentStep r => new RigExposureStepDraft(r.Id, r.ExposureSeconds) { Acquisition = r.Acquisition ?? AcquisitionIntent.Default },
-        DeviceOperationDocumentStep o => new DeviceOperationStepDraft(o.Id, OperationOf(o.Operation), Device(o.DeviceId), o.Celsius, o.RampMinutes),
+        DeviceOperationDocumentStep o => new DeviceOperationStepDraft(o.Id, OperationOf(o.Operation), Device(o.DeviceId), o.Celsius, o.RampMinutes, o.AzimuthDegrees),
         MoveFocuserDocumentStep f => new MoveFocuserStepDraft(f.Id, Device(f.FocuserId), f.Position),
         ChangeFilterDocumentStep c => new ChangeFilterStepDraft(c.Id, Device(c.FilterWheelId), c.SlotIndex),
         RigMoveFocuserDocumentStep f => new RigMoveFocuserStepDraft(f.Id, f.Position),
@@ -164,6 +164,11 @@ public static class SequenceDocumentMapper
         (Sidera.Runtime.Sequencing.DeviceOperation.Unpark, "unpark"),
         (Sidera.Runtime.Sequencing.DeviceOperation.TrackingOn, "trackingOn"),
         (Sidera.Runtime.Sequencing.DeviceOperation.TrackingOff, "trackingOff"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.OpenDome, "openDome"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.CloseDome, "closeDome"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.TurnDome, "turnDome"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.ParkDome, "parkDome"),
+        (Sidera.Runtime.Sequencing.DeviceOperation.FindDomeHome, "findDomeHome"),
     ];
 
     internal static string OperationName(Sidera.Runtime.Sequencing.DeviceOperation operation) => System.Array.Find(Operations, o => o.Operation == operation).Name;

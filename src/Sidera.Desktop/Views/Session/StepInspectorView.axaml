@@ -135,6 +135,8 @@
                 </ctl:LabeledField>
                 <ctl:LabeledField Label="Camera" IsVisible="{Binding ShowsCamera}"><ContentControl Content="{Binding Camera}" /></ctl:LabeledField>
                 <ctl:LabeledField Label="Mount" IsVisible="{Binding ShowsMount}"><ContentControl Content="{Binding Mount}" /></ctl:LabeledField>
+                <ctl:LabeledField Label="Dome" IsVisible="{Binding ShowsDome}"><ContentControl Content="{Binding Dome}" /></ctl:LabeledField>
+                <ctl:FieldRow Label="Azimuth" Unit="°" IsVisible="{Binding ShowsAzimuth}"><TextBox Text="{Binding AzimuthText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Temperature" Unit="°C" IsVisible="{Binding ShowsTemperature}"><TextBox Text="{Binding CelsiusText}" /></ctl:FieldRow>
                 <ctl:FieldRow Label="Ramp" Unit="min" IsVisible="{Binding ShowsRamp}"><TextBox Text="{Binding RampText}" /></ctl:FieldRow>
                 <ItemsControl ItemsSource="{Binding Problems}" ItemTemplate="{StaticResource ProblemLine}" />

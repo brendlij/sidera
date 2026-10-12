@@ -56,13 +56,16 @@ public static class SessionCompiler
 
     /// <param name="applicationFlip">The meridian flip settings of the application: what a session that follows the defaults uses.</param>
     /// <param name="usable">The setups that can image now (their camera is connected); <c>null</c>: every setup there is counts.</param>
-    public static SessionCompilation Compile(SessionDefinition session, ISetupSource? setups, MeridianFlipSettings? applicationFlip = null, IReadOnlySet<RigId>? usable = null)
+    /// <param name="domes">The domes (and roll-off roofs) of the observatory: what the dome actions work with. <c>null</c> or empty: there is none.</param>
+    public static SessionCompilation Compile(
+        SessionDefinition session, ISetupSource? setups, MeridianFlipSettings? applicationFlip = null, IReadOnlySet<RigId>? usable = null, IReadOnlyList<DeviceId>? domes = null)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return new Compilation(session, setups, applicationFlip, usable).Run();
+        return new Compilation(session, setups, applicationFlip, usable, domes ?? []).Run();
     }
 
-    private sealed class Compilation(SessionDefinition session, ISetupSource? setups, MeridianFlipSettings? applicationFlip, IReadOnlySet<RigId>? usable)
+    private sealed class Compilation(
+        SessionDefinition session, ISetupSource? setups, MeridianFlipSettings? applicationFlip, IReadOnlySet<RigId>? usable, IReadOnlyList<DeviceId> domes)
     {
         private readonly List<SessionProblem> _problems = [];
         private readonly List<string> _notes = [];
@@ -573,6 +576,32 @@ public static class SessionCompiler
                             _ => ((SetTrackingAction)action).On ? DeviceOperation.TrackingOn : DeviceOperation.TrackingOff,
                         };
                         Add(id, new DeviceOperationStepDraft(id, operation, mount), action.Id);
+                    }
+
+                    break;
+                }
+
+                case OpenDomeAction or CloseDomeAction or TurnDomeAction or ParkDomeAction or FindDomeHomeAction:
+                {
+                    // A dome belongs to the observatory, not to an imaging setup: the action works with every dome there is.
+                    if (domes.Count == 0)
+                    {
+                        Problem(action.Id, "There is no dome. Add one on the Equipment page, or remove this action.");
+                        break;
+                    }
+
+                    foreach (var dome in domes)
+                    {
+                        var id = Derive(action.Id, dome.Value);
+                        var step = action switch
+                        {
+                            OpenDomeAction => new DeviceOperationStepDraft(id, DeviceOperation.OpenDome, dome),
+                            CloseDomeAction => new DeviceOperationStepDraft(id, DeviceOperation.CloseDome, dome),
+                            TurnDomeAction turn => new DeviceOperationStepDraft(id, DeviceOperation.TurnDome, dome, AzimuthDegrees: turn.AzimuthDegrees),
+                            ParkDomeAction => new DeviceOperationStepDraft(id, DeviceOperation.ParkDome, dome),
+                            _ => new DeviceOperationStepDraft(id, DeviceOperation.FindDomeHome, dome),
+                        };
+                        Add(id, step, action.Id);
                     }
 
                     break;

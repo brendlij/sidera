@@ -317,6 +317,19 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
+        foreach (var dome in Equipment.Domes.Where(d => ids.Contains(d.DeviceIdText)))
+        {
+            if (!dome.IsConnected)
+            {
+                return $"Connect {dome.Name} to run the sequence.";
+            }
+
+            if (dome.IsMoving || dome.IsOperationRunning)
+            {
+                return "Wait for the dome to finish moving.";
+            }
+        }
+
         if (cameras.Any(c => c.ExposureState != CameraExposureState.Idle || c.IsManualExposureRunning))
         {
             return "Wait for the camera to finish its exposure.";

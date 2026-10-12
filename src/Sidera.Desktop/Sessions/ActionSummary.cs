@@ -24,6 +24,7 @@ public static class ActionSummary
         CoolCameraAction c => string.Create(CultureInfo.InvariantCulture, $"to {c.TargetCelsius:0.#} °C over {c.RampMinutes:0.#} min"),
         WarmCameraAction w => string.Create(CultureInfo.InvariantCulture, $"over {w.RampMinutes:0.#} min"),
         SetTrackingAction t => t.On ? "on" : "off",
+        TurnDomeAction d => string.Create(CultureInfo.InvariantCulture, $"to {d.AzimuthDegrees:0.#}°"),
         _ => string.Empty,
     };
 

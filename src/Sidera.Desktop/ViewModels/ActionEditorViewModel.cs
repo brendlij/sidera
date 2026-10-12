@@ -84,6 +84,9 @@ public sealed partial class ActionEditorViewModel : ObservableObject, IUnreadabl
             case SetTrackingAction tracking:
                 TrackingOn = tracking.On;
                 break;
+            case TurnDomeAction turn:
+                AzimuthText = FieldParse.Text(turn.AzimuthDegrees);
+                break;
             case WaitUntilAction until:
                 Conditions.Load(until.Conditions);
                 break;
@@ -134,6 +137,8 @@ public sealed partial class ActionEditorViewModel : ObservableObject, IUnreadabl
     public bool ShowsRamp => Kind is SessionActionKind.CoolCamera or SessionActionKind.WarmCamera;
 
     public bool ShowsTracking => Kind == SessionActionKind.SetTracking;
+
+    public bool ShowsAzimuth => Kind == SessionActionKind.TurnDome;
 
     public bool ShowsConditions => Kind == SessionActionKind.WaitUntil;
 
@@ -201,6 +206,10 @@ public sealed partial class ActionEditorViewModel : ObservableObject, IUnreadabl
 
     [ObservableProperty]
     public partial bool TrackingOn { get; set; }
+
+    /// <summary>The azimuth a dome is turned to, in degrees, as typed.</summary>
+    [ObservableProperty]
+    public partial string AzimuthText { get; set; } = string.Empty;
 
     /// <summary>What to wait for, all of it: the sky (darkness, the target above an altitude), the time.</summary>
     public ConditionTogglesViewModel Conditions { get; }
@@ -317,6 +326,7 @@ public sealed partial class ActionEditorViewModel : ObservableObject, IUnreadabl
             },
             WarmCameraAction warm => warm with { RampMinutes = Math.Max(0, FieldParse.Number(RampText, "The ramp", "a number of minutes", problems, warm.RampMinutes)) },
             SetTrackingAction t => t with { On = TrackingOn },
+            TurnDomeAction turn => turn with { AzimuthDegrees = FieldParse.Number(AzimuthText, "The azimuth", "a number of degrees from 0 up to 360", problems, turn.AzimuthDegrees) },
             WaitUntilAction until => until with { Conditions = ReadUntil(problems) },
             _ => _action,
         };
