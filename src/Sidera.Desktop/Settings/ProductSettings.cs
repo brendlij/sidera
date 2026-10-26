@@ -91,11 +91,39 @@ public sealed record AutofocusDefaults
     /// </summary>
     public bool HoldMountStable { get; init; }
 
+    /// <summary>The focus is searched for (it starts where the focuser stands, turns round when the stars get larger, and does not fail on a blurred sample) instead of a fixed pattern.</summary>
+    public bool SearchForFocus { get; init; } = true;
+
+    /// <summary>The curve is fitted as a hyperbola (the default) or as the lines of the two sides.</summary>
+    public FocusFitMethod FitMethod { get; init; } = FocusFitMethod.Hyperbola;
+
+    /// <summary>The most samples a search takes; 0 lets the search decide.</summary>
+    public int MaxSamples { get; init; }
+
+    /// <summary>How many samples in a row that cannot be measured a search puts up with.</summary>
+    public int MaxFailedSamples { get; init; } = 3;
+
+    /// <summary>A search that finds no star where the focuser stands goes to the position where focus was found last.</summary>
+    public bool UseRememberedPosition { get; init; } = true;
+
+    /// <summary>What autofocus does with these settings, as the strategy of a run.</summary>
+    public AutofocusStrategy Strategy(IFocusHistory? history) => new()
+    {
+        Mode = SearchForFocus ? AutofocusMode.Search : AutofocusMode.Pattern,
+        FitMethod = FitMethod,
+        MaxSamples = MaxSamples,
+        MaxFailedSamples = MaxFailedSamples,
+        UseRememberedPosition = UseRememberedPosition,
+        History = history,
+    };
+
     public string? Problem =>
         !double.IsFinite(ExposureSeconds) || ExposureSeconds is < 0.001 or > 3600 ? "The autofocus exposure must be from 0.001 to 3600 seconds."
         : StepSize is < 1 or > 100_000 ? "The step size must be from 1 to 100000 focuser steps."
         : SampleCount < AutofocusOptions.MinimumSampleCount || SampleCount > AutofocusOptions.MaximumSampleCount || SampleCount % 2 == 0
             ? $"The number of samples must be odd, from {AutofocusOptions.MinimumSampleCount} to {AutofocusOptions.MaximumSampleCount}."
+        : MaxSamples != 0 && (MaxSamples < SampleCount || MaxSamples > 100) ? "The most samples of a search must be 0 (the search decides) or from the number of samples to 100."
+        : MaxFailedSamples is < 0 or > 10 ? "The samples that may fail in a row must be from 0 to 10."
         : !double.IsFinite(PolicyIntervalMinutes) || PolicyIntervalMinutes is < 0 or > 1440 ? "The autofocus interval must be from 0 to 1440 minutes."
         : PolicyEnabled && !PolicyAtStart && !PolicyAfterFilterChange && PolicyIntervalMinutes <= 0 ? "A block that focuses by itself needs a trigger: at the start, an interval, or after a filter change."
         : null;

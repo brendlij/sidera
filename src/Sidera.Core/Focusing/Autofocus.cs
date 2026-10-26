@@ -26,6 +26,9 @@ public sealed record AutofocusOptions(
     int MaxAttempts = 2
 )
 {
+    /// <summary>How the focus is searched and fitted; the strategy of the application unless a caller says otherwise.</summary>
+    public AutofocusStrategy Strategy { get; init; } = AutofocusStrategy.Application;
+
     /// <summary>A fit needs at least this many valid positions.</summary>
     public const int MinimumSampleCount = 5;
 
@@ -62,6 +65,11 @@ public sealed record AutofocusOptions(
         {
             throw new ArgumentException("Autofocus needs at least one attempt.", nameof(MaxAttempts));
         }
+
+        if (Strategy.MaxFailedSamples < 0 || Strategy.MaxSamples < 0)
+        {
+            throw new ArgumentException("Autofocus limits of the search cannot be negative.", nameof(Strategy));
+        }
     }
 }
 
@@ -88,7 +96,11 @@ public sealed record AutofocusResult(
     FocusMeasurement? Verification,
     int FinalPosition,
     int Attempts
-);
+)
+{
+    /// <summary>The fitted position was worse than the best sample when it was checked, so the focuser went back to that sample.</summary>
+    public bool FellBackToBestSample { get; init; }
+}
 
 /// <summary>Autofocus did not find a focus it can stand behind. The message is one sentence for the user.</summary>
 public sealed class AutofocusFailedException(string message) : InvalidOperationException(message)

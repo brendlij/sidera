@@ -1,3 +1,4 @@
+using Sidera.Core.Focusing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -86,6 +87,12 @@ public static class SideraSettingsSerializer
             {
                 w.WriteBoolean("holdMountStable", true);
             }
+
+            w.WriteBoolean("searchForFocus", settings.Autofocus.SearchForFocus);
+            w.WriteString("fitMethod", settings.Autofocus.FitMethod == FocusFitMethod.TrendLines ? "trendLines" : "hyperbola");
+            w.WriteNumber("maxSamples", settings.Autofocus.MaxSamples);
+            w.WriteNumber("maxFailedSamples", settings.Autofocus.MaxFailedSamples);
+            w.WriteBoolean("useRememberedPosition", settings.Autofocus.UseRememberedPosition);
             w.WriteEndObject();
 
             w.WriteStartObject("guiding");
@@ -267,6 +274,11 @@ public static class SideraSettingsSerializer
                 PolicyIntervalMinutes = Num(autofocus, "policyIntervalMinutes", d.PolicyIntervalMinutes, "autofocus"),
                 PolicyAfterFilterChange = Flag(autofocus, "policyAfterFilterChange", d.PolicyAfterFilterChange, "autofocus"),
                 HoldMountStable = Flag(autofocus, "holdMountStable", d.HoldMountStable, "autofocus"),
+                SearchForFocus = Flag(autofocus, "searchForFocus", d.SearchForFocus, "autofocus"),
+                FitMethod = autofocus.TryGetProperty("fitMethod", out var fit) && fit.ValueKind == JsonValueKind.String && fit.GetString() == "trendLines" ? FocusFitMethod.TrendLines : FocusFitMethod.Hyperbola,
+                MaxSamples = Int(autofocus, "maxSamples", d.MaxSamples, "autofocus"),
+                MaxFailedSamples = Int(autofocus, "maxFailedSamples", d.MaxFailedSamples, "autofocus"),
+                UseRememberedPosition = Flag(autofocus, "useRememberedPosition", d.UseRememberedPosition, "autofocus"),
             };
             settings = settings with { Autofocus = next.Problem is { } problem ? throw new SideraSettingsException(problem) : next };
         }

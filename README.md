@@ -120,6 +120,11 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
   and `tools/help-screenshots` takes them again.
 - **Themes:** Settings → Appearance: Sidera Dark (the default), Midnight, Graphite, Red Night (black and red only, for night vision at the telescope) and Light. A theme is shown as soon as you choose it; Save keeps it
   for the next start, Discard goes back to the saved one. Each theme is one palette file in `Styles/Themes`; views and styles take their colours from the tokens, so a theme changes nothing but colours.
+- **Autofocus:** a search (Settings → Autofocus, on by default): it starts where the focuser stands, steps toward the side where the stars get smaller, turns round when they get larger, and takes samples on both
+  sides of the smallest stars (as many on each side as the number of samples says, up to a most that the search or the setting decides). A position where no star can be measured ends the search on that side and is not
+  fatal; a run of failed samples (3 by default) is. The curve is a hyperbola through the widest run of samples that it explains (a wild sample is left out) or the lines of the two sides; a minimum beyond the samples is
+  stepped to; a focus that checks worse than the best sample falls back to that sample. The position where focus was found is remembered for each setup (a file beside the settings): with no star where the focuser
+  stands, the search goes there, then a few steps to either side. The old fixed pattern of samples is still there (switch the search off).
 - **Settings:** tabs for General, Appearance, Observatory, Imaging, Autofocus, Guiding, Plate solving, Framing, Meridian Flip, Sequencer and Advanced. Each editable tab is saved with its own Save
   button; nothing is applied while you type. Defaults are only used for what is created afterwards: a session with its own settings, or an open session, is not rewritten. A session
   chooses its meridian flip between "Use application defaults" and "Custom for this session". Settings are defaults; what a session does is in the session.

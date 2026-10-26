@@ -138,7 +138,12 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep, IClaimingSeque
                 Options.ExposureDuration.TotalSeconds);
 
             var measurer = new FocusMeasurementOperation(_registry, RigId, CameraId, FocuserId, _metrics, _acquisitionDefaults);
-            var result = await AutofocusEngine.RunAsync(focuser, measurer, Options, Report, cancellationToken);
+            var result = Options.Strategy.Mode == AutofocusMode.Search
+                ? await SearchAutofocusEngine.RunAsync(focuser, measurer, Options, RigId, Report, cancellationToken)
+                : await AutofocusEngine.RunAsync(focuser, measurer, Options, Report, cancellationToken);
+
+            // What was in focus is remembered: the next search starts there when it finds no star where the focuser stands.
+            Options.Strategy.History?.Record(RigId, result.BestPosition, result.BestHfr, DateTimeOffset.UtcNow);
 
             _logger.LogInformation(
                 "Autofocus completed for rig {RigId}: best position {BestPosition} (from {InitialPosition}), HFR {BestHfr:0.00} px, " +

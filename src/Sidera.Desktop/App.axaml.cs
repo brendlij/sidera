@@ -1,3 +1,4 @@
+using System.IO;
 using System;
 using System.Threading.Tasks;
 using Avalonia;
@@ -80,6 +81,24 @@ public partial class App : Application
             }, logger: host.LoggerFactory.CreateLogger<Sidera.Astap.AstapPlateSolver>()));
             // A real mount is given time to settle after a slew, a lost solve is tried again, and a mount that does not track is told to.
             host.PlateSolving!.Centering = Sidera.Runtime.Astrometry.CenteringOptions.Production;
+
+            // How autofocus searches (Settings → Autofocus), and where it remembers that focus was.
+            var focusHistory = new Sidera.Core.Focusing.FocusHistory();
+            var focusStore = Sidera.Desktop.Settings.FocusHistoryStore.BesideSettings(string.IsNullOrWhiteSpace(settingsFile) ? Sidera.Desktop.Settings.SideraSettingsStore.DefaultPath() : settingsFile);
+            focusHistory.Load(focusStore.Load());
+            focusHistory.Changed += (_, _) =>
+            {
+                try
+                {
+                    focusStore.Save(focusHistory.All());
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning(ex, "The positions where focus was found could not be saved");
+                }
+            };
+            Sidera.Core.Focusing.AutofocusStrategy.Application = site.Autofocus.Strategy(focusHistory);
+            site.Changed += (_, _) => Sidera.Core.Focusing.AutofocusStrategy.Application = site.Autofocus.Strategy(focusHistory);
             if (site.Problem is { } siteProblem)
             {
                 logger.LogWarning("The settings file could not be used: {Problem}", siteProblem);

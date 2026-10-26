@@ -25,6 +25,117 @@ internal static class FocusCurveFit
     /// <summary>The parabola has to explain at least this much of the variation of the samples.</summary>
     public const double MinimumRSquared = 0.8;
 
+    /// <summary>
+    /// The fit of a search: of the samples in the order of the focuser position, the widest run of them that holds the lowest HFR and that the curve explains (so that an outer sample that spoils
+    /// the hyperbola, a seeing floor or a sample at a wrong moment, is left out instead of failing the run), or the lines of the two sides. <c>null</c> when there is no reliable minimum.
+    /// </summary>
+    public static FocusFit? Fit(IReadOnlyList<FocusMeasurement> samples, FocusFitMethod method)
+    {
+        var sorted = samples.OrderBy(s => s.FocuserPosition).ToList();
+        return method == FocusFitMethod.TrendLines ? FitTrendLines(sorted) : FitWidestRun(sorted);
+    }
+
+    private static FocusFit? FitWidestRun(List<FocusMeasurement> sorted)
+    {
+        if (sorted.Count < AutofocusOptions.MinimumSampleCount)
+        {
+            return null;
+        }
+
+        var lowest = sorted.IndexOf(sorted.MinBy(s => s.Hfr)!);
+        for (var width = sorted.Count; width >= AutofocusOptions.MinimumSampleCount; width--)
+        {
+            FocusFit? best = null;
+            for (var start = 0; start + width <= sorted.Count; start++)
+            {
+                if (lowest < start || lowest >= start + width)
+                {
+                    continue;
+                }
+
+                var fit = Fit(sorted.GetRange(start, width));
+                if (fit is not null && (best is null || fit.RSquared > best.RSquared))
+                {
+                    best = fit;
+                }
+            }
+
+            if (best is not null)
+            {
+                return best;
+            }
+        }
+
+        return null;
+    }
+
+    // Two straight lines, one through the samples up to the lowest and one from it on; the focus is where they cross.
+    private static FocusFit? FitTrendLines(List<FocusMeasurement> sorted)
+    {
+        if (sorted.Count < AutofocusOptions.MinimumSampleCount)
+        {
+            return null;
+        }
+
+        var lowest = sorted.IndexOf(sorted.MinBy(s => s.Hfr)!);
+        var left = sorted.GetRange(0, lowest + 1);
+        var right = sorted.GetRange(lowest, sorted.Count - lowest);
+        if (left.Count < 3 || right.Count < 3)
+        {
+            return null;
+        }
+
+        var (a1, b1) = Line(left);
+        var (a2, b2) = Line(right);
+
+        // Sloping down to the focus on the left and up from it on the right; anything else is not a V.
+        if (!(b1 < 0 && b2 > 0))
+        {
+            return null;
+        }
+
+        var x = (a2 - a1) / (b1 - b2);
+        if (!double.IsFinite(x) || x < sorted[0].FocuserPosition || x > sorted[^1].FocuserPosition)
+        {
+            return null;
+        }
+
+        var y = a1 + b1 * x;
+        double residual = 0, total = 0;
+        var mean = sorted.Average(s => s.Hfr);
+        foreach (var sample in sorted)
+        {
+            var model = sample.FocuserPosition <= x ? a1 + b1 * sample.FocuserPosition : a2 + b2 * sample.FocuserPosition;
+            residual += (sample.Hfr - model) * (sample.Hfr - model);
+            total += (sample.Hfr - mean) * (sample.Hfr - mean);
+        }
+
+        var rSquared = total > 0 ? 1 - residual / total : 0;
+        if (rSquared < MinimumRSquared)
+        {
+            return null;
+        }
+
+        return new FocusFit(x, y > 0 ? y : sorted.Min(s => s.Hfr), rSquared);
+    }
+
+    // Least-squares line y = a + b x through the samples (positions centred for the sum).
+    private static (double A, double B) Line(List<FocusMeasurement> samples)
+    {
+        var meanX = samples.Average(s => (double)s.FocuserPosition);
+        var meanY = samples.Average(s => s.Hfr);
+        double sxx = 0, sxy = 0;
+        foreach (var s in samples)
+        {
+            var dx = s.FocuserPosition - meanX;
+            sxx += dx * dx;
+            sxy += dx * (s.Hfr - meanY);
+        }
+
+        var b = sxx > 0 ? sxy / sxx : 0;
+        return (meanY - b * meanX, b);
+    }
+
     /// <returns>The fit, or <c>null</c> when the samples show no reliable minimum.</returns>
     public static FocusFit? Fit(IReadOnlyList<FocusMeasurement> samples)
     {

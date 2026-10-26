@@ -483,4 +483,31 @@ public class AutofocusActionTests
         Assert.Equal(SequenceState.Completed, runner.State);
         Assert.Contains(completions, name => name.StartsWith("Exposure", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task ASearchingAction_FindsFocus_FromFarOff_AndRemembersWhereItWas()
+    {
+        await using var host = await CreateHost(mainStart: 18400); // 1600 steps from focus, more than the pattern reaches
+        var history = new FocusHistory();
+        var options = new AutofocusOptions(TimeSpan.FromMilliseconds(40), 300, 7) { Strategy = new AutofocusStrategy { Mode = AutofocusMode.Search, History = history } };
+
+        var result = await Autofocus(host, options: options).ExecuteAsync(NoContext.Instance, CancellationToken.None);
+
+        var focus = Assert.IsType<AutofocusResult>(result.Payload);
+        Assert.InRange(focus.BestPosition, 19850, 20150);
+        Assert.Equal(focus.BestPosition, history.LastPosition(MainRig)); // the next search can start there
+        Assert.Null(history.LastPosition(WideRig));
+    }
+
+    [Fact]
+    public async Task APatternAction_RemembersWhereFocusWas_Too()
+    {
+        await using var host = await CreateHost(mainStart: 19900);
+        var history = new FocusHistory();
+        var options = new AutofocusOptions(TimeSpan.FromMilliseconds(40), 300, 7) { Strategy = new AutofocusStrategy { Mode = AutofocusMode.Pattern, History = history } };
+
+        var result = await Autofocus(host, options: options).ExecuteAsync(NoContext.Instance, CancellationToken.None);
+
+        Assert.Equal(((AutofocusResult)result.Payload!).BestPosition, history.LastPosition(MainRig));
+    }
 }

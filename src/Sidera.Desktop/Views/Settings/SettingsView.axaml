@@ -149,6 +149,14 @@
                     <ctl:LabeledField Grid.Column="1" Label="Step size"><TextBox Text="{Binding StepSizeText}" AutomationProperties.Name="Autofocus step size" /></ctl:LabeledField>
                     <ctl:LabeledField Grid.Column="2" Label="Samples"><TextBox Text="{Binding SamplesText}" AutomationProperties.Name="Autofocus samples" /></ctl:LabeledField>
                 </Grid>
+                <TextBlock Classes="eyebrow" Text="HOW THE FOCUS IS FOUND" />
+                <CheckBox Content="Search for the focus: start where the focuser stands, turn round when the stars get larger" IsChecked="{Binding SearchForFocus}" AutomationProperties.AutomationId="AutofocusSearch" />
+                <CheckBox Content="Fit straight lines to the two sides instead of a hyperbola" IsChecked="{Binding FitTrendLines}" AutomationProperties.AutomationId="AutofocusTrendLines" />
+                <CheckBox Content="With no star where the focuser stands, go to the position where focus was found last" IsChecked="{Binding UseRememberedPosition}" AutomationProperties.AutomationId="AutofocusRemember" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <ctl:LabeledField Label="Most samples (0 = the search decides)"><TextBox Text="{Binding MaxSamplesText}" AutomationProperties.Name="Autofocus most samples" /></ctl:LabeledField>
+                    <ctl:LabeledField Grid.Column="1" Label="Samples that may fail in a row"><TextBox Text="{Binding MaxFailedText}" AutomationProperties.Name="Autofocus failed samples" /></ctl:LabeledField>
+                </Grid>
                 <TextBlock Classes="eyebrow" Text="DEFAULTS FOR NEW BLOCKS" />
                 <CheckBox Content="New imaging setups with a focuser focus by themselves" IsChecked="{Binding PolicyEnabled}" />
                 <CheckBox Content="Focus at the start" IsChecked="{Binding PolicyAtStart}" />

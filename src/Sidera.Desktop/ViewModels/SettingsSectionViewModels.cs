@@ -1,3 +1,4 @@
+using Sidera.Core.Focusing;
 using System;
 using System.Globalization;
 using System.IO;
@@ -362,15 +363,23 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
     [ObservableProperty] public partial string IntervalText { get; set; } = string.Empty;
     [ObservableProperty] public partial bool PolicyAfterFilterChange { get; set; }
     [ObservableProperty] public partial bool HoldMountStable { get; set; }
+    [ObservableProperty] public partial bool SearchForFocus { get; set; }
+    [ObservableProperty] public partial bool FitTrendLines { get; set; }
+    [ObservableProperty] public partial string MaxSamplesText { get; set; } = string.Empty;
+    [ObservableProperty] public partial string MaxFailedText { get; set; } = string.Empty;
+    [ObservableProperty] public partial bool UseRememberedPosition { get; set; }
 
-    public override string AppliesText => "New blocks use it at once; a new Autofocus action and the manual autofocus from the next start. After a meridian flip: see the Meridian Flip tab.";
+    public override string AppliesText => "New blocks use it at once; a new Autofocus action and the manual autofocus from the next start. The way the focus is searched applies to the next run. After a meridian flip: see the Meridian Flip tab.";
 
     private AutofocusDefaults? Build() =>
         TryNumber(ExposureText, out var exposure) && TryWhole(StepSizeText, out var step) && TryWhole(SamplesText, out var samples) && TryNumber(IntervalText, out var interval)
+            && TryWhole(MaxSamplesText, out var maxSamples) && TryWhole(MaxFailedText, out var maxFailed)
             ? new AutofocusDefaults
             {
                 ExposureSeconds = exposure, StepSize = step, SampleCount = samples, PolicyEnabled = PolicyEnabled, PolicyAtStart = PolicyAtStart, PolicyIntervalMinutes = interval,
                 PolicyAfterFilterChange = PolicyAfterFilterChange, HoldMountStable = HoldMountStable,
+                SearchForFocus = SearchForFocus, FitMethod = FitTrendLines ? FocusFitMethod.TrendLines : FocusFitMethod.Hyperbola, MaxSamples = maxSamples, MaxFailedSamples = maxFailed,
+                UseRememberedPosition = UseRememberedPosition,
             }
             : null;
 
@@ -387,12 +396,17 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
         IntervalText = Format(s.PolicyIntervalMinutes);
         PolicyAfterFilterChange = s.PolicyAfterFilterChange;
         HoldMountStable = s.HoldMountStable;
+        SearchForFocus = s.SearchForFocus;
+        FitTrendLines = s.FitMethod == FocusFitMethod.TrendLines;
+        MaxSamplesText = s.MaxSamples.ToString(CultureInfo.InvariantCulture);
+        MaxFailedText = s.MaxFailedSamples.ToString(CultureInfo.InvariantCulture);
+        UseRememberedPosition = s.UseRememberedPosition;
     }
 
     protected override string? SaveCore() =>
         Unreadable(
             ("The exposure", TryNumber(ExposureText, out _)), ("The step size", TryWhole(StepSizeText, out _)), ("The number of samples", TryWhole(SamplesText, out _)),
-            ("The interval", TryNumber(IntervalText, out _)))
+            ("The interval", TryNumber(IntervalText, out _)), ("The most samples", TryWhole(MaxSamplesText, out _)), ("The samples that may fail", TryWhole(MaxFailedText, out _)))
         ?? _settings.SetAutofocus(Build()!).Problem;
 }
 

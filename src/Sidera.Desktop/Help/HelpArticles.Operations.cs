@@ -52,7 +52,7 @@ public static partial class HelpCatalog
             Keywords = ["save", "fits", "folder", "name", "header", "files", "frames", "path"],
         },
 
-        new("autofocus", ImagingSection, "Autofocus", "Samples the focus around where it is, fits the curve, moves to the best position and checks it.")
+        new("autofocus", ImagingSection, "Autofocus", "Searches the focus from where the focuser stands, fits the curve, moves to the best position and checks it.")
         {
             Steps =
             [
@@ -66,6 +66,9 @@ public static partial class HelpCatalog
                 "A setup without a focuser says No focuser configured and offers to configure one. The start button says which device is missing: Connect the camera of … or Connect the focuser of … on the Equipment page.",
                 "The defaults for a new autofocus (exposure, step size, samples) are in Settings → Autofocus. They apply to what you create afterwards.",
                 "An autofocus holds its camera and its focuser. It holds the mount still only if Settings → Autofocus says so.",
+                "The search starts where the focuser stands, steps toward the side where the stars get smaller and turns round when they get larger, until it has samples on both sides of the smallest stars. A position where no star can be measured (blurred too much) ends the search on that side; it does not fail the run.",
+                "The curve is fitted as a hyperbola through the widest run of samples that it explains (a wild outer sample is left out), or as the lines of the two sides: Settings → Autofocus chooses. A focus that checks worse than the best sample falls back to that sample.",
+                "With no star where the focuser stands, the position where focus was found last is tried (they are kept beside the settings, per setup), then a few steps to either side. Settings → Autofocus can switch the search off for the fixed pattern of samples.",
             ],
             Screenshot = Shot("imaging.png", "The autofocus panel is on the right of the Imaging page.",
                 (1, "Autofocus: exposure, step size and samples", 0.73, 0.31), (2, "Start Autofocus", 0.74, 0.535)),

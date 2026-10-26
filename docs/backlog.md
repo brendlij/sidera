@@ -38,7 +38,7 @@ Stand: 12.10.2026. Priorität 1 sind die Punkte, die Julian vor dem ersten echte
 
 ### Autofokus
 
-- [ ] **Autofokus ist nicht richtig smart:**
+- [~] **Autofokus ist nicht richtig smart:** (gebaut: Suche mit Umkehren, Start am aktuellen Fokus, gemerkte Position, weniger sturer Abbruch bei unscharfen Samples, Fit der breitesten passenden Serie oder Trendlinien, Fallback auf das beste Sample, Einstellungen; ungetestet an echten Sternen. Offen: Temperatur- und Filter-bezogene Positionen, Backlash-Ausgleich.)
   - Läuft weiter in die falsche Richtung, wenn die Sterne größer werden. Soll **umkehren**.
   - **Startet nicht beim aktuellen Fokuswert.** Soll von der aktuellen Position ausgehen.
   - **Merkt sich die letzten Fokuspositionen** (pro Kamera, Filter, Temperatur) und startet dort.
