@@ -179,7 +179,7 @@ public sealed partial class SimulatedMount
             Slewing = MotionState == MountMotionState.Slewing,
             AtPark = parked,
             AtHome = !parked && MotionState != MountMotionState.Slewing && SameSpot(coordinates, DefaultCoordinates),
-            SideOfPier = PierSideFor(coordinates, lst),
+            SideOfPier = SideOfPierNow(coordinates, lst),
             SiderealTimeHours = lst,
             UtcDate = now,
             PulseGuiding = pulsing,
@@ -582,6 +582,15 @@ public sealed partial class SimulatedMount
         var ra = lstHours - hourAngle * 180 / Math.PI / 15;
         ra = ((ra % 24) + 24) % 24;
         return new CelestialCoordinates(ra >= 24 ? 0 : ra, dec * 180 / Math.PI);
+    }
+
+    private PierSide SideOfPierNow(CelestialCoordinates coordinates, double lst)
+    {
+        lock (_gate)
+        {
+            // Before the first slew the mount stands at its home position, on the side that it has before the meridian.
+            return FixedPierSide ?? _pierSide ?? PierSide.West;
+        }
     }
 
     // An object west of the meridian (positive hour angle) is reached with the mount on the east side of the pier.

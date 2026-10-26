@@ -89,6 +89,8 @@ public sealed class MeridianFlipGroup
     private bool _flipping;
     private bool _forced;
     private PierSide _pierBefore = PierSide.Unknown;
+    private bool _sideChanged;
+    private CelestialCoordinates? _centeringStart;
     private TaskCompletionSource<bool>? _decision;
 
     public MeridianFlipGroup(MeridianFlipPlan plan, MeridianFlipServices services)
@@ -141,7 +143,7 @@ public sealed class MeridianFlipGroup
         var site = _services.Site?.Invoke()
             ?? (_services.Registry.TryGet(_plan.MountId, out var device) && device is IMountControl { Site: { } mountSite } ? mountSite.ToObservingSite() : null)
             ?? throw new MeridianFlipFailedException("The meridian flip needs the observing site (Settings), or a mount that reports one.");
-        return MeridianFlipTiming.HourAngleHours(_plan.Target.RightAscensionHours, UtcNow, site.LongitudeDegrees) * 60;
+        return MeridianFlipTiming.HourAngleHoursOfJ2000(_plan.Target.RightAscensionHours, _plan.Target.DeclinationDegrees, UtcNow, site.LongitudeDegrees) * 60;
     }
 
     /// <summary>
@@ -323,6 +325,12 @@ public sealed class MeridianFlipGroup
     private async Task FailAsync(string reason, Exception? inner, CancellationToken cancellationToken)
     {
         Log("MeridianFlipFailed", "Meridian flip failed: {Reason} (mount {Mount}, setups {Setups})", reason, MountId, string.Join(", ", SetupNames));
+        var secured = await SecureMountAsync();
+        if (secured is not null)
+        {
+            reason = reason.TrimEnd() + " " + secured;
+        }
+
         if (_plan.Settings.FailureBehavior == MeridianFlipFailureBehavior.AbortSession)
         {
             await SetStateAsync(MeridianFlipState.Failed, $"The flip failed: {reason}", SafeHourAngleHours(), CancellationToken.None);
@@ -361,6 +369,29 @@ public sealed class MeridianFlipGroup
         }
 
         Log("MeridianFlipRetry", "Meridian flip retried by the user (mount {Mount})", MountId);
+    }
+
+    // A flip that failed leaves the mount tracking past the meridian. When it did not change sides it stands on the side that it was on before the meridian, and tracking on would take it further into
+    // the limits of the mount: tracking is stopped, and that is said. A mount that did change sides stands on the safe side and keeps tracking.
+    private async Task<string?> SecureMountAsync()
+    {
+        if (_sideChanged || !_services.Registry.TryGet(_plan.MountId, out var device) || device is not IMountControl { ConnectionState: DeviceConnectionState.Connected } control
+            || control.Telemetry is not { Tracking: true })
+        {
+            return null;
+        }
+
+        try
+        {
+            await control.SetTrackingAsync(false, CancellationToken.None);
+            Log("MeridianFlipTrackingStopped", "Meridian flip failed before the mount changed sides: tracking of {Mount} was stopped for safety", MountId);
+            return "The mount did not change sides, so its tracking was stopped.";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Tracking of {Mount} could not be stopped after the failed flip", MountId);
+            return "The mount did not change sides and its tracking could not be stopped: stop it yourself.";
+        }
     }
 
     /// <summary>The flip failed and waits: try it again (the mount is flipped, centered and so on as before).</summary>
@@ -416,9 +447,11 @@ public sealed class MeridianFlipGroup
             }
         }
 
-        // The mount: the slew to the same target, and a look at what the driver says.
+        // The mount: tracking on (a retry after a failure that stopped it), the slew to the same target, and a look at what the driver says. A retry of a flip that did change sides does not slew
+        // again: the mount stays where centering left it, and centering goes on from there instead of starting again from the uncorrected target.
+        Add(FlipPhase.Mount, MeridianFlipState.Flipping, "Flipping the mount", new FlipTrackingStep(this, registry));
         Add(FlipPhase.Mount, MeridianFlipState.Flipping, "Flipping the mount", new FlipMarkStep(this, registry));
-        Add(FlipPhase.Mount, MeridianFlipState.Flipping, "Flipping the mount", new SlewAction(registry, MountId, _plan.Target));
+        Add(FlipPhase.Mount, MeridianFlipState.Flipping, "Flipping the mount", new SlewAction(registry, MountId, _plan.Target), () => !_sideChanged);
         Add(FlipPhase.Mount, MeridianFlipState.Flipping, "Checking the mount", new FlipVerifyStep(this, registry));
         if (settings.RecenterAfterFlip)
         {
@@ -548,6 +581,26 @@ public sealed class MeridianFlipGroup
         }
     }
 
+    // Tracking on before the slew: a flip that was held after a failure has its mount stopped, and a retry starts it again.
+    private sealed class FlipTrackingStep(MeridianFlipGroup group, DeviceRegistry registry) : IResourceAwareSequenceStep
+    {
+        public string Name => "Start tracking for the flip";
+
+        public IReadOnlyCollection<ResourceId> RequiredResources => [ResourceId.ForDevice(group.MountId)];
+
+        public async Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
+        {
+            if (registry.TryGet(group.MountId, out var device) && device is IMountControl { ConnectionState: DeviceConnectionState.Connected, Telemetry: { Tracking: false } } control
+                && control.Capabilities.Value is { CanSetTracking: true })
+            {
+                group.Log("MeridianFlipTrackingStarted", "The mount {Mount} was not tracking; tracking is started for the flip", group.MountId);
+                await control.SetTrackingAsync(true, cancellationToken);
+            }
+
+            return new SequenceStepResult();
+        }
+    }
+
     // Notes the pier side before the slew.
     private sealed class FlipMarkStep(MeridianFlipGroup group, DeviceRegistry registry) : ISequenceStep
     {
@@ -555,7 +608,12 @@ public sealed class MeridianFlipGroup
 
         public Task<SequenceStepResult> ExecuteAsync(ISequenceStepContext context, CancellationToken cancellationToken)
         {
-            group._pierBefore = registry.TryGet(group.MountId, out var device) && device is IMountControl { Telemetry: { } telemetry } ? telemetry.SideOfPier ?? PierSide.Unknown : PierSide.Unknown;
+            // The side before the flip is the side before the first slew: a retry of a flip that did change sides keeps it.
+            if (!group._sideChanged)
+            {
+                group._pierBefore = registry.TryGet(group.MountId, out var device) && device is IMountControl { Telemetry: { } telemetry } ? telemetry.SideOfPier ?? PierSide.Unknown : PierSide.Unknown;
+            }
+
             group.Log("MeridianFlipSlew", "Meridian flip slew: mount {Mount} to RA {Ra:0.####} h Dec {Dec:0.####} deg, side of pier before {Pier}", group.MountId, group._plan.Target.RightAscensionHours, group._plan.Target.DeclinationDegrees, group._pierBefore);
             return Task.FromResult(new SequenceStepResult());
         }
@@ -586,9 +644,17 @@ public sealed class MeridianFlipGroup
                 group.Log(
                     "MeridianFlipMountCompleted", "Meridian flip mount completed: side of pier {Before} to {After}, {Separation:0.###} deg from the target",
                     group._pierBefore, after, separation);
-                if (after == group._pierBefore)
+                if (after != group._pierBefore)
                 {
-                    group.Log("MeridianFlipPierUnchanged", "The driver reports the same side of pier after the flip ({Pier}); the plate solve is what verifies the pointing", after);
+                    group._sideChanged = true;
+                }
+                else if (!group._sideChanged)
+                {
+                    // The slew went to the same target and the mount is on the same side of the pier: it did not flip (many mounts keep tracking past the meridian and do not turn for a slew to the
+                    // same place). The pointing is right, so a plate solve would not find the fault, but the next exposure would be taken on the wrong side. This is a failure, not a note.
+                    group.Log("MeridianFlipPierUnchanged", "The driver reports the same side of pier after the flip ({Pier}): the mount did not flip", after);
+                    throw new MeridianFlipFailedException(
+                        $"The mount did not change sides of the pier (it reports {after} before and after the slew). Check the settings of the mount for the pier side and the meridian limits.");
                 }
             }
             else
@@ -621,13 +687,17 @@ public sealed class MeridianFlipGroup
                     : $"{p.Stage} #{p.Attempt}";
                 _ = group.ReportAsync(state, text, CancellationToken.None);
             });
+            // A flip that is tried again goes on from where the corrections of the last centering had got to, not from the uncorrected target.
             var result = await service.CenterTargetAsync(
                 group._plan.Target, group._plan.PointingRig, group.MountId, settings.CenteringToleranceArcseconds, settings.MaxCenteringAttempts,
-                TimeSpan.FromSeconds(settings.SolveExposureSeconds), group._services.PlateSolveDefaults?.Invoke() ?? new PlateSolveDefaults(), null, progress, cancellationToken);
+                TimeSpan.FromSeconds(settings.SolveExposureSeconds), group._services.PlateSolveDefaults?.Invoke() ?? new PlateSolveDefaults(), null, progress, cancellationToken, group._centeringStart);
             if (!result.Success)
             {
+                group._centeringStart = result.Commanded;
                 throw new MeridianFlipFailedException(result.Message ?? "The target could not be centered after the flip.");
             }
+
+            group._centeringStart = null;
 
             group.Log(
                 "MeridianFlipCenterCompleted", "Meridian flip centered: {Attempts} attempts, final error {Error} arcsec", result.Attempts,

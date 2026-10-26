@@ -78,6 +78,8 @@ public partial class App : Application
                 ExecutablePath = site.PlateSolving.ExecutablePath,
                 DatabasePath = site.PlateSolving.DatabasePath,
             }, logger: host.LoggerFactory.CreateLogger<Sidera.Astap.AstapPlateSolver>()));
+            // A real mount is given time to settle after a slew, a lost solve is tried again, and a mount that does not track is told to.
+            host.PlateSolving!.Centering = Sidera.Runtime.Astrometry.CenteringOptions.Production;
             if (site.Problem is { } siteProblem)
             {
                 logger.LogWarning("The settings file could not be used: {Problem}", siteProblem);

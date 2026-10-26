@@ -176,6 +176,13 @@ public static class MeridianFlipTiming
     /// <summary>The hour angle in hours: negative east of the meridian (the target will cross it), 0 on it, positive west of it (it has crossed).</summary>
     public static double HourAngleHours(double rightAscensionHours, double localSiderealTimeHours) => NormalizeHours(localSiderealTimeHours - rightAscensionHours);
 
+    /// <summary>
+    /// The hour angle of a target whose position is given for J2000 (a catalog position, as everything in Sidera is), at a place and a time: the sky and the mount work with the position of date, so
+    /// the right ascension is precessed first (see <see cref="Sidera.Core.Astrometry.SkyMath.RightAscensionOfDateHours"/>).
+    /// </summary>
+    public static double HourAngleHoursOfJ2000(double rightAscensionHours, double declinationDegrees, DateTime utc, double longitudeDegrees) =>
+        HourAngleHours(Sidera.Core.Astrometry.SkyMath.RightAscensionOfDateHours(rightAscensionHours, declinationDegrees, utc), utc, longitudeDegrees);
+
     /// <summary>The hour angle of a target at a place and a time.</summary>
     public static double HourAngleHours(double rightAscensionHours, DateTime utc, double longitudeDegrees) =>
         HourAngleHours(rightAscensionHours, LocalSiderealTimeHours(utc, longitudeDegrees));

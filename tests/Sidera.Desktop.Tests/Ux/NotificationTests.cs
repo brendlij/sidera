@@ -361,6 +361,30 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AFailedMeridianFlip_IsAnErrorMessageWithAWayToTheSession_AndOtherStatesAreNot()
+    {
+        var host = new SideraRuntimeHost();
+        var vm = new MainViewModel(
+            host, a => a(), new DemoOptions(), withDemoSequence: false, equipmentManagement: null, startWithSettingsMode: true, notificationScheduler: new FakeClock());
+        _hosts.Add((host, vm));
+
+        await host.EventBus.PublishAsync(new Sidera.Core.Mounts.MeridianFlipStateChanged(
+            new DeviceId("mount.1"), Sidera.Core.Mounts.MeridianFlipState.Flipping, "Flipping the mount", 0.01, 1, ["Main"]));
+        Assert.Empty(vm.Notifications.Visible);
+
+        await host.EventBus.PublishAsync(new Sidera.Core.Mounts.MeridianFlipStateChanged(
+            new DeviceId("mount.1"), Sidera.Core.Mounts.MeridianFlipState.Failed, "The flip failed: no solution. Retry the flip or abort the session.", 0.01, 1, ["Main"]));
+
+        var message = Assert.Single(vm.Notifications.Visible);
+        Assert.True(message.IsError);
+        Assert.Equal("The meridian flip failed", message.Title);
+        Assert.Contains("Retry the flip or abort", message.Detail, StringComparison.Ordinal);
+        Assert.Equal("Open Session", message.Action?.Label);
+        message.Action!.Invoke();
+        Assert.Equal(AppPage.Session, vm.SelectedPage);
+    }
+
+    [Fact]
     public async Task TheDiagnosticsPage_ListsTheRecentMessages_EvenWhenTheyWereClosed()
     {
         var vm = Create(host => host.AddSimulatedMount(new DeviceId("mount.a"), "EQ6", TimeSpan.FromMilliseconds(20)));

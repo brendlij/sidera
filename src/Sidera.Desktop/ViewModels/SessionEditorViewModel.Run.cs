@@ -313,7 +313,7 @@ public sealed partial class SessionEditorViewModel
             return;
         }
 
-        var minutes = MeridianFlipTiming.HourAngleHours(target.RightAscensionHours, (_draft.Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, site.LongitudeDegrees) * 60;
+        var minutes = MeridianFlipTiming.HourAngleHoursOfJ2000(target.RightAscensionHours, target.DeclinationDegrees, (_draft.Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, site.LongitudeDegrees) * 60;
         MeridianInfoText = MeridianFlipTiming.PhaseOf(flip, minutes) switch
         {
             MeridianFlipPhase.Monitoring => $"Meridian: {MeridianFormat(-minutes - flip.PauseBeforeMeridianMinutes)} until the hold · {MeridianFormat(-minutes)} until the crossing",

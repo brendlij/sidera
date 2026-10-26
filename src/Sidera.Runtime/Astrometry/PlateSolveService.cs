@@ -12,7 +12,23 @@ using Sidera.Runtime.Resources;
 namespace Sidera.Runtime.Astrometry;
 
 public sealed record CenteringProgress(string Stage, int Attempt, double? PointingErrorArcseconds = null);
-public sealed record CenteringResult(bool Success, int Attempts, double? PointingErrorArcseconds, string? Message);
+
+/// <summary>
+/// What centering does besides slewing and solving, for a mount that is real: it waits for the mount to stand still after a slew, a solve that finds nothing is tried again with a new exposure before
+/// centering gives up (a frame can be lost to a mount that is still settling, a cloud or a star trail), and a mount that is not tracking is told to track, because a frame taken without tracking cannot
+/// be solved. None of it is on by default: a simulator needs none of it, and the application chooses <see cref="Production"/>.
+/// </summary>
+/// <param name="SettleAfterSlew">How long the mount is left alone after a slew, before the exposure of the solve.</param>
+/// <param name="SolveRetries">How many more exposures a solve that found nothing gets, without slewing again.</param>
+/// <param name="EnsureTracking">A mount that reports that it is not tracking is told to track before the exposure.</param>
+public sealed record CenteringOptions(TimeSpan SettleAfterSlew, int SolveRetries, bool EnsureTracking)
+{
+    public static CenteringOptions None { get; } = new(TimeSpan.Zero, 0, false);
+
+    public static CenteringOptions Production { get; } = new(TimeSpan.FromSeconds(3), 2, true);
+}
+/// <param name="Commanded">Where the mount was last told to go (the target, moved by the corrections so far): a centering that is started again can go on from there instead of from the target.</param>
+public sealed record CenteringResult(bool Success, int Attempts, double? PointingErrorArcseconds, string? Message, CelestialCoordinates? Commanded = null);
 
 /// <summary>Backend-neutral solve and centering operations. Direct capture/centering owns device leases for the whole operation.</summary>
 public sealed class PlateSolveService
@@ -36,6 +52,10 @@ public sealed class PlateSolveService
     }
 
     public IPlateSolver Solver { get; }
+
+    /// <summary>What centering does besides slewing and solving; <see cref="CenteringOptions.None"/> until the application chooses.</summary>
+    public CenteringOptions Centering { get; set; } = CenteringOptions.None;
+
     public bool IsSolving { get { lock (_claimGate) { return _claims.Count > 0; } } }
 
     /// <summary>The mount that the latest result was made for (the one of its rig); <c>null</c> when the solve had no mount.</summary>
@@ -149,7 +169,7 @@ public sealed class PlateSolveService
 
     public Task<CenteringResult> CenterTargetAsync(CelestialCoordinates target, Rig rig, DeviceId mountId,
         double toleranceArcseconds, int maxAttempts, TimeSpan exposure, PlateSolveDefaults defaults,
-        AcquisitionIntent? intent = null, IProgress<CenteringProgress>? progress = null, CancellationToken cancellationToken = default)
+        AcquisitionIntent? intent = null, IProgress<CenteringProgress>? progress = null, CancellationToken cancellationToken = default, CelestialCoordinates? startAt = null)
     {
         ValidateCentering(toleranceArcseconds, maxAttempts);
         return RunAsync(async () =>
@@ -157,7 +177,7 @@ public sealed class PlateSolveService
             // The mount moves while it centers: its stability is held as well, so no camera on this mount is exposing meanwhile.
             using var lease = await _resources.AcquireClaimsAsync(
                 ResourceClaim.AllExclusive([ResourceId.ForDevice(mountId), ResourceId.ForMountStability(mountId), ResourceId.ForDevice(rig.CameraId)]), cancellationToken);
-            return await CenterTargetInLeaseAsync(target, rig, mountId, toleranceArcseconds, maxAttempts, exposure, defaults, intent, progress, cancellationToken);
+            return await CenterTargetInLeaseAsync(target, rig, mountId, toleranceArcseconds, maxAttempts, exposure, defaults, intent, progress, cancellationToken, startAt);
         }, mountId, MountClaim(mountId), CameraClaim(rig.CameraId));
     }
 
@@ -174,13 +194,14 @@ public sealed class PlateSolveService
     /// </summary>
     public async Task<CenteringResult> CenterTargetInLeaseAsync(CelestialCoordinates target, Rig rig, DeviceId mountId,
         double toleranceArcseconds, int maxAttempts, TimeSpan exposure, PlateSolveDefaults defaults,
-        AcquisitionIntent? intent = null, IProgress<CenteringProgress>? progress = null, CancellationToken cancellationToken = default)
+        AcquisitionIntent? intent = null, IProgress<CenteringProgress>? progress = null, CancellationToken cancellationToken = default, CelestialCoordinates? startAt = null)
     {
         ValidateCentering(toleranceArcseconds, maxAttempts);
         if (!_devices.TryGet(mountId, out var device) || device is not IMount mount) throw new InvalidOperationException("The selected mount is unavailable.");
         using var scope = _logger.BeginScope(new Dictionary<string, object?> { ["RigId"] = rig.Id.Value, ["CameraId"] = rig.CameraId.Value, ["MountId"] = mountId.Value, ["Target"] = target, ["Backend"] = Solver.Name });
         _logger.LogInformation(new EventId(5200, "CenteringStarted"), "CenteringStarted {Target}", target);
-        var commanded = target;
+        // Where the first slew goes: the target, or where an earlier centering of it had got to with its corrections.
+        var commanded = startAt ?? target;
         double? error = null;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -188,11 +209,9 @@ public sealed class PlateSolveService
             progress?.Report(new("Slew", attempt));
             try { await mount.SlewToAsync(commanded, cancellationToken); }
             catch (OperationCanceledException) { throw; }
-            catch (Exception ex) { return CenterFailure(attempt, error, $"Mount slew failed: {ex.Message}"); }
-            progress?.Report(new("Solve", attempt));
-            var result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, null, cancellationToken);
-            Record(result, mountId);
-            if (!result.Success || result.Center is null) return CenterFailure(attempt, error, result.Message ?? "Plate solving failed.");
+            catch (Exception ex) { return CenterFailure(attempt, error, $"Mount slew failed: {ex.Message}", commanded); }
+            var result = await SolveAfterSlewAsync(mount, rig, mountId, attempt, exposure, defaults, intent, progress, cancellationToken);
+            if (!result.Success || result.Center is null) return CenterFailure(attempt, error, result.Message ?? "Plate solving failed.", commanded);
             error = SkyMath.DegreesToArcseconds(SkyMath.AngularSeparationDegrees(target, result.Center));
             progress?.Report(new("Pointing error", attempt, error));
             if (error <= toleranceArcseconds)
@@ -206,7 +225,7 @@ public sealed class PlateSolveService
             _logger.LogInformation(new EventId(5201, "CenteringCorrection"), "CenteringCorrection {Attempt} to {Correction}, solved {Center}, error {ErrorArcseconds}", attempt, commanded, result.Center, error);
             progress?.Report(new("Correction", attempt, error));
         }
-        return CenterFailure(maxAttempts, error, "Maximum centering attempts reached.");
+        return CenterFailure(maxAttempts, error, "Maximum centering attempts reached.", commanded);
     }
 
     /// <summary>
@@ -253,11 +272,54 @@ public sealed class PlateSolveService
         return true;
     }, null, MountClaim(mountId));
 
-    private CenteringResult CenterFailure(int attempt, double? error, string message)
+    // The exposure of a solve after a slew: the mount is given a moment to stand still and told to track when it is not, and a solve that finds nothing is tried again before it counts.
+    private async Task<PlateSolveResult> SolveAfterSlewAsync(IMount mount, Rig rig, DeviceId mountId, int attempt, TimeSpan exposure, PlateSolveDefaults defaults,
+        AcquisitionIntent? intent, IProgress<CenteringProgress>? progress, CancellationToken cancellationToken)
+    {
+        var options = Centering;
+        PlateSolveResult result;
+        for (var tries = 0; ; tries++)
+        {
+            if (options.SettleAfterSlew > TimeSpan.Zero)
+            {
+                progress?.Report(new("Settle", attempt));
+                await Task.Delay(options.SettleAfterSlew, cancellationToken);
+            }
+
+            await EnsureTrackingAsync(mount, options, progress, attempt, cancellationToken);
+            progress?.Report(new(tries == 0 ? "Solve" : "Solve again", attempt));
+            result = await CaptureAndSolveCoreAsync(rig, mountId, exposure, defaults, intent, null, cancellationToken);
+            Record(result, mountId);
+            if ((result.Success && result.Center is not null) || tries >= options.SolveRetries) return result;
+            _logger.LogInformation(new EventId(5204, "CenteringSolveRetry"), "CenteringSolveRetry {Attempt}, try {Try} of {Tries}: {Message}", attempt, tries + 1, options.SolveRetries, result.Message);
+        }
+    }
+
+    // A frame taken while the mount does not track is trailed and cannot be solved: a mount that says it is not tracking is told to track, and that is said.
+    private async Task EnsureTrackingAsync(IMount mount, CenteringOptions options, IProgress<CenteringProgress>? progress, int attempt, CancellationToken cancellationToken)
+    {
+        if (!options.EnsureTracking || mount is not IMountControl control || control.Telemetry is not { Tracking: false } || control.Capabilities.Value is not { CanSetTracking: true })
+        {
+            return;
+        }
+
+        _logger.LogWarning(new EventId(5205, "CenteringTrackingStarted"), "The mount {MountId} was not tracking; tracking is started so that the frame can be solved", mount.Id.Value);
+        progress?.Report(new("Tracking started", attempt));
+        try
+        {
+            await control.SetTrackingAsync(true, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Tracking could not be started; the solve goes on without it");
+        }
+    }
+
+    private CenteringResult CenterFailure(int attempt, double? error, string message, CelestialCoordinates? commanded = null)
     {
         LastFailure = message;
         _logger.LogWarning(new EventId(5203, "CenteringFailed"), "CenteringFailed after {Attempt} attempts, error {ErrorArcseconds}: {Message}", attempt, error, message);
-        return new(false, attempt, error, message);
+        return new(false, attempt, error, message, commanded);
     }
 
     private ICamera Camera(DeviceId id) => _devices.TryGet(id, out var device) && device is ICamera camera

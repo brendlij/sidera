@@ -112,6 +112,19 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             host, () => equipmentManagement?.Site?.Imaging ?? new Sidera.Desktop.Settings.ImagingSettings { SaveSessionFrames = false }, () => equipmentManagement?.Site?.Site,
             (title, message) => Notifications.Post(Sidera.Desktop.Notifications.NotificationSeverity.Error, title, message), host.LoggerFactory?.CreateLogger("Sidera.Frames"));
         SequenceDraft.FrameSink = FrameSaver;
+
+        // A flip that failed holds the mount and waits for the person at the screen: that is said where it cannot be missed, not only in the card of the session.
+        _flipFailures = host.EventBus.Subscribe<Sidera.Core.Mounts.MeridianFlipStateChanged>((e, _) =>
+        {
+            if (e.State == Sidera.Core.Mounts.MeridianFlipState.Failed)
+            {
+                postToUi(() => Notifications.Post(
+                    Sidera.Desktop.Notifications.NotificationSeverity.Error, "The meridian flip failed", e.Message, "flip-failed-" + e.MountId.Value,
+                    new Sidera.Desktop.Notifications.NotificationAction("Open Session", () => SelectedPage = AppPage.Session)));
+            }
+
+            return Task.CompletedTask;
+        });
         SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
         SessionEditor = new SessionEditorViewModel(
             SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site,
@@ -249,6 +262,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>The messages of the application: what happened, said at the top right of the window.</summary>
     public new Sidera.Desktop.Notifications.NotificationService Notifications { get; }
+
+    private readonly IDisposable _flipFailures;
 
     /// <summary>Writes the frames of a session to disk (Settings → Imaging says where).</summary>
     public Sidera.Desktop.Imaging.SessionFrameSaver FrameSaver { get; }
@@ -434,6 +449,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         // Frames that are still being written are finished first (for a while at most); nothing waits on the window.
+        _flipFailures.Dispose();
         FrameSaver.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(15));
         Notifications.Dispose();
         PlateSolve.Dispose();

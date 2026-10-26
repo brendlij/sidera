@@ -1,3 +1,4 @@
+using Sidera.Core.Astrometry;
 using Sidera.Core.Focusing;
 using Sidera.Core.Guiding;
 using Sidera.Core.Location;
@@ -17,7 +18,7 @@ public sealed class MeridianGateTests : IAsyncLifetime
     private sealed class Clock : TimeProvider
     {
         public DateTime Now { get; private set; } = Start;
-        public double RightAscensionHours => MeridianFlipTiming.LocalSiderealTimeHours(Start, Site.LongitudeDegrees) + 10.0 / 60;
+        public double RightAscensionHours => SkyMath.RightAscensionJ2000FromDateHours(MeridianFlipTiming.LocalSiderealTimeHours(Start, Site.LongitudeDegrees) + 10.0 / 60, 41.3, Start);
         public override DateTimeOffset GetUtcNow() => new(Now, TimeSpan.Zero);
         public void SetHourAngle(double minutes) => Now = Start + TimeSpan.FromMinutes((minutes + 10) / 1.00273790935);
     }

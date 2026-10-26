@@ -231,9 +231,12 @@ public static partial class HelpCatalog
             ],
             Notes =
             [
-                "Times are minutes from the moment the target is on the meridian, worked out from the hour angle (target, observing site, clock), not from the pier side the driver reports.",
+                "Times are minutes from the moment the target is on the meridian, worked out from the hour angle (target, observing site, clock), not from the pier side the driver reports. The position of the target is brought to the date first: a catalog position is for J2000, and that is about a minute and a half off for the sky of today.",
                 "An exposure that runs is never interrupted. From the hold time on an exposure only starts when it ends before the flip is due.",
-                "A failed flip holds the setups of that mount until you retry or abort, or ends the session, as you chose.",
+                "A failed flip holds the setups of that mount until you retry or abort, or ends the session, as you chose. It is said as an error message with a button to the session.",
+                "The flip must change the side of the pier. When the mount reports the same side before and after the slew it did not flip (many mounts keep tracking past the meridian and do not turn for a slew to the same place): that is a failure, and the mount settings for the pier side and the meridian limits are what to check.",
+                "A flip that failed before the mount changed sides stops its tracking, so that it does not follow the sky on into its limits, and says so; a mount that did change sides keeps tracking. A retry starts the tracking again and goes on from where the centering had got to.",
+                "Centering after the flip lets the mount settle after every slew, tries a solve that found nothing again (two more exposures), and starts tracking when the mount says it is not tracking: a frame taken without tracking cannot be solved.",
                 "The mount is never synchronized by a flip.",
                 "A real flip is tested by hand only. Do not leave a first flip unattended.",
             ],

@@ -27,6 +27,12 @@ public sealed partial class SimulatedMount : IMountSiteControl
     private MountMotionState _motionState = MountMotionState.Idle;
     private CelestialCoordinates _coordinates = DefaultCoordinates;
 
+    // A real mount stands on one side of the pier until it is slewed: tracking past the meridian does not turn it. The side is that of the last slew; before one, it follows from where the mount points.
+    private PierSide? _pierSide;
+
+    /// <summary>For a test of a mount that does not turn over when it is told to (many keep tracking past the meridian): the side that the mount reports whatever it is slewed to; <c>null</c> is the normal behaviour.</summary>
+    public PierSide? FixedPierSide { get; set; }
+
     public SimulatedMount(
         DeviceId id,
         string name = "Simulated Mount",
@@ -182,6 +188,7 @@ public sealed partial class SimulatedMount : IMountSiteControl
             lock (_gate)
             {
                 _coordinates = target;
+                _pierSide = FixedPierSide ?? PierSideFor(target, SiderealTimeHours(UtcNow()));
                 _motionState = MountMotionState.Tracking;
             }
 

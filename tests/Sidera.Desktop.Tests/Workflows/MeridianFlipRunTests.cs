@@ -32,7 +32,7 @@ public sealed class MeridianFlipRunTests : IAsyncLifetime
         private readonly object _gate = new();
         private DateTime _now = Start;
 
-        public double TargetRightAscensionHours => MeridianFlipTiming.LocalSiderealTimeHours(Start, Site.LongitudeDegrees) + 10.0 / 60;
+        public double TargetRightAscensionHours => SkyMath.RightAscensionJ2000FromDateHours(MeridianFlipTiming.LocalSiderealTimeHours(Start, Site.LongitudeDegrees) + 10.0 / 60, 41.3, Start);
 
         public DateTime UtcNow
         {
@@ -504,5 +504,90 @@ public sealed class MeridianFlipRunTests : IAsyncLifetime
 
         Assert.Equal(SequenceState.Completed, runner.State);
         Assert.Contains(MeridianFlipState.Completed, run.StatesOf("mount.1"));
+    }
+
+    [Fact]
+    public async Task AMountThatDoesNotChangeSides_FailsTheFlip_StopsItsTracking_AndSaysSo()
+    {
+        var w = await CreateAsync();
+        await w.Mount1.SetTrackingAsync(true); // a session has the mount tracking before it images
+        w.Mount1.FixedPierSide = PierSide.West; // a mount that keeps tracking past the meridian and does not turn for a slew to the same place
+        var built = Build(w, Flip(s => s with { MaxFlipAttempts = 1, RecenterAfterFlip = false }), Track(A, 20, 0.3), Track(B, 20, 0.3));
+        var group = Groups(built).Single();
+        var (run, runner, task) = await StartAsync(w, built);
+        await WaitAsync(() => run.Count("Exposure") >= 2, "the first exposures");
+        Assert.True(w.Mount1.Telemetry!.Tracking);
+
+        w.Clock.SetHourAngle(2.5);
+        await WaitAsync(() => group.IsWaitingForDecision, "the failed flip to wait for a decision");
+
+        Assert.Contains("did not change sides", group.Message, StringComparison.Ordinal);
+        Assert.Contains("its tracking was stopped", group.Message, StringComparison.Ordinal);
+        await WaitAsync(() => !w.Mount1.Telemetry!.Tracking, "the tracking to stop");
+        Assert.True(group.Abort());
+        await Assert.ThrowsAnyAsync<Exception>(() => task.WaitAsync(Bound));
+        Assert.Equal(SequenceState.Failed, runner.State);
+    }
+
+    [Fact]
+    public async Task ARetryAfterAFlipThatHeldTheMount_StartsTrackingAgain_AndFinishesTheFlip()
+    {
+        var w = await CreateAsync();
+        await w.Mount1.SetTrackingAsync(true); // a session has the mount tracking before it images
+        w.Mount1.FixedPierSide = PierSide.West;
+        var built = Build(w, Flip(s => s with { MaxFlipAttempts = 1, RecenterAfterFlip = false }), Track(A, 20, 0.3), Track(B, 20, 0.3));
+        var group = Groups(built).Single();
+        var (run, runner, task) = await StartAsync(w, built);
+        await WaitAsync(() => run.Count("Exposure") >= 2, "the first exposures");
+        w.Clock.SetHourAngle(2.5);
+        await WaitAsync(() => group.IsWaitingForDecision, "the failed flip to wait for a decision");
+        await WaitAsync(() => !w.Mount1.Telemetry!.Tracking, "the tracking to stop");
+
+        w.Mount1.FixedPierSide = null; // the user fixed the pier side setting of the mount
+        Assert.True(group.Retry());
+        await task.WaitAsync(Bound);
+
+        Assert.Equal(SequenceState.Completed, runner.State);
+        Assert.Equal(MeridianFlipState.Completed, group.State);
+        Assert.True(w.Mount1.Telemetry!.Tracking);
+        Assert.Equal(PierSide.East, w.Mount1.Telemetry.SideOfPier);
+    }
+
+    [Fact]
+    public async Task AFlipThatChangedSides_ButCouldNotCenter_KeepsTheMountTracking()
+    {
+        var w = await CreateAsync();
+        w.Solver.Fails = true;
+        var built = Build(w, Flip(s => s with { MaxFlipAttempts = 1 }), Track(A, 20, 0.3), Track(B, 20, 0.3));
+        var group = Groups(built).Single();
+        var (run, _, task) = await StartAsync(w, built);
+        await WaitAsync(() => run.Count("Exposure") >= 2, "the first exposures");
+
+        w.Clock.SetHourAngle(2.5);
+        await WaitAsync(() => group.IsWaitingForDecision, "the failed flip to wait for a decision");
+
+        Assert.DoesNotContain("tracking was stopped", group.Message, StringComparison.Ordinal);
+        Assert.True(w.Mount1.Telemetry!.Tracking); // it stands on the other side of the pier now: the safe one
+        Assert.Equal(PierSide.East, w.Mount1.Telemetry.SideOfPier);
+        Assert.True(group.Abort());
+        await Assert.ThrowsAnyAsync<Exception>(() => task.WaitAsync(Bound));
+    }
+
+    [Fact]
+    public async Task AFlipThatIsOverdue_StopsTheTracking_BecauseTheMountIsStillOnTheFirstSide()
+    {
+        var w = await CreateAsync();
+        await w.Mount1.SetTrackingAsync(true);
+        var built = Build(w, Flip(s => s with { MaxFlipAttempts = 1 }), Track(A, 20, 0.3), Track(B, 20, 0.3));
+        var group = Groups(built).Single();
+        var (run, _, task) = await StartAsync(w, built);
+        await WaitAsync(() => run.Count("Exposure") >= 2, "the first exposures");
+
+        w.Clock.SetHourAngle(30); // long past the latest allowed flip, before the flip could happen
+        await WaitAsync(() => group.IsWaitingForDecision, "the overdue flip to wait for a decision");
+
+        Assert.Contains("its tracking was stopped", group.Message, StringComparison.Ordinal);
+        Assert.True(group.Abort());
+        await Assert.ThrowsAnyAsync<Exception>(() => task.WaitAsync(Bound));
     }
 }

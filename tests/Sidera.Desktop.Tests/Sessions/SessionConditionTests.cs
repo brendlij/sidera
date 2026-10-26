@@ -143,7 +143,7 @@ public sealed class SessionConditionTests : IAsyncLifetime
             host.AddSimulatedFocuser(new($"focuser.{name}"), $"Focuser {name}", 2500, maxPosition: 5000, stepsPerSecond: 20000, minimumMoveDuration: TimeSpan.FromMilliseconds(5));
         }
 
-        host.AddSimulatedMount(new("mount.1"), "Mount 1", TimeSpan.FromMilliseconds(20));
+        host.AddSimulatedMount(new("mount.1"), "Mount 1", TimeSpan.FromMilliseconds(20), () => clock.GetUtcNow().UtcDateTime, new Sidera.Core.Mounts.MountSite(Site.LatitudeDegrees, Site.LongitudeDegrees, Site.ElevationMeters));
         host.AddSimulatedGuider(new("guider.1"), "Guider 1", TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(50));
         host.AddRig(new Rig(A, "Main", new("camera.a"), Optics, new("focuser.a"), null, null, null, new("mount.1"), new("guider.1")));
         host.AddRig(new Rig(B, "Wide", new("camera.b"), Optics, new("focuser.b"), null, null, null, new("mount.1"), new("guider.1")));
@@ -620,7 +620,7 @@ public sealed class SessionConditionTests : IAsyncLifetime
     {
         var fixture = await CreateAsync(Evening);
         var t0 = Evening.AddHours(6);
-        var ra = MeridianFlipTiming.LocalSiderealTimeHours(t0.AddMinutes(3), Site.LongitudeDegrees);
+        var ra = SkyMath.RightAscensionJ2000FromDateHours(MeridianFlipTiming.LocalSiderealTimeHours(t0.AddMinutes(3), Site.LongitudeDegrees), 41.27, t0);
         fixture.Clock.Set(t0);
         var flip = new MeridianFlipSettings { Enabled = true, SolveExposureSeconds = 0.05, MaxCenteringAttempts = 3, VerifyRotationAfterFlip = false, RecenterAfterFlip = false, RestartGuidingAfterFlip = false };
         var workflow = Workflow(Block(A, 2, 0.4, null, stop.Select(c => c is TimeCondition ? TimeCondition.AtUtc(t0.AddMinutes(1)) : c).ToList()));

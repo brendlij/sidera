@@ -27,7 +27,7 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
     {
         private readonly object _gate = new();
         private DateTime _now = Start;
-        public double TargetRightAscensionHours => MeridianFlipTiming.LocalSiderealTimeHours(Start, Site.LongitudeDegrees) + 10.0 / 60;
+        public double TargetRightAscensionHours => SkyMath.RightAscensionJ2000FromDateHours(MeridianFlipTiming.LocalSiderealTimeHours(Start, Site.LongitudeDegrees) + 10.0 / 60, 41.3, Start);
 
         public DateTime UtcNow
         {

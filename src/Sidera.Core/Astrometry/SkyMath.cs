@@ -10,6 +10,46 @@ namespace Sidera.Core.Astrometry;
 /// </summary>
 public static class SkyMath
 {
+    /// <summary>
+    /// The right ascension (hours, 0 to 24) of date of a position that is given for the equinox J2000, the way a catalog gives it: the mean place, precessed to the mean equinox of
+    /// <paramref name="utc"/> (IAU 1976). It is the right ascension that a mount in the system "of date" (ASCOM topocentric) and the sky itself use now; for 2026 it is about 80 seconds
+    /// later than the catalog value. Nutation, aberration and proper motion are not part of it (under a minute of arc).
+    /// </summary>
+    public static double RightAscensionOfDateHours(double rightAscensionHours, double declinationDegrees, DateTime utc)
+    {
+        const double ArcsecondsToRadians = Math.PI / 180.0 / 3600.0;
+        var t = (utc.ToUniversalTime() - new DateTime(2000, 1, 1, 12, 0, 0, DateTimeKind.Utc)).TotalDays / 36525.0;
+        var zeta = (2306.2181 * t + 0.30188 * t * t) * ArcsecondsToRadians;
+        var z = (2306.2181 * t + 1.09468 * t * t) * ArcsecondsToRadians;
+        var theta = (2004.3109 * t - 0.42665 * t * t) * ArcsecondsToRadians;
+        var ra = rightAscensionHours * DegreesPerHour * Math.PI / 180.0;
+        var dec = declinationDegrees * Math.PI / 180.0;
+        var a = Math.Cos(dec) * Math.Sin(ra + zeta);
+        var b = Math.Cos(theta) * Math.Cos(dec) * Math.Cos(ra + zeta) - Math.Sin(theta) * Math.Sin(dec);
+        var result = (Math.Atan2(a, b) + z) * 180.0 / Math.PI / DegreesPerHour;
+        result %= 24.0;
+        return result < 0 ? result + 24.0 : result;
+    }
+
+    /// <summary>
+    /// The J2000 right ascension (hours) of a position that is given for the equinox of <paramref name="utc"/>: the inverse of <see cref="RightAscensionOfDateHours"/>, found by iteration
+    /// (the declination of date is used as the declination of J2000, which changes the result by less than a second of time).
+    /// </summary>
+    public static double RightAscensionJ2000FromDateHours(double rightAscensionOfDateHours, double declinationDegrees, DateTime utc)
+    {
+        var guess = rightAscensionOfDateHours;
+        for (var i = 0; i < 4; i++)
+        {
+            var back = RightAscensionOfDateHours(guess, declinationDegrees, utc);
+            var difference = rightAscensionOfDateHours - back;
+            if (difference > 12) difference -= 24;
+            if (difference < -12) difference += 24;
+            guess = (guess + difference + 24) % 24;
+        }
+
+        return guess;
+    }
+
     public const double DegreesPerHour = 15.0;
     public const double ArcsecondsPerDegree = 3600.0;
     public const double ArcminutesPerDegree = 60.0;

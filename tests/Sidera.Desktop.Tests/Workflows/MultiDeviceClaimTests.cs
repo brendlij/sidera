@@ -1,3 +1,4 @@
+using Sidera.Core.Astrometry;
 ﻿using System.Diagnostics;
 
 using Sidera.Core.Astronomy;
@@ -342,7 +343,7 @@ public sealed class MultiDeviceClaimTests : IAsyncLifetime
 
     // Two setups, each with its camera and its focuser; the mounts and guiders are given per setup, so that they can be shared or not.
 
-    private async Task<SideraRuntimeHost> CreateAsync(string mountOfMain, string mountOfWide, string guiderOfMain, string guiderOfWide)
+    private async Task<SideraRuntimeHost> CreateAsync(string mountOfMain, string mountOfWide, string guiderOfMain, string guiderOfWide, TimeProvider? clock = null)
 
     {
 
@@ -366,7 +367,14 @@ public sealed class MultiDeviceClaimTests : IAsyncLifetime
 
         {
 
-            host.AddSimulatedMount(new(mount), mount, TimeSpan.FromMilliseconds(20));
+            if (clock is null)
+            {
+                host.AddSimulatedMount(new(mount), mount, TimeSpan.FromMilliseconds(20));
+            }
+            else
+            {
+                host.AddSimulatedMount(new(mount), mount, TimeSpan.FromMilliseconds(20), () => clock.GetUtcNow().UtcDateTime, new Sidera.Core.Mounts.MountSite(50.1, 8.6, 120));
+            }
 
         }
 
@@ -766,13 +774,12 @@ public sealed class MultiDeviceClaimTests : IAsyncLifetime
 
     {
 
-        var host = await CreateAsync("mount.1", "mount.2", "guider.1", "guider.2");
-
         var t0 = new DateTime(2026, 3, 1, 21, 0, 0, DateTimeKind.Utc);
-
-        var ra = MeridianFlipTiming.LocalSiderealTimeHours(t0.AddMinutes(3), Site.LongitudeDegrees);
-
         var clock = new SkyClock(t0);
+        var host = await CreateAsync("mount.1", "mount.2", "guider.1", "guider.2", clock);
+
+        var ra = SkyMath.RightAscensionJ2000FromDateHours(MeridianFlipTiming.LocalSiderealTimeHours(t0.AddMinutes(3), Site.LongitudeDegrees), 41.27, t0);
+
 
         var flip = new MeridianFlipSettings { Enabled = true, SolveExposureSeconds = 0.05, MaxCenteringAttempts = 3, VerifyRotationAfterFlip = false, RecenterAfterFlip = false, RestartGuidingAfterFlip = false, StopGuidingBeforeFlip = false };
 
