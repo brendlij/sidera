@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -11,26 +12,40 @@ using Avalonia.Platform;
 
 namespace Sidera.Desktop.Converters;
 
-public sealed class FrameToBitmapConverter : IValueConverter
+/// <summary>
+/// The picture of a frame for a small view (the dashboard): the frame and whether the display is stretched, so that it looks as it does in the viewer of the imaging page (the same stretch, the same
+/// setting). The picture is made once for each of the two looks, however many views show it.
+/// </summary>
+public sealed class FrameToBitmapConverter : IMultiValueConverter
 {
     public static FrameToBitmapConverter Instance { get; } = new();
 
-    // The picture of a frame is made once, however many views show it (the dashboard and the imaging page).
-    private readonly ConditionalWeakTable<CameraFrame, WriteableBitmap> _bitmaps = new();
-
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    private sealed class Pictures
     {
-        return value is CameraFrame frame ? _bitmaps.GetValue(frame, ToBitmap) : null;
+        public WriteableBitmap? Stretched { get; set; }
+        public WriteableBitmap? Linear { get; set; }
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    private readonly ConditionalWeakTable<CameraFrame, Pictures> _bitmaps = new();
+
+    public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotSupportedException();
+        if (values.Count == 0 || values[0] is not CameraFrame frame)
+        {
+            return null;
+        }
+
+        var stretched = values.Count < 2 || values[1] is not bool autoStretch || autoStretch;
+        var pictures = _bitmaps.GetOrCreateValue(frame);
+        lock (pictures)
+        {
+            return stretched ? pictures.Stretched ??= ToBitmap(frame, true) : pictures.Linear ??= ToBitmap(frame, false);
+        }
     }
 
-    private static WriteableBitmap ToBitmap(CameraFrame frame)
+    private static WriteableBitmap ToBitmap(CameraFrame frame, bool autoStretch)
     {
-        var gray = DisplayStretch.ToGray8(frame);
+        var gray = ImageStretch.ToGray8(frame, autoStretch);
 
         // Expanded to opaque BGRA so it works on every rendering backend.
         var bitmap = new WriteableBitmap(

@@ -738,7 +738,18 @@ public sealed class AscomCamera : AscomDevice<IAscomCameraDriver>, ICameraContro
             }
 
             SetElapsed(duration);
-            var (array, numX, numY) = await CallAsync("read the image of", d => (d.ImageArray, d.NumX, d.NumY), cancellationToken);
+            (object? array, int numX, int numY) image;
+            await PublishAsync(new CameraDownloadStateChanged(Id, true), CancellationToken.None);
+            try
+            {
+                image = await CallAsync("read the image of", d => (d.ImageArray, d.NumX, d.NumY), cancellationToken);
+            }
+            finally
+            {
+                await PublishAsync(new CameraDownloadStateChanged(Id, false), CancellationToken.None);
+            }
+
+            var (array, numX, numY) = image;
             var converted = Convert(array, numX, numY);
             completed = true;
             TimeSpan? stoppedAfter;

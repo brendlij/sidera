@@ -122,6 +122,7 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
         SelectedTarget is null ? _context.NoSetupText
         : !IsConnected ? $"Connect {CameraName} on the Equipment page to capture."
         : IsCapturing ? "An exposure is running."
+        : IsSequenceRunning ? "A session is running: manual capture is off until it ends."
         : string.Empty;
 
     /// <summary>Reads the current imaging setup again (the setup or the camera changed) and what its camera supports.</summary>
@@ -159,12 +160,18 @@ public sealed partial class ImagingCaptureViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowOffset));
         OnPropertyChanged(nameof(ShowBinning));
         OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(IsSequenceRunning));
         OnPropertyChanged(nameof(DisabledText));
         OnPropertyChanged(nameof(SourceName));
         CaptureCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanCapture() => SelectedTarget is not null && IsConnected && !IsCapturing;
+    private bool CanCapture() => SelectedTarget is not null && IsConnected && !IsCapturing && !IsSequenceRunning;
+
+    /// <summary>Whether a session is running: it holds the cameras of its setups, and a manual frame in between would disturb it. Asked again whenever <see cref="RefreshCapabilities"/> runs.</summary>
+    public Func<bool>? SequenceRunning { get; set; }
+
+    public bool IsSequenceRunning => SequenceRunning?.Invoke() ?? false;
 
     /// <summary>
     /// The acquisition that the entries ask for: the frame type, and only the settings that were entered or chosen differently from the camera (the rest is the camera's own, as everywhere).

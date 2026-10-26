@@ -103,6 +103,29 @@ public class DashboardTests
         Assert.True(dashboard.HasElapsed); // the time of the run stays after it
     }
 
+    [Fact]
+    public async Task AStepThatTakesLong_SaysHowLongItHasBeenGoingOn_AndSaysNothingBeforeThat()
+    {
+        await using var app = await UxApp.Create(UxSetup.Simple, connect: true);
+        app.Vm.SequenceDraft.ReplaceSteps([new ExposureStepDraft(Guid.NewGuid(), DemoSetup.MainCameraId, 0.8)]);
+        var bar = app.Vm.StatusBar;
+        var now = DateTime.UtcNow;
+        bar.UtcNow = () => now;
+
+        var run = app.Vm.Sequencer.RunCommand.ExecuteAsync(null);
+        await UxApp.WaitUntil(() => app.Vm.Sequencer.IsRunning && bar.ActivityText.StartsWith("Exposure", StringComparison.Ordinal), "the exposure in the status bar");
+        bar.RefreshElapsed();
+        Assert.False(bar.HasStepAge); // it has just begun
+
+        now += TimeSpan.FromSeconds(95);
+        bar.RefreshElapsed();
+        Assert.Equal("for 2 min", bar.StepAgeText);
+
+        await run;
+        bar.RefreshElapsed();
+        Assert.False(bar.HasStepAge); // nothing runs: nothing to age
+    }
+
     // Multi-Rig
 
     [Fact]
@@ -125,6 +148,9 @@ public class DashboardTests
         var wide = dashboard.Execution.Lanes[1];
         Assert.Matches(@"^Frame \d / 3$", main.FrameText);
         Assert.Matches(@"^Frame \d / 6$", wide.FrameText);
+        // The same progress in exposure time: 3 frames of a quarter of a second are 1 s, and the text says how much of it is done and what is left.
+        Assert.Matches(@"^\d+ s of 1 s · \d+ s left$", main.ExposureTimeText);
+        Assert.Matches(@"^\d+ s of 2 s · \d+ s left$", wide.ExposureTimeText);
         Assert.All(dashboard.Execution.Lanes, l => Assert.Equal("Running", l.StatusText));
         Assert.All(dashboard.Execution.Lanes, l => Assert.NotNull(l.Rig));
         Assert.Contains("Main Camera", main.DescriptionText);
@@ -133,6 +159,7 @@ public class DashboardTests
 
         await UxApp.WaitUntil(() => dashboard.Execution.Lanes.All(l => l.IsDone), "both lanes done");
         Assert.Equal(["3 / 3 frames", "6 / 6 frames"], dashboard.Execution.Lanes.Select(l => l.FrameText));
+        Assert.Equal(["1 s of exposure", "2 s of exposure"], dashboard.Execution.Lanes.Select(l => l.ExposureTimeText));
         Assert.All(dashboard.Execution.Lanes, l => Assert.Equal(1.0, l.FrameProgress));
         Assert.True(dashboard.ShowLanes); // the result of the run stays until the session is edited
     }
@@ -247,5 +274,20 @@ public class DashboardTests
 
         Assert.NotNull(app.Vm.Sequencer.RunEndedAt);
         Assert.True(app.Vm.Sequencer.Elapsed >= TimeSpan.FromMilliseconds(250));
+    }
+
+    [Theory]
+    [InlineData(0, "0 s")]
+    [InlineData(45, "45 s")]
+    [InlineData(59.6, "1 min")]
+    [InlineData(60, "1 min")]
+    [InlineData(1260, "21 min")]
+    [InlineData(3600, "1 h")]
+    [InlineData(4740, "1 h 19 min")]
+    [InlineData(6000, "1 h 40 min")]
+    [InlineData(-5, "0 s")]
+    public void ALengthOfTime_IsWrittenTheWayAPersonSaysIt(double seconds, string expected)
+    {
+        Assert.Equal(expected, Sidera.Desktop.ViewModels.TrackLaneViewModel.FormatDuration(seconds));
     }
 }

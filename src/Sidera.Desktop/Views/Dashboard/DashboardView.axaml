@@ -121,7 +121,14 @@
                         <TextBlock Classes="eyebrow" Text="LATEST IMAGE" />
                         <Border Classes="preview" MinHeight="200">
                             <Grid>
-                                <Image Source="{Binding LatestFrame, Converter={x:Static conv:FrameToBitmapConverter.Instance}}" Stretch="Uniform" />
+                                <Image Stretch="Uniform">
+                                    <Image.Source>
+                                        <MultiBinding Converter="{x:Static conv:FrameToBitmapConverter.Instance}">
+                                            <Binding Path="LatestFrame" />
+                                            <Binding Path="AutoStretch" />
+                                        </MultiBinding>
+                                    </Image.Source>
+                                </Image>
                                 <ctl:EmptyState Classes="on-preview" Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}" Margin="16"
                                                 Title="No frame yet"
                                                 Message="Capture an exposure to preview and analyze it." />

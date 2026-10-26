@@ -14,10 +14,10 @@ Stand: 12.10.2026. Priorität 1 sind die Punkte, die Julian vor dem ersten echte
   - [fertig, ohne getrennte Kalibrierordner] **Pfad und smarte Ordnerstruktur** wählbar (zum Beispiel `Ziel/Datum/Filter` oder `Datum/Ziel/Frames-Typ`), Lights, Darks, Flats, Bias getrennt.
   - **Auto-Backup** der Bilder (zweites Ziel, zum Beispiel ein Netzlaufwerk oder eine zweite Platte).
   - Option **Verschieben nach der Session** (von einem schnellen lokalen Ordner ins Archiv), mit Prüfung, dass die Dateien vollständig angekommen sind, bevor das Original gelöscht wird.
-- [ ] **Download-Marker**, solange das Bild von der Kamera geladen wird (die Phase nach der Belichtung): im Status und am Bild sichtbar.
+- [x] **Download-Marker**, solange das Bild von der Kamera geladen wird (die Phase nach der Belichtung): im Status und am Bild sichtbar.
 - [ ] **Imaging-Fenster mit dem aktuellen Bild aktualisieren**, nicht nur das Dashboard. Das Bild einer laufenden Session soll auch auf der Imaging-Seite erscheinen.
 - [ ] **Latest Image im Dashboard ist anders gestreckt als in Imaging.** Gleiche Stretch-Einstellung (oder eine gemeinsame) verwenden.
-- [ ] **Manual Capture sperren**, solange eine Sequenz läuft (Button deaktivieren, mit Hinweis warum).
+- [x] **Manual Capture sperren**, solange eine Sequenz läuft (Button deaktivieren, mit Hinweis warum).
 
 ### Dashboard
 
@@ -27,9 +27,9 @@ Stand: 12.10.2026. Priorität 1 sind die Punkte, die Julian vor dem ersten echte
 
 ### Feedback und Navigation
 
-- [ ] **Mehr Feedback bei laufenden Schritten und Belichtungen:** was gerade läuft, wie lange noch, was als Nächstes kommt. Überlaufende Schritte und Belichtungen sichtbar machen, nicht still weiterlaufen lassen.
+- [~] **Mehr Feedback bei laufenden Schritten und Belichtungen (gebaut: Dauer des aktuellen Schritts in der Statusleiste nach 20 s, "Waiting for the camera: n s over" bei überlaufender Belichtung, Download-Anzeige):** was gerade läuft, wie lange noch, was als Nächstes kommt. Überlaufende Schritte und Belichtungen sichtbar machen, nicht still weiterlaufen lassen.
 - [ ] **Geteilte Ansicht (Split) in der App:** eine zweite Seite neben der aktuellen öffnen, zum Beispiel die Session links und Equipment oder Mount rechts, ohne dass man hin- und herspringen muss. Seite für die zweite Hälfte wählbar, Trennlinie verschiebbar, Split wieder schließen; der gewählte Split bleibt beim nächsten Start.
-- [ ] **Session-Fortschritt auch in Belichtungszeit, nicht nur in Frames:** je Block, Ziel und Session die belichteten und die geplanten Sekunden (Stunden:Minuten), zum Beispiel „23 / 100 Frames · 23:00 / 100:00 min“, dazu die Restzeit.
+- [x] **Session-Fortschritt auch in Belichtungszeit, nicht nur in Frames:** je Block, Ziel und Session die belichteten und die geplanten Sekunden (Stunden:Minuten), zum Beispiel „23 / 100 Frames · 23:00 / 100:00 min“, dazu die Restzeit.
 - [ ] **Modal beim Meridian-Flip** (wie in NINA): wenn der Flip kommt, ein Dialog mit den Schritten und dem Fortschritt, mit Abbrechen. Heute nur die Textzeile in der Session Automation.
 - [ ] **Smartere Navigation bei Warnungen.** Beispiel: „The meridian flip needs a setup with a mount“ führt per Klick direkt zu Equipment → Imaging Setups, wo man die Montierung zuweist. Allgemein: jede Warnung und jedes Problem bekommt einen Knopf zur Stelle, an der man es behebt (Toasts und Problemzeilen).
 - [ ] **UI springt**, wenn Meldungen erscheinen oder verschwinden. Layout stabil halten (Platz für Meldungen reservieren, nichts verschieben).

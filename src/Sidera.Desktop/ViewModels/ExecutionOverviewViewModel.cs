@@ -70,6 +70,13 @@ public sealed partial class TrackLaneViewModel : ObservableObject
 
     public bool HasFrames => FrameText.Length > 0;
 
+    /// <summary>The exposure time of the repeat: "21 min of 1 h 40 min · 1 h 19 min left" while it runs, "1 h 40 min of exposure" once it is done; empty when the repeat holds no exposure.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasExposureTime))]
+    public partial string ExposureTimeText { get; private set; } = string.Empty;
+
+    public bool HasExposureTime => ExposureTimeText.Length > 0;
+
     /// <summary>What the autofocus of this rig reports: "Sample 4 / 7 · HFR 2.11 px"; empty when it has not run.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasFocus))]
@@ -94,9 +101,26 @@ public sealed partial class TrackLaneViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsWaiting { get; private set; } = true;
 
+    /// <summary>A length of time as a person says it: "45 s", "21 min", "1 h 19 min". Whole seconds below a minute, whole minutes above.</summary>
+    public static string FormatDuration(double seconds)
+    {
+        var total = (int)Math.Round(Math.Max(0, seconds));
+        if (total < 60)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"{total} s");
+        }
+
+        var minutes = (int)Math.Round(total / 60.0);
+        return minutes < 60
+            ? string.Create(CultureInfo.InvariantCulture, $"{minutes} min")
+            : minutes % 60 == 0
+                ? string.Create(CultureInfo.InvariantCulture, $"{minutes / 60} h")
+                : string.Create(CultureInfo.InvariantCulture, $"{minutes / 60} h {minutes % 60} min");
+    }
+
     internal void Apply(
         NodeStatus status, bool paused, bool ended, ActiveBranchViewModel? branch, int? iteration, int? count, bool repeatDone,
-        AutofocusStatusViewModel? focus)
+        AutofocusStatusViewModel? focus, double secondsPerFrame = 0)
     {
         _wasActive |= status == NodeStatus.Active;
         (StatusText, StatusKind) = status switch
@@ -133,6 +157,22 @@ public sealed partial class TrackLaneViewModel : ObservableObject
         {
             FrameText = string.Empty;
             FrameProgress = 0;
+        }
+
+        // The same in seconds of exposure: frames of 300 s and frames of 10 s are not the same progress.
+        if (secondsPerFrame > 0 && iteration is { } running && count is { } planned)
+        {
+            var done = Math.Max(0, running - 1) * secondsPerFrame;
+            var all = planned * secondsPerFrame;
+            ExposureTimeText = $"{FormatDuration(done)} of {FormatDuration(all)} · {FormatDuration(all - done)} left";
+        }
+        else if (secondsPerFrame > 0 && count is { } finished && repeatDone)
+        {
+            ExposureTimeText = $"{FormatDuration(finished * secondsPerFrame)} of exposure";
+        }
+        else
+        {
+            ExposureTimeText = string.Empty;
         }
 
         FocusText = focus?.Summary ?? string.Empty;
@@ -226,6 +266,10 @@ public sealed partial class ExecutionOverviewViewModel : ViewModelBase, IDisposa
         }
     }
 
+    // The exposure time of one pass of a node: the exposures in it, added up.
+    private static double ExposureSecondsOf(SequenceNode node) =>
+        (node.Step is Sidera.Runtime.Sequencing.CameraExposureAction exposure ? exposure.Duration.TotalSeconds : 0) + node.Children.Sum(ExposureSecondsOf);
+
     /// <summary>Reads the running sequence again; the sequencer calls it on every change.</summary>
     public void Refresh()
     {
@@ -247,7 +291,7 @@ public sealed partial class ExecutionOverviewViewModel : ViewModelBase, IDisposa
             var focus = lane.RigId is { } rig ? _sequencer.AutofocusStatuses.FirstOrDefault(s => s.RigId == rig) : null;
             lane.Apply(
                 node.Status, paused, ended, branch,
-                repeat?.Iteration, (repeat?.Node.Step as RepeatStep)?.Count, repeat is { IsDone: true }, focus);
+                repeat?.Iteration, (repeat?.Node.Step as RepeatStep)?.Count, repeat is { IsDone: true }, focus, repeat is null ? 0 : ExposureSecondsOf(repeat.Node));
         }
 
         var first = branches.Count > 0 ? branches[0] : null;

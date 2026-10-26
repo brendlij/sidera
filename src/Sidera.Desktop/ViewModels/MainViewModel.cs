@@ -92,6 +92,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Imaging.FitOnCapture = equipmentManagement?.Site?.Imaging.FitOnCapture ?? true;
         Imaging.SaveDirectory = () => equipmentManagement?.Site?.Imaging.SaveDirectory;
         Imaging.Capture = new ImagingCaptureViewModel(host, Imaging, SetupContext, equipmentManagement?.Site?.Imaging.ManualExposureSeconds ?? 5);
+        Imaging.Capture.SequenceRunning = () => Sequencer?.IsRunning == true;
         Imaging.Autofocus = new ManualAutofocusViewModel(host, defaults, SetupContext, postToUi);
         Imaging.Capture.CreateSetup = () => OpenEquipment(() => Equipment.BeginNewImagingSetup());
         Imaging.Autofocus.ConfigureFocuser = () => OpenEquipment(() => Equipment.ShowFocuserSetup());
@@ -103,6 +104,13 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Framing = new FramingViewModel(host, SetupContext, equipmentManagement?.Site, SequenceDraft, objectCatalog, skyProviders, postToUi);
         Sequencer = new SequencerViewModel(
             host, postToUi, activity, Imaging, Equipment.Cameras, SequenceDraft, CheckEquipmentOfSequence);
+        Sequencer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SequencerViewModel.IsRunning))
+            {
+                Imaging.Capture.RefreshCapabilities();
+            }
+        };
         SequenceDocument = new SequenceDocumentViewModel(
             SequenceDraft, store ?? SequenceDocumentStore.CreateDefault(), filePicker ?? new NoSequenceFilePicker());
         var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);

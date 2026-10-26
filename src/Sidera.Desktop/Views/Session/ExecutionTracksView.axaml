@@ -43,6 +43,7 @@
                                     <TextBlock Classes="secondary" Text="{Binding FrameText}" />
                                 </Grid>
                                 <ProgressBar Classes="thick" Minimum="0" Maximum="1" Value="{Binding FrameProgress}" />
+                                <TextBlock Classes="meta" Text="{Binding ExposureTimeText}" IsVisible="{Binding HasExposureTime}" AutomationProperties.AutomationId="ExposureTime" />
                             </StackPanel>
 
                             <TextBlock Classes="secondary accent" Text="{Binding FocusText, StringFormat={}Autofocus · {0}}" TextWrapping="Wrap"

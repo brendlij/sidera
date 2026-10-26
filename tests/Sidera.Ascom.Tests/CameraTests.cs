@@ -332,4 +332,25 @@ public class CameraTests
             await Task.Delay(2);
         }
     }
+
+    [Fact]
+    public async Task TheDownloadOfTheImage_IsSaid_AroundTheReadOfTheImageArray()
+    {
+        var rig = await Connected();
+
+        await rig.Camera.ExposeAsync(TimeSpan.FromMilliseconds(50));
+
+        var downloads = rig.Events.Of<CameraDownloadStateChanged>().Select(e => e.Downloading).ToList();
+        Assert.Equal([true, false], downloads);
+    }
+
+    [Fact]
+    public async Task AnImageThatCannotBeRead_StillEndsTheDownload()
+    {
+        var rig = await Connected(d => d.ImageThrows = new InvalidOperationException("driver failed"));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => rig.Camera.ExposeAsync(TimeSpan.FromMilliseconds(50)));
+
+        Assert.Equal([true, false], rig.Events.Of<CameraDownloadStateChanged>().Select(e => e.Downloading).ToList());
+    }
 }

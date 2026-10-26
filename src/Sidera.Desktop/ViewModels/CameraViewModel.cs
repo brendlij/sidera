@@ -16,6 +16,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
     private readonly ICamera _camera;
     private readonly ImagingViewModel _imaging;
     private readonly IDisposable _exposureSubscription;
+    private readonly IDisposable _downloadSubscription;
     private CancellationTokenSource? _exposureCts;
 
     public CameraViewModel(
@@ -36,6 +37,20 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         {
             control.CapabilitiesChanged += OnCapabilitiesChanged;
         }
+
+        _downloadSubscription = host.EventBus.Subscribe<CameraDownloadStateChanged>((e, _) =>
+        {
+            if (e.DeviceId == camera.Id)
+            {
+                postToUi(() =>
+                {
+                    IsDownloading = e.Downloading;
+                    RefreshSummary();
+                });
+            }
+
+            return Task.CompletedTask;
+        });
 
         _exposureSubscription = host.EventBus.Subscribe<CameraExposureStateChanged>((e, _) =>
         {
@@ -75,6 +90,10 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
     public partial bool IsManualExposureRunning { get; private set; }
 
     public bool IsExposing => ExposureState == CameraExposureState.Exposing;
+
+    /// <summary>The exposure is over and the image is being read from the camera: it can take seconds, and the frame is not there yet.</summary>
+    [ObservableProperty]
+    public partial bool IsDownloading { get; private set; }
 
     private CameraCapabilities? Capabilities => (_camera as ICameraControl)?.Capabilities.Value;
 
@@ -207,6 +226,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         ExposureState = StateStore.TryGet(Id, out var state) && state?.ExposureState is { } exposure
             ? exposure
             : _camera.ExposureState;
+        _exposingSince = ExposureState == CameraExposureState.Exposing ? _exposingSince ?? DateTime.UtcNow : null;
         ExposureElapsed = _camera.ExposureElapsed;
         ExposureDuration = _camera.ExposureDuration ?? TimeSpan.Zero;
         ExposureProgress = _camera.ExposureProgress;
@@ -220,7 +240,18 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
         StopExposureCommand.NotifyCanExecuteChanged();
     }
 
-    protected override DeviceActivity DescribeActivity() => IsExposing
+    // An exposure whose time is over and whose image has not come: the camera is late, which is said instead of a bar that has been full for a while.
+    private bool IsLate => IsExposing && !IsDownloading && ExposureDuration > TimeSpan.Zero && _exposingSince is { } since && DateTime.UtcNow - since > ExposureDuration + LateAfter;
+
+    private static readonly TimeSpan LateAfter = TimeSpan.FromSeconds(10);
+    private DateTime? _exposingSince;
+
+    protected override DeviceActivity DescribeActivity() => IsExposing && IsDownloading
+        ? new DeviceActivity("Downloading the frame…", 1, true)
+        : IsLate
+        ? new DeviceActivity(
+            string.Create(CultureInfo.InvariantCulture, $"Waiting for the camera: the exposure of {ExposureDuration.TotalSeconds:0.#} s is {(DateTime.UtcNow - _exposingSince!.Value - ExposureDuration).TotalSeconds:0} s over"), 1, true)
+        : IsExposing
         ? new DeviceActivity(
             string.Create(CultureInfo.InvariantCulture, $"Exposing {ExposureElapsed.TotalSeconds:0.#} / {ExposureDuration.TotalSeconds:0.#} s"),
             ExposureProgress, true)
@@ -254,6 +285,7 @@ public sealed partial class CameraViewModel : DeviceViewModelBase
 
         _camera.ExposureProgressChanged -= OnExposureProgressChanged;
         _exposureSubscription.Dispose();
+        _downloadSubscription.Dispose();
         base.Dispose();
     }
 }

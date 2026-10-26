@@ -55,6 +55,22 @@ public sealed partial class StatusBarViewModel : ViewModelBase, IDisposable
 
     public bool HasElapsed => ElapsedText.Length > 0;
 
+    /// <summary>How long what Sidera is doing has been the same, once it has been so for a while: "for 1 min 32 s". It tells a step that takes long (a slew, a solve, a focus) from one that hangs; empty otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStepAge))]
+    public partial string StepAgeText { get; private set; } = string.Empty;
+
+    public bool HasStepAge => StepAgeText.Length > 0;
+
+    /// <summary>How long the line has to stay the same before its age is shown.</summary>
+    public TimeSpan StepAgeAfter { get; set; } = TimeSpan.FromSeconds(20);
+
+    private string _ageOf = string.Empty;
+    private DateTime _ageSince = DateTime.UtcNow;
+
+    /// <summary>The clock of the age of the step; tests move it.</summary>
+    public Func<DateTime> UtcNow { get; set; } = () => DateTime.UtcNow;
+
     private void OnSequencerChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(SequencerViewModel.State) or nameof(SequencerViewModel.ReadinessHint) or nameof(SequencerViewModel.StepText)
@@ -114,7 +130,27 @@ public sealed partial class StatusBarViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Reads the elapsed time of the run again; called every second while a run goes on.</summary>
-    public void RefreshElapsed() => ElapsedText = _sequencer.Elapsed is { } elapsed ? Format(elapsed) : string.Empty;
+    public void RefreshElapsed()
+    {
+        ElapsedText = _sequencer.Elapsed is { } elapsed ? Format(elapsed) : string.Empty;
+        RefreshStepAge();
+    }
+
+    // The line that Sidera shows is the step and the frame it is at: when it has not changed for a while, how long it has not is said.
+    private void RefreshStepAge()
+    {
+        var now = UtcNow();
+        if (!string.Equals(_ageOf, ActivityText, StringComparison.Ordinal))
+        {
+            _ageOf = ActivityText;
+            _ageSince = now;
+        }
+
+        var age = now - _ageSince;
+        StepAgeText = _sequencer.IsRunning && ActivityText.Length > 0 && age >= StepAgeAfter
+            ? "for " + TrackLaneViewModel.FormatDuration(age.TotalSeconds)
+            : string.Empty;
+    }
 
     private static string Format(TimeSpan elapsed) => elapsed.TotalHours >= 1
         ? string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalHours}:{elapsed.Minutes:00}:{elapsed.Seconds:00}")
