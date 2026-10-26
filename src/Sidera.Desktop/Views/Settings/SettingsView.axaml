@@ -49,6 +49,13 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Classes="secondary" Text="A theme is shown as soon as you choose it. Save keeps it for the next start; Discard goes back to the saved one." TextWrapping="Wrap" />
+                <TextBlock Classes="eyebrow" Text="DASHBOARD" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="What the dashboard shows. A panel that is off is not drawn; what it shows is still there on its own page." />
+                <CheckBox Content="Imaging setups and what each is doing" IsChecked="{Binding DashboardSetups}" AutomationProperties.AutomationId="DashboardShowSetups" />
+                <CheckBox Content="Mount: state, position, side of the pier, meridian" IsChecked="{Binding DashboardMount}" AutomationProperties.AutomationId="DashboardShowMount" />
+                <CheckBox Content="Guiding graph" IsChecked="{Binding DashboardGuiding}" AutomationProperties.AutomationId="DashboardShowGuiding" />
+                <CheckBox Content="Latest image" IsChecked="{Binding DashboardImage}" AutomationProperties.AutomationId="DashboardShowImage" />
+                <CheckBox Content="Mount and guider of the session (strip at the bottom)" IsChecked="{Binding DashboardShared}" AutomationProperties.AutomationId="DashboardShowShared" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" AutomationProperties.AutomationId="SaveAppearance" />
                     <Button Content="Discard" Command="{Binding DiscardCommand}" AutomationProperties.AutomationId="DiscardAppearance" />

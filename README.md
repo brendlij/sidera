@@ -102,6 +102,9 @@ devices they share (mount, guider, focusers), and works with the ASCOM Platform 
 - **Version 8 files:** a `.astraseq` of version 8 with a workflow is migrated when it is opened: the target and its Prepare become a target with its shared preparation, the imaging blocks become one sequence for each setup
   with their blocks (a block's start conditions a leading Wait Until, its stop conditions its limits, the autofocus policy of a setup and the dither policy the automation of its blocks), the meridian flip the session automation and the target stop the limits of the target.
   The file is not changed or rewritten by opening it; the session is saved as version 9 when you save it. References to a setup that cannot be found are kept and reported, never given to another setup.
+- **Dashboard:** the session at the top, the imaging setups with what each is doing, the mount (state and tracking rate, position, altitude and azimuth, side of the pier, sidereal time and UTC, the site it works
+  with, and when its pointing crosses the meridian; with a target in the session also the time to the flip), the guide graph, and the latest image (stretched like the viewer of the Imaging page). Settings →
+  Appearance switches each panel on or off.
 - **Saved frames:** every frame that a session takes is written to disk as FITS (Settings → Imaging, on by default). The save folder is the one of the Imaging settings, or the Sidera folder in your Pictures. The folders
   and the name of the file come from patterns of parts in braces, by default `{target}/{night}/{type}` and `{target}_{type}_{filter}_{exposure}_{n}` (also `{setup}`, `{camera}`, `{date}`, `{time}`, `{gain}`, `{offset}`,
   `{temp}`, `{bin}`); `{night}` is the evening a night began, so frames after midnight stay together; a part that is not known is left out; the settings show an example of the path while you type. The header holds what is

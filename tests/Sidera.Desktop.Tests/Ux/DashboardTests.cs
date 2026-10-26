@@ -290,4 +290,52 @@ public class DashboardTests
     {
         Assert.Equal(expected, Sidera.Desktop.ViewModels.TrackLaneViewModel.FormatDuration(seconds));
     }
+
+    [Fact]
+    public async Task TheMountIsOnTheDashboard_WithItsStateWhereItPointsAndWhenItCrossesTheMeridian()
+    {
+        await using var app = await UxApp.Create(UxSetup.Demo, connect: true);
+        var dashboard = app.Vm.Dashboard;
+
+        var mount = dashboard.Mount;
+
+        Assert.NotNull(mount);
+        Assert.True(dashboard.HasMount);
+        await UxApp.WaitUntil(() => mount!.IsConnected && mount.HasPosition, "the mount to say where it points");
+        Assert.Matches(@"^\d+h \d\dm \d\ds   [+\u2212]\d+\u00b0 \d\d\u2032 \d\d\u2033$", mount!.PositionText);
+        Assert.True(mount.HasMeridian);
+        Assert.Matches(@"^(In .+|.+ ago)$", mount.MeridianText);
+        Assert.True(mount.HasPier);
+        Assert.Contains(mount.PierText, new[] { "East", "West" });
+        Assert.True(mount.HasTime);
+        Assert.StartsWith("Sidereal ", mount.TimeText);
+        Assert.Matches(@"^(Tracking|Not tracking|Parked|Slewing)", mount.StateText);
+    }
+
+    [Fact]
+    public async Task AMountThatIsNotConnected_IsOnTheDashboard_AndSaysSo_WithNothingMadeUp()
+    {
+        await using var app = await UxApp.Create(UxSetup.Demo, connect: false);
+
+        var mount = app.Vm.Dashboard.Mount;
+
+        Assert.NotNull(mount);
+        Assert.Equal("Not connected", mount!.StateText);
+        Assert.False(mount.HasPosition);
+        Assert.False(mount.HasMeridian);
+        Assert.False(mount.HasSite);
+    }
+
+    [Fact]
+    public async Task WithoutAMount_ThereIsNoMountPanel()
+    {
+        var host = new Sidera.Runtime.SideraRuntimeHost();
+        await using var _ = host;
+        var vm = new Sidera.Desktop.ViewModels.MainViewModel(
+            host, a => a(), new Sidera.Desktop.DemoOptions(), withDemoSequence: false, equipmentManagement: null, startWithSettingsMode: true);
+
+        Assert.False(vm.Dashboard.HasMount);
+        Assert.Null(vm.Dashboard.Mount);
+        vm.Dispose();
+    }
 }

@@ -59,6 +59,11 @@ public static class SideraSettingsSerializer
 
             w.WriteStartObject("appearance");
             w.WriteString("theme", settings.Appearance.ThemeId);
+            w.WriteBoolean("dashboardSetups", settings.Appearance.DashboardSetups);
+            w.WriteBoolean("dashboardMount", settings.Appearance.DashboardMount);
+            w.WriteBoolean("dashboardGuiding", settings.Appearance.DashboardGuiding);
+            w.WriteBoolean("dashboardImage", settings.Appearance.DashboardImage);
+            w.WriteBoolean("dashboardShared", settings.Appearance.DashboardShared);
             w.WriteEndObject();
 
             w.WriteStartObject("imaging");
@@ -241,7 +246,16 @@ public static class SideraSettingsSerializer
                 throw new SideraSettingsException("The theme must be the name of a theme.");
             }
 
-            var next = new AppearanceSettings { ThemeId = theme ?? new AppearanceSettings().ThemeId };
+            var d = new AppearanceSettings();
+            var next = new AppearanceSettings
+            {
+                ThemeId = theme ?? d.ThemeId,
+                DashboardSetups = Flag(appearance, "dashboardSetups", d.DashboardSetups, "appearance"),
+                DashboardMount = Flag(appearance, "dashboardMount", d.DashboardMount, "appearance"),
+                DashboardGuiding = Flag(appearance, "dashboardGuiding", d.DashboardGuiding, "appearance"),
+                DashboardImage = Flag(appearance, "dashboardImage", d.DashboardImage, "appearance"),
+                DashboardShared = Flag(appearance, "dashboardShared", d.DashboardShared, "appearance"),
+            };
             settings = settings with { Appearance = next.Problem is { } problem ? throw new SideraSettingsException(problem) : next };
         }
 

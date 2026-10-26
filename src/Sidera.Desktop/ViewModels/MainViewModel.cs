@@ -154,7 +154,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Framing.Safety = Safety;
         Sequencer.Safety = Safety;
         Dashboard = new DashboardViewModel(
-            Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, SetupContext, postToUi, page => SelectedPage = page);
+            Runtime, Sequencer, Imaging, Equipment, SequenceDocument, shared, Execution, SetupContext, postToUi, page => SelectedPage = page,
+            host.DeviceRegistry, () => SessionEditor.MeridianInfoText,
+            () => equipmentManagement?.Site?.Appearance ?? new Sidera.Desktop.Settings.AppearanceSettings(),
+            handler => { if (equipmentManagement?.Site is { } site) { site.Changed += handler; } });
 
         StatusBar = new StatusBarViewModel(Sequencer, Execution, postToUi);
         Help = new HelpViewModel(NavigateTo, () => SelectedPage = _pageBeforeHelp);

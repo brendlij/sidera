@@ -199,7 +199,13 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSectionViewMod
     /// <summary>The theme that is shown (and saved, with Save).</summary>
     public SideraTheme Selected => Choices.First(c => c.IsChosen).Theme;
 
-    public override string AppliesText => "The theme is kept for the next start.";
+    [ObservableProperty] public partial bool DashboardSetups { get; set; }
+    [ObservableProperty] public partial bool DashboardMount { get; set; }
+    [ObservableProperty] public partial bool DashboardGuiding { get; set; }
+    [ObservableProperty] public partial bool DashboardImage { get; set; }
+    [ObservableProperty] public partial bool DashboardShared { get; set; }
+
+    public override string AppliesText => "The theme is kept for the next start; the panels of the dashboard are shown or hidden at once after Save.";
 
     internal void Choose(ThemeChoice choice)
     {
@@ -217,10 +223,18 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSectionViewMod
         OnPropertyChanged(nameof(Selected));
     }
 
-    protected override bool Differs() => Selected.Id != SavedTheme().Id;
+    private AppearanceSettings Current() => new()
+    {
+        ThemeId = Selected.Id, DashboardSetups = DashboardSetups, DashboardMount = DashboardMount, DashboardGuiding = DashboardGuiding, DashboardImage = DashboardImage, DashboardShared = DashboardShared,
+    };
+
+    protected override bool Differs() => Selected.Id != SavedTheme().Id || Current() != _settings.Appearance with { ThemeId = Selected.Id };
 
     protected override void Reload()
     {
+        var panels = _settings.Appearance;
+        (DashboardSetups, DashboardMount, DashboardGuiding, DashboardImage, DashboardShared) =
+            (panels.DashboardSetups, panels.DashboardMount, panels.DashboardGuiding, panels.DashboardImage, panels.DashboardShared);
         var saved = SavedTheme();
         foreach (var choice in Choices)
         {
@@ -231,7 +245,7 @@ public sealed partial class AppearanceSettingsViewModel : SettingsSectionViewMod
         OnPropertyChanged(nameof(Selected));
     }
 
-    protected override string? SaveCore() => _settings.SetAppearance(new AppearanceSettings { ThemeId = Selected.Id }).Problem;
+    protected override string? SaveCore() => _settings.SetAppearance(Current()).Problem;
 
     private SideraTheme SavedTheme() => SideraThemes.Find(_settings.Appearance.ThemeId) ?? SideraThemes.Default;
 }

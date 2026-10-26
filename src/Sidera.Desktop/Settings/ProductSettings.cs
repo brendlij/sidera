@@ -12,11 +12,26 @@ public enum SessionMode
     Advanced,
 }
 
-/// <summary>How Sidera looks: the theme (see <c>SideraThemes</c>). Changing it changes nothing but colours.</summary>
+/// <summary>How Sidera looks: the theme (see <c>SideraThemes</c>) and which panels the dashboard shows. Changing it changes nothing but what is drawn.</summary>
 public sealed record AppearanceSettings
 {
     /// <summary>The id of the theme; one of those of <c>SideraThemes</c>.</summary>
     public string ThemeId { get; init; } = Sidera.Desktop.Themes.SideraThemes.DefaultId;
+
+    /// <summary>The imaging setups (or cameras) with what each of them is doing.</summary>
+    public bool DashboardSetups { get; init; } = true;
+
+    /// <summary>The mount: state, position, pier side, meridian.</summary>
+    public bool DashboardMount { get; init; } = true;
+
+    /// <summary>The guide graph and RMS, when the guider measures.</summary>
+    public bool DashboardGuiding { get; init; } = true;
+
+    /// <summary>The latest image with its analysis.</summary>
+    public bool DashboardImage { get; init; } = true;
+
+    /// <summary>The strip with the mount and guider that the session shares.</summary>
+    public bool DashboardShared { get; init; } = true;
 
     public string? Problem => Sidera.Desktop.Themes.SideraThemes.Find(ThemeId) is null
         ? "Choose one of the themes: " + string.Join(", ", Sidera.Desktop.Themes.SideraThemes.All.Select(t => t.Id)) + "."

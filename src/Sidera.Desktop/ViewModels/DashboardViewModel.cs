@@ -1,3 +1,4 @@
+using Sidera.Desktop.Settings;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -33,6 +34,9 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
     private readonly Action<AppPage> _navigate;
     private readonly ImagingSetupContext _context;
     private Timer? _clock;
+    private readonly Sidera.Runtime.Devices.DeviceRegistry? _devices;
+    private readonly Func<string>? _sessionMeridian;
+    private readonly Func<AppearanceSettings> _appearance;
 
     public DashboardViewModel(
         RuntimeStatusViewModel runtime,
@@ -44,8 +48,15 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         ExecutionOverviewViewModel execution,
         ImagingSetupContext context,
         Action<Action>? postToUi = null,
-        Action<AppPage>? navigate = null)
+        Action<AppPage>? navigate = null,
+        Sidera.Runtime.Devices.DeviceRegistry? devices = null,
+        Func<string>? sessionMeridian = null,
+        Func<AppearanceSettings>? appearance = null,
+        Action<EventHandler>? appearanceChanged = null)
     {
+        _appearance = appearance ?? (() => new AppearanceSettings());
+        _devices = devices;
+        _sessionMeridian = sessionMeridian;
         Runtime = runtime;
         _context = context;
         _sequencer = sequencer;
@@ -56,6 +67,7 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         Execution = execution;
         _postToUi = postToUi ?? (action => action());
         _navigate = navigate ?? (_ => { });
+        appearanceChanged?.Invoke((_, _) => _postToUi(() => OnPropertyChanged(string.Empty)));
 
         _sequencer.PropertyChanged += OnChanged;
         _sequencer.ExecutionRefreshed += OnExecutionRefreshed;
@@ -199,6 +211,7 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(string.Empty);
         RefreshElapsed();
         SharedItems = ReadShared();
+        RefreshMount();
         Guider = (_equipment.Guiders.FirstOrDefault(g => g.DeviceIdText == _shared.Guider.SelectedId?.Value) ?? _equipment.Guiders.FirstOrDefault()) is { HasMeasurements: true } measured
             ? measured
             : null;
@@ -212,6 +225,42 @@ public sealed partial class DashboardViewModel : ViewModelBase, IDisposable
         {
             _clock.Dispose();
             _clock = null;
+        }
+    }
+
+    /// <summary>The mount of the session with what it is doing and where it points; <c>null</c> without a mount.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMount))]
+    public partial DashboardMountViewModel? Mount { get; private set; }
+
+    public bool HasMount => Mount is not null;
+
+    // What the settings say the dashboard shows: a panel is drawn when it has something to show and is not switched off.
+    public bool ShowMountPanel => HasMount && _appearance().DashboardMount;
+    public bool ShowGuiderPanel => HasGuider && _appearance().DashboardGuiding;
+    public bool ShowImagePanel => _appearance().DashboardImage;
+    public bool ShowSharedPanel => HasShared && _appearance().DashboardShared;
+    public bool ShowUnitsPanel => ShowUnits && _appearance().DashboardSetups;
+
+    // The mount that the session page selected, or the first one; made again when another is chosen.
+    private void RefreshMount()
+    {
+        var chosen = _equipment.Mounts.FirstOrDefault(m => m.DeviceIdText == _shared.Mount.SelectedId?.Value) ?? _equipment.Mounts.FirstOrDefault();
+        if (chosen is null || _devices is null || !_devices.TryGet(new Sidera.Core.Devices.DeviceId(chosen.DeviceIdText), out var device) || device is not Sidera.Core.Mounts.IMountControl control)
+        {
+            if (Mount is not null)
+            {
+                Mount.Dispose();
+                Mount = null;
+            }
+
+            return;
+        }
+
+        if (Mount?.DeviceIdText != chosen.DeviceIdText)
+        {
+            Mount?.Dispose();
+            Mount = new DashboardMountViewModel(control, _postToUi, _sessionMeridian);
         }
     }
 

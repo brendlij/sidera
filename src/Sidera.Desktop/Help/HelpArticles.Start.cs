@@ -36,6 +36,7 @@ public static partial class HelpCatalog
             [
                 "Open Session starts or opens a session when none is active.",
                 "Imaging setups lists each setup with its camera, its focuser and its filter wheel, and whether they are connected.",
+                "Mount shows what the mount is doing (tracking and its rate, slewing, parked), where it points, the side of the pier, the sidereal time and the site it works with, and when its pointing crosses the meridian. With a session that has a target it also says when the flip is due.",
                 "Guiding shows the guide error over the last two minutes, with the RMS and the SNR of the star, once a guider is connected and guiding.",
                 "Latest image shows the last frame that was taken, by a capture or by the session.",
                 "Shared lists the mount and the guider that the setups share, with their state.",
@@ -44,6 +45,7 @@ public static partial class HelpCatalog
             [
                 "While a session runs the dashboard also shows what it is doing. The bar at the bottom of the window shows that on every page.",
                 "A device that is not connected shows its state and nothing stale.",
+                "Settings → Appearance chooses which panels the dashboard shows: the setups, the mount, the guiding graph, the latest image and the strip of shared equipment.",
             ],
             Screenshot = Shot("dashboard.png", "The dashboard.",
                 (1, "Open a session", 0.47, 0.235), (2, "The imaging setups", 0.15, 0.33), (3, "Guiding", 0.81, 0.27), (4, "The latest image", 0.70, 0.50), (5, "The shared mount and guider", 0.15, 0.80)),

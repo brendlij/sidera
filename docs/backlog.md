@@ -21,9 +21,9 @@ Stand: 12.10.2026. Priorität 1 sind die Punkte, die Julian vor dem ersten echte
 
 ### Dashboard
 
-- [ ] **Mount-Info im Dashboard:** Meridian in (Countdown bis zum Meridian des aktuellen Ziels), aktuelle Position (RA/Dec, Höhe/Azimut), Pier-Seite, Zeit (UTC, Sternzeit), Standort der Montierung (und ob er von Sidera abweicht), Zustand (verbunden, Slewing, geparkt, am Home), Tracking an/aus mit Tracking-Rate.
+- [x] **Mount-Info im Dashboard:** Meridian in (Countdown bis zum Meridian des aktuellen Ziels), aktuelle Position (RA/Dec, Höhe/Azimut), Pier-Seite, Zeit (UTC, Sternzeit), Standort der Montierung (und ob er von Sidera abweicht), Zustand (verbunden, Slewing, geparkt, am Home), Tracking an/aus mit Tracking-Rate.
 - [ ] **Auch für die anderen Geräte** Info im Dashboard (Kamera: Temperatur, Kühlung, Zustand; Fokussierer: Position und Temperatur; Filterrad: aktueller Filter; Rotator: Winkel; Guider: RMS und Zustand; Dome: Azimut und Shutter; Session: Ziel, Fortschritt, Rest).
-- [ ] **Dashboard anpassbar:** in den Settings einstellen, welche Karten und Infos erscheinen, in welcher Reihenfolge und wie groß (Dashboard bearbeiten).
+- [x] **Dashboard anpassbar:** (Panels ein- und ausblenden in Settings → Appearance; Reihenfolge und Größe noch nicht) in den Settings einstellen, welche Karten und Infos erscheinen, in welcher Reihenfolge und wie groß (Dashboard bearbeiten).
 
 ### Feedback und Navigation
 
