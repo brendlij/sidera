@@ -18,6 +18,8 @@ public sealed class CameraExposureAction : IResourceAwareSequenceStep, IClaiming
     private readonly AcquisitionIntent _intent;
     private readonly IAcquisitionDefaultsSource? _defaults;
     private readonly ILogger? _logger;
+    private readonly IFrameSink? _frameSink;
+    private readonly FrameLabel? _label;
 
     /// <param name="intent">What the exposure asks of the camera besides its duration; nothing set means the defaults of the camera.</param>
     public CameraExposureAction(
@@ -27,7 +29,9 @@ public sealed class CameraExposureAction : IResourceAwareSequenceStep, IClaiming
         AcquisitionIntent? intent = null,
         IAcquisitionDefaultsSource? defaults = null,
         ILogger? logger = null,
-        DeviceId? mountId = null)
+        DeviceId? mountId = null,
+        IFrameSink? frameSink = null,
+        FrameLabel? label = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(duration, TimeSpan.Zero);
@@ -39,6 +43,8 @@ public sealed class CameraExposureAction : IResourceAwareSequenceStep, IClaiming
         _intent = intent ?? AcquisitionIntent.Default;
         _defaults = defaults;
         _logger = logger;
+        _frameSink = frameSink;
+        _label = label;
     }
 
     public AcquisitionIntent Intent => _intent;
@@ -66,7 +72,45 @@ public sealed class CameraExposureAction : IResourceAwareSequenceStep, IClaiming
     {
         var camera = DeviceLookup.Resolve<ICamera>(_registry, _deviceId, "camera");
 
-        var frame = await AcquisitionExposer.ExposeAsync(camera, Duration, _intent, _defaults, _logger, cancellationToken);
+        var capture = BeginCapture();
+        CameraFrame frame;
+        try
+        {
+            frame = await AcquisitionExposer.ExposeAsync(camera, Duration, _intent, _defaults, _logger, cancellationToken);
+        }
+        catch
+        {
+            Guard(() => capture?.Abandon());
+            throw;
+        }
+
+        Guard(() => capture?.Complete(frame));
         return new SequenceStepResult(frame);
+    }
+
+    // What a sink does with a frame never decides whether the exposure worked.
+    private IFrameCapture? BeginCapture()
+    {
+        try
+        {
+            return _frameSink?.Begin(_deviceId, _label);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "The frame sink could not start a capture; this frame is not saved");
+            return null;
+        }
+    }
+
+    private void Guard(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "The frame sink failed; this frame may not be saved");
+        }
     }
 }

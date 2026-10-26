@@ -30,6 +30,28 @@ public static partial class HelpCatalog
             Keywords = ["capture", "frame", "fits", "png", "stretch", "zoom", "exposure"],
         },
 
+        new("saved-frames", ImagingSection, "Saved Frames", "Every frame that a session takes is written to disk as a FITS file, in folders and under a name that you choose.")
+        {
+            Steps =
+            [
+                "Open Settings → Imaging. Save every frame of a session as FITS is on by default.",
+                "Choose the save folder. Empty uses the Sidera folder in your Pictures.",
+                "Fill in Folders inside the save folder and File name with parts in braces, for example {target}/{night}/{type} and {target}_{type}_{filter}_{exposure}_{n}. The line under the fields shows a file as it would be named.",
+                "Run the session. A file is written for every exposure. A frame that cannot be saved is told to you as an error message, once.",
+            ],
+            Notes =
+            [
+                "The parts are {target}, {setup}, {camera}, {filter}, {type}, {exposure}, {night}, {date}, {time}, {n}, {gain}, {offset}, {temp} and {bin}. A part that is not known (no filter wheel, no target) is left out of the name.",
+                "{night} is the evening that the night began, so frames after midnight stay in the folder of that night. {n} counts up in the folder. A file that is already there is never replaced.",
+                "The header says what is known: OBJECT, FILTER, EXPTIME, DATE-OBS, GAIN, OFFSET, XBINNING, YBINNING, CCD-TEMP, IMAGETYP, INSTRUME, TELESCOP, FOCALLEN, the pixel size, the pointing of the mount and the site. Nothing that is not known is written.",
+                "Frames are written in the background, so saving never holds up the next exposure. A file is named .part until it is complete.",
+                "Frames of an autofocus and of a plate solve are not saved. JPG, a second copy and moving the frames after the session are not there yet.",
+            ],
+            Actions = [Setting("Open Imaging settings", "imaging")],
+            Related = ["manual-capture", "file-locations"],
+            Keywords = ["save", "fits", "folder", "name", "header", "files", "frames", "path"],
+        },
+
         new("autofocus", ImagingSection, "Autofocus", "Samples the focus around where it is, fits the curve, moves to the best position and checks it.")
         {
             Steps =

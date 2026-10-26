@@ -284,14 +284,43 @@ public sealed partial class ImagingSettingsViewModel : SettingsSectionViewModel
     [ObservableProperty] public partial bool AutoStretch { get; set; }
     [ObservableProperty] public partial bool FitOnCapture { get; set; }
     [ObservableProperty] public partial string ManualExposureText { get; set; } = string.Empty;
+    [ObservableProperty] public partial bool SaveSessionFrames { get; set; }
+    [ObservableProperty] public partial string FolderPatternText { get; set; } = string.Empty;
+    [ObservableProperty] public partial string FilePatternText { get; set; } = string.Empty;
+    [ObservableProperty] public partial string ExampleText { get; set; } = string.Empty;
 
-    public override string AppliesText => "The imaging page uses it from the next start; the save folder at once.";
+    /// <summary>The parts a pattern can use, for the hint under the fields.</summary>
+    public string PartsText { get; } = string.Join("  ", Sidera.Core.Imaging.FrameNaming.Parts.Select(p => "{" + p.Token + "}"));
+
+    partial void OnSaveDirectoryTextChanged(string value) => RefreshExample();
+    partial void OnFolderPatternTextChanged(string value) => RefreshExample();
+    partial void OnFilePatternTextChanged(string value) => RefreshExample();
+
+    // What a frame of this pattern would be called, for a frame that is made up: so that the pattern can be seen before it is used.
+    private void RefreshExample()
+    {
+        var problem = Sidera.Core.Imaging.FrameNaming.Problem(FolderPatternText, isFile: false) ?? Sidera.Core.Imaging.FrameNaming.Problem(FilePatternText, isFile: true);
+        if (problem is not null)
+        {
+            ExampleText = problem;
+            return;
+        }
+
+        var sample = new Sidera.Core.Imaging.FrameNameValues(
+            "M31", "750pds", "ASI2600MC", "Ha", Sidera.Core.Devices.FrameType.Light, 300, new DateTime(2026, 10, 13, 1, 45, 30), 100, 50, -10, 1, 1);
+        var root = string.IsNullOrWhiteSpace(SaveDirectoryText) ? new ImagingSettings().FramesRoot : SaveDirectoryText.Trim();
+        var path = System.IO.Path.Combine([root, .. Sidera.Core.Imaging.FrameNaming.Folders(FolderPatternText, sample), Sidera.Core.Imaging.FrameNaming.FileName(FilePatternText, sample, 7) + ".fits"]);
+        ExampleText = "For example: " + path;
+    }
+
+    public override string AppliesText => "The imaging page uses it from the next start; the save folder and the frames of a session at once.";
 
     private ImagingSettings? Build() =>
         TryNumber(ManualExposureText, out var exposure)
             ? new ImagingSettings
             {
                 SaveDirectory = string.IsNullOrWhiteSpace(SaveDirectoryText) ? null : SaveDirectoryText.Trim(), AutoStretch = AutoStretch, FitOnCapture = FitOnCapture, ManualExposureSeconds = exposure,
+                SaveSessionFrames = SaveSessionFrames, FolderPattern = FolderPatternText.Trim(), FilePattern = FilePatternText.Trim(),
             }
             : null;
 
@@ -304,6 +333,10 @@ public sealed partial class ImagingSettingsViewModel : SettingsSectionViewModel
         AutoStretch = s.AutoStretch;
         FitOnCapture = s.FitOnCapture;
         ManualExposureText = Format(s.ManualExposureSeconds);
+        SaveSessionFrames = s.SaveSessionFrames;
+        FolderPatternText = s.FolderPattern;
+        FilePatternText = s.FilePattern;
+        RefreshExample();
     }
 
     protected override string? SaveCore() =>

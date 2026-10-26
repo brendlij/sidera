@@ -52,7 +52,8 @@ public sealed record SequenceDraftContext(
     TimeSpan? MeridianPollInterval = null,
     Sidera.Runtime.Sequencing.ConditionStatusBoard? Conditions = null,
     TimeSpan? ConditionPollInterval = null,
-    bool AutofocusHoldsMount = false
+    bool AutofocusHoldsMount = false,
+    Sidera.Runtime.Sequencing.IFrameSink? FrameSink = null
 );
 
 /// <summary>What is wrong with a draft: per step (steps inside containers, and tracks, included), and about the session.</summary>
@@ -958,10 +959,10 @@ public static class SequenceDraftBuilder
         // The mount that carries the camera is part of what an exposure claims: it must stand still, next to other exposures on the same mount.
         ExposureStepDraft e => new CameraExposureAction(
             registry, e.CameraId!.Value, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
-            context?.Loggers?.CreateLogger<CameraExposureAction>(), MountOfCamera(context, e.CameraId.Value)),
+            context?.Loggers?.CreateLogger<CameraExposureAction>(), MountOfCamera(context, e.CameraId.Value), context?.FrameSink, e.Label),
         RigExposureStepDraft e => new CameraExposureAction(
             registry, rig!.CameraId, TimeSpan.FromSeconds(e.Seconds), e.Acquisition, context?.AcquisitionDefaults,
-            context?.Loggers?.CreateLogger<CameraExposureAction>(), StepScopes.EffectiveMount(rig, null, context?.Shared)),
+            context?.Loggers?.CreateLogger<CameraExposureAction>(), StepScopes.EffectiveMount(rig, null, context?.Shared), context?.FrameSink, e.Label),
         DeviceOperationStepDraft o => new DeviceOperationAction(registry, o.Operation, o.DeviceId!.Value, o.Celsius, o.RampMinutes, azimuthDegrees: o.AzimuthDegrees),
         MoveFocuserStepDraft f => new MoveFocuserAction(registry, f.FocuserId!.Value, f.Position),
         ChangeFilterStepDraft c => new ChangeFilterAction(registry, c.FilterWheelId!.Value, c.SlotIndex),

@@ -47,10 +47,22 @@ public sealed record ImagingSettings
     /// <summary>The exposure a manual capture starts with, in seconds.</summary>
     public double ManualExposureSeconds { get; init; } = 2;
 
+    /// <summary>Every frame that a session takes is written to disk as FITS, in the save folder (or the default one when there is none).</summary>
+    public bool SaveSessionFrames { get; init; } = true;
+
+    /// <summary>The folders inside the save folder, as a pattern of parts in braces (see <see cref="Sidera.Core.Imaging.FrameNaming"/>); empty saves into the save folder itself.</summary>
+    public string FolderPattern { get; init; } = Sidera.Core.Imaging.FrameNaming.DefaultFolderPattern;
+
+    /// <summary>The name of the file, without its extension, as a pattern.</summary>
+    public string FilePattern { get; init; } = Sidera.Core.Imaging.FrameNaming.DefaultFilePattern;
+
+    /// <summary>The folder that session frames go to: the save folder, or the Sidera folder in the Pictures of the user when none is chosen.</summary>
+    public string FramesRoot => SaveDirectory is { Length: > 0 } directory ? directory : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Sidera");
+
     public string? Problem =>
         !double.IsFinite(ManualExposureSeconds) || ManualExposureSeconds is < 0.001 or > 3600 ? "The manual exposure must be from 0.001 to 3600 seconds."
         : SaveDirectory is { } directory && (directory.Trim().Length == 0 || directory.IndexOfAny(Path.GetInvalidPathChars()) >= 0) ? "The save folder is not a valid path."
-        : null;
+        : Sidera.Core.Imaging.FrameNaming.Problem(FolderPattern, isFile: false) ?? Sidera.Core.Imaging.FrameNaming.Problem(FilePattern, isFile: true);
 }
 
 /// <summary>

@@ -41,6 +41,15 @@ public sealed record FitsMetadata
 
     /// <summary>The name of the optical train (the rig) the frame was taken with, as <c>TELESCOP</c>.</summary>
     public string? Telescope { get; init; }
+
+    /// <summary>The target of the session, as <c>OBJECT</c>; only what the user named.</summary>
+    public string? ObjectName { get; init; }
+
+    /// <summary>The filter in the light path when the exposure started, as <c>FILTER</c>.</summary>
+    public string? FilterName { get; init; }
+
+    /// <summary>The temperature of the sensor in degrees Celsius, as <c>CCD-TEMP</c>; only when the camera reports it.</summary>
+    public double? SensorTemperatureCelsius { get; init; }
 }
 
 /// <summary>
@@ -178,6 +187,17 @@ public static class FitsImageWriter
             }, "type of frame"));
         }
 
+        if (!string.IsNullOrWhiteSpace(m.ObjectName))
+        {
+            cards.Add(Text("OBJECT", m.ObjectName, "target"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(m.FilterName))
+        {
+            cards.Add(Text("FILTER", m.FilterName, "filter"));
+        }
+
+        AddReal(cards, "CCD-TEMP", m.SensorTemperatureCelsius, "[degC] sensor temperature");
         AddReal(cards, "SITELAT", m.SiteLatitudeDegrees, "[deg] observing site latitude, north positive");
         AddReal(cards, "SITELONG", m.SiteLongitudeDegrees, "[deg] observing site longitude, east positive");
         AddReal(cards, "SITEELEV", m.SiteElevationMeters, "[m] observing site elevation");

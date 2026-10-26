@@ -234,7 +234,8 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     private SequenceDraftContext Context => new(
         _rigs, SharedEquipment, _focusMetrics, _events, _loggers, _acquisitionDefaults, _plateSolving, _solveDefaults, _rotation, Time: Clock, Site: SiteProvider,
-        MeridianPollInterval: PollInterval, Conditions: ConditionStatuses, ConditionPollInterval: PollInterval, AutofocusHoldsMount: AutofocusHoldsMount?.Invoke() ?? false);
+        MeridianPollInterval: PollInterval, Conditions: ConditionStatuses, ConditionPollInterval: PollInterval, AutofocusHoldsMount: AutofocusHoldsMount?.Invoke() ?? false,
+        FrameSink: FrameSink);
 
     /// <summary>The mounts and rotators that this sequence moves on purpose, as the draft is now (see <see cref="SequenceDraftBuilder.MovingEquipment"/>).</summary>
     public IReadOnlyList<(MovingEquipment Kind, DeviceId Device)> MovingEquipment() =>
@@ -245,6 +246,9 @@ public sealed partial class SequenceDraftViewModel : ViewModelBase
 
     /// <summary>The observing site of the application, for what needs the sky (the meridian flip); <c>null</c> where there is none.</summary>
     public Func<Sidera.Core.Location.ObservingSite?>? SiteProvider { get; set; }
+
+    /// <summary>Where the frames of a run are saved; <c>null</c> saves nothing.</summary>
+    public Sidera.Runtime.Sequencing.IFrameSink? FrameSink { get; set; }
 
     /// <summary>The clock the sky follows; <c>null</c> is the real one. For tests.</summary>
     public TimeProvider? Clock { get; set; }

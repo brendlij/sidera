@@ -153,6 +153,9 @@ public sealed record ExposureStepDraft(Guid Id, DeviceId? CameraId, double Secon
     /// </summary>
     public AcquisitionIntent Acquisition { get; init; } = AcquisitionIntent.Default;
 
+    /// <summary>What the session knows about the frame besides the camera (its target); only for the name and the header of a saved frame.</summary>
+    public Sidera.Runtime.Sequencing.FrameLabel? Label { get; init; }
+
     public override SequenceStepKind Kind => SequenceStepKind.Exposure;
     public override IEnumerable<DeviceId> DeviceIds => Of(CameraId);
 }
@@ -219,6 +222,9 @@ public sealed record RigExposureStepDraft(Guid Id, double Seconds) : LeafStepDra
 {
     /// <summary>The same acquisition intent as an exposure outside a track has; the camera is the camera of the rig.</summary>
     public AcquisitionIntent Acquisition { get; init; } = AcquisitionIntent.Default;
+
+    /// <summary>What the session knows about the frame besides the camera (its target); only for the name and the header of a saved frame.</summary>
+    public Sidera.Runtime.Sequencing.FrameLabel? Label { get; init; }
 
     public override SequenceStepKind Kind => SequenceStepKind.RigExposure;
     public override IEnumerable<DeviceId> DeviceIds => [];

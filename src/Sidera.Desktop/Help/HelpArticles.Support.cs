@@ -252,7 +252,7 @@ public static partial class HelpCatalog
                 "Settings and equipment: two files in the folder %APPDATA%\\Sidera. Settings → Advanced shows the exact files.",
                 "Logs: %LOCALAPPDATA%\\Sidera\\logs. The Diagnostics page shows the folder and the file of this session.",
                 "Sessions and sequences: the .astraseq files that you save, wherever you choose.",
-                "Saved frames: the folder of Settings → Imaging.",
+                "Saved frames: the folder of Settings → Imaging (the Sidera folder in Pictures when it is empty), in the folders and under the names that you choose there.",
                 "Sky survey pictures: the cache folder of Settings → Framing.",
             ],
             Notes =

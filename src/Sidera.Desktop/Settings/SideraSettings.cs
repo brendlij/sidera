@@ -69,6 +69,9 @@ public static class SideraSettingsSerializer
             w.WriteBoolean("autoStretch", settings.Imaging.AutoStretch);
             w.WriteBoolean("fitOnCapture", settings.Imaging.FitOnCapture);
             w.WriteNumber("manualExposureSeconds", settings.Imaging.ManualExposureSeconds);
+            w.WriteBoolean("saveSessionFrames", settings.Imaging.SaveSessionFrames);
+            w.WriteString("folderPattern", settings.Imaging.FolderPattern);
+            w.WriteString("filePattern", settings.Imaging.FilePattern);
             w.WriteEndObject();
 
             w.WriteStartObject("autofocus");
@@ -244,6 +247,9 @@ public static class SideraSettingsSerializer
                 AutoStretch = Flag(imaging, "autoStretch", d.AutoStretch, "imaging"),
                 FitOnCapture = Flag(imaging, "fitOnCapture", d.FitOnCapture, "imaging"),
                 ManualExposureSeconds = Num(imaging, "manualExposureSeconds", d.ManualExposureSeconds, "imaging"),
+                SaveSessionFrames = Flag(imaging, "saveSessionFrames", d.SaveSessionFrames, "imaging"),
+                FolderPattern = imaging.TryGetProperty("folderPattern", out var folders) && folders.ValueKind == JsonValueKind.String ? folders.GetString() ?? d.FolderPattern : d.FolderPattern,
+                FilePattern = imaging.TryGetProperty("filePattern", out var files) && files.ValueKind == JsonValueKind.String ? files.GetString() ?? d.FilePattern : d.FilePattern,
             };
             settings = settings with { Imaging = next.Problem is { } problem ? throw new SideraSettingsException(problem) : next };
         }

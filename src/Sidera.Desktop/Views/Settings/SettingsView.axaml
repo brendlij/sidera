@@ -124,8 +124,13 @@
             </StackPanel>
             <StackPanel DataContext="{Binding Imaging}" x:DataType="vm:ImagingSettingsViewModel" IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsImaging}" Spacing="12">
                 <TextBlock Classes="eyebrow" Text="IMAGING" />
-                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="The manual imaging page. The acquisition defaults of a camera stay with the camera." />
-                <ctl:LabeledField Label="Save folder (empty for the folder the dialog chooses)"><TextBox Text="{Binding SaveDirectoryText}" AutomationProperties.Name="Save folder" /></ctl:LabeledField>
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="The manual imaging page and the frames of a session. The acquisition defaults of a camera stay with the camera." />
+                <ctl:LabeledField Label="Save folder (empty: the Sidera folder in Pictures; the Save dialogs open the folder they choose)"><TextBox Text="{Binding SaveDirectoryText}" AutomationProperties.Name="Save folder" /></ctl:LabeledField>
+                <CheckBox Content="Save every frame of a session as FITS" IsChecked="{Binding SaveSessionFrames}" AutomationProperties.Name="Save session frames" />
+                <ctl:LabeledField Label="Folders inside the save folder"><TextBox Text="{Binding FolderPatternText}" AutomationProperties.Name="Folder pattern" /></ctl:LabeledField>
+                <ctl:LabeledField Label="File name (without the extension)"><TextBox Text="{Binding FilePatternText}" AutomationProperties.Name="File name pattern" /></ctl:LabeledField>
+                <TextBlock Classes="meta" TextWrapping="Wrap" Text="{Binding PartsText, StringFormat='Parts: {0}'}" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="{Binding ExampleText}" AutomationProperties.AutomationId="FramePathExample" />
                 <CheckBox Content="Auto Stretch for new frames" IsChecked="{Binding AutoStretch}" />
                 <CheckBox Content="Fit the frame to the view when a manual capture arrives" IsChecked="{Binding FitOnCapture}" />
                 <ctl:LabeledField Label="Manual capture exposure (s)"><TextBox Text="{Binding ManualExposureText}" AutomationProperties.Name="Manual exposure" /></ctl:LabeledField>

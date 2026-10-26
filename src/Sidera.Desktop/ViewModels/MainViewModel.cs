@@ -108,6 +108,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         var shared = new SharedEquipmentViewModel(SequenceDraft, Equipment);
         Execution = new ExecutionOverviewViewModel(Sequencer, Equipment.Rigs);
         SequenceDraft.SiteProvider = () => equipmentManagement?.Site?.Site;
+        FrameSaver = new Sidera.Desktop.Imaging.SessionFrameSaver(
+            host, () => equipmentManagement?.Site?.Imaging ?? new Sidera.Desktop.Settings.ImagingSettings { SaveSessionFrames = false }, () => equipmentManagement?.Site?.Site,
+            (title, message) => Notifications.Post(Sidera.Desktop.Notifications.NotificationSeverity.Error, title, message), host.LoggerFactory?.CreateLogger("Sidera.Frames"));
+        SequenceDraft.FrameSink = FrameSaver;
         SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
         SessionEditor = new SessionEditorViewModel(
             SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site,
@@ -245,6 +249,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>The messages of the application: what happened, said at the top right of the window.</summary>
     public new Sidera.Desktop.Notifications.NotificationService Notifications { get; }
+
+    /// <summary>Writes the frames of a session to disk (Settings → Imaging says where).</summary>
+    public Sidera.Desktop.Imaging.SessionFrameSaver FrameSaver { get; }
 
     /// <summary>The bar at the bottom of the window: what Sidera is doing now.</summary>
     public StatusBarViewModel StatusBar { get; }
@@ -426,6 +433,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        // Frames that are still being written are finished first (for a while at most); nothing waits on the window.
+        FrameSaver.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(15));
         Notifications.Dispose();
         PlateSolve.Dispose();
         Framing.Dispose();

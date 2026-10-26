@@ -6,12 +6,12 @@ Stand: 12.10.2026. Priorität 1 sind die Punkte, die Julian vor dem ersten echte
 
 ### Bilder und Anzeige
 
-- [ ] **Bilder werden nicht gespeichert.** Eine Session schreibt keine Dateien (nur Save FITS / Save PNG von Hand auf der Imaging-Seite; `FrameExporter`, `ImagingViewModel`). Gebraucht: jede belichtete Aufnahme einer Session automatisch als FITS in einen Ordner schreiben, mit Metadaten (Ziel, Belichtung, Filter, Kamera, Gain, Zeit, Standort). Ordner und Dateiname einstellbar (Muster wie `Ziel/Filter/Datum_Nr`), Verhalten bei vollem oder fehlendem Laufwerk.
+- [~] **Bilder werden nicht gespeichert.** (Erster Schnitt gebaut: FITS pro Belichtung einer Session, Namens- und Ordnermuster, Header, Hintergrund-Schreiben. Offen: JPG, Backup, Verschieben, Fehlersammlung bei vollem Laufwerk.) Eine Session schreibt keine Dateien (nur Save FITS / Save PNG von Hand auf der Imaging-Seite; `FrameExporter`, `ImagingViewModel`). Gebraucht: jede belichtete Aufnahme einer Session automatisch als FITS in einen Ordner schreiben, mit Metadaten (Ziel, Belichtung, Filter, Kamera, Gain, Zeit, Standort). Ordner und Dateiname einstellbar (Muster wie `Ziel/Filter/Datum_Nr`), Verhalten bei vollem oder fehlendem Laufwerk.
   Ausbau dazu (Julian):
-  - Formate **FITS und JPG** (PNG bleibt für Manuelles); einstellbar, welche davon geschrieben werden.
-  - **Dateinamen einstellbar:** welche Bestandteile im Namen stehen (Ziel, Filter, Belichtung, Datum und Zeit, Nummer, Kamera, Gain, Temperatur, Binning), mit Platzhaltern und Vorschau.
-  - **Richtige FITS-Header** schreiben (Standard-Schlüsselwörter: OBJECT, EXPTIME, DATE-OBS, FILTER, INSTRUME, GAIN, OFFSET, CCD-TEMP, XBINNING, RA/DEC, SITELAT/SITELONG, IMAGETYP, FOCALLEN, XPIXSZ, ROTATANG, Software und Version), so dass PixInsight, Siril und Stacker sie lesen.
-  - **Pfad und smarte Ordnerstruktur** wählbar (zum Beispiel `Ziel/Datum/Filter` oder `Datum/Ziel/Frames-Typ`), Lights, Darks, Flats, Bias getrennt.
+  - [FITS: fertig] Formate **FITS und JPG** (PNG bleibt für Manuelles); einstellbar, welche davon geschrieben werden.
+  - [fertig] **Dateinamen einstellbar:** welche Bestandteile im Namen stehen (Ziel, Filter, Belichtung, Datum und Zeit, Nummer, Kamera, Gain, Temperatur, Binning), mit Platzhaltern und Vorschau.
+  - [fertig, ohne BAYERPAT] **Richtige FITS-Header** schreiben (Standard-Schlüsselwörter: OBJECT, EXPTIME, DATE-OBS, FILTER, INSTRUME, GAIN, OFFSET, CCD-TEMP, XBINNING, RA/DEC, SITELAT/SITELONG, IMAGETYP, FOCALLEN, XPIXSZ, ROTATANG, Software und Version), so dass PixInsight, Siril und Stacker sie lesen.
+  - [fertig, ohne getrennte Kalibrierordner] **Pfad und smarte Ordnerstruktur** wählbar (zum Beispiel `Ziel/Datum/Filter` oder `Datum/Ziel/Frames-Typ`), Lights, Darks, Flats, Bias getrennt.
   - **Auto-Backup** der Bilder (zweites Ziel, zum Beispiel ein Netzlaufwerk oder eine zweite Platte).
   - Option **Verschieben nach der Session** (von einem schnellen lokalen Ordner ins Archiv), mit Prüfung, dass die Dateien vollständig angekommen sind, bevor das Original gelöscht wird.
 - [ ] **Download-Marker**, solange das Bild von der Kamera geladen wird (die Phase nach der Belichtung): im Status und am Bild sichtbar.

@@ -321,7 +321,7 @@ public static class SessionCompiler
             switch (action)
             {
                 case ExposureAction exposure:
-                    steps.Add(new RigExposureStepDraft(id, Math.Max(double.Epsilon, exposure.Seconds)));
+                    steps.Add(new RigExposureStepDraft(id, Math.Max(double.Epsilon, exposure.Seconds)) { Label = new Sidera.Runtime.Sequencing.FrameLabel(conditionTarget.Name) });
                     break;
                 case SetFilterAction filter:
                     if (rig.FilterWheelId is null)
