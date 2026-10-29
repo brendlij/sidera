@@ -13,7 +13,7 @@ Workflow mode; its compiled steps (the draft) are derived and shown read-only in
 autofocus policies *per setup*, one meridian-flip setting, target-stop conditions. `WorkflowCompiler` turns it into draft steps: Prepare steps, one `MultiRigStepDraft` (a `RigTrackDraft` per setup holding, per
 block, a filter change and a `Repeat` of exposures; the dither policy; the flip policy; the target stop), Finish steps. Draft steps are built into runtime steps by `SequenceDraftBuilder` (2k lines).
 
-**Persistence.** `.astraseq` v8: `steps` (the compiled draft, written for older readers) and an optional `workflow` object (`WorkflowJson`). A reader compiles the workflow again and does not trust `steps`.
+**Persistence.** `.sideraseq` v8: `steps` (the compiled draft, written for older readers) and an optional `workflow` object (`WorkflowJson`). A reader compiles the workflow again and does not trust `steps`.
 Document types in `Documents/`; `SequenceDocumentViewModel` loads/saves through `IWorkflowSource`.
 
 **Runtime facts that shape the redesign.**
@@ -70,7 +70,7 @@ Conditions are the existing Conditions V1 types. Lanes bind with `ImagingBinding
   lane's setup; no action stores a device unless an Advanced override is set.
 - **Shared mount**: lanes that share a mount share the target coordinates by construction (they belong to one target); preparation is emitted once per mount group.
 
-### 3.3 Persistence: `.astraseq` v9
+### 3.3 Persistence: `.sideraseq` v9
 
 `session` object (typed, versioned names; no UI state). v8 files: `workflow` is migrated to a `SessionDefinition` deterministically (Prepare → shared preparation, imaging blocks → one lane per setup in
 order of first use, per-setup autofocus policies and the dither policy → block automation, finish → End, flip and target stop → session automation / target limits). v8 sessions without a workflow
@@ -107,7 +107,7 @@ Scripting (YAML/Lua/C#), adaptive scheduling, per-block dither intervals that di
 
 - The editor is model-first: every edit is an immutable function of `SessionEdits` over the `SessionDefinition`; the editor compiles, replaces the steps of the draft and maps the problems of the compiled steps back
   to the block, lane or action they came from (`SessionCompilation.Origins`). Cards are rebuilt on each edit; the drawer is rebuilt only on structural edits, so typing does not lose the focus.
-- `.astraseq` v9 writes `session` next to the compiled `steps`; v8 `workflow` files are migrated by `WorkflowMigration` when read and never rewritten by opening them. The old `WorkflowCompiler` lives in the tests as the
+- `.sideraseq` v9 writes `session` next to the compiled `steps`; v8 `workflow` files are migrated by `WorkflowMigration` when read and never rewritten by opening them. The old `WorkflowCompiler` lives in the tests as the
   reference of what a v8 workflow meant (`LegacyWorkflowCompiler`); `WorkflowMigrationTests` compares the migrated session's compile result with it.
 - Tree: one-way from the session (asked first), back only where the steps are exactly what a session compiled to (compared by fingerprint). With one usable setup the Tree shows no setup picker (its steps start
   with the current setup); with several the picker stays where a step needs a setup: the explicit "override on request" button of the spec is not built. Wording of the Tree: Parallel Imaging, Setup Sequence.

@@ -463,12 +463,12 @@ public sealed class HardwareStepDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Hardware");
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var text = await File.ReadAllTextAsync(PathOf("Hardware.astraseq"));
+        var text = await File.ReadAllTextAsync(PathOf("Hardware.sideraseq"));
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"rigMoveFocuser\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Hardware.astraseq"));
+        await app.Open(PathOf("Hardware.sideraseq"));
 
         Assert.False(app.Document.IsDirty);
         Assert.Equal(before, app.Draft.Snapshot(), new DraftComparer());
@@ -495,25 +495,25 @@ public sealed class HardwareStepDocumentTests : IDisposable
     public async Task AVersion2File_OpensInTheEditor_AndIsSavedAsTheCurrentVersion()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Old.astraseq"), Doc(2, Block(A, Track(B, RigExposure(C)), Track(D, RigExposure(E)))));
+        await File.WriteAllTextAsync(PathOf("Old.sideraseq"), Doc(2, Block(A, Track(B, RigExposure(C)), Track(D, RigExposure(E)))));
 
-        await app.Open(PathOf("Old.astraseq"));
+        await app.Open(PathOf("Old.sideraseq"));
 
         Assert.Null(app.Document.ErrorMessage);
         Assert.False(app.Document.IsDirty);
         app.Picker.SavePath = PathOf("Old2");
         app.Draft.Rows.OfType<RigExposureStepDraftViewModel>().First().ExposureText = "5";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 9", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", await File.ReadAllTextAsync(PathOf("Old.sideraseq")), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task ADocumentWithAFocuserThatDoesNotExistHere_LoadsAsARepairableDraft()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Obs.astraseq"), Doc(3, MoveFocuser(A).Replace("focuser.main", "focuser.observatory")));
+        await File.WriteAllTextAsync(PathOf("Obs.sideraseq"), Doc(3, MoveFocuser(A).Replace("focuser.main", "focuser.observatory")));
 
-        await app.Open(PathOf("Obs.astraseq"));
+        await app.Open(PathOf("Obs.sideraseq"));
 
         var step = Assert.IsType<MoveFocuserStepDraftViewModel>(app.Draft.Rows.Single());
         Assert.Equal(new DeviceId("focuser.observatory"), step.Focuser.SelectedId);

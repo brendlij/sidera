@@ -45,7 +45,7 @@ Operations that move real equipment (a slew, a centering, running a session with
 | Settings and equipment | `%APPDATA%\Sidera\settings.json` and `equipment.json` (Settings → Advanced shows the files) |
 | Logs | `%LOCALAPPDATA%\Sidera\logs` (the Diagnostics page opens the folder) |
 | Saved frames | the save folder of Settings → Imaging, by default the `Sidera` folder in your Pictures |
-| Sessions | `.astraseq` files, wherever you save them |
+| Sessions | `.sideraseq` files, wherever you save them |
 
 ## Next
 

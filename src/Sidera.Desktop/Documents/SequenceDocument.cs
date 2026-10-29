@@ -5,7 +5,7 @@ using Sidera.Core.Devices;
 namespace Sidera.Desktop.Documents;
 
 /// <summary>
-/// An Sidera sequence document: what a <c>.astraseq</c> file holds, as plain values and independent of how any version
+/// An Sidera sequence document: what a <c>.sideraseq</c> file holds, as plain values and independent of how any version
 /// of the format encodes it. It is the editable sequence (intent and configuration) and nothing about running one: no
 /// execution state, no device names, no validation results. It is neither the editor's draft nor a wire format;
 /// <see cref="SequenceDocumentMapper"/> converts it to and from drafts, and a <see cref="ISequenceDocumentSerializer"/>

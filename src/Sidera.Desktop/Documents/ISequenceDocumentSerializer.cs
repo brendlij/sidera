@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace Sidera.Desktop.Documents;
 
 /// <summary>
-/// Turns a <see cref="SequenceDocument"/> into the content of a <c>.astraseq</c> file and back. What that content looks
+/// Turns a <see cref="SequenceDocument"/> into the content of a <c>.sideraseq</c> file and back. What that content looks
 /// like is the implementation's business and may change between versions of the format; callers must not assume it is
 /// text, or any particular encoding. A serializer reads every version it knows and writes the current one.
 /// </summary>

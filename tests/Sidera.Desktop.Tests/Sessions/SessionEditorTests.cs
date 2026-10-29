@@ -180,7 +180,7 @@ public sealed class SessionEditorTests : IAsyncLifetime
         Assert.Equal(12, FirstBlock(editor).Repeat.Count);
         picker.SavePath = Path.Combine(_directory, "Bad");
         await vm.SequenceDocument.SaveCommand.ExecuteAsync(null);
-        Assert.False(File.Exists(Path.Combine(_directory, "Bad.astraseq"))); // not saved with a value that was not read
+        Assert.False(File.Exists(Path.Combine(_directory, "Bad.sideraseq"))); // not saved with a value that was not read
 
         drawer.RepeatCountText = "13";
         Assert.False(editor.HasUnreadableFields);
@@ -407,14 +407,14 @@ public sealed class SessionEditorTests : IAsyncLifetime
         picker.SavePath = Path.Combine(_directory, "Session");
         await vm.SequenceDocument.SaveCommand.ExecuteAsync(null);
         Assert.False(vm.SequenceDocument.IsDirty);
-        var text = await File.ReadAllTextAsync(Path.Combine(_directory, "Session.astraseq"));
+        var text = await File.ReadAllTextAsync(Path.Combine(_directory, "Session.sideraseq"));
         Assert.Contains("\"session\"", text, StringComparison.Ordinal);
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.DoesNotContain("\"workflow\"", text, StringComparison.Ordinal);
 
         // Another session opens it.
         var (other, otherEditor, otherPicker) = await CreateAsync(withTarget: false);
-        otherPicker.OpenPath = Path.Combine(_directory, "Session.astraseq");
+        otherPicker.OpenPath = Path.Combine(_directory, "Session.sideraseq");
         await other.SequenceDocument.OpenCommand.ExecuteAsync(null);
         if (other.SequenceDocument.IsConfirmingDiscard)
         {
@@ -434,7 +434,7 @@ public sealed class SessionEditorTests : IAsyncLifetime
     public async Task AVersion8FileWithAWorkflow_OpensAsASession_IsNotDirty_AndIsNotRewrittenByOpeningIt()
     {
         var (vm, editor, picker) = await CreateAsync(withTarget: false);
-        var path = Path.Combine(_directory, "Old.astraseq");
+        var path = Path.Combine(_directory, "Old.sideraseq");
         var workflow = Sidera.Desktop.Workflows.WorkflowDefinition.Empty with
         {
             Target = new Sidera.Desktop.Workflows.WorkflowTarget("M31", 0.7123, 41.269),
@@ -468,7 +468,7 @@ public sealed class SessionEditorTests : IAsyncLifetime
     public async Task ALegacySequenceFile_OpensAsATree_AsItWas()
     {
         var (vm, editor, picker) = await CreateAsync();
-        var path = Path.Combine(_directory, "Legacy.astraseq");
+        var path = Path.Combine(_directory, "Legacy.sideraseq");
         await File.WriteAllTextAsync(path, "{\"format\":\"astra-sequence\",\"version\":7,\"steps\":[{\"type\":\"delay\",\"id\":\"11111111-1111-4111-8111-111111111111\",\"durationSeconds\":3}]}");
         picker.OpenPath = path;
 

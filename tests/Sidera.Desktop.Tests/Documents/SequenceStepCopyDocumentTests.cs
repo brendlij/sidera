@@ -135,7 +135,7 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
     public async Task Copy_AndMovingTheSelection_DoNotMarkTheDocumentModified_ButDuplicateAndPasteDo()
     {
         await using var app = Create();
-        await app.SaveAs(PathOf("A.astraseq"));
+        await app.SaveAs(PathOf("A.sideraseq"));
         Assert.False(app.Document.IsDirty);
         var exposure = app.Draft.Steps.OfType<ExposureStepDraftViewModel>().First();
 
@@ -169,7 +169,7 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
         app.Draft.PasteStepCommand.Execute(null);
         await app.SaveAs(PathOf("Pasted"));
 
-        var saved = await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Pasted.astraseq"));
+        var saved = await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Pasted.sideraseq"));
 
         Assert.Equal(9, saved.Steps.Count);
         Assert.Equal(saved.Steps.Count, saved.Steps.Select(s => s.Id).Distinct().Count());
@@ -191,7 +191,7 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
         await app.Document.NewCommand.ExecuteAsync(null);
         await app.Document.ConfirmDiscardCommand.ExecuteAsync(null);
         Assert.True(app.Draft.IsEmpty);
-        await app.Open(PathOf("Twice.astraseq"));
+        await app.Open(PathOf("Twice.sideraseq"));
 
         var repeats = app.Draft.Steps.OfType<RepeatStepDraftViewModel>().ToList();
         Assert.Equal(2, repeats.Count);
@@ -214,11 +214,11 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
         app.Draft.CopyStepCommand.Execute(null);
         await app.SaveAs(PathOf("Plain"));
 
-        var text = await File.ReadAllTextAsync(PathOf("Plain.astraseq"));
+        var text = await File.ReadAllTextAsync(PathOf("Plain.sideraseq"));
 
         Assert.DoesNotContain("clipboard", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
-        Assert.Equal(8, (await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Plain.astraseq"))).Steps.Count);
+        Assert.Equal(8, (await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Plain.sideraseq"))).Steps.Count);
     }
 
     // Across documents
@@ -237,9 +237,9 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
             new DelayDocumentStep(Guid.NewGuid(), 1),
             new DelayDocumentStep(Guid.NewGuid(), 2),
         ]);
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("B.astraseq"), other);
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("B.sideraseq"), other);
 
-        await app.Open(PathOf("B.astraseq"));
+        await app.Open(PathOf("B.sideraseq"));
         Assert.Equal(2, app.Draft.Steps.Count);
         Assert.True(app.Draft.PasteStepCommand.CanExecute(null)); // the clipboard survived Open
 
@@ -251,7 +251,7 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
         Assert.NotEqual(first.Id, pasted.Id);
         Assert.Equal(3, app.Draft.Steps.Count);
         Assert.True(app.Document.IsDirty);
-        Assert.Equal("B.astraseq", app.Document.DisplayName);
+        Assert.Equal("B.sideraseq", app.Document.DisplayName);
     }
 
     [Fact]
@@ -296,8 +296,8 @@ public sealed class SequenceStepCopyDocumentTests : IDisposable
         [
             new ExposureDocumentStep(Guid.NewGuid(), "camera.observatory", 0.03),
         ]);
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.astraseq"), elsewhere);
-        await app.Open(PathOf("Observatory.astraseq"));
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.sideraseq"), elsewhere);
+        await app.Open(PathOf("Observatory.sideraseq"));
         app.Draft.SelectedStep = app.Draft.Steps[0];
         app.Draft.CopyStepCommand.Execute(null);
         app.Draft.ReplaceSteps([new DelayStepDraft(Guid.NewGuid(), 0.03)]);

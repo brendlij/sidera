@@ -568,7 +568,7 @@ public sealed class EquipmentServiceTests : IAsyncLifetime
     [Fact]
     public void TheFileOfTheSequence_NeverMentionsABackend()
     {
-        // .astraseq stays backend-agnostic: the device ids it uses are the ones of the equipment file, nothing else.
+        // .sideraseq stays backend-agnostic: the device ids it uses are the ones of the equipment file, nothing else.
         var configuration = EquipmentConfigurationSerializer.ToText(new EquipmentConfiguration([AscomCamera()], []));
 
         Assert.Contains("camera.main", configuration);

@@ -60,7 +60,7 @@ public static class DeviceBackends
 /// name it is shown with, what kind of device it is, and which backend drives it with that backend's own settings.
 /// Nothing about the state of the device is part of it: whether it is connected is never stored.
 /// </summary>
-/// <param name="Id">The device id; what <c>.astraseq</c> files refer to. It never says anything about the backend.</param>
+/// <param name="Id">The device id; what <c>.sideraseq</c> files refer to. It never says anything about the backend.</param>
 /// <param name="Settings">The settings of the backend: <c>progId</c> and <c>driverName</c> for ASCOM; for simulators some device kinds have a few.</param>
 public sealed record DeviceConfiguration(
     string Id,

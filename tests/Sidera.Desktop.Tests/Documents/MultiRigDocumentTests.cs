@@ -670,13 +670,13 @@ public sealed class MultiRigDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Three");
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var text = await File.ReadAllTextAsync(PathOf("Three.astraseq"));
+        var text = await File.ReadAllTextAsync(PathOf("Three.sideraseq"));
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"multiRig\"", text, StringComparison.Ordinal);
         Assert.Contains("\"mountId\": \"mount.eq6\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Three.astraseq"));
+        await app.Open(PathOf("Three.sideraseq"));
 
         Assert.False(app.Document.IsDirty);
         Assert.Equal(ids, Ids(app.Draft.Snapshot()));
@@ -693,12 +693,12 @@ public sealed class MultiRigDocumentTests : IDisposable
     public async Task AVersion1File_OpensInTheEditor_AsTheSequenceItWas_WithTheSharedEquipmentLeftOpen()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Old.astraseq"), V1Sample());
+        await File.WriteAllTextAsync(PathOf("Old.sideraseq"), V1Sample());
 
-        await app.Open(PathOf("Old.astraseq"));
+        await app.Open(PathOf("Old.sideraseq"));
 
         Assert.Null(app.Document.ErrorMessage);
-        Assert.Equal("Old.astraseq", app.Document.DisplayName);
+        Assert.Equal("Old.sideraseq", app.Document.DisplayName);
         Assert.False(app.Document.IsDirty);
         Assert.Equal([A, B, C, D, E], app.Draft.Rows.Select(r => r.Id));
         var exposure = Assert.IsType<ExposureStepDraftViewModel>(app.Draft.Rows[2]);
@@ -712,7 +712,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Old2");
         app.Draft.Steps.OfType<RepeatStepDraftViewModel>().Single().CountText = "4";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        var saved = await File.ReadAllTextAsync(PathOf("Old.astraseq"));
+        var saved = await File.ReadAllTextAsync(PathOf("Old.sideraseq"));
         Assert.Contains("\"version\": 9", saved, StringComparison.Ordinal);
         Assert.Contains("\"count\": 4", saved, StringComparison.Ordinal);
     }
@@ -729,9 +729,9 @@ public sealed class MultiRigDocumentTests : IDisposable
                 new RigTrackDocument(D, "rig.wide", [new RigExposureDocumentStep(E, 0.1)]),
             ]),
         ]);
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Obs.astraseq"), document);
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Obs.sideraseq"), document);
 
-        await app.Open(PathOf("Obs.astraseq"));
+        await app.Open(PathOf("Obs.sideraseq"));
 
         Assert.Null(app.Document.ErrorMessage);
         var track = (RigTrackDraftViewModel)app.Draft.Rows[1];
@@ -762,7 +762,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Twice.astraseq"));
+        await app.Open(PathOf("Twice.sideraseq"));
 
         var blocks = app.Draft.Snapshot().OfType<MultiRigStepDraft>().ToList();
         Assert.Equal(2, blocks.Count);
@@ -783,7 +783,7 @@ public sealed class MultiRigDocumentTests : IDisposable
 
         await app.Document.NewCommand.ExecuteAsync(null);
         Assert.Equal(new DeviceId("guider.main"), app.Draft.SharedGuider.SelectedId); // a new session starts with the defaults
-        await app.Open(PathOf("Shared.astraseq"));
+        await app.Open(PathOf("Shared.sideraseq"));
 
         Assert.Equal(new DeviceId("mount.eq6"), app.Draft.SharedMount.SelectedId);
         Assert.Null(app.Draft.SharedGuider.SelectedId);
@@ -795,10 +795,10 @@ public sealed class MultiRigDocumentTests : IDisposable
     {
         await using var app = Create();
         await SequenceDocumentStore.CreateDefault().SaveAsync(
-            PathOf("Obs.astraseq"),
+            PathOf("Obs.sideraseq"),
             new SequenceDocument(null, [new DelayDocumentStep(A, 1)], new SharedEquipmentDocument("mount.observatory", "guider.main")));
 
-        await app.Open(PathOf("Obs.astraseq"));
+        await app.Open(PathOf("Obs.sideraseq"));
 
         Assert.Equal(new DeviceId("mount.observatory"), app.Draft.SharedMount.SelectedId);
         Assert.True(app.Draft.SharedMount.Selected!.IsMissing);

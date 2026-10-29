@@ -53,7 +53,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task ADocument_CanBeSavedToAFileAndOpenedAgain()
     {
-        var path = PathOf("Session.astraseq");
+        var path = PathOf("Session.sideraseq");
         var document = Document();
 
         await Store().SaveAsync(path, document);
@@ -67,7 +67,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task SavingOverAnExistingFile_ReplacesItCompletely_AndLeavesNoTemporaryFile()
     {
-        var path = PathOf("Session.astraseq");
+        var path = PathOf("Session.sideraseq");
         await Store().SaveAsync(path, Document(100));
         var second = Document(900);
 
@@ -84,7 +84,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [InlineData(true)]
     public async Task AFailureWhileEncoding_LeavesAnExistingFileExactlyAsItWas(bool writeBeforeFailing)
     {
-        var path = PathOf("Session.astraseq");
+        var path = PathOf("Session.sideraseq");
         await Store().SaveAsync(path, Document());
         var before = await File.ReadAllBytesAsync(path);
 
@@ -99,7 +99,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task AFailureWhileEncoding_CreatesNoFileAtAll_WhenThereWasNone()
     {
-        var path = PathOf("New.astraseq");
+        var path = PathOf("New.sideraseq");
         var failing = new SequenceDocumentStore(new FailingSerializer(writeBeforeFailing: true));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => failing.SaveAsync(path, Document()));
@@ -110,7 +110,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task SavingIntoAFolderThatDoesNotExist_FailsWithAConciseError()
     {
-        var path = PathOf(Path.Combine("missing", "Session.astraseq"));
+        var path = PathOf(Path.Combine("missing", "Session.sideraseq"));
 
         var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => Store().SaveAsync(path, Document()));
 
@@ -122,7 +122,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task SavingOverAFileThatIsLockedByAnotherProgram_FailsAndKeepsTheFile()
     {
-        var path = PathOf("Session.astraseq");
+        var path = PathOf("Session.sideraseq");
         await Store().SaveAsync(path, Document());
         var before = await File.ReadAllBytesAsync(path);
 
@@ -145,7 +145,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task OpeningAFileThatDoesNotExist_SaysSo()
     {
-        var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => Store().LoadAsync(PathOf("nothing.astraseq")));
+        var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => Store().LoadAsync(PathOf("nothing.sideraseq")));
 
         Assert.Equal(SequenceDocumentErrorKind.Container, ex.Kind);
         Assert.Equal("Could not open sequence: the file was not found.", ex.Message);
@@ -155,7 +155,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     public async Task OpeningAFolderThatDoesNotExist_SaysSo()
     {
         var ex = await Assert.ThrowsAsync<SequenceDocumentException>(
-            () => Store().LoadAsync(PathOf(Path.Combine("missing", "x.astraseq"))));
+            () => Store().LoadAsync(PathOf(Path.Combine("missing", "x.sideraseq"))));
 
         Assert.Equal("Could not open sequence: the file was not found.", ex.Message);
     }
@@ -163,7 +163,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task OpeningAFileThatIsNoSequence_IsInvalid_WhateverItsExtension()
     {
-        var path = PathOf("Notes.astraseq");
+        var path = PathOf("Notes.sideraseq");
         await File.WriteAllTextAsync(path, "just some notes");
 
         var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => Store().LoadAsync(path));
@@ -174,7 +174,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task OpeningAnEmptyFile_IsInvalid()
     {
-        var path = PathOf("Empty.astraseq");
+        var path = PathOf("Empty.sideraseq");
         await File.WriteAllBytesAsync(path, []);
 
         var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => Store().LoadAsync(path));
@@ -185,7 +185,7 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public async Task TheFileIsReadWhateverItsExtension_BecauseTheContentSaysWhatItIs()
     {
-        var path = PathOf("Session.astraseq");
+        var path = PathOf("Session.sideraseq");
         await Store().SaveAsync(path, Document());
         var renamed = PathOf("Session.copy");
         File.Copy(path, renamed);
@@ -196,12 +196,12 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("M42", "M42.astraseq")]
-    [InlineData("M42.astraseq", "M42.astraseq")]
-    [InlineData("M42.ASTRASEQ", "M42.ASTRASEQ")]
-    [InlineData("M42.txt", "M42.txt.astraseq")]
-    [InlineData("Session v1.2", "Session v1.2.astraseq")]
-    [InlineData(@"C:\Sidera\M42", @"C:\Sidera\M42.astraseq")]
+    [InlineData("M42", "M42.sideraseq")]
+    [InlineData("M42.sideraseq", "M42.sideraseq")]
+    [InlineData("M42.SIDERASEQ", "M42.SIDERASEQ")]
+    [InlineData("M42.txt", "M42.txt.sideraseq")]
+    [InlineData("Session v1.2", "Session v1.2.sideraseq")]
+    [InlineData(@"C:\Sidera\M42", @"C:\Sidera\M42.sideraseq")]
     public void TheSideraExtension_IsAddedWhereItIsMissing(string given, string expected)
     {
         Assert.Equal(expected, SequenceDocumentFiles.WithExtension(given));
@@ -210,9 +210,9 @@ public sealed class SequenceDocumentStoreTests : IDisposable
     [Fact]
     public void TheFileTypeIsNamedAndFilteredByTheSideraExtension_NotByTheEncoding()
     {
-        Assert.Equal(".astraseq", SequenceDocumentFiles.Extension);
-        Assert.Equal("*.astraseq", SequenceDocumentFiles.Pattern);
-        Assert.Equal("Sidera Sequence (*.astraseq)", SequenceDocumentFiles.FilterName);
+        Assert.Equal(".sideraseq", SequenceDocumentFiles.Extension);
+        Assert.Equal("*.sideraseq", SequenceDocumentFiles.Pattern);
+        Assert.Equal("Sidera Sequence (*.sideraseq)", SequenceDocumentFiles.FilterName);
         Assert.DoesNotContain("json", SequenceDocumentFiles.FilterName + SequenceDocumentFiles.DefaultFileName, StringComparison.OrdinalIgnoreCase);
     }
 }

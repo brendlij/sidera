@@ -10,7 +10,7 @@ public sealed class SampleSessionTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var path = Path.Combine(directory.FullName, "samples", "LRGB-ganze-Nacht-M31.astraseq");
+            var path = Path.Combine(directory.FullName, "samples", "LRGB-ganze-Nacht-M31.sideraseq");
             if (File.Exists(path))
             {
                 return path;

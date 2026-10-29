@@ -17,18 +17,20 @@ public interface ISequenceDocumentStore
 }
 
 /// <summary>
-/// The name and extension of Sidera sequence files, as users see them. The extension <c>.astraseq</c> and the format identifier inside
-/// (<c>astra-sequence</c>) are the names of the format from before the product was called Sidera: they stay, so that every existing
-/// file keeps loading and the format version does not change because of a new product name.
+/// The name and extension of Sidera sequence files, as users see them. Files of the time before the product was called Sidera
+/// (<c>.astraseq</c>, format identifier <c>astra-sequence</c>) keep loading: the content decides, not the extension.
 /// </summary>
 public static class SequenceDocumentFiles
 {
-    public const string Extension = ".astraseq";
-    public const string Pattern = "*.astraseq";
-    public const string FilterName = "Sidera Sequence (*.astraseq)";
-    public const string DefaultFileName = "Sequence.astraseq";
+    public const string Extension = ".sideraseq";
+    public const string Pattern = "*.sideraseq";
+    public const string FilterName = "Sidera Sequence (*.sideraseq)";
+    public const string DefaultFileName = "Sequence.sideraseq";
 
-    /// <summary>The path with the Sidera sequence extension: "M42" becomes "M42.astraseq", "M42.astraseq" stays as it is.</summary>
+    /// <summary>The extension of files from before the rename; they are still offered when opening.</summary>
+    public const string LegacyPattern = "*.astraseq";
+
+    /// <summary>The path with the Sidera sequence extension: "M42" becomes "M42.sideraseq", "M42.sideraseq" stays as it is.</summary>
     public static string WithExtension(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

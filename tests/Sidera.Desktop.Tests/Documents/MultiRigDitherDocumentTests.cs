@@ -465,13 +465,13 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Policy");
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var text = await File.ReadAllTextAsync(PathOf("Policy.astraseq"));
+        var text = await File.ReadAllTextAsync(PathOf("Policy.sideraseq"));
         Assert.Contains("\"ditherPolicy\"", text, StringComparison.Ordinal);
         Assert.Contains("\"triggerRigId\": \"rig.wide\"", text, StringComparison.Ordinal);
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Policy.astraseq"));
+        await app.Open(PathOf("Policy.sideraseq"));
 
         Assert.False(app.Document.IsDirty);
         var loaded = app.Draft.Rows.OfType<MultiRigStepDraftViewModel>().Single();
@@ -497,9 +497,9 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
                 new DitherPolicyDocument(true, "rig.observatory", 3, 1.5, 0.5, 1, 10)),
             ],
             new SharedEquipmentDocument("mount.eq6", "guider.main"));
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Obs.astraseq"), document);
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Obs.sideraseq"), document);
 
-        await app.Open(PathOf("Obs.astraseq"));
+        await app.Open(PathOf("Obs.sideraseq"));
 
         Assert.Null(app.Document.ErrorMessage);
         var block = app.Draft.Rows.OfType<MultiRigStepDraftViewModel>().Single();
@@ -520,9 +520,9 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
     public async Task AVersion2FileWrittenBeforePolicies_OpensWithThePolicyOff_AndIsNotDirty()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Old.astraseq"), Block(null));
+        await File.WriteAllTextAsync(PathOf("Old.sideraseq"), Block(null));
 
-        await app.Open(PathOf("Old.astraseq"));
+        await app.Open(PathOf("Old.sideraseq"));
 
         Assert.False(app.Document.IsDirty);
         var block = app.Draft.Rows.OfType<MultiRigStepDraftViewModel>().Single();

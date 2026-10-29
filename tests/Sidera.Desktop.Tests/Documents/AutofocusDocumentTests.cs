@@ -403,12 +403,12 @@ public sealed class AutofocusDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Focus");
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var text = await File.ReadAllTextAsync(PathOf("Focus.astraseq"));
+        var text = await File.ReadAllTextAsync(PathOf("Focus.sideraseq"));
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"type\": \"rigAutofocus\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Focus.astraseq"));
+        await app.Open(PathOf("Focus.sideraseq"));
 
         Assert.False(app.Document.IsDirty);
         var after = app.Draft.Snapshot();
@@ -424,25 +424,25 @@ public sealed class AutofocusDocumentTests : IDisposable
     public async Task AVersion3File_OpensInTheEditor_AndIsSavedAsTheCurrentVersion()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Old.astraseq"), Doc(3,
+        await File.WriteAllTextAsync(PathOf("Old.sideraseq"), Doc(3,
             "{\"type\":\"moveFocuser\",\"id\":\"" + A + "\",\"focuserId\":\"focuser.main\",\"position\":18350}"));
 
-        await app.Open(PathOf("Old.astraseq"));
+        await app.Open(PathOf("Old.sideraseq"));
 
         Assert.Null(app.Document.ErrorMessage);
         Assert.False(app.Document.IsDirty);
         app.Draft.Rows.OfType<MoveFocuserStepDraftViewModel>().Single().PositionText = "19000";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 9", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", await File.ReadAllTextAsync(PathOf("Old.sideraseq")), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task ARigThatDoesNotExistHere_LoadsAsARepairableDraft()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Obs.astraseq"), Doc(4, Autofocus(A).Replace("rig.main", "rig.observatory")));
+        await File.WriteAllTextAsync(PathOf("Obs.sideraseq"), Doc(4, Autofocus(A).Replace("rig.main", "rig.observatory")));
 
-        await app.Open(PathOf("Obs.astraseq"));
+        await app.Open(PathOf("Obs.sideraseq"));
 
         var step = Assert.IsType<AutofocusStepDraftViewModel>(app.Draft.Rows.Single());
         Assert.Equal(new RigId("rig.observatory"), step.Rig.SelectedId);

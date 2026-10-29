@@ -128,7 +128,7 @@ public sealed class SequenceDragDropDocumentTests : IDisposable
         await app.Document.NewCommand.ExecuteAsync(null);
         await app.Document.ConfirmDiscardCommand.ExecuteAsync(null);
         Assert.True(app.Draft.IsEmpty);
-        await app.Open(PathOf("Order.astraseq"));
+        await app.Open(PathOf("Order.sideraseq"));
 
         Assert.Equal(order, Everything(app.Draft)); // every step, in the order of the rows, with the ids it had
         Assert.Equal([f.Top[1].Id, f.Top[0].Id, f.Top[2].Id, f.Top[3].Id], app.Draft.Steps.Select(s => s.Id));

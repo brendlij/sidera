@@ -129,7 +129,8 @@ public sealed class LegacyAstraDataTests : IDisposable
         var document = await new JsonSequenceDocumentSerializer().LoadAsync(new MemoryStream(Encoding.UTF8.GetBytes(text)), CancellationToken.None);
 
         Assert.Single(document.Steps);
-        Assert.Equal(".astraseq", SequenceDocumentFiles.Extension);
+        Assert.Equal(".sideraseq", SequenceDocumentFiles.Extension);
+        Assert.Equal("*.astraseq", SequenceDocumentFiles.LegacyPattern);
         Assert.Equal(("astra-sequence", SequenceDocument.CurrentVersion), (SequenceDocument.FormatId, SequenceDocument.CurrentVersion));
     }
 }

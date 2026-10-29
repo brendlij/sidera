@@ -53,7 +53,7 @@
   exposure that runs is finished first). A closed block is one line: `300 s × 40 · Dither 3 · AF 60 m · stops: dawn, alt<25°`. Selecting something opens it in a drawer; nothing detailed is on the page all the time.
   Blocks, actions and targets can be added from a library with a search, moved, duplicated, switched off and removed. While a session runs every block shows its frame and what it waits for. Devices come from the imaging setup of
   the sequence: no action asks for a camera, focuser, mount or guider again (Advanced actions can say "use setup"). Dither and autofocus are coordinated with the setups that share the mount or the guider (see below).
-  A session is saved in the `.astraseq` (document version 9) as typed structures (`session`: start, targets with their preparation, sequences, blocks, and end), next to the steps it compiles to.
+  A session is saved in the `.sideraseq` (document version 9) as typed structures (`session`: start, targets with their preparation, sequences, blocks, and end), next to the steps it compiles to.
   **Tree** shows the explicit steps the session compiles to (setup sequences, Parallel Imaging, Repeat and every action) and asks first: the session is not kept, and going back is offered only where it is exact.
 - **Meridian flip:** Session Automation, set once for the session (Edit next to it), or following the application defaults of Settings → Meridian Flip; not steps and not per block. Times are minutes from the moment the target is on the meridian, from its hour angle
   (target, observing site, clock), not from the pier side the driver reports. From *hold new exposures before* an exposure only starts when it ends before the flip is due; before that only
@@ -64,7 +64,7 @@
   or abort, or ends the session, as chosen. A target that is already past the meridian when imaging starts needs no flip. The status shows the countdown and, during the flip, what it
   is doing. A real flip is only tested by hand (see `MeridianFlipHardwareTests` and `SIDERA_MERIDIAN_FLIP_TARGET`).
 - **Sequences:** repeat, group and parallel steps, safe points, pause and resume, dithering with guider coordination, autofocus
-  with policies, plate solving, and multiple imaging setups in one sequence. Sequences are saved as `.astraseq` files. Steps of a setup choose an imaging setup, not a camera and a focuser; each step
+  with policies, plate solving, and multiple imaging setups in one sequence. Sequences are saved as `.sideraseq` files. Steps of a setup choose an imaging setup, not a camera and a focuser; each step
   uses the mount and guider of its setup, and a new step of the tree starts with the current setup (the choice is shown only where there is one). With more than one setup the tree can be seen as Overview, one tab per setup, or Shared: the same steps, filtered. Setups on different
   mounts work at the same time; setups on one mount or one guider take turns for it (a plate solve or a rotation holds only the devices it uses).
 - **Conditions, Repeat, Limits and Wait:** a session can wait for and stop at the sky and the clock. *Wait Until* (all must hold; an action, e.g. before a block): target altitude above N°, astronomical
@@ -88,11 +88,11 @@
 - **Stable imaging bindings:** the sequence of a setup refers to an imaging *path* (derived from the camera), not to the setup object or its name. Making an explicit
   imaging setup for a camera that was used without one therefore changes nothing: sequences, blocks and their automation carry on with the new setup, with its optics at once. Renaming the camera or the setup changes
   nothing either. A replaced or removed camera is *not* followed silently: what referred to it is reported, a sequence without a path simply means the only setup, and nothing of the old camera is applied to the new one.
-  Several cameras and no setup stay ambiguous. `.astraseq` version 9 names the path; version 8 files, which name setups by id, are read and migrated (see below).
+  Several cameras and no setup stay ambiguous. `.sideraseq` version 9 names the path; version 8 files, which name setups by id, are read and migrated (see below).
 - **Session views:** `[Blocks] [Tree]` next to the title. A session opens as blocks unless you choose otherwise (Settings → Sequencer) or open a file that is not a session (an older explicit sequence opens as the tree, as it was).
   Opening the tree asks first, because the blocks, automation and limits of the session are no longer editable afterwards. Back to Blocks is only offered where it is exact (an empty sequence, or the
   untouched steps of a session); otherwise it says "This sequence cannot be shown as blocks: its steps are not those of a session."
-- **Version 8 files:** a `.astraseq` of version 8 with a workflow is migrated when it is opened: the target and its Prepare become a target with its shared preparation, the imaging blocks become one sequence for each setup
+- **Version 8 files:** a `.sideraseq` of version 8 with a workflow is migrated when it is opened: the target and its Prepare become a target with its shared preparation, the imaging blocks become one sequence for each setup
   with their blocks (a block's start conditions a leading Wait Until, its stop conditions its limits, the autofocus policy of a setup and the dither policy the automation of its blocks), the meridian flip the session automation and the target stop the limits of the target.
   The file is not changed or rewritten by opening it; the session is saved as version 9 when you save it. References to a setup that cannot be found are kept and reported, never given to another setup.
 - **Dashboard:** the session at the top, the imaging setups with what each is doing, the mount (state and tracking rate, position, altitude and azimuth, side of the pier, sidereal time and UTC, the site it works
@@ -185,7 +185,7 @@ A test of a real device runs when you name the device; there is no second switch
 - Settings (the observing site): `%APPDATA%\Sidera\settings.json` (override with `SIDERA_SETTINGS_FILE`). Without the file, or without a
   site in it, the site is unknown; Sidera never assumes 0° 0° 0 m. Imaging setups keep their optical inputs in the equipment file.
 - Environment variables with the old `ASTRA_` prefix still work when the `SIDERA_` one of the same name is not set.
-- The extension `.astraseq` and the format names `astra-sequence` and `astra-equipment` belong to the formats from before the rename.
+- The format names `astra-sequence` and `astra-equipment` belong to the formats from before the rename and stay. Session files are `.sideraseq`; files named `.astraseq` still open.
   They are kept, so existing files keep loading.
 
 ### Plate solving and centering
@@ -210,7 +210,7 @@ or centering; moving a real mount or rotator asks for the confirmation described
 Do not confirm unless physical operation is intended.
 
 The backend-neutral Plate Solve sequence step is persisted as `plateSolve`
-in `.astraseq` version 7. Versions 1–6 continue to load; older Sidera versions
+in `.sideraseq` version 7. Versions 1–6 continue to load; older Sidera versions
 reject version 7 rather than silently skipping the new action.
 
 ### Rotation
@@ -226,7 +226,7 @@ setting (not reversed unless chosen); a wrong direction shows at the first verif
 - **Center & Rotate** centers the target, rotates and verifies, and centers again when turning moved the field; it ends only when both the pointing and the
   rotation tolerances hold, after at most 3 rounds.
 
-They are sequence steps (`rotateToAngle`, `rotateAndVerify`, `centerAndRotate`, `.astraseq` version 7) and are offered by Framing and Add to Session for an imaging setup
+They are sequence steps (`rotateToAngle`, `rotateAndVerify`, `centerAndRotate`, `.sideraseq` version 7) and are offered by Framing and Add to Session for an imaging setup
 with a rotator. A rotation holds the rotator and every camera on it (and the mount when it centers) for its whole duration: the rotator does not move while a camera
 exposes, and two rotations do not overlap. Plate Solve, Slew & Center, Rotate & Verify and Center & Rotate never synchronize the mount; only the explicit
 Sync step or button does.

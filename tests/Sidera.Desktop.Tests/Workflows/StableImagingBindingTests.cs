@@ -407,7 +407,7 @@ public sealed class StableImagingBindingTests : IAsyncLifetime
     public async Task OpeningAVersion8File_ChangesNeitherTheFileNorTheDirtyState_AndKeepsWhatItNamed()
     {
         Directory.CreateDirectory(_directory);
-        var path = Path.Combine(_directory, "Old session.astraseq");
+        var path = Path.Combine(_directory, "Old session.sideraseq");
 
         // A file as it was written when a workflow named the setup object.
         var legacy = new SequenceDocument("Old session", [], null, WorkflowDefinition.Empty with

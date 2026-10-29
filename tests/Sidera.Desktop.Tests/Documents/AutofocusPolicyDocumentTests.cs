@@ -457,13 +457,13 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Policy");
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var text = await File.ReadAllTextAsync(PathOf("Policy.astraseq"));
+        var text = await File.ReadAllTextAsync(PathOf("Policy.sideraseq"));
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"autofocusPolicy\"", text, StringComparison.Ordinal);
         Assert.DoesNotContain("\"type\": \"rigAutofocus\"", text, StringComparison.Ordinal);
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Policy.astraseq"));
+        await app.Open(PathOf("Policy.sideraseq"));
 
         Assert.False(app.Document.IsDirty);
         Assert.Equal(rows, app.Draft.Rows.Count); // no row for any generated autofocus
@@ -480,9 +480,9 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
     public async Task AVersion4File_OpensWithThePolicyOff_IsNotDirty_AndSavesAsVersion5()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Old.astraseq"), Doc(4, Block(null).Replace("rig.main", "rig.main")));
+        await File.WriteAllTextAsync(PathOf("Old.sideraseq"), Doc(4, Block(null).Replace("rig.main", "rig.main")));
 
-        await app.Open(PathOf("Old.astraseq"));
+        await app.Open(PathOf("Old.sideraseq"));
 
         Assert.Null(app.Document.ErrorMessage);
         Assert.False(app.Document.IsDirty);
@@ -492,7 +492,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         Assert.False(track.AutofocusAfterFilterChange);
         app.Draft.Rows.OfType<RigExposureStepDraftViewModel>().First().ExposureText = "5";
         await app.Document.SaveCommand.ExecuteAsync(null);
-        Assert.Contains("\"version\": 9", await File.ReadAllTextAsync(PathOf("Old.astraseq")), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 9", await File.ReadAllTextAsync(PathOf("Old.sideraseq")), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -510,7 +510,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         app.Picker.SavePath = PathOf("Twice");
         await app.Document.SaveCommand.ExecuteAsync(null);
         await app.Document.NewCommand.ExecuteAsync(null);
-        await app.Open(PathOf("Twice.astraseq"));
+        await app.Open(PathOf("Twice.sideraseq"));
 
         var tracks = app.Draft.Rows.OfType<RigTrackDraftViewModel>().Where(t => t.AutofocusEnabled).ToList();
         Assert.Equal(2, tracks.Count);

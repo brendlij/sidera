@@ -109,7 +109,7 @@ public class SequenceDocumentViewModelTests
         }
 
         /// <summary>Saves the sequence to a path of the fake store, so that the document is clean.</summary>
-        public async Task MakeClean(string path = "C:\\seq\\Clean.astraseq")
+        public async Task MakeClean(string path = "C:\\seq\\Clean.sideraseq")
         {
             Picker.SavePath = path;
             await Document.SaveAsCommand.ExecuteAsync(null);
@@ -162,7 +162,7 @@ public class SequenceDocumentViewModelTests
     public async Task New_MakesAnEmptyUnsavedDocument_ThatCountsAsModified()
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\Old.astraseq");
+        await app.MakeClean("C:\\seq\\Old.sideraseq");
 
         await app.Document.NewCommand.ExecuteAsync(null);
 
@@ -233,10 +233,10 @@ public class SequenceDocumentViewModelTests
 
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        Assert.Equal(["Sequence.astraseq"], app.Picker.SaveAsked);
-        Assert.Equal(["C:\\seq\\M42.astraseq"], app.Store.Saved);
-        Assert.Equal("C:\\seq\\M42.astraseq", app.Document.FilePath);
-        Assert.Equal("M42.astraseq", app.Document.DisplayName);
+        Assert.Equal(["Sequence.sideraseq"], app.Picker.SaveAsked);
+        Assert.Equal(["C:\\seq\\M42.sideraseq"], app.Store.Saved);
+        Assert.Equal("C:\\seq\\M42.sideraseq", app.Document.FilePath);
+        Assert.Equal("M42.sideraseq", app.Document.DisplayName);
         Assert.False(app.Document.IsDirty);
         Assert.Null(app.Document.ErrorMessage);
     }
@@ -246,11 +246,11 @@ public class SequenceDocumentViewModelTests
     {
         await using var app = Create();
         var ids = Ids(app.Draft);
-        app.Picker.SavePath = "C:\\seq\\Test Session.astraseq";
+        app.Picker.SavePath = "C:\\seq\\Test Session.sideraseq";
 
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var document = app.Store.Files["C:\\seq\\Test Session.astraseq"];
+        var document = app.Store.Files["C:\\seq\\Test Session.sideraseq"];
         Assert.Equal("Test Session", document.Name);
         Assert.Equal(ids.Count, document.Steps.Count + document.Steps.OfType<RepeatDocumentStep>().Sum(r => r.Children.Count));
         Assert.Equal(
@@ -262,7 +262,7 @@ public class SequenceDocumentViewModelTests
     public async Task SaveWithAFile_WritesThereWithoutAskingAgain()
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\A.astraseq");
+        await app.MakeClean("C:\\seq\\A.sideraseq");
         app.Picker.SaveAsked.Clear();
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
         Assert.True(app.Document.IsDirty);
@@ -270,9 +270,9 @@ public class SequenceDocumentViewModelTests
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         Assert.Empty(app.Picker.SaveAsked);
-        Assert.Equal(["C:\\seq\\A.astraseq", "C:\\seq\\A.astraseq"], app.Store.Saved);
+        Assert.Equal(["C:\\seq\\A.sideraseq", "C:\\seq\\A.sideraseq"], app.Store.Saved);
         Assert.False(app.Document.IsDirty);
-        Assert.Equal(9, app.Store.Files["C:\\seq\\A.astraseq"].Steps.Count);
+        Assert.Equal(9, app.Store.Files["C:\\seq\\A.sideraseq"].Steps.Count);
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public class SequenceDocumentViewModelTests
     public async Task SaveThatFails_ShowsAConciseError_KeepsTheDocumentModified_AndTheFileUnchanged()
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\A.astraseq");
+        await app.MakeClean("C:\\seq\\A.sideraseq");
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
         app.Store.FailSave = new SequenceDocumentException(
             SequenceDocumentErrorKind.Container, "Could not save sequence.", new IOException("disk full"));
@@ -303,16 +303,16 @@ public class SequenceDocumentViewModelTests
 
         Assert.Equal("Could not save sequence.", app.Document.ErrorMessage);
         Assert.True(app.Document.IsDirty);
-        Assert.Equal("C:\\seq\\A.astraseq", app.Document.FilePath);
+        Assert.Equal("C:\\seq\\A.sideraseq", app.Document.FilePath);
         Assert.IsType<IOException>(app.Document.LastException!.InnerException); // the cause is kept for diagnostics
-        Assert.Equal(8, app.Store.Files["C:\\seq\\A.astraseq"].Steps.Count);
+        Assert.Equal(8, app.Store.Files["C:\\seq\\A.sideraseq"].Steps.Count);
     }
 
     [Fact]
     public async Task SaveThatFailsUnexpectedly_AlsoKeepsTheDocumentModified_WithoutExposingTheException()
     {
         await using var app = Create();
-        app.Picker.SavePath = "C:\\seq\\A.astraseq";
+        app.Picker.SavePath = "C:\\seq\\A.sideraseq";
         app.Store.FailSave = new InvalidOperationException("secret internal detail\n   at Somewhere.Deep()");
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
 
@@ -327,7 +327,7 @@ public class SequenceDocumentViewModelTests
     public async Task ASuccessfulSaveAfterAFailedOne_ClearsTheError()
     {
         await using var app = Create();
-        app.Picker.SavePath = "C:\\seq\\A.astraseq";
+        app.Picker.SavePath = "C:\\seq\\A.sideraseq";
         app.Store.FailSave = new IOException("x");
         await app.Document.SaveCommand.ExecuteAsync(null);
         Assert.NotNull(app.Document.ErrorMessage);
@@ -343,30 +343,30 @@ public class SequenceDocumentViewModelTests
     public async Task SaveAs_WritesToTheNewPath_AndMakesItTheDocument()
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\A.astraseq");
+        await app.MakeClean("C:\\seq\\A.sideraseq");
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
         app.Picker.SavePath = "C:\\seq\\B";
 
         await app.Document.SaveAsCommand.ExecuteAsync(null);
 
-        Assert.Equal("A.astraseq", app.Picker.SaveAsked.Last());
-        Assert.Equal("C:\\seq\\B.astraseq", app.Document.FilePath);
+        Assert.Equal("A.sideraseq", app.Picker.SaveAsked.Last());
+        Assert.Equal("C:\\seq\\B.sideraseq", app.Document.FilePath);
         Assert.False(app.Document.IsDirty);
-        Assert.Equal(9, app.Store.Files["C:\\seq\\B.astraseq"].Steps.Count);
-        Assert.Equal(8, app.Store.Files["C:\\seq\\A.astraseq"].Steps.Count); // the old file is as it was
+        Assert.Equal(9, app.Store.Files["C:\\seq\\B.sideraseq"].Steps.Count);
+        Assert.Equal(8, app.Store.Files["C:\\seq\\A.sideraseq"].Steps.Count); // the old file is as it was
     }
 
     [Fact]
     public async Task SaveAs_Cancelled_KeepsPathAndModifiedState()
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\A.astraseq");
+        await app.MakeClean("C:\\seq\\A.sideraseq");
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
         app.Picker.SavePath = null;
 
         await app.Document.SaveAsCommand.ExecuteAsync(null);
 
-        Assert.Equal("C:\\seq\\A.astraseq", app.Document.FilePath);
+        Assert.Equal("C:\\seq\\A.sideraseq", app.Document.FilePath);
         Assert.True(app.Document.IsDirty);
     }
 
@@ -375,7 +375,7 @@ public class SequenceDocumentViewModelTests
     {
         await using var app = Create();
         app.Draft.Steps.OfType<ExposureStepDraftViewModel>().First().ExposureText = "abc";
-        app.Picker.SavePath = "C:\\seq\\A.astraseq";
+        app.Picker.SavePath = "C:\\seq\\A.sideraseq";
 
         await app.Document.SaveCommand.ExecuteAsync(null);
 
@@ -390,14 +390,14 @@ public class SequenceDocumentViewModelTests
         await using var app = Create();
         app.Draft.Steps.OfType<ExposureStepDraftViewModel>().First().ExposureText = "0";
         Assert.False(app.Draft.IsValid);
-        app.Picker.SavePath = "C:\\seq\\A.astraseq";
+        app.Picker.SavePath = "C:\\seq\\A.sideraseq";
 
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(app.Document.ErrorMessage);
         Assert.False(app.Document.IsDirty);
         Assert.Contains(
-            app.Store.Files["C:\\seq\\A.astraseq"].Steps.OfType<ExposureDocumentStep>(),
+            app.Store.Files["C:\\seq\\A.sideraseq"].Steps.OfType<ExposureDocumentStep>(),
             s => s.ExposureSeconds == 0);
     }
 
@@ -407,14 +407,14 @@ public class SequenceDocumentViewModelTests
         await using var app = Create();
         var gate = new TaskCompletionSource();
         app.Store.HoldSave = gate.Task;
-        app.Picker.SavePath = "C:\\seq\\A.astraseq";
+        app.Picker.SavePath = "C:\\seq\\A.sideraseq";
 
         var saving = app.Document.SaveCommand.ExecuteAsync(null);
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay); // not in the file that is being written
         gate.SetResult();
         await saving;
 
-        Assert.Equal("C:\\seq\\A.astraseq", app.Document.FilePath);
+        Assert.Equal("C:\\seq\\A.sideraseq", app.Document.FilePath);
         Assert.True(app.Document.IsDirty);
     }
 
@@ -441,13 +441,13 @@ public class SequenceDocumentViewModelTests
     {
         await using var app = Create();
         var document = DocumentWithRepeat(out var repeatId, out var exposureId);
-        app.Store.Files["C:\\seq\\Loaded.astraseq"] = document;
-        app.Picker.OpenPath = "C:\\seq\\Loaded.astraseq";
+        app.Store.Files["C:\\seq\\Loaded.sideraseq"] = document;
+        app.Picker.OpenPath = "C:\\seq\\Loaded.sideraseq";
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
-        Assert.Equal("C:\\seq\\Loaded.astraseq", app.Document.FilePath);
-        Assert.Equal("Loaded.astraseq", app.Document.DisplayName);
+        Assert.Equal("C:\\seq\\Loaded.sideraseq", app.Document.FilePath);
+        Assert.Equal("Loaded.sideraseq", app.Document.DisplayName);
         Assert.False(app.Document.IsDirty);
         Assert.Null(app.Document.ErrorMessage);
         Assert.Equal(3, app.Draft.Steps.Count);
@@ -468,8 +468,8 @@ public class SequenceDocumentViewModelTests
     {
         await using var app = Create();
         await app.ConnectEverything();
-        app.Store.Files["C:\\seq\\Loaded.astraseq"] = DocumentWithRepeat(out _, out _);
-        app.Picker.OpenPath = "C:\\seq\\Loaded.astraseq";
+        app.Store.Files["C:\\seq\\Loaded.sideraseq"] = DocumentWithRepeat(out _, out _);
+        app.Picker.OpenPath = "C:\\seq\\Loaded.sideraseq";
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
@@ -483,8 +483,8 @@ public class SequenceDocumentViewModelTests
     public async Task Open_OfAnEmptySequence_ShowsTheEmptyState()
     {
         await using var app = Create();
-        app.Store.Files["C:\\seq\\Empty.astraseq"] = new SequenceDocument(null, []);
-        app.Picker.OpenPath = "C:\\seq\\Empty.astraseq";
+        app.Store.Files["C:\\seq\\Empty.sideraseq"] = new SequenceDocument(null, []);
+        app.Picker.OpenPath = "C:\\seq\\Empty.sideraseq";
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
@@ -498,8 +498,8 @@ public class SequenceDocumentViewModelTests
     public async Task OpenOnAModifiedDocument_AsksFirst_AndOnlyThenAsksForAFile()
     {
         await using var app = Create();
-        app.Store.Files["C:\\seq\\Loaded.astraseq"] = DocumentWithRepeat(out _, out _);
-        app.Picker.OpenPath = "C:\\seq\\Loaded.astraseq";
+        app.Store.Files["C:\\seq\\Loaded.sideraseq"] = DocumentWithRepeat(out _, out _);
+        app.Picker.OpenPath = "C:\\seq\\Loaded.sideraseq";
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
         var before = Ids(app.Draft);
 
@@ -512,7 +512,7 @@ public class SequenceDocumentViewModelTests
         await app.Document.ConfirmDiscardCommand.ExecuteAsync(null);
 
         Assert.Equal(1, app.Picker.OpenAsked);
-        Assert.Equal("Loaded.astraseq", app.Document.DisplayName);
+        Assert.Equal("Loaded.sideraseq", app.Document.DisplayName);
         Assert.Equal(3, app.Draft.Steps.Count);
     }
 
@@ -520,13 +520,13 @@ public class SequenceDocumentViewModelTests
     public async Task OpenOnACleanDocument_DoesNotAsk()
     {
         await using var app = Create();
-        app.Store.Files["C:\\seq\\Loaded.astraseq"] = DocumentWithRepeat(out _, out _);
-        app.Picker.OpenPath = "C:\\seq\\Loaded.astraseq";
+        app.Store.Files["C:\\seq\\Loaded.sideraseq"] = DocumentWithRepeat(out _, out _);
+        app.Picker.OpenPath = "C:\\seq\\Loaded.sideraseq";
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
         Assert.False(app.Document.IsConfirmingDiscard);
-        Assert.Equal("Loaded.astraseq", app.Document.DisplayName);
+        Assert.Equal("Loaded.sideraseq", app.Document.DisplayName);
     }
 
     [Fact]
@@ -551,11 +551,11 @@ public class SequenceDocumentViewModelTests
         SequenceDocumentErrorKind kind, string message)
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\Current.astraseq");
+        await app.MakeClean("C:\\seq\\Current.sideraseq");
         app.Draft.AddStepCommand.Execute(SequenceStepKind.Delay);
         var ids = Ids(app.Draft);
         var selected = app.Draft.SelectedStep;
-        app.Picker.OpenPath = "C:\\seq\\Broken.astraseq";
+        app.Picker.OpenPath = "C:\\seq\\Broken.sideraseq";
         app.Store.FailLoad = new SequenceDocumentException(kind, message);
         // Open asks first, because the document is modified.
         await app.Document.OpenCommand.ExecuteAsync(null);
@@ -564,7 +564,7 @@ public class SequenceDocumentViewModelTests
         Assert.Equal(message, app.Document.ErrorMessage);
         Assert.Equal(ids, Ids(app.Draft));
         Assert.Same(selected, app.Draft.SelectedStep);
-        Assert.Equal("C:\\seq\\Current.astraseq", app.Document.FilePath);
+        Assert.Equal("C:\\seq\\Current.sideraseq", app.Document.FilePath);
         Assert.True(app.Document.IsDirty);
         Assert.False(app.Document.IsConfirmingDiscard);
     }
@@ -573,16 +573,16 @@ public class SequenceDocumentViewModelTests
     public async Task AFailedOpenOfACleanDocument_KeepsItClean()
     {
         await using var app = Create();
-        await app.MakeClean("C:\\seq\\Current.astraseq");
+        await app.MakeClean("C:\\seq\\Current.sideraseq");
         var ids = Ids(app.Draft);
-        app.Picker.OpenPath = "C:\\seq\\Missing.astraseq"; // not in the store
+        app.Picker.OpenPath = "C:\\seq\\Missing.sideraseq"; // not in the store
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
         Assert.Equal("Could not open sequence: the file was not found.", app.Document.ErrorMessage);
         Assert.Equal(ids, Ids(app.Draft));
         Assert.False(app.Document.IsDirty);
-        Assert.Equal("Current.astraseq", app.Document.DisplayName);
+        Assert.Equal("Current.sideraseq", app.Document.DisplayName);
     }
 
     [Fact]
@@ -590,7 +590,7 @@ public class SequenceDocumentViewModelTests
     {
         await using var app = Create();
         var ids = Ids(app.Draft);
-        app.Picker.OpenPath = "C:\\seq\\X.astraseq";
+        app.Picker.OpenPath = "C:\\seq\\X.sideraseq";
         app.Store.FailLoad = new InvalidOperationException("internal\n   at Deep.Stack()");
 
         await app.Document.OpenCommand.ExecuteAsync(null);
@@ -603,12 +603,12 @@ public class SequenceDocumentViewModelTests
     public async Task AFailedOpenThatIsFollowedByASuccessfulOne_ClearsTheError()
     {
         await using var app = Create();
-        app.Picker.OpenPath = "C:\\seq\\Missing.astraseq";
+        app.Picker.OpenPath = "C:\\seq\\Missing.sideraseq";
         await app.Document.OpenCommand.ExecuteAsync(null);
         Assert.NotNull(app.Document.ErrorMessage);
 
-        app.Store.Files["C:\\seq\\Loaded.astraseq"] = DocumentWithRepeat(out _, out _);
-        app.Picker.OpenPath = "C:\\seq\\Loaded.astraseq";
+        app.Store.Files["C:\\seq\\Loaded.sideraseq"] = DocumentWithRepeat(out _, out _);
+        app.Picker.OpenPath = "C:\\seq\\Loaded.sideraseq";
         await app.Document.OpenCommand.ExecuteAsync(null);
 
         Assert.Null(app.Document.ErrorMessage);
@@ -621,12 +621,12 @@ public class SequenceDocumentViewModelTests
         app.Draft.Steps.OfType<ExposureStepDraftViewModel>().First().ExposureText = "123";
         var ids = Ids(app.Draft);
         var summaries = app.Draft.Rows.Select(r => r.Summary).ToList();
-        await app.MakeClean("C:\\seq\\Round.astraseq");
+        await app.MakeClean("C:\\seq\\Round.sideraseq");
 
         await app.Document.NewCommand.ExecuteAsync(null);
         await app.Document.ConfirmDiscardCommand.ExecuteAsync(null);
         Assert.True(app.Draft.IsEmpty);
-        app.Picker.OpenPath = "C:\\seq\\Round.astraseq";
+        app.Picker.OpenPath = "C:\\seq\\Round.sideraseq";
         await app.Document.OpenCommand.ExecuteAsync(null);
         await app.Document.ConfirmDiscardCommand.ExecuteAsync(null);
 
@@ -787,7 +787,7 @@ public class SequenceDocumentViewModelTests
         await app.Document.SaveCommand.ExecuteAsync(null);
 
         Assert.False(app.Document.IsDirty);
-        var saved = app.Store.Files["C:\\seq\\Clean.astraseq"];
+        var saved = app.Store.Files["C:\\seq\\Clean.sideraseq"];
         Assert.Equal(8, saved.Steps.Count);
         Assert.Equal(0.05, saved.Steps.OfType<ExposureDocumentStep>().First().ExposureSeconds);
     }
@@ -869,8 +869,8 @@ public class SequenceDocumentViewModelTests
         await using var app = Create();
         await app.ConnectEverything();
         app.Draft.Steps.OfType<ExposureStepDraftViewModel>().ToList().ForEach(e => e.ExposureText = "0.3");
-        app.Store.Files["C:\\seq\\Other.astraseq"] = DocumentWithRepeat(out _, out _);
-        app.Picker.OpenPath = "C:\\seq\\Other.astraseq";
+        app.Store.Files["C:\\seq\\Other.sideraseq"] = DocumentWithRepeat(out _, out _);
+        app.Picker.OpenPath = "C:\\seq\\Other.sideraseq";
         var ids = Ids(app.Draft);
 
         var run = app.Sequencer.RunCommand.ExecuteAsync(null);

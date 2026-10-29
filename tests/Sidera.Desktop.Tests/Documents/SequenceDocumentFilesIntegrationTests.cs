@@ -98,9 +98,9 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
 
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var path = PathOf("Test Session.astraseq");
+        var path = PathOf("Test Session.sideraseq");
         Assert.True(File.Exists(path));
-        Assert.Equal("Test Session.astraseq", app.Document.DisplayName);
+        Assert.Equal("Test Session.sideraseq", app.Document.DisplayName);
         var text = await File.ReadAllTextAsync(path);
         Assert.Contains("\"format\": \"astra-sequence\"", text, StringComparison.Ordinal);
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
@@ -138,7 +138,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
         var ids = app.Draft.Rows.Select(r => r.Id).ToList();
 
         await app.Document.NewCommand.ExecuteAsync(null);
-        app.Picker.OpenPath = PathOf("Repeat.astraseq");
+        app.Picker.OpenPath = PathOf("Repeat.sideraseq");
         await app.Document.OpenCommand.ExecuteAsync(null);
         await app.Document.ConfirmDiscardCommand.ExecuteAsync(null); // a new sequence counts as modified
 
@@ -163,14 +163,14 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
         app.Picker.SavePath = PathOf("Good");
         await app.Document.SaveCommand.ExecuteAsync(null);
         var ids = app.Draft.Rows.Select(r => r.Id).ToList();
-        await File.WriteAllTextAsync(PathOf("Bad.astraseq"), content);
-        app.Picker.OpenPath = PathOf("Bad.astraseq");
+        await File.WriteAllTextAsync(PathOf("Bad.sideraseq"), content);
+        app.Picker.OpenPath = PathOf("Bad.sideraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
         Assert.NotNull(app.Document.ErrorMessage);
         Assert.Equal(ids, app.Draft.Rows.Select(r => r.Id));
-        Assert.Equal("Good.astraseq", app.Document.DisplayName);
+        Assert.Equal("Good.sideraseq", app.Document.DisplayName);
         Assert.False(app.Document.IsDirty);
     }
 
@@ -178,8 +178,8 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     public async Task AFutureVersion_IsReportedAsSuch()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Future.astraseq"), "{\"format\":\"astra-sequence\",\"version\":10,\"steps\":[]}");
-        app.Picker.OpenPath = PathOf("Future.astraseq");
+        await File.WriteAllTextAsync(PathOf("Future.sideraseq"), "{\"format\":\"astra-sequence\",\"version\":10,\"steps\":[]}");
+        app.Picker.OpenPath = PathOf("Future.sideraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
@@ -210,14 +210,14 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     {
         await using var app = Create();
         await app.ConnectEverything();
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.astraseq"), ObservatoryDocument(out var exposureId));
-        app.Picker.OpenPath = PathOf("Observatory.astraseq");
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.sideraseq"), ObservatoryDocument(out var exposureId));
+        app.Picker.OpenPath = PathOf("Observatory.sideraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
         // It loads: only a malformed file is refused.
         Assert.Null(app.Document.ErrorMessage);
-        Assert.Equal("Observatory.astraseq", app.Document.DisplayName);
+        Assert.Equal("Observatory.sideraseq", app.Document.DisplayName);
         Assert.Equal(["1", "2", "3", "3.1", "3.2", "4"], app.Draft.Rows.Select(r => r.NumberLabel));
         var start = Assert.IsType<StartGuidingStepDraftViewModel>(app.Draft.Steps[0]);
         var slew = Assert.IsType<SlewStepDraftViewModel>(app.Draft.Steps[1]);
@@ -253,8 +253,8 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     {
         await using var app = Create();
         await app.ConnectEverything();
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.astraseq"), ObservatoryDocument(out _));
-        app.Picker.OpenPath = PathOf("Observatory.astraseq");
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.sideraseq"), ObservatoryDocument(out _));
+        app.Picker.OpenPath = PathOf("Observatory.sideraseq");
         await app.Document.OpenCommand.ExecuteAsync(null);
         var start = (StartGuidingStepDraftViewModel)app.Draft.Steps[0];
         var slew = (SlewStepDraftViewModel)app.Draft.Steps[1];
@@ -293,14 +293,14 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     public async Task AnUnavailableDevice_SurvivesSavingAgain_AsTheSameId()
     {
         await using var app = Create();
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.astraseq"), ObservatoryDocument(out _));
-        app.Picker.OpenPath = PathOf("Observatory.astraseq");
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Observatory.sideraseq"), ObservatoryDocument(out _));
+        app.Picker.OpenPath = PathOf("Observatory.sideraseq");
         await app.Document.OpenCommand.ExecuteAsync(null);
         app.Draft.Steps.OfType<RepeatStepDraftViewModel>().Single().CountText = "9";
 
         await app.Document.SaveCommand.ExecuteAsync(null);
 
-        var saved = await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Observatory.astraseq"));
+        var saved = await SequenceDocumentStore.CreateDefault().LoadAsync(PathOf("Observatory.sideraseq"));
         Assert.Equal("guider.observatory", Assert.IsType<StartGuidingDocumentStep>(saved.Steps[0]).GuiderId);
         var repeat = Assert.IsType<RepeatDocumentStep>(saved.Steps[2]);
         Assert.Equal(9, repeat.Count);
@@ -315,8 +315,8 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
         [
             new ExposureDocumentStep(Guid.NewGuid(), "mount.eq6", 1),
         ]);
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Wrong.astraseq"), document);
-        app.Picker.OpenPath = PathOf("Wrong.astraseq");
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Wrong.sideraseq"), document);
+        app.Picker.OpenPath = PathOf("Wrong.sideraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 
@@ -335,8 +335,8 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
             new SlewDocumentStep(Guid.NewGuid(), "mount.eq6", 99, 0),
             new RepeatDocumentStep(Guid.NewGuid(), 0, [new DelayDocumentStep(Guid.NewGuid(), 1)]),
         ]);
-        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Values.astraseq"), document);
-        app.Picker.OpenPath = PathOf("Values.astraseq");
+        await SequenceDocumentStore.CreateDefault().SaveAsync(PathOf("Values.sideraseq"), document);
+        app.Picker.OpenPath = PathOf("Values.sideraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);
 

@@ -136,9 +136,9 @@ public sealed class ProductSettingsTests : IAsyncLifetime
     {
         var app = Create();
         app.Vm.SessionEditor.AddTargetCommand.Execute(null);
-        var sessionFile = Path.Combine(_directory, "session.astraseq");
+        var sessionFile = Path.Combine(_directory, "session.sideraseq");
         await SaveAsync(sessionFile, new SequenceDocument("S", [], null, null, app.Vm.SessionEditor.Session!));
-        var legacyFile = Path.Combine(_directory, "legacy.astraseq");
+        var legacyFile = Path.Combine(_directory, "legacy.sideraseq");
         await SaveAsync(legacyFile, SequenceDocumentMapper.ToDocument([new ExposureStepDraft(Guid.NewGuid(), DemoSetup.MainCameraId, 0.1)]));
 
         await OpenAsync(app, legacyFile);
@@ -195,7 +195,7 @@ public sealed class ProductSettingsTests : IAsyncLifetime
     public async Task ALegacySequence_CannotBecomeBlocks_AndSaysSo()
     {
         var app = Create();
-        var legacyFile = Path.Combine(_directory, "legacy.astraseq");
+        var legacyFile = Path.Combine(_directory, "legacy.sideraseq");
         await SaveAsync(legacyFile, SequenceDocumentMapper.ToDocument([new ExposureStepDraft(Guid.NewGuid(), DemoSetup.MainCameraId, 0.1)]));
 
         await OpenAsync(app, legacyFile);

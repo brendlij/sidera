@@ -16,7 +16,7 @@
 
 ## Decisions
 
-1. **Imaging Setup = the persisted rig.** Same data, same ids, same file format (`equipment.json` stays version 1; `.astraseq` stays version 8). The user-facing word becomes "Imaging Setup"; the
+1. **Imaging Setup = the persisted rig.** Same data, same ids, same file format (`equipment.json` stays version 1; `.sideraseq` stays version 8). The user-facing word becomes "Imaging Setup"; the
    internal types keep their names for now. No data is rewritten, so there is nothing to lose; old files are read exactly as before (tested).
 2. **Implicit setup**: a session with exactly one camera and no imaging setup uses an *implicit* setup built from the single device of each kind. It is computed, never persisted, never listed as a
    user object. Several cameras and no setup: nothing is guessed; the validation says to create imaging setups or to name the device.
@@ -41,7 +41,7 @@ A workflow does not refer to the *setup object* (`RigId`, what `equipment.json` 
 else: no name, no list position, no random part. So it is the same on every start, the same for the implicit setup of a single camera and for the explicit setup made for that camera later, and a rename of the
 camera or of the setup changes nothing.
 
-- **What holds a path**: blocks of the Imaging section, the autofocus policy of a setup, "Frames counted on" (dither), the pointing setup. The `.astraseq` format is unchanged (version 8, same properties, the
+- **What holds a path**: blocks of the Imaging section, the autofocus policy of a setup, "Frames counted on" (dither), the pointing setup. The `.sideraseq` format is unchanged (version 8, same properties, the
   value is just another string); `equipment.json` stays version 1. Loading never rewrites a file.
 - **Resolution** (`ISetupSource.TryResolve`): a path means the setup of that camera, explicit or implicit; any other value is a reference by setup id as older documents wrote it (exact id, then the id the
   implicit setup had: `setup.implicit:<camera>` and the earlier constant `setup.implicit`, which means the setup of the one camera that can be meant). `WorkflowBindings.Canonical` turns every reference that resolves into

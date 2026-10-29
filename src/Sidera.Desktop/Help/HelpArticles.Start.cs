@@ -69,7 +69,7 @@ public static partial class HelpCatalog
             Notes =
             [
                 "Pause holds the sequence at the next safe point and Resume carries on. Cancel stops it.",
-                "Save the session with Save or Save As… to keep it as a .astraseq file.",
+                "Save the session with Save or Save As… to keep it as a .sideraseq file.",
             ],
             Screenshot = Shot("session-empty.png", "A new session: the steps are on the page.",
                 (1, "Add a target", 0.195, 0.245), (2, "Or choose it in Framing", 0.29, 0.245), (3, "The four steps", 0.40, 0.185), (4, "Run, Pause and Cancel", 0.815, 0.05)),
