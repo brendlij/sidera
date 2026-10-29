@@ -211,7 +211,7 @@ public sealed class SiteModelTests
     public void AFewMetersApart_IsTheSamePlace()
     {
         // 5 meters north and 3 meters of elevation: GPS noise.
-        var comparison = SiteComparison.Compare(Home, new ObservingSite(48.1351 + 5 / MetersPerDegree, 11.5817, 413));
+        var comparison = SiteComparison.Compare(Home, new ObservingSite(48.1351 + 5 / MetersPerDegree, 11.5817, 243));
 
         Assert.True(comparison.IsEquivalent);
         Assert.InRange(comparison.HorizontalDistanceMeters, 4.9, 5.1);
@@ -246,7 +246,7 @@ public sealed class SiteModelTests
     public void ADifferentCity_IsAMajorMismatch()
     {
         // Munich to Hamburg: about 610 km.
-        var comparison = SiteComparison.Compare(Home, new ObservingSite(53.5511, 9.9937, 520));
+        var comparison = SiteComparison.Compare(Home, new ObservingSite(53.5511, 9.9937, 350));
 
         Assert.False(comparison.IsEquivalent);
         Assert.Equal(SiteMismatchSeverity.Major, comparison.Severity);
@@ -257,7 +257,7 @@ public sealed class SiteModelTests
     [Fact]
     public void AnElevationOnly_Mismatch_IsReportedByItself()
     {
-        var comparison = SiteComparison.Compare(Home, new ObservingSite(48.1351, 11.5817, 1210));
+        var comparison = SiteComparison.Compare(Home, new ObservingSite(48.1351, 11.5817, 1040));
 
         Assert.False(comparison.IsEquivalent);
         Assert.Equal(SiteMismatchSeverity.Major, comparison.Severity);
