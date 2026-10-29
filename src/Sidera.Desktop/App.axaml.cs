@@ -40,7 +40,7 @@ public partial class App : Application
             var logInfo = logging.Info(host.SessionId);
             var logger = host.LoggerFactory.CreateLogger<App>();
             SideraLogging.LogStartup(logger, logInfo);
-            ReportUnhandledExceptions(logger);
+            var guard = ReportUnhandledExceptions(logger);
 
             // The equipment is what the user configured: loaded from the equipment file, every device disconnected. A first
             // start has none; the equipment page offers to add devices (ASCOM or simulated) or the simulated demo.
@@ -128,6 +128,7 @@ public partial class App : Application
                 };
             filePicker.Attach(window);
             clipboard.Attach(window);
+            guard.Attach(viewModel.Notifications);
             desktop.MainWindow = window;
 
             // Stop the runtime asynchronously without blocking the UI thread, then shut down for real.
@@ -180,14 +181,22 @@ public partial class App : Application
         }
     }
 
-    // What nobody handled goes into the log before the process goes (or the task is forgotten), with its stack trace.
-    private static void ReportUnhandledExceptions(ILogger logger)
+    // What nobody handled goes into the log with its stack trace. An exception on the interface thread is said as a message and the
+    // application goes on; a process that is terminating anyway (another thread) can only be logged.
+    private static UnhandledExceptionGuard ReportUnhandledExceptions(ILogger logger)
     {
+        var guard = new UnhandledExceptionGuard(logger);
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             logger.LogCritical(
                 e.ExceptionObject as Exception, "Unhandled exception; the application is terminating: {IsTerminating}", e.IsTerminating);
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
-            logger.LogError(e.Exception, "A task failed and nobody observed its exception");
+        {
+            guard.HandleUnobserved(e.Exception);
+            e.SetObserved();
+        };
+
+        Dispatcher.UIThread.UnhandledException += (_, e) => e.Handled = guard.Handle(e.Exception);
+        return guard;
     }
 }
