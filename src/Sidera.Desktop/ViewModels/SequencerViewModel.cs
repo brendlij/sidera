@@ -668,6 +668,36 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             RefreshExecution();
 
             RefreshReadiness();
+
+            // Independent of the end steps of the session: a mount near the meridian that has not flipped does not go on tracking.
+            await SecureMountsAsync();
+        }
+    }
+
+    // When a run ends (finished, failed, cancelled) near the meridian without the flip, tracking is stopped and that is said. Whatever the session's own end steps did or did not do is not asked.
+    private async Task SecureMountsAsync()
+    {
+        if (_fixedSequence is not null || Draft is not { } draft)
+        {
+            return;
+        }
+
+        foreach (var group in draft.FlipGroups)
+        {
+            string? message;
+            try
+            {
+                message = await group.SecureAtRunEndAsync();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                message = $"Could not check the mount after the session ({ex.GetType().Name}): stop its tracking yourself if it is near the meridian.";
+            }
+
+            if (message is not null)
+            {
+                Announce(Sidera.Desktop.Notifications.NotificationSeverity.Error, "Mount tracking stopped for safety", message, key: "meridian-secured-" + group.MountId.Value);
+            }
         }
     }
 

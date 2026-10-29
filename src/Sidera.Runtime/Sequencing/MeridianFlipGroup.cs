@@ -394,6 +394,56 @@ public sealed class MeridianFlipGroup
         }
     }
 
+    /// <summary>How close to the meridian (in minutes, on top of the hold) a run that ends without the flip has to be for the tracking to be stopped.</summary>
+    public const double EndOfRunMarginMinutes = 10;
+
+    /// <summary>
+    /// The run is over, whatever the reason (it finished, failed, or was cancelled) and whatever its end actions did or did not do: a mount that has not flipped and is within the hold of the meridian (or
+    /// past it) must not go on tracking, because with nobody to flip it, it would track into its limits, or into the pier. Tracking is stopped, and the returned sentence says so; <c>null</c> when there was
+    /// nothing to do (the flip happened, it is not needed, the target is still far from the meridian). It does not depend on the end steps of a session: it is called by whoever ran the sequence.
+    /// </summary>
+    public async Task<string?> SecureAtRunEndAsync()
+    {
+        lock (_gate)
+        {
+            // The flip happened or is not needed, or it is running and knows what to do on failure. A run that never looked at the sky has not begun: nothing was tracked past anything.
+            if (_passed || _flipping || !_initialized)
+            {
+                return null;
+            }
+        }
+
+        double minutes;
+        try
+        {
+            minutes = HourAngleMinutes();
+        }
+        catch (MeridianFlipFailedException)
+        {
+            return null; // no site: the sky cannot be computed
+        }
+
+        if (minutes < -(_plan.Settings.PauseBeforeMeridianMinutes + EndOfRunMarginMinutes)
+            || !_services.Registry.TryGet(_plan.MountId, out var device) || device is not IMountControl { ConnectionState: DeviceConnectionState.Connected } control)
+        {
+            return null;
+        }
+
+        var where = minutes < 0 ? $"{FormatMinutes(-minutes)} before the meridian" : $"{FormatMinutes(minutes)} past the meridian";
+        try
+        {
+            // No look at what the mount says about its tracking: a mount that reports stale data would be believed. Stopping a mount that does not track is harmless.
+            await control.SetTrackingAsync(false, CancellationToken.None);
+            Log("MeridianFlipSecuredAtRunEnd", "The run ended {Where} without the flip: tracking of {Mount} was stopped for safety", where, MountId);
+            return $"The session ended {where} without the flip, so the tracking of the mount was stopped.";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Tracking of {Mount} could not be stopped when the run ended {Where} without the flip", MountId, where);
+            return $"The session ended {where} without the flip and the tracking of the mount could not be stopped: stop it yourself.";
+        }
+    }
+
     /// <summary>The flip failed and waits: try it again (the mount is flipped, centered and so on as before).</summary>
     public bool Retry() => Decide(true);
 

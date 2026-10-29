@@ -418,6 +418,41 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
         Assert.Equal(0, mount.SyncCount);
     }
 
+    [Fact]
+    public async Task ARunThatIsCancelledInsideTheHold_StopsTheTrackingOfTheMount_AndSaysSo()
+    {
+        var (vm, editor, clock, _, mount) = await EditorAsync(s => s);
+        await mount.SetTrackingAsync(true);
+
+        vm.Sequencer.RunCommand.Execute(null);
+        await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
+        await WaitAsync(() => ShowsFrames(editor), "frames on the blocks");
+        clock.SetHourAngle(-3); // inside the hold: the flip is still to come
+        vm.Sequencer.CancelCommand.Execute(null);
+        await WaitAsync(() => vm.Sequencer.State == SequenceState.Cancelled, "the run to be cancelled");
+
+        await WaitAsync(() => mount.Telemetry is { Tracking: false }, "the tracking to be stopped");
+        Assert.Contains(vm.Notifications.History, m => m.Title == "Mount tracking stopped for safety" && m.Detail!.Contains("without the flip", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ARunThatEndsLongBeforeTheMeridian_LeavesTheTrackingOn()
+    {
+        var (vm, editor, clock, _, mount) = await EditorAsync(s => s);
+        await mount.SetTrackingAsync(true);
+
+        vm.Sequencer.RunCommand.Execute(null);
+        await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
+        await WaitAsync(() => ShowsFrames(editor), "frames on the blocks");
+        clock.SetHourAngle(-90);
+        vm.Sequencer.CancelCommand.Execute(null);
+        await WaitAsync(() => vm.Sequencer.State == SequenceState.Cancelled, "the run to be cancelled");
+        await Task.Delay(200);
+
+        Assert.True(mount.Telemetry is { Tracking: true });
+        Assert.DoesNotContain(vm.Notifications.History, m => m.Title == "Mount tracking stopped for safety");
+    }
+
     private static async Task WaitAsync(Func<bool> condition, string what, int seconds = 60)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(seconds);

@@ -75,6 +75,87 @@ public sealed class MeridianGateTests : IAsyncLifetime
         Assert.Equal(expected, decision);
     }
 
+    // A group on a connected mount that tracks.
+    private async Task<(MeridianFlipGroup Group, IMountControl Mount)> TrackingGroupAsync(Clock clock)
+    {
+        var group = Group(clock, Site);
+        Assert.True(_host.DeviceRegistry.TryGet(new("mount.1"), out var device));
+        var mount = Assert.IsAssignableFrom<IMountControl>(device);
+        await device!.ConnectAsync();
+        await mount.SetTrackingAsync(true);
+        return (group, mount);
+    }
+
+    [Theory]
+    [InlineData(-14.0)] // inside the hold and its margin
+    [InlineData(-3.0)]
+    [InlineData(0.0)]
+    [InlineData(6.0)] // past the meridian, the flip not done
+    public async Task ARunThatEndsNearTheMeridianWithoutTheFlip_StopsTheTracking_WhateverItsEndStepsDid(double hourAngleMinutes)
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None); // the run has looked at the sky
+        clock.SetHourAngle(hourAngleMinutes);
+
+        var message = await group.SecureAtRunEndAsync();
+
+        Assert.NotNull(message);
+        Assert.Contains("tracking of the mount was stopped", message);
+        Assert.False(mount.Telemetry!.Tracking);
+    }
+
+    [Theory]
+    [InlineData(-60.0)]
+    [InlineData(-16.0)] // outside the hold (5) and the margin (10)
+    public async Task ARunThatEndsFarFromTheMeridian_LeavesTheTrackingAlone(double hourAngleMinutes)
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(hourAngleMinutes);
+
+        Assert.Null(await group.SecureAtRunEndAsync());
+        Assert.True(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task WhenTheFlipIsNotNeeded_ARunEnd_LeavesTheTrackingAlone()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(40);
+        await group.EvaluateAsync(1, CancellationToken.None); // already past the meridian at the first look: the mount stands on that side
+
+        Assert.Null(await group.SecureAtRunEndAsync());
+        Assert.True(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task ARunThatNeverLookedAtTheSky_LeavesTheTrackingAlone()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(3);
+
+        Assert.Null(await group.SecureAtRunEndAsync());
+        Assert.True(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task WithAMountThatIsNotConnected_NothingIsSaidOrDone()
+    {
+        var clock = new Clock();
+        var group = Group(clock, Site);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(3);
+
+        Assert.Null(await group.SecureAtRunEndAsync());
+    }
+
     [Fact]
     public async Task ATargetThatIsAlreadyWestOfTheMeridianAtTheFirstLook_NeedsNoFlip_AndStaysClear()
     {
