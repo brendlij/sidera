@@ -15,7 +15,7 @@ public sealed class EquipmentMigrationTests : IDisposable
     // A file as Sidera wrote it before: two cameras with focusers on one mount and one guider, as two rigs; version 1 of the format.
     private const string OldFile = """
         {
-          "format": "astra-equipment",
+          "format": "sidera-equipment",
           "version": 1,
           "devices": [
             { "id": "camera.main", "name": "ASI2600MM", "type": "Camera", "backend": "Simulator" },
@@ -118,7 +118,7 @@ public sealed class EquipmentMigrationTests : IDisposable
     [Fact]
     public void AFileThatCannotBeRead_IsNotOverwritten_AndSaysSo()
     {
-        var (host, service) = Load("{ \"format\": \"astra-equipment\", \"version\": 7, \"devices\": [] }");
+        var (host, service) = Load("{ \"format\": \"sidera-equipment\", \"version\": 7, \"devices\": [] }");
 
         Assert.NotEmpty(service.Problems);
         Assert.Contains("version 7", string.Join(" ", service.Problems), StringComparison.Ordinal);

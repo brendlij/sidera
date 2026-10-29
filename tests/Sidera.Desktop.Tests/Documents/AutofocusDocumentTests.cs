@@ -61,7 +61,7 @@ public sealed class AutofocusDocumentTests : IDisposable
     }
 
     private static string Doc(int version, string steps) =>
-        "{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
+        "{\"format\":\"sidera-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
 
     private static string Autofocus(Guid id) =>
         $"{{\"type\":\"autofocus\",\"id\":\"{id}\",\"rigId\":\"rig.main\",\"exposureSeconds\":2,\"stepSize\":300,\"samples\":7}}";

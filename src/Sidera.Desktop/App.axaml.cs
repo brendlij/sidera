@@ -48,22 +48,6 @@ public partial class App : Application
             var factories = new DeviceFactoryRegistry(
                 [new SimulatorDeviceFactory(), new AscomBackendFactory(new AscomDeviceFactory(drivers, host.LoggerFactory)), new Phd2BackendFactory(host.LoggerFactory), new AlpacaBackendFactory(host.LoggerFactory)]);
             var equipmentFile = SideraEnvironment.Get("SIDERA_EQUIPMENT_FILE");
-            if (string.IsNullOrWhiteSpace(equipmentFile))
-            {
-                // The equipment of the time the product was called Astra comes along on the first start, once and without touching it.
-                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                var migration = LegacyAstraData.MigrateEquipmentFile(LegacyAstraData.EquipmentFile(appData), LegacyAstraData.LegacyEquipmentFile(appData));
-                if (migration.Outcome == LegacyMigrationOutcome.Copied)
-                {
-                    logger.LogInformation("The equipment file was copied from {Legacy} to {Current}; the old one is left as it is",
-                        LegacyAstraData.LegacyEquipmentFile(appData), LegacyAstraData.EquipmentFile(appData));
-                }
-                else if (migration.Outcome == LegacyMigrationOutcome.Failed)
-                {
-                    logger.LogWarning("The equipment file of {Legacy} could not be copied: {Problem}", LegacyAstraData.LegacyEquipmentFile(appData), migration.Problem);
-                }
-            }
-
             var store = string.IsNullOrWhiteSpace(equipmentFile)
                 ? EquipmentConfigurationStore.CreateDefault()
                 : new EquipmentConfigurationStore(equipmentFile);

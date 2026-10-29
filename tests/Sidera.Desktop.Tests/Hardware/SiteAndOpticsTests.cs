@@ -268,7 +268,7 @@ public sealed class SiteAndOpticsTests : IAsyncLifetime
     public void ARigOfAnOlderFile_WithOneNameForThePixelSizeAndTheResolution_StillLoads()
     {
         const string old = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main",
                "optics":{"focalLengthMm":750,"apertureMm":150,"pixelSizeMicrons":3.76,"sensorWidthMm":23.5,"sensorHeightMm":15.7,"resolutionWidth":6248,"resolutionHeight":4176}}]}
@@ -283,7 +283,7 @@ public sealed class SiteAndOpticsTests : IAsyncLifetime
     public void ARigWithoutOptics_Loads()
     {
         const string old = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main"}]}
             """;
@@ -297,7 +297,7 @@ public sealed class SiteAndOpticsTests : IAsyncLifetime
     public void OpticsThatAreNotValid_AreRefusedWithTheRigNamed()
     {
         const string bad = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main","optics":{"focalLengthMm":-5}}]}
             """;

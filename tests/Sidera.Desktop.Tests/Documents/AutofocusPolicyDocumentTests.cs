@@ -61,7 +61,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
     }
 
     private static string Doc(int version, string steps) =>
-        "{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
+        "{\"format\":\"sidera-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
 
     private const string Members =
         "\"enabled\":true,\"atTrackStart\":true,\"afterFilterChange\":false,\"exposureSeconds\":0.5,\"stepSize\":400,\"samples\":7";

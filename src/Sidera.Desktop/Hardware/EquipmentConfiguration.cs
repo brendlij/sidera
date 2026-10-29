@@ -162,9 +162,6 @@ public sealed record RigConfiguration(
 public sealed record EquipmentConfiguration(IReadOnlyList<DeviceConfiguration> Devices, IReadOnlyList<RigConfiguration> Rigs)
 {
     public const string FormatId = "sidera-equipment";
-
-    /// <summary>The identifier from before the product was called Sidera; files with it still load.</summary>
-    public const string LegacyFormatId = "astra-equipment";
     public const int CurrentVersion = 1;
 
     public static EquipmentConfiguration Empty { get; } = new([], []);

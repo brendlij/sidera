@@ -144,7 +144,7 @@ public sealed class RotationActionsDocumentTests
     [InlineData("centerAndRotate", "{\"id\":\"{ID}\",\"type\":\"centerAndRotate\",\"mountId\":\"mount\",\"rigId\":\"rig\",\"raHours\":1}")]
     public async Task AStepWithAMissingValue_IsRefused_NotFilledIn(string type, string step)
     {
-        var text = "{\"format\":\"astra-sequence\",\"version\":7,\"steps\":[" + step.Replace("{ID}", Guid.NewGuid().ToString()) + "]}";
+        var text = "{\"format\":\"sidera-sequence\",\"version\":7,\"steps\":[" + step.Replace("{ID}", Guid.NewGuid().ToString()) + "]}";
 
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => new JsonSequenceDocumentSerializer().LoadAsync(new MemoryStream(Encoding.UTF8.GetBytes(text)), CancellationToken.None));
 

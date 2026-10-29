@@ -388,7 +388,7 @@ public sealed class RigManagementTests : IAsyncLifetime
     public void AnEquipmentFileFromBeforeRigsHadAMountAndGuider_StillLoads_WithoutInventingOne()
     {
         const string old = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"},
                         {"id":"mount.am3","name":"Mount","type":"Mount","backend":"Simulator"},
                         {"id":"guider.phd2","name":"Guider","type":"Guider","backend":"Simulator"}],
@@ -411,7 +411,7 @@ public sealed class RigManagementTests : IAsyncLifetime
     public void AFileWhoseRigNamesAMountThatIsNotInIt_IsRefused()
     {
         const string bad = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main","mountId":"mount.gone"}]}
             """;

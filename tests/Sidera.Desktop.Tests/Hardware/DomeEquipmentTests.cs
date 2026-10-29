@@ -377,7 +377,7 @@ public sealed class DomeEquipmentTests : IAsyncLifetime
     [InlineData("""{ "id": "cam.a", "name": "A", "type": "Camera", "backend": "Alpaca", "settings": { "host": "192.0.2.5", "port": "11111" } }""", "Alpaca Camera")]
     public void AnAlpacaDeviceThatCannotBeUsed_IsRefusedWhenTheFileIsRead(string device, string expected)
     {
-        var file = $$"""{ "format": "astra-equipment", "version": 1, "devices": [ {{device}} ], "rigs": [] }""";
+        var file = $$"""{ "format": "sidera-equipment", "version": 1, "devices": [ {{device}} ], "rigs": [] }""";
 
         var failure = Assert.Throws<EquipmentConfigurationException>(() => EquipmentConfigurationSerializer.Deserialize(System.Text.Encoding.UTF8.GetBytes(file)));
 

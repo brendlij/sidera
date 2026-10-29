@@ -77,7 +77,7 @@ public sealed class PlateSolvingActionsDocumentTests
     [Fact]
     public async Task AFileWithoutTheNewSteps_StillLoads_AndAnOlderVersionRefusesThem()
     {
-        var older = Encoding.UTF8.GetBytes("{\"format\":\"astra-sequence\",\"version\":6,\"steps\":[{\"id\":\"" + Guid.NewGuid() + "\",\"type\":\"syncMountToSolved\",\"mountId\":\"mount\"}]}");
+        var older = Encoding.UTF8.GetBytes("{\"format\":\"sidera-sequence\",\"version\":6,\"steps\":[{\"id\":\"" + Guid.NewGuid() + "\",\"type\":\"syncMountToSolved\",\"mountId\":\"mount\"}]}");
 
         await Assert.ThrowsAnyAsync<Exception>(() => new JsonSequenceDocumentSerializer().LoadAsync(new MemoryStream(older), CancellationToken.None));
     }

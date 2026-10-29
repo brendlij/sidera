@@ -173,7 +173,7 @@ public static class EquipmentConfigurationSerializer
         using (document)
         {
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || String(root, "format") is not (EquipmentConfiguration.FormatId or EquipmentConfiguration.LegacyFormatId))
+            if (root.ValueKind != JsonValueKind.Object || String(root, "format") != EquipmentConfiguration.FormatId)
             {
                 throw new EquipmentConfigurationException("This is not an Sidera equipment file.");
             }

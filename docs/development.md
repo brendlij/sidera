@@ -45,6 +45,6 @@ The application itself only reads `SIDERA_EQUIPMENT_FILE` and `SIDERA_SETTINGS_F
 ## Conventions
 
 - Text the user reads follows the wording of the application; a test checks it (no internal words such as the file format).
-- The format of a session file stays at version 9. The format names are `sidera-sequence` and `sidera-equipment`; files with the earlier names `astra-sequence`, `astra-equipment` and the extension `.astraseq` still open and are written with the new names when saved.
+- The format of a session file stays at version 9; the format names are `sidera-sequence` and `sidera-equipment`.
 - Commits describe what changed and why.
 - The pictures of the Help Center can be taken again with `tools/help-screenshots` (see its README).

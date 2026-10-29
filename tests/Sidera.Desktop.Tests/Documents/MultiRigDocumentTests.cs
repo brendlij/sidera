@@ -189,7 +189,7 @@ public sealed class MultiRigDocumentTests : IDisposable
 
     // Version 1 documents
 
-    private static string V1(string steps) => "{\"format\":\"astra-sequence\",\"version\":1,\"name\":\"Old\",\"steps\":[" + steps + "]}";
+    private static string V1(string steps) => "{\"format\":\"sidera-sequence\",\"version\":1,\"name\":\"Old\",\"steps\":[" + steps + "]}";
 
     private static string V1Sample() => V1(
         $"{{\"type\":\"startGuiding\",\"id\":\"{A}\",\"guiderId\":\"guider.main\"}},"
@@ -243,7 +243,7 @@ public sealed class MultiRigDocumentTests : IDisposable
     [Fact]
     public async Task ASharedEquipmentInAVersion1Document_IsNotPartOfThatVersion_AndIsIgnored()
     {
-        var text = "{\"format\":\"astra-sequence\",\"version\":1,\"sharedEquipment\":{\"mountId\":\"mount.eq6\",\"guiderId\":null},\"steps\":[]}";
+        var text = "{\"format\":\"sidera-sequence\",\"version\":1,\"sharedEquipment\":{\"mountId\":\"mount.eq6\",\"guiderId\":null},\"steps\":[]}";
 
         var loaded = await Read(text);
 
@@ -255,7 +255,7 @@ public sealed class MultiRigDocumentTests : IDisposable
     [InlineData("100")]
     public async Task ANewerVersionThanFive_IsRejectedAsBefore(string version)
     {
-        var ex = await Rejects("{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[]}");
+        var ex = await Rejects("{\"format\":\"sidera-sequence\",\"version\":" + version + ",\"steps\":[]}");
 
         Assert.Equal(SequenceDocumentErrorKind.NewerVersion, ex.Kind);
         Assert.Equal("This sequence was created by a newer Sidera version.", ex.Message);
@@ -264,7 +264,7 @@ public sealed class MultiRigDocumentTests : IDisposable
     // Structure of version 2
 
     private static string V2(string steps, string extra = "") =>
-        "{\"format\":\"astra-sequence\",\"version\":2," + extra + "\"steps\":[" + steps + "]}";
+        "{\"format\":\"sidera-sequence\",\"version\":2," + extra + "\"steps\":[" + steps + "]}";
 
     private static string Delay(Guid id) => $"{{\"type\":\"delay\",\"id\":\"{id}\",\"durationSeconds\":1}}";
     private static string RigExposure(Guid id) => $"{{\"type\":\"rigExposure\",\"id\":\"{id}\",\"exposureSeconds\":1}}";
@@ -417,13 +417,13 @@ public sealed class MultiRigDocumentTests : IDisposable
     {
         Assert.Equal(
             "'sharedEquipment' must be an object.",
-            (await Rejects("{\"format\":\"astra-sequence\",\"version\":2,\"sharedEquipment\":5,\"steps\":[]}")).Message);
+            (await Rejects("{\"format\":\"sidera-sequence\",\"version\":2,\"sharedEquipment\":5,\"steps\":[]}")).Message);
         Assert.Equal(
             "A 'sharedEquipment' step is missing 'guiderId'.",
-            (await Rejects("{\"format\":\"astra-sequence\",\"version\":2,\"sharedEquipment\":{\"mountId\":null},\"steps\":[]}")).Message);
+            (await Rejects("{\"format\":\"sidera-sequence\",\"version\":2,\"sharedEquipment\":{\"mountId\":null},\"steps\":[]}")).Message);
         Assert.Equal(
             "'mountId' of a 'sharedEquipment' step must be a device ID or null.",
-            (await Rejects("{\"format\":\"astra-sequence\",\"version\":2,\"sharedEquipment\":{\"mountId\":3,\"guiderId\":null},\"steps\":[]}")).Message);
+            (await Rejects("{\"format\":\"sidera-sequence\",\"version\":2,\"sharedEquipment\":{\"mountId\":3,\"guiderId\":null},\"steps\":[]}")).Message);
     }
 
     [Fact]

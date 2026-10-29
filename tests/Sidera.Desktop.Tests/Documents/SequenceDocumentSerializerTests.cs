@@ -281,7 +281,7 @@ public class SequenceDocumentSerializerTests
 
     // Header problems: is this an Sidera document at all, and of which version?
 
-    private static string Header(string format = "\"astra-sequence\"", string version = "1") =>
+    private static string Header(string format = "\"sidera-sequence\"", string version = "1") =>
         $"\"format\":{format},\"version\":{version}";
 
     private static string Doc(string steps, string? header = null) => "{" + (header ?? Header()) + $",\"steps\":[{steps}]" + "}";
@@ -341,12 +341,12 @@ public class SequenceDocumentSerializerTests
     }
 
     [Theory]
-    [InlineData("{\"format\":\"astra-sequence\",\"steps\":[]}")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":0,\"steps\":[]}")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":-3,\"steps\":[]}")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":\"1\",\"steps\":[]}")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":1.5,\"steps\":[]}")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":null,\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"version\":0,\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"version\":-3,\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"version\":\"1\",\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"version\":1.5,\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"version\":null,\"steps\":[]}")]
     public async Task AMissingOrUnusableVersion_IsRejectedClearly(string text)
     {
         var ex = await Rejects(text);

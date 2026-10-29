@@ -46,7 +46,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     private static EquipmentConfigurationException Reject(string json) =>
         Assert.Throws<EquipmentConfigurationException>(() => EquipmentConfigurationSerializer.Deserialize(Encoding.UTF8.GetBytes(json)));
 
-    private static string Minimal(string devices, string version = "1", string format = "astra-equipment") =>
+    private static string Minimal(string devices, string version = "1", string format = "sidera-equipment") =>
         $$"""{ "format": "{{format}}", "version": {{version}}, "devices": [ {{devices}} ] }""";
 
     // The format
@@ -118,7 +118,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     public void PropertiesThatAreNotKnown_AreIgnored_SoALaterVersionCanAddSome()
     {
         var read = EquipmentConfigurationSerializer.Deserialize(Encoding.UTF8.GetBytes(
-            """{ "format": "astra-equipment", "version": 1, "future": 1, "devices": [ { "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator", "colour": "red" } ] }"""));
+            """{ "format": "sidera-equipment", "version": 1, "future": 1, "devices": [ { "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator", "colour": "red" } ] }"""));
 
         Assert.Equal("camera.a", Assert.Single(read.Devices).Id);
     }
@@ -129,9 +129,9 @@ public sealed class EquipmentConfigurationTests : IDisposable
     [InlineData("not json", "not valid JSON")]
     [InlineData("[]", "not an Sidera equipment file")]
     [InlineData("""{ "format": "something-else", "version": 1 }""", "not an Sidera equipment file")]
-    [InlineData("""{ "format": "astra-equipment" }""", "no valid version")]
-    [InlineData("""{ "format": "astra-equipment", "version": 0 }""", "no valid version")]
-    [InlineData("""{ "format": "astra-equipment", "version": "1" }""", "no valid version")]
+    [InlineData("""{ "format": "sidera-equipment" }""", "no valid version")]
+    [InlineData("""{ "format": "sidera-equipment", "version": 0 }""", "no valid version")]
+    [InlineData("""{ "format": "sidera-equipment", "version": "1" }""", "no valid version")]
     public void ANonEquipmentFile_IsRefusedWithASentence(string json, string expected)
     {
         Assert.Contains(expected, Reject(json).Message);
@@ -175,7 +175,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     {
         var failure = Reject(
             """
-            { "format": "astra-equipment", "version": 1, "devices": [ { "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator" } ],
+            { "format": "sidera-equipment", "version": 1, "devices": [ { "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator" } ],
                "rigs": [ { "id": "rig.a", "name": "R", "cameraId": "camera.a", "focuserId": "focuser.zzz", "optics": { "focalLengthMm": 750, "apertureMm": 150, "pixelSizeMicrons": 3.76, "sensorWidthMm": 23.5, "sensorHeightMm": 15.7, "resolutionWidth": 6248, "resolutionHeight": 4176 } } ] }
             """);
 
@@ -187,7 +187,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     {
         var failure = Reject(
             """
-            { "format": "astra-equipment", "version": 1, "devices": [ { "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator" } ],
+            { "format": "sidera-equipment", "version": 1, "devices": [ { "id": "camera.a", "name": "A", "type": "Camera", "backend": "Simulator" } ],
                "rigs": [ { "id": "rig.a", "name": "R", "cameraId": "camera.a", "optics": { "focalLengthMm": -1, "apertureMm": 150, "pixelSizeMicrons": 3.76, "sensorWidthMm": 23.5, "sensorHeightMm": 15.7, "resolutionWidth": 6248, "resolutionHeight": 4176 } } ] }
             """);
 

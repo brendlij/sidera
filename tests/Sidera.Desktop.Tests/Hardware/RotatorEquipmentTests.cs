@@ -137,7 +137,7 @@ public sealed class RotatorEquipmentTests : IAsyncLifetime
     public void AnEquipmentFileOfBeforeTheRotator_StillLoads_WithRigsThatHaveNone()
     {
         const string old = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main","optics":{"focalLengthMm":500}}]}
             """;
@@ -152,7 +152,7 @@ public sealed class RotatorEquipmentTests : IAsyncLifetime
     public void ARigThatNamesARotatorThatIsNotInTheFile_IsRefused()
     {
         const string bad = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main","rotatorId":"rotator.gone"}]}
             """;
@@ -166,7 +166,7 @@ public sealed class RotatorEquipmentTests : IAsyncLifetime
     public void ACalibrationWithoutARotator_IsNotKept()
     {
         const string odd = """
-            {"format":"astra-equipment","version":1,
+            {"format":"sidera-equipment","version":1,
              "devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}],
              "rigs":[{"id":"rig.main","name":"Main","cameraId":"camera.main","rotator":{"skyOffsetDegrees":10}}]}
             """;

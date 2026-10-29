@@ -26,7 +26,7 @@ public sealed class AcquisitionDocumentTests
         Serializer.LoadAsync(new MemoryStream(Encoding.UTF8.GetBytes(text)), CancellationToken.None);
 
     private static string Doc(int version, string steps) =>
-        "{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
+        "{\"format\":\"sidera-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
 
     private static string Exposure(string acquisition) =>
         "{\"type\":\"exposure\",\"id\":\"" + A + "\",\"cameraId\":\"camera.main\",\"exposureSeconds\":300" + acquisition + "}";

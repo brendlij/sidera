@@ -61,7 +61,7 @@ public sealed class HardwareStepDocumentTests : IDisposable
     }
 
     private static string Doc(int version, string steps) =>
-        "{\"format\":\"astra-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
+        "{\"format\":\"sidera-sequence\",\"version\":" + version + ",\"steps\":[" + steps + "]}";
 
     private static string MoveFocuser(Guid id) => $"{{\"type\":\"moveFocuser\",\"id\":\"{id}\",\"focuserId\":\"focuser.main\",\"position\":18350}}";
     private static string ChangeFilter(Guid id) => $"{{\"type\":\"changeFilter\",\"id\":\"{id}\",\"filterWheelId\":\"filterwheel.main\",\"slotIndex\":4}}";

@@ -14,7 +14,7 @@ public sealed class AvaloniaSequenceFilePicker : ISequenceFilePicker
 {
     private static readonly FilePickerFileType SequenceFiles = new(SequenceDocumentFiles.FilterName)
     {
-        Patterns = [SequenceDocumentFiles.Pattern, SequenceDocumentFiles.LegacyPattern],
+        Patterns = [SequenceDocumentFiles.Pattern],
     };
 
     private TopLevel? _owner;

@@ -95,7 +95,7 @@ public sealed class DevicePanelTests : IAsyncLifetime
 
         Assert.Equal("100", read.Devices[0].Preferences[DevicePreferences.Gain]);
         Assert.Equal("2", read.Devices[0].Preferences[DevicePreferences.BinX]);
-        var old = """{"format":"astra-equipment","version":1,"devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}]}""";
+        var old = """{"format":"sidera-equipment","version":1,"devices":[{"id":"camera.main","name":"Camera","type":"Camera","backend":"Simulator"}]}""";
         Assert.Empty(EquipmentConfigurationSerializer.Deserialize(System.Text.Encoding.UTF8.GetBytes(old)).Devices[0].Preferences);
     }
 

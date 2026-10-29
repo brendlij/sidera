@@ -262,7 +262,7 @@ public static partial class HelpCatalog
             ],
             Actions = [Setting("Open Advanced settings", "advanced"), Page("Open Diagnostics", AppPage.Diagnostics)],
             Related = ["logs-and-diagnostics"],
-            Keywords = ["settings file", "equipment file", "sideraseq", "astraseq", "folder", "path", "appdata"],
+            Keywords = ["settings file", "equipment file", "sideraseq", "folder", "path", "appdata"],
         },
 
         new("logs-and-diagnostics", ReferenceSection, "Logs & Diagnostics", "The log of this session and the facts you quote in a bug report.")

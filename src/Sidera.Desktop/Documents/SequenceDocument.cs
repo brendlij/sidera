@@ -21,9 +21,6 @@ public sealed record SequenceDocument(
     /// <summary>The value every Sidera sequence document carries to say what it is.</summary>
     public const string FormatId = "sidera-sequence";
 
-    /// <summary>The identifier from before the product was called Sidera; files with it still load.</summary>
-    public const string LegacyFormatId = "astra-sequence";
-
     /// <summary>
     /// The version of the format that serializers write today. Documents in memory are always this version; what an
     /// older version could not say (shared equipment and Multi-Rig Imaging before 2, focuser and filter wheel steps

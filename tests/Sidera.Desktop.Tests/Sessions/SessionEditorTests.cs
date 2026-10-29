@@ -469,7 +469,7 @@ public sealed class SessionEditorTests : IAsyncLifetime
     {
         var (vm, editor, picker) = await CreateAsync();
         var path = Path.Combine(_directory, "Legacy.sideraseq");
-        await File.WriteAllTextAsync(path, "{\"format\":\"astra-sequence\",\"version\":7,\"steps\":[{\"type\":\"delay\",\"id\":\"11111111-1111-4111-8111-111111111111\",\"durationSeconds\":3}]}");
+        await File.WriteAllTextAsync(path, "{\"format\":\"sidera-sequence\",\"version\":7,\"steps\":[{\"type\":\"delay\",\"id\":\"11111111-1111-4111-8111-111111111111\",\"durationSeconds\":3}]}");
         picker.OpenPath = path;
 
         await vm.SequenceDocument.OpenCommand.ExecuteAsync(null);

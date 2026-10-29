@@ -156,7 +156,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("not an sidera file")]
-    [InlineData("{\"format\":\"astra-sequence\",\"version\":10,\"steps\":[]}")]
+    [InlineData("{\"format\":\"sidera-sequence\",\"version\":10,\"steps\":[]}")]
     public async Task OpeningAFileThatIsNotUsable_LeavesTheDraftAndTheDocumentAsTheyWere(string content)
     {
         await using var app = Create();
@@ -178,7 +178,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
     public async Task AFutureVersion_IsReportedAsSuch()
     {
         await using var app = Create();
-        await File.WriteAllTextAsync(PathOf("Future.sideraseq"), "{\"format\":\"astra-sequence\",\"version\":10,\"steps\":[]}");
+        await File.WriteAllTextAsync(PathOf("Future.sideraseq"), "{\"format\":\"sidera-sequence\",\"version\":10,\"steps\":[]}");
         app.Picker.OpenPath = PathOf("Future.sideraseq");
 
         await app.Document.OpenCommand.ExecuteAsync(null);

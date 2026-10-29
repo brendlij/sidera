@@ -254,7 +254,7 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
     [Fact]
     public async Task ABrokenFlipSetting_IsRefusedWithASentence()
     {
-        var text = "{\"format\":\"astra-sequence\",\"version\":9,\"steps\":[],\"session\":{\"automation\":{\"meridianFlip\":{\"failureBehavior\":\"explode\"}},\"start\":[],\"targets\":[],\"end\":[]}}";
+        var text = "{\"format\":\"sidera-sequence\",\"version\":9,\"steps\":[],\"session\":{\"automation\":{\"meridianFlip\":{\"failureBehavior\":\"explode\"}},\"start\":[],\"targets\":[],\"end\":[]}}";
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
 
         var ex = await Assert.ThrowsAsync<SequenceDocumentException>(() => new JsonSequenceDocumentSerializer().LoadAsync(stream, CancellationToken.None));

@@ -221,7 +221,7 @@ public sealed class MultiRigDitherDocumentTests : IDisposable
     private static string Policy2(string members) => "{" + members + "}";
 
     private static string Block(string? policy) =>
-        "{\"format\":\"astra-sequence\",\"version\":2,\"steps\":[{\"type\":\"multiRig\",\"id\":\"" + A + "\",\"tracks\":[{\"id\":\"" + B
+        "{\"format\":\"sidera-sequence\",\"version\":2,\"steps\":[{\"type\":\"multiRig\",\"id\":\"" + A + "\",\"tracks\":[{\"id\":\"" + B
         + "\",\"rigId\":\"rig.main\",\"steps\":[]}]" + (policy is null ? "" : ",\"ditherPolicy\":" + policy) + "}]}";
 
     private const string Members =
