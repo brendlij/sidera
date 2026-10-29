@@ -213,6 +213,7 @@
                     <ctl:LabeledField Grid.Column="2" Label="Latest (min after)"><TextBox Text="{Binding LatestText}" AutomationProperties.Name="Latest flip" /></ctl:LabeledField>
                 </Grid>
                 <CheckBox Content="Stop guiding before the flip" IsChecked="{Binding StopGuiding}" />
+                <CheckBox Content="Stand still while holding: stop tracking and guiding and expose nothing from the hold until the flip" IsChecked="{Binding StopTracking}" AutomationProperties.AutomationId="FlipStopTracking" />
                 <CheckBox Content="Recenter after the flip" IsChecked="{Binding Recenter}" />
                 <CheckBox Content="Verify the rotation after the flip" IsChecked="{Binding VerifyRotation}" />
                 <CheckBox Content="Autofocus after the flip" IsChecked="{Binding Autofocus}" />

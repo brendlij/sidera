@@ -13,8 +13,9 @@ A German-equatorial mount tracks past the meridian up to a limit and then has to
    - **Hold new exposures before** (default 5): from then on an exposure only starts when it ends before the flip is due.
    - **Flip after** (default 2): when the flip is due, once every setup of the mount is at a safe point.
    - **Latest allowed flip** (default 15): after that the failure behaviour applies.
-3. Choose what happens after the flip: stop and restart guiding, **recenter**, verify the rotation, autofocus, dither, pause. And whether a failed flip **holds** the mount until you retry or abort, or ends the session.
-4. The mount must be assigned to the imaging setup (Equipment → Imaging Setups); otherwise the session says *The meridian flip needs a setup with a mount*.
+3. **Stand still while holding** (off by default): for a mount that would collide with its pier if it tracked on past the meridian. From the start of the hold the mount does not track and nothing is exposed: a new exposure only starts when it ends before the hold begins, and when the hold begins guiding and tracking are stopped (once, with every setup of the mount at a safe point). The mount waits until the flip is due; the flip starts the tracking again before the slew, and restarts the guiding. With *Hold* 5 and *Flip after* 5 the mount stands still for 10 minutes around the meridian.
+4. Choose what happens after the flip: stop and restart guiding, **recenter**, verify the rotation, autofocus, dither, pause. And whether a failed flip **holds** the mount until you retry or abort, or ends the session.
+5. The mount must be assigned to the imaging setup (Equipment → Imaging Setups); otherwise the session says *The meridian flip needs a setup with a mount*.
 
 The dashboard and the session page show the countdown (*Meridian: 36:01 until the hold · 41:01 until the crossing*) and, during the flip, what it is doing.
 
@@ -24,12 +25,18 @@ Stop guiding → slew to the **same target** (the driver chooses the pier side) 
 
 ## Safeguards
 
+- **A run that ends near the meridian does not leave the mount tracking.** When a session ends for whatever reason (finished, failed, cancelled) and its mount has not flipped and is within the hold (plus 10 minutes) of the meridian or past it, the tracking is stopped and that is said. It does not depend on the end steps of the session (Stop Guiding, Close Roof and so on), which do what they are asked.
+
 - **The pier side has to change.** If the mount reports the same side before and after the slew, it did not flip (many mounts keep tracking past the meridian and do not turn for a slew to the same place). That is a failure with its reason; check the pier-side and meridian-limit settings of the mount.
 - **A flip that failed before the mount changed sides stops its tracking**, so that it does not track on into its limits, and says so. A mount that did change sides stands on the safe side and keeps tracking. A flip that is overdue stops the tracking too.
 - **A retry** starts the tracking again and goes on from where the centering had got to, instead of starting again from the uncorrected target.
 - **Centering after the flip** lets the mount settle after a slew, tries a solve that found nothing twice more with a new exposure, and starts tracking when the mount says it is not tracking (a frame without tracking cannot be solved).
 - A failed flip is an **error message** with a button to the session, and the session shows **Retry the flip** and **Abort the session**.
 - The target position is brought from J2000 to the date before the hour angle is worked out (about 80 seconds of time for a target of today), so the countdown agrees with a planetarium.
+
+## The limits of the mount
+
+A mount stops its tracking on its own at its meridian limits (the firmware of an OnStep mount: *Meridian Limit E / W*, in degrees, 15° are an hour). With the limits at 0° tracking stops when the mount reaches the meridian, before a flip that is due 2 minutes after it: the stars trail, the guider loses its star and the session fails. Set the limits past your flip time and below the point where the mount would collide, and switch the auto flip of the mount off.
 
 ## Check it before you rely on it
 

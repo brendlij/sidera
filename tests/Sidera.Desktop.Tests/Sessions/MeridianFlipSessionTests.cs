@@ -453,6 +453,52 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
         Assert.DoesNotContain(vm.Notifications.History, m => m.Title == "Mount tracking stopped for safety");
     }
 
+    [Fact]
+    public async Task WithTheStandstill_TheMountStopsAtTheHold_NothingIsExposed_AndTheFlipStartsTheTrackingAgain()
+    {
+        var (vm, editor, clock, _, mount) = await EditorAsync(s => s with { StopTrackingWhileHolding = true, AutofocusAfterFlip = false });
+        await mount.SetTrackingAsync(true);
+
+        vm.Sequencer.RunCommand.Execute(null);
+        await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
+        await WaitAsync(() => ShowsFrames(editor), "frames on the blocks");
+        Assert.True(mount.Telemetry is { Tracking: true });
+
+        clock.SetHourAngle(-3); // the hold has begun
+        await WaitAsync(() => mount.Telemetry is { Tracking: false }, "the mount to stand still");
+        var status = editor.FlipStatuses.Single();
+        await WaitAsync(() => { status.Refresh(); return status.Message.Contains("stands still", StringComparison.Ordinal); }, "the message of the standstill");
+
+        // It waits: no frame is taken while the mount stands still.
+        var frames = vm.Imaging.FrameCount;
+        await Task.Delay(400);
+        Assert.Equal(frames, vm.Imaging.FrameCount);
+        Assert.True(mount.Telemetry is { Tracking: false });
+
+        clock.SetHourAngle(3); // the flip is due
+        await WaitAsync(() => vm.Sequencer.State is SequenceState.Completed or SequenceState.Failed, "the sequence to end");
+
+        Assert.Equal(SequenceState.Completed, vm.Sequencer.State);
+        Assert.Equal(MeridianFlipState.Completed, status.State);
+        Assert.Equal(0, mount.SyncCount);
+    }
+
+    [Fact]
+    public async Task TheStandstill_IsASettingOfTheSession_AndIsSaved()
+    {
+        var (vm, editor, _, _, _) = await EditorAsync(s => s with { StopTrackingWhileHolding = true });
+        var flip = OpenFlip(editor);
+
+        Assert.True(flip.StopTracking);
+        flip.StopTracking = false;
+        Assert.False(editor.Session!.Automation.Flip!.StopTrackingWhileHolding);
+        flip.StopTracking = true;
+        Assert.True(editor.Session!.Automation.Flip!.StopTrackingWhileHolding);
+        Assert.Contains("Stand still", flip.Summary, StringComparison.Ordinal);
+        await Task.CompletedTask;
+        _ = vm;
+    }
+
     private static async Task WaitAsync(Func<bool> condition, string what, int seconds = 60)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(seconds);

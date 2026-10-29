@@ -189,6 +189,9 @@ public sealed partial class FlipEditorViewModel : ObservableObject, IUnreadableF
     public partial bool StopGuiding { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool StopTracking { get; set; }
+
+    [ObservableProperty]
     public partial bool Recenter { get; set; } = true;
 
     [ObservableProperty]
@@ -239,7 +242,7 @@ public sealed partial class FlipEditorViewModel : ObservableObject, IUnreadableF
     public bool HasUnreadableFields => !UsesDefaults && _problems.Count > 0;
 
     private static string Sentence(MeridianFlipSettings s) => s.Enabled
-        ? string.Create(CultureInfo.InvariantCulture, $"Hold new exposures {s.PauseBeforeMeridianMinutes:0.#} min before the meridian, flip {s.FlipAfterMeridianMinutes:0.#} min after it, at the latest {s.LatestAllowedFlipMinutes:0.#} min after.")
+        ? string.Create(CultureInfo.InvariantCulture, $"{(s.StopTrackingWhileHolding ? "Stand still (no tracking, no exposures)" : "Hold new exposures")} {s.PauseBeforeMeridianMinutes:0.#} min before the meridian, flip {s.FlipAfterMeridianMinutes:0.#} min after it, at the latest {s.LatestAllowedFlipMinutes:0.#} min after.")
         : "Off";
 
     [RelayCommand(CanExecute = nameof(IsEditable))]
@@ -298,6 +301,7 @@ public sealed partial class FlipEditorViewModel : ObservableObject, IUnreadableF
             AfterText = FieldParse.Text(_flip.FlipAfterMeridianMinutes);
             LatestText = FieldParse.Text(_flip.LatestAllowedFlipMinutes);
             StopGuiding = _flip.StopGuidingBeforeFlip;
+            StopTracking = _flip.StopTrackingWhileHolding;
             Recenter = _flip.RecenterAfterFlip;
             Rotation = _flip.VerifyRotationAfterFlip;
             Autofocus = _flip.AutofocusAfterFlip;
@@ -324,6 +328,8 @@ public sealed partial class FlipEditorViewModel : ObservableObject, IUnreadableF
     partial void OnLatestTextChanged(string value) => Edited();
 
     partial void OnStopGuidingChanged(bool value) => Edited();
+
+    partial void OnStopTrackingChanged(bool value) => Edited();
 
     partial void OnRecenterChanged(bool value) => Edited();
 
@@ -361,6 +367,7 @@ public sealed partial class FlipEditorViewModel : ObservableObject, IUnreadableF
             FlipAfterMeridianMinutes = FieldParse.Number(AfterText, "The flip after the meridian", "a number of minutes", problems, _flip.FlipAfterMeridianMinutes),
             LatestAllowedFlipMinutes = FieldParse.Number(LatestText, "The latest allowed flip", "a number of minutes", problems, _flip.LatestAllowedFlipMinutes),
             StopGuidingBeforeFlip = StopGuiding,
+            StopTrackingWhileHolding = StopTracking,
             RecenterAfterFlip = Recenter,
             VerifyRotationAfterFlip = Rotation,
             AutofocusAfterFlip = Autofocus,

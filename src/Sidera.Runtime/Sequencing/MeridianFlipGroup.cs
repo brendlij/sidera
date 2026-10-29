@@ -64,6 +64,9 @@ public enum MeridianGateDecision
 
     /// <summary>The latest allowed flip has passed without one.</summary>
     Overdue,
+
+    /// <summary>The hold has begun and the mount is to stand still: guiding and tracking are stopped, once, with every setup at a safe point.</summary>
+    Standstill,
 }
 
 /// <summary>
@@ -88,6 +91,8 @@ public sealed class MeridianFlipGroup
     private bool _passed;
     private bool _flipping;
     private bool _forced;
+    private bool _standstilling;
+    private bool _standstillDone;
     private PierSide _pierBefore = PierSide.Unknown;
     private bool _sideChanged;
     private CelestialCoordinates? _centeringStart;
@@ -178,6 +183,17 @@ public sealed class MeridianFlipGroup
         }
 
         var phase = MeridianFlipTiming.PhaseOf(_plan.Settings, minutes);
+        if (_plan.Settings.StopTrackingWhileHolding && phase == MeridianFlipPhase.Approaching)
+        {
+            lock (_gate)
+            {
+                if (!_standstillDone)
+                {
+                    return MeridianGateDecision.Standstill;
+                }
+            }
+        }
+
         var decision = phase switch
         {
             MeridianFlipPhase.Overdue => MeridianGateDecision.Overdue,
@@ -194,10 +210,104 @@ public sealed class MeridianFlipGroup
         if (decision == MeridianGateDecision.Wait && State is MeridianFlipState.Monitoring or MeridianFlipState.Approaching)
         {
             Log("MeridianFlipHoldStarted", "Meridian flip hold: an exposure of {Seconds} s would not end before the flip, hour angle {Minutes:0.#} min", exposureSeconds, minutes);
-            await SetStateAsync(MeridianFlipState.HoldingForSafePoint, $"Holding new exposures until the flip ({FormatMinutes(_plan.Settings.FlipAfterMeridianMinutes - minutes)} to go).", minutes / 60, cancellationToken);
+            await SetStateAsync(
+                MeridianFlipState.HoldingForSafePoint,
+                _standstillDone
+                    ? $"The mount stands still before the meridian: tracking and guiding are stopped. The flip is due in {FormatMinutes(_plan.Settings.FlipAfterMeridianMinutes - minutes)}."
+                    : $"Holding new exposures until the flip ({FormatMinutes(_plan.Settings.FlipAfterMeridianMinutes - minutes)} to go).",
+                minutes / 60, cancellationToken);
         }
 
         return decision;
+    }
+
+    // ---- the standstill
+
+    /// <summary>
+    /// The hold has begun and the settings say that the mount stands still: the first setup that asks stops guiding and tracking for the whole mount group, at a point where every setup is safe (no exposure
+    /// runs), and the others wait until it is done. Tracking comes back with the flip (which starts it before the slew), guiding with the guiding that the flip restarts.
+    /// </summary>
+    public async Task StandstillAsync(ISequenceStepContext context, CancellationToken cancellationToken)
+    {
+        bool requester;
+        lock (_gate)
+        {
+            requester = !_standstilling && !_standstillDone;
+            if (requester)
+            {
+                _standstilling = true;
+            }
+        }
+
+        if (!requester)
+        {
+            while (true)
+            {
+                lock (_gate)
+                {
+                    if (_standstillDone || !_standstilling)
+                    {
+                        return;
+                    }
+                }
+
+                await context.ReachSafePointAsync(cancellationToken);
+                await Task.Delay(TimeSpan.FromMilliseconds(40), cancellationToken);
+            }
+        }
+
+        try
+        {
+            await context.ExecuteWhenSafeAsync(ct => StopForTheHoldAsync(ct), cancellationToken);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _standstilling = false;
+            }
+        }
+    }
+
+    private async Task StopForTheHoldAsync(CancellationToken cancellationToken)
+    {
+        var minutes = HourAngleMinutes();
+        foreach (var guiderId in _plan.Setups.Select(r => r.GuiderId).OfType<DeviceId>().Distinct())
+        {
+            if (_services.Registry.TryGet(guiderId, out var guiderDevice) && guiderDevice is IGuider { ConnectionState: DeviceConnectionState.Connected } guider
+                && guider.GuidingState is GuidingState.Guiding or GuidingState.Dithering or GuidingState.Starting)
+            {
+                lock (_gate)
+                {
+                    _wasGuiding.Add(guiderId);
+                }
+
+                await guider.StopGuidingAsync(cancellationToken);
+            }
+        }
+
+        if (_services.Registry.TryGet(_plan.MountId, out var device) && device is IMountControl { ConnectionState: DeviceConnectionState.Connected } control)
+        {
+            try
+            {
+                await control.SetTrackingAsync(false, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new MeridianFlipFailedException($"The tracking of the mount could not be stopped for the hold: {ex.Message}");
+            }
+        }
+
+        lock (_gate)
+        {
+            _standstillDone = true;
+        }
+
+        Log("MeridianFlipStandstill", "The mount {Mount} stands still before the meridian: guiding and tracking stopped, hour angle {Minutes:0.#} min", MountId, minutes);
+        await SetStateAsync(
+            MeridianFlipState.HoldingForSafePoint,
+            $"The mount stands still before the meridian: tracking and guiding are stopped. The flip is due in {FormatMinutes(_plan.Settings.FlipAfterMeridianMinutes - minutes)}.",
+            minutes / 60, cancellationToken);
     }
 
     // ---- the flip
@@ -839,6 +949,9 @@ public sealed class MeridianGateStep(MeridianFlipGroup group, double exposureSec
             {
                 case MeridianGateDecision.Clear:
                     return new SequenceStepResult();
+                case MeridianGateDecision.Standstill:
+                    await group.StandstillAsync(context, cancellationToken);
+                    break;
                 case MeridianGateDecision.Wait:
                     // At a safe point while waiting, so that the flip is not kept waiting for this setup.
                     await context.ReachSafePointAsync(cancellationToken);

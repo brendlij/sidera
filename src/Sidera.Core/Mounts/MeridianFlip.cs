@@ -38,6 +38,12 @@ public sealed record MeridianFlipSettings
     public double FlipAfterMeridianMinutes { get; init; } = 2;
     public double LatestAllowedFlipMinutes { get; init; } = 15;
 
+    /// <summary>
+    /// From the start of the hold (<see cref="PauseBeforeMeridianMinutes"/> before the meridian) the mount stands still: guiding and tracking are stopped and nothing is exposed, until the flip is due. A new
+    /// exposure then only starts when it ends before the hold begins. For a mount that would collide with its pier if it tracked on past the meridian. Off: the mount tracks on and exposures that fit are taken.
+    /// </summary>
+    public bool StopTrackingWhileHolding { get; init; }
+
     // ---- before the flip
 
     /// <summary>
@@ -213,8 +219,8 @@ public static class MeridianFlipTiming
         var ends = hourAngleMinutes + exposureSeconds / 60;
         return PhaseOf(settings, hourAngleMinutes) switch
         {
-            MeridianFlipPhase.Monitoring => ends <= settings.LatestAllowedFlipMinutes,
-            MeridianFlipPhase.Approaching => ends <= settings.FlipAfterMeridianMinutes,
+            MeridianFlipPhase.Monitoring => settings.StopTrackingWhileHolding ? ends <= -settings.PauseBeforeMeridianMinutes : ends <= settings.LatestAllowedFlipMinutes,
+            MeridianFlipPhase.Approaching => !settings.StopTrackingWhileHolding && ends <= settings.FlipAfterMeridianMinutes,
             _ => false,
         };
     }

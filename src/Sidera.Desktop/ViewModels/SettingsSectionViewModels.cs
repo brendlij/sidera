@@ -502,6 +502,7 @@ public sealed partial class MeridianFlipSettingsViewModel : SettingsSectionViewM
     [ObservableProperty] public partial string FlipAfterText { get; set; } = string.Empty;
     [ObservableProperty] public partial string LatestText { get; set; } = string.Empty;
     [ObservableProperty] public partial bool StopGuiding { get; set; }
+    [ObservableProperty] public partial bool StopTracking { get; set; }
     [ObservableProperty] public partial bool Recenter { get; set; }
     [ObservableProperty] public partial bool VerifyRotation { get; set; }
     [ObservableProperty] public partial bool Autofocus { get; set; }
@@ -523,7 +524,7 @@ public sealed partial class MeridianFlipSettingsViewModel : SettingsSectionViewM
         && TryWhole(AttemptsText, out var attempts) && TryNumber(ToleranceText, out var tolerance) && TryWhole(CenteringAttemptsText, out var centering)
             ? _settings.MeridianFlip with
             {
-                Enabled = Enabled, PauseBeforeMeridianMinutes = before, FlipAfterMeridianMinutes = after, LatestAllowedFlipMinutes = latest, StopGuidingBeforeFlip = StopGuiding,
+                Enabled = Enabled, PauseBeforeMeridianMinutes = before, FlipAfterMeridianMinutes = after, LatestAllowedFlipMinutes = latest, StopGuidingBeforeFlip = StopGuiding, StopTrackingWhileHolding = StopTracking,
                 RecenterAfterFlip = Recenter, VerifyRotationAfterFlip = VerifyRotation, AutofocusAfterFlip = Autofocus, RestartGuidingAfterFlip = RestartGuiding, DitherAfterFlip = Dither,
                 PauseAfterFlipMinutes = pause, MaxFlipAttempts = attempts,
                 FailureBehavior = PauseOnFailure ? MeridianFlipFailureBehavior.PauseSession : MeridianFlipFailureBehavior.AbortSession, CenteringToleranceArcseconds = tolerance,
@@ -541,6 +542,7 @@ public sealed partial class MeridianFlipSettingsViewModel : SettingsSectionViewM
         FlipAfterText = Format(s.FlipAfterMeridianMinutes);
         LatestText = Format(s.LatestAllowedFlipMinutes);
         StopGuiding = s.StopGuidingBeforeFlip;
+        StopTracking = s.StopTrackingWhileHolding;
         Recenter = s.RecenterAfterFlip;
         VerifyRotation = s.VerifyRotationAfterFlip;
         Autofocus = s.AutofocusAfterFlip;

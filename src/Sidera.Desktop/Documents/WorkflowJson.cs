@@ -177,6 +177,11 @@ internal static class WorkflowJson
         w.WriteNumber("pauseBeforeMeridianMinutes", s.PauseBeforeMeridianMinutes);
         w.WriteNumber("flipAfterMeridianMinutes", s.FlipAfterMeridianMinutes);
         w.WriteNumber("latestAllowedFlipMinutes", s.LatestAllowedFlipMinutes);
+        if (s.StopTrackingWhileHolding)
+        {
+            w.WriteBoolean("stopTrackingWhileHolding", true);
+        }
+
         w.WriteBoolean("finishCurrentExposure", s.FinishCurrentExposure);
         w.WriteBoolean("stopGuidingBeforeFlip", s.StopGuidingBeforeFlip);
         w.WriteBoolean("recenterAfterFlip", s.RecenterAfterFlip);
@@ -215,6 +220,7 @@ internal static class WorkflowJson
             PauseBeforeMeridianMinutes = Num("pauseBeforeMeridianMinutes", d.PauseBeforeMeridianMinutes),
             FlipAfterMeridianMinutes = Num("flipAfterMeridianMinutes", d.FlipAfterMeridianMinutes),
             LatestAllowedFlipMinutes = Num("latestAllowedFlipMinutes", d.LatestAllowedFlipMinutes),
+            StopTrackingWhileHolding = Flag("stopTrackingWhileHolding", d.StopTrackingWhileHolding),
             FinishCurrentExposure = Flag("finishCurrentExposure", d.FinishCurrentExposure),
             StopGuidingBeforeFlip = Flag("stopGuidingBeforeFlip", d.StopGuidingBeforeFlip),
             RecenterAfterFlip = Flag("recenterAfterFlip", d.RecenterAfterFlip),

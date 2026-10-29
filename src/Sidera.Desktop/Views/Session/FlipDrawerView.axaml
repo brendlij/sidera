@@ -33,6 +33,8 @@
             <WrapPanel ItemSpacing="20" LineSpacing="4">
                 <CheckBox Content="Finish the current exposure" IsChecked="{Binding FinishCurrentExposure, Mode=OneWay}" IsEnabled="False" ToolTip.Tip="Always on: an exposure is never aborted for a flip." />
                 <CheckBox Content="Stop guiding" IsChecked="{Binding StopGuiding}" />
+                <CheckBox Content="Stand still while holding: stop tracking and guiding, expose nothing" IsChecked="{Binding StopTracking}" AutomationProperties.AutomationId="FlipStopTracking"
+                          ToolTip.Tip="From the hold on the mount does not track and nothing is exposed, until the flip. For a mount that would collide if it tracked past the meridian." />
             </WrapPanel>
             <TextBlock Classes="meta" Text="AFTER THE FLIP" />
             <WrapPanel ItemSpacing="20" LineSpacing="4">

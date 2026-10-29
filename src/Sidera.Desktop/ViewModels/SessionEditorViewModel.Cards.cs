@@ -157,7 +157,7 @@ public sealed partial class SessionEditorViewModel
         var parts = new List<string>
         {
             "Enabled",
-            string.Create(CultureInfo.InvariantCulture, $"Hold −{settings.PauseBeforeMeridianMinutes:0.#}m"),
+            string.Create(CultureInfo.InvariantCulture, $"{(settings.StopTrackingWhileHolding ? "Stop" : "Hold")} −{settings.PauseBeforeMeridianMinutes:0.#}m"),
             string.Create(CultureInfo.InvariantCulture, $"Flip +{settings.FlipAfterMeridianMinutes:0.#}m"),
         };
         if (settings.RecenterAfterFlip)

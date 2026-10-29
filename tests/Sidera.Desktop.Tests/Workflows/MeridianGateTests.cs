@@ -156,6 +156,60 @@ public sealed class MeridianGateTests : IAsyncLifetime
         Assert.Null(await group.SecureAtRunEndAsync());
     }
 
+    private MeridianFlipGroup StandstillGroup(Clock clock)
+    {
+        _host.AddSimulatedCamera(new("camera.a"), "Camera A", 1);
+        _host.AddSimulatedMount(new("mount.1"), "Mount 1");
+        var rig = new Rig(new("rig.a"), "Main", new("camera.a"), new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), null, null, null, null, new("mount.1"));
+        var plan = new MeridianFlipPlan(
+            new("mount.1"), new MeridianFlipSettings { Enabled = true, StopTrackingWhileHolding = true }, new CelestialCoordinates(clock.RightAscensionHours, 41.3), "M31", null, rig, [rig],
+            new AutofocusOptions(TimeSpan.FromSeconds(1), 400, 7), new GuidingSettleOptions(0.5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10)), 1.5);
+        return new MeridianFlipGroup(plan, new MeridianFlipServices(_host.DeviceRegistry, Events: _host.EventBus, Time: clock, Site: () => Site));
+    }
+
+    [Theory]
+    [InlineData(-60.0, 240.0, MeridianGateDecision.Clear)] // far before the hold
+    [InlineData(-10.0, 240.0, MeridianGateDecision.Clear)] // 4 min: ends at -6, before the hold begins
+    [InlineData(-10.0, 300.0, MeridianGateDecision.Clear)] // ends exactly when the hold begins (-5)
+    [InlineData(-10.0, 301.0, MeridianGateDecision.Wait)] // would end inside the hold: the mount stands still then
+    [InlineData(-4.0, 1.0, MeridianGateDecision.Standstill)] // the hold has begun: the mount is to stand still
+    [InlineData(0.0, 1.0, MeridianGateDecision.Standstill)]
+    [InlineData(1.9, 1.0, MeridianGateDecision.Standstill)]
+    [InlineData(2.01, 1.0, MeridianGateDecision.FlipDue)]
+    public async Task WithTheStandstill_NothingIsExposedInsideTheHold_AndTheMountIsToStandStill(double hourAngleMinutes, double exposureSeconds, MeridianGateDecision expected)
+    {
+        var clock = new Clock();
+        var group = StandstillGroup(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+
+        clock.SetHourAngle(hourAngleMinutes);
+
+        Assert.Equal(expected, await group.EvaluateAsync(exposureSeconds, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(-30.0, 1800.0, true)] // before the hold, ends at 0 = inside the hold: not with the standstill
+    [InlineData(-30.0, 1500.0, true)] // ends at -5: yes
+    [InlineData(-4.0, 1.0, false)] // inside the hold: nothing starts
+    [InlineData(1.0, 1.0, false)]
+    public void TheExposureGuard_KnowsTheStandstill(double hourAngleMinutes, double exposureSeconds, bool allowedWithTheStandstill)
+    {
+        var standstill = new MeridianFlipSettings { Enabled = true, StopTrackingWhileHolding = true };
+
+        Assert.Equal(allowedWithTheStandstill && hourAngleMinutes + exposureSeconds / 60 <= -5, MeridianFlipTiming.CanStartExposure(standstill, hourAngleMinutes, exposureSeconds));
+    }
+
+    [Fact]
+    public void WithoutTheStandstill_TheGuardIsAsItWas()
+    {
+        var plain = new MeridianFlipSettings { Enabled = true };
+
+        Assert.True(MeridianFlipTiming.CanStartExposure(plain, -4, 60)); // inside the hold: it ends at -3, before the flip is due
+        Assert.True(MeridianFlipTiming.CanStartExposure(plain, -30, 1800)); // ends at 0, before the latest allowed flip
+        Assert.False(plain.StopTrackingWhileHolding);
+    }
+
     [Fact]
     public async Task ATargetThatIsAlreadyWestOfTheMeridianAtTheFirstLook_NeedsNoFlip_AndStaysClear()
     {
