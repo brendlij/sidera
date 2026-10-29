@@ -185,7 +185,7 @@ A test of a real device runs when you name the device; there is no second switch
 - Settings (the observing site): `%APPDATA%\Sidera\settings.json` (override with `SIDERA_SETTINGS_FILE`). Without the file, or without a
   site in it, the site is unknown; Sidera never assumes 0° 0° 0 m. Imaging setups keep their optical inputs in the equipment file.
 - Environment variables with the old `ASTRA_` prefix still work when the `SIDERA_` one of the same name is not set.
-- The format names `astra-sequence` and `astra-equipment` belong to the formats from before the rename and stay. Session files are `.sideraseq`; files named `.astraseq` still open.
+- The format names are `sidera-sequence` and `sidera-equipment`, session files are `.sideraseq`. Files with the earlier names (`astra-sequence`, `astra-equipment`, `.astraseq`) still open and are written with the new names when saved.
   They are kept, so existing files keep loading.
 
 ### Plate solving and centering

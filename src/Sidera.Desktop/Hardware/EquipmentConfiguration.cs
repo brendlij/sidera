@@ -161,9 +161,10 @@ public sealed record RigConfiguration(
 /// </summary>
 public sealed record EquipmentConfiguration(IReadOnlyList<DeviceConfiguration> Devices, IReadOnlyList<RigConfiguration> Rigs)
 {
-    // The format name from before the product was called Sidera. Kept: existing equipment files stay readable, and a new name
-    // would need a compatibility layer and no change of the format would come of it.
-    public const string FormatId = "astra-equipment";
+    public const string FormatId = "sidera-equipment";
+
+    /// <summary>The identifier from before the product was called Sidera; files with it still load.</summary>
+    public const string LegacyFormatId = "astra-equipment";
     public const int CurrentVersion = 1;
 
     public static EquipmentConfiguration Empty { get; } = new([], []);

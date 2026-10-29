@@ -8,7 +8,7 @@ namespace Sidera.Desktop.Tests.Hardware;
 /// <summary>The equipment file: its format, what it refuses, and the store that keeps it.</summary>
 public sealed class EquipmentConfigurationTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "astra-equipment-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "sidera-equipment-tests-" + Guid.NewGuid().ToString("N"));
 
     public EquipmentConfigurationTests()
     {
@@ -56,7 +56,7 @@ public sealed class EquipmentConfigurationTests : IDisposable
     {
         var text = EquipmentConfigurationSerializer.ToText(Sample());
 
-        Assert.Contains("\"format\": \"astra-equipment\"", text);
+        Assert.Contains("\"format\": \"sidera-equipment\"", text);
         Assert.Contains("\"version\": 1", text);
         Assert.Contains("\"id\": \"camera.main\"", text);
         Assert.Contains("\"type\": \"Camera\"", text);

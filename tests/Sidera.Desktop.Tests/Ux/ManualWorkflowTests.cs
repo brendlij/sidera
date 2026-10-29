@@ -67,7 +67,7 @@ public sealed class ManualWorkflowTests : IAsyncLifetime
                 new Sidera.Sky.SkySurveyInfo { Id = survey.Id, Title = survey.Title, SourceUrl = survey.BaseUrl }, null));
     }
 
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "astra-workflow-" + Guid.NewGuid().ToString("N"));
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "sidera-workflow-" + Guid.NewGuid().ToString("N"));
     private SideraRuntimeHost? _host;
     private MainViewModel? _vm;
 

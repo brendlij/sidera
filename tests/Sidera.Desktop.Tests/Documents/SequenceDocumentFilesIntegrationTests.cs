@@ -102,7 +102,7 @@ public sealed class SequenceDocumentFilesIntegrationTests : IDisposable
         Assert.True(File.Exists(path));
         Assert.Equal("Test Session.sideraseq", app.Document.DisplayName);
         var text = await File.ReadAllTextAsync(path);
-        Assert.Contains("\"format\": \"astra-sequence\"", text, StringComparison.Ordinal);
+        Assert.Contains("\"format\": \"sidera-sequence\"", text, StringComparison.Ordinal);
         Assert.Contains("\"version\": 9", text, StringComparison.Ordinal);
         Assert.Contains("\"exposureSeconds\": 123", text, StringComparison.Ordinal);
 

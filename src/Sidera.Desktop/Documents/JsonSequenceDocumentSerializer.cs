@@ -431,7 +431,7 @@ public sealed class JsonSequenceDocumentSerializer : ISequenceDocumentSerializer
 
         if (!root.TryGetProperty("format", out var format)
             || format.ValueKind != JsonValueKind.String
-            || format.GetString() != SequenceDocument.FormatId)
+            || format.GetString() is not (SequenceDocument.FormatId or SequenceDocument.LegacyFormatId))
         {
             throw Container("This file is not an Sidera sequence document.");
         }

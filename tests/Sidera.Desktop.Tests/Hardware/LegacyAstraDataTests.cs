@@ -115,9 +115,9 @@ public sealed class LegacyAstraDataTests : IDisposable
         var device = Assert.Single(loaded.Devices);
         Assert.Equal(("camera.asi", "ASCOM.ASICamera2.Camera"), (device.Id, device.ProgId));
         var written = File.ReadAllText(Current);
-        Assert.Contains("\"format\": \"astra-equipment\"", written); // a format name, not the product name
+        Assert.Contains("\"format\": \"sidera-equipment\"", written); // the new name, the old one was read
         Assert.Contains("\"version\": 1", written);
-        Assert.Equal(("astra-equipment", 1), (EquipmentConfiguration.FormatId, EquipmentConfiguration.CurrentVersion));
+        Assert.Equal(("sidera-equipment", 1), (EquipmentConfiguration.FormatId, EquipmentConfiguration.CurrentVersion));
     }
 
     [Fact]
@@ -131,6 +131,6 @@ public sealed class LegacyAstraDataTests : IDisposable
         Assert.Single(document.Steps);
         Assert.Equal(".sideraseq", SequenceDocumentFiles.Extension);
         Assert.Equal("*.astraseq", SequenceDocumentFiles.LegacyPattern);
-        Assert.Equal(("astra-sequence", SequenceDocument.CurrentVersion), (SequenceDocument.FormatId, SequenceDocument.CurrentVersion));
+        Assert.Equal(("sidera-sequence", SequenceDocument.CurrentVersion), (SequenceDocument.FormatId, SequenceDocument.CurrentVersion));
     }
 }

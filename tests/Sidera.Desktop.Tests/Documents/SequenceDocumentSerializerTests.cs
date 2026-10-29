@@ -155,7 +155,7 @@ public class SequenceDocumentSerializerTests
         using var json = JsonDocument.Parse(await Write(MixedDocument()));
         var root = json.RootElement;
 
-        Assert.Equal("astra-sequence", root.GetProperty("format").GetString());
+        Assert.Equal("sidera-sequence", root.GetProperty("format").GetString());
         Assert.Equal(SequenceDocument.CurrentVersion, root.GetProperty("version").GetInt32());
         Assert.Equal("M42 Session", root.GetProperty("name").GetString());
         Assert.Equal(JsonValueKind.Array, root.GetProperty("steps").ValueKind);
@@ -332,7 +332,7 @@ public class SequenceDocumentSerializerTests
     [InlineData("{\"version\":1,\"steps\":[]}")]
     [InlineData("{\"format\":\"sidera-session\",\"version\":1,\"steps\":[]}")]
     [InlineData("{\"format\":5,\"version\":1,\"steps\":[]}")]
-    public async Task AnotherOrMissingFormat_IsRejectedAsNotAnAstraSequence(string text)
+    public async Task AnotherOrMissingFormat_IsRejectedAsNotASideraSequence(string text)
     {
         var ex = await Rejects(text);
 
@@ -641,7 +641,7 @@ public class SequenceDocumentSerializerTests
         Assert.Equal(
             """
             {
-              "format": "astra-sequence",
+              "format": "sidera-sequence",
               "version": 9,
               "name": "Demo Session",
               "sharedEquipment": {

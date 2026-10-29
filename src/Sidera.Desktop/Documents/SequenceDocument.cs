@@ -19,7 +19,10 @@ public sealed record SequenceDocument(
     Sidera.Desktop.Sessions.SessionDefinition? Session = null)
 {
     /// <summary>The value every Sidera sequence document carries to say what it is.</summary>
-    public const string FormatId = "astra-sequence";
+    public const string FormatId = "sidera-sequence";
+
+    /// <summary>The identifier from before the product was called Sidera; files with it still load.</summary>
+    public const string LegacyFormatId = "astra-sequence";
 
     /// <summary>
     /// The version of the format that serializers write today. Documents in memory are always this version; what an

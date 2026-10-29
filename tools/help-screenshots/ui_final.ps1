@@ -10,7 +10,7 @@ if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null 
 
 $two = @'
 {
-  "format": "astra-equipment",
+  "format": "sidera-equipment",
   "version": 1,
   "devices": [
     { "id": "camera.main", "name": "ASI2600MM", "type": "Camera", "backend": "Simulator" },
@@ -28,7 +28,7 @@ $two = @'
 '@
 $one = @'
 {
-  "format": "astra-equipment",
+  "format": "sidera-equipment",
   "version": 1,
   "devices": [
     { "id": "camera.main", "name": "ASI2600MM", "type": "Camera", "backend": "Simulator" },
@@ -40,7 +40,7 @@ $one = @'
 '@
 $none = @'
 {
-  "format": "astra-equipment",
+  "format": "sidera-equipment",
   "version": 1,
   "devices": [
     { "id": "camera.a", "name": "ASI2600MM", "type": "Camera", "backend": "Simulator" },
@@ -87,7 +87,7 @@ function Find-ById($id) {
 
 $ErrorActionPreference = "Stop"
 try {
-    Start-Astra
+    Start-Sidera
     Start-Sleep -Seconds 2
     $wp = $script:win.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
     if (-not $NoMaximize) { $wp.SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Maximized) }
@@ -143,5 +143,5 @@ try {
     }
 }
 finally {
-    Stop-Astra
+    Stop-Sidera
 }

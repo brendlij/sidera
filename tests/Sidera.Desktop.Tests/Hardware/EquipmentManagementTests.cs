@@ -51,7 +51,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         }
     }
 
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "astra-equipment-vm-" + Guid.NewGuid().ToString("N"));
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "sidera-equipment-vm-" + Guid.NewGuid().ToString("N"));
     private readonly FakeDiscovery _discovery = new();
     private readonly FakeSetup _setup = new();
     private readonly CallLog _log = new();
@@ -950,7 +950,7 @@ public sealed class EquipmentManagementTests : IAsyncLifetime
         Assert.Equal(["host", "port"], stored.Settings.Keys.Order()); // nothing of a state: not connected, not guiding, no samples
         var json = File.ReadAllText(File_);
         Assert.Contains("\"backend\": \"PHD2\"", json);
-        Assert.Contains("\"astra-equipment\"", json);
+        Assert.Contains("\"sidera-equipment\"", json);
         Assert.DoesNotContain("guiding", json, StringComparison.OrdinalIgnoreCase);
     }
 

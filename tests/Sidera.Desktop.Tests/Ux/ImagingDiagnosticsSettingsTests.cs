@@ -249,7 +249,7 @@ public class ImagingDiagnosticsSettingsTests
         Assert.Equal(["General"], withoutStore.Tabs.Select(t => t.Title)); // no site store: nothing editable, so no editable tabs
         Assert.True(withoutStore.IsGeneral);
 
-        var path = Path.Combine(Path.GetTempPath(), "astra-settings-tabs-" + Guid.NewGuid().ToString("N") + ".json");
+        var path = Path.Combine(Path.GetTempPath(), "sidera-settings-tabs-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
             var settings = new SettingsViewModel(null, new Sidera.Desktop.Settings.SiteService(new Sidera.Desktop.Settings.SideraSettingsStore(path)));

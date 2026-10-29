@@ -15,7 +15,7 @@ namespace Sidera.Desktop.Hardware;
 public sealed class EquipmentConfigurationException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>
-/// Reads and writes the equipment file: JSON, <c>"format": "astra-equipment"</c>, <c>"version": 1</c>. Reading is strict about
+/// Reads and writes the equipment file: JSON, <c>"format": "sidera-equipment"</c>, <c>"version": 1</c>. Reading is strict about
 /// what Sidera needs (ids, names, kinds, backends, the ProgId of an ASCOM device, unique ids) and ignores properties it does
 /// not know, so that a later version can add some. A file of a newer version is refused, not half read.
 /// </summary>
@@ -173,7 +173,7 @@ public static class EquipmentConfigurationSerializer
         using (document)
         {
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || String(root, "format") != EquipmentConfiguration.FormatId)
+            if (root.ValueKind != JsonValueKind.Object || String(root, "format") is not (EquipmentConfiguration.FormatId or EquipmentConfiguration.LegacyFormatId))
             {
                 throw new EquipmentConfigurationException("This is not an Sidera equipment file.");
             }

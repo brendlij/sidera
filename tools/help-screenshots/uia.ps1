@@ -3,7 +3,7 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $script:proc = $null
 $script:win = $null
 
-function Start-Astra {
+function Start-Sidera {
     $exe = Join-Path $PSScriptRoot "..\..\src\Sidera.Desktop\bin\Release\net10.0-windows\Sidera.Desktop.exe"
     $script:proc = Start-Process -FilePath $exe -PassThru
     for ($i = 0; $i -lt 60; $i++) {
@@ -16,7 +16,7 @@ function Start-Astra {
     throw "Window not found"
 }
 
-function Stop-Astra {
+function Stop-Sidera {
     if ($script:proc -and -not $script:proc.HasExited) { $script:proc.Kill() }
 }
 

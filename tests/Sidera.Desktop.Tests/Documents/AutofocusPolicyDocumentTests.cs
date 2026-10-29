@@ -168,7 +168,7 @@ public sealed class AutofocusPolicyDocumentTests : IDisposable
         Assert.Equal(
             """
             {
-              "format": "astra-sequence",
+              "format": "sidera-sequence",
               "version": 9,
               "steps": [
                 {

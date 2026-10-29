@@ -143,7 +143,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         using var json = JsonDocument.Parse(await Write(ThreeRigs()));
         var root = json.RootElement;
 
-        Assert.Equal("astra-sequence", root.GetProperty("format").GetString());
+        Assert.Equal("sidera-sequence", root.GetProperty("format").GetString());
         Assert.Equal(SequenceDocument.CurrentVersion, root.GetProperty("version").GetInt32());
         Assert.Equal(["format", "version", "name", "sharedEquipment", "steps"], root.EnumerateObject().Select(p => p.Name));
         var shared = root.GetProperty("sharedEquipment");
@@ -474,7 +474,7 @@ public sealed class MultiRigDocumentTests : IDisposable
         Assert.Equal(
             """
             {
-              "format": "astra-sequence",
+              "format": "sidera-sequence",
               "version": 9,
               "name": "Three Telescopes",
               "sharedEquipment": {

@@ -14,7 +14,7 @@ namespace Sidera.Desktop.Tests.Hardware;
 /// </summary>
 public sealed class EquipmentServiceTests : IAsyncLifetime
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "astra-equipment-service-" + Guid.NewGuid().ToString("N"));
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "sidera-equipment-service-" + Guid.NewGuid().ToString("N"));
     private readonly List<SideraRuntimeHost> _hosts = [];
     private readonly CallLog _driverLog = new();
     private readonly FakeDriverFactory _drivers;
