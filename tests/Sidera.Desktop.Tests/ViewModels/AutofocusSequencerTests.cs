@@ -74,6 +74,18 @@ public class AutofocusSequencerTests
     // The status on its own
 
     [Fact]
+    public void ASampleWhereNoStarCouldBeMeasured_IsShown_AndDoesNotStopTheApplication()
+    {
+        var status = new AutofocusStatusViewModel(Main, "Main Rig");
+        status.Apply(new AutofocusProgress(AutofocusPhase.Measuring, 1, 0, 7));
+        status.Apply(new AutofocusProgress(AutofocusPhase.Measuring, 1, 3, 7, 12470, null));
+
+        Assert.Equal(["Sample 3 / 7", "Position 12470", "No star measured"], status.Lines);
+        Assert.Equal("Sample 3 / 7 · no star measured", status.Summary);
+        Assert.True(status.IsActive);
+    }
+
+    [Fact]
     public void TheStatus_ShowsOnlyWhatTheRunReported_InTheWordsOfTheSpec()
     {
         var status = new AutofocusStatusViewModel(Main, "Main Rig");

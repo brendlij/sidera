@@ -105,9 +105,21 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
                     Show([Invariant($"Sampling {progress.SampleCount} focus positions"), .. Pass(progress)]);
                     Summarize(Invariant($"Sampling {progress.SampleCount} positions"));
                 }
+                else if (progress.Position is not { } position || progress.Hfr is not { } hfr)
+                {
+                    // A position where no star could be measured (too blurred): shown, and not part of the curve.
+                    Show(
+                    [
+                        Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount}"),
+                        Invariant($"Position {progress.Position}"),
+                        "No star measured",
+                        .. Pass(progress),
+                    ]);
+                    Summarize(Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount} · no star measured"));
+                }
                 else
                 {
-                    _measurements.Add(new FocusMeasurement(progress.Position!.Value, progress.Hfr!.Value));
+                    _measurements.Add(new FocusMeasurement(position, hfr));
                     Show(
                     [
                         Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount}"),
