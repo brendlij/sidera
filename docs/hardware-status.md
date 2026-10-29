@@ -8,10 +8,10 @@ This page says what has been seen working on real equipment and what has only be
 
 | Area | What | Equipment |
 |---|---|---|
-| Camera | Connect, exposures, image download | ZWO ASI2600 (ASCOM) |
-| Focuser | Connect, absolute moves | ZWO EAF (ASCOM) |
-| Mount | Connect and read, slews, **Slew & Center** converges in 2–3 attempts on both sides of the pier, a first **meridian flip** (the pier side changed) | OnStep (ASCOM), in October 2026 |
-| Plate solving | ASTAP solves 5 s frames in about a second | ASI2600 with a 750 mm telescope |
+| Camera | Connect, exposures, image download | An ASCOM cooled camera |
+| Focuser | Connect, absolute moves | An ASCOM focuser |
+| Mount | Connect and read, slews, **Slew & Center** converges in 2–3 attempts on both sides of the pier, a first **meridian flip** (the pier side changed) | An ASCOM mount (one real mount, October 2026) |
+| Plate solving | ASTAP solves 5 s frames in about a second | One camera and telescope |
 
 The first real flip showed that the pointing of that mount was 0.5° to 1.2° off after slews (alignment of the mount, not Sidera) and that the centering after the flip failed because the mount had stopped tracking. Sidera now checks tracking, waits for the mount to settle, and retries a lost solve; **these changes have not been run on the mount again**.
 
@@ -31,7 +31,7 @@ The first real flip showed that the pointing of that mount was 0.5° to 1.2° of
 - Slews send catalog (J2000) coordinates to the mount as they are; Slew & Center corrects the difference. The meridian time does use the position of date.
 - Frames of autofocus and plate solves are not saved; JPG, a second copy and moving frames after a session are not there yet.
 
-The full list is the [backlog](backlog.md).
+The list is not complete: whatever is not named as verified above should be treated as untested.
 
 ## Testing safely
 

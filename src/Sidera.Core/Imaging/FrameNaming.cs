@@ -37,8 +37,8 @@ public static class FrameNaming
     public static IReadOnlyList<FrameNamePart> Parts { get; } =
     [
         new("target", "The name of the target of the session", "M31"),
-        new("setup", "The imaging setup", "750pds"),
-        new("camera", "The camera", "ASI2600MC"),
+        new("setup", "The imaging setup", "Newton"),
+        new("camera", "The camera", "CameraA"),
         new("filter", "The filter in the light path", "Ha"),
         new("type", "Light, Dark, Flat or Bias", "Light"),
         new("exposure", "The exposure time in seconds", "300s"),

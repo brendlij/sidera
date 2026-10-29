@@ -245,12 +245,12 @@ public sealed class SiteModelTests
     [Fact]
     public void ADifferentCity_IsAMajorMismatch()
     {
-        // Hamburg to Munich: about 300 km.
-        var comparison = SiteComparison.Compare(Home, new ObservingSite(48.1372, 11.5756, 520));
+        // Munich to Hamburg: about 610 km.
+        var comparison = SiteComparison.Compare(Home, new ObservingSite(53.5511, 9.9937, 520));
 
         Assert.False(comparison.IsEquivalent);
         Assert.Equal(SiteMismatchSeverity.Major, comparison.Severity);
-        Assert.InRange(comparison.HorizontalDistanceMeters, 270_000, 330_000);
+        Assert.InRange(comparison.HorizontalDistanceMeters, 580_000, 640_000);
         Assert.Equal(110, comparison.ElevationDifferenceMeters, 9);
     }
 

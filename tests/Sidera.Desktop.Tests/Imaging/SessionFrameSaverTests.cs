@@ -44,11 +44,11 @@ public sealed class SessionFrameSaverTests : IAsyncLifetime
     {
         var host = new SideraRuntimeHost();
         _hosts.Add(host);
-        host.AddSimulatedCamera(CameraId, "ASI2600MC", 1);
+        host.AddSimulatedCamera(CameraId, "Camera A", 1);
         if (withWheel)
         {
             var wheel = host.AddSimulatedFilterWheel(new("wheel.main"), "Wheel", [new FilterSlot(0, "L"), new FilterSlot(1, "Ha")], moveDuration: TimeSpan.FromMilliseconds(5));
-            host.AddRig(new Rig(new("rig.main"), "750pds", CameraId, new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), null, new("wheel.main")));
+            host.AddRig(new Rig(new("rig.main"), "Newton", CameraId, new OpticalTrain(750, 150, 3.76, 3.76, 6248, 4176), null, new("wheel.main")));
             await host.DeviceOperations.ConnectAsync(wheel.Id);
             await wheel.MoveToSlotAsync(1);
         }
@@ -105,8 +105,8 @@ public sealed class SessionFrameSaverTests : IAsyncLifetime
         var header = Header(saver.LastSavedPath!);
         Assert.Contains("OBJECT  = 'M31", header);
         Assert.Contains("FILTER  = 'Ha", header);
-        Assert.Contains("INSTRUME= 'ASI2600MC", header);
-        Assert.Contains("TELESCOP= '750pds", header);
+        Assert.Contains("INSTRUME= 'Camera A", header);
+        Assert.Contains("TELESCOP= 'Newton", header);
         Assert.Contains("EXPTIME", header);
         Assert.Contains("GAIN", header);
         Assert.Contains("DATE-OBS", header);

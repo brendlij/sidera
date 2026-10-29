@@ -19,8 +19,8 @@ A line under the fields shows an example of the path while you type, for example
 | Part | Value | Example |
 |---|---|---|
 | `{target}` | The name of the target of the session | `M31` |
-| `{setup}` | The imaging setup | `750pds` |
-| `{camera}` | The camera | `ASI2600MC` |
+| `{setup}` | The imaging setup | `Newton` |
+| `{camera}` | The camera | `CameraA` |
 | `{filter}` | The filter in the light path when the exposure started | `Ha` |
 | `{type}` | Light, Dark, Flat or Bias | `Light` |
 | `{exposure}` | The exposure time | `300s` |

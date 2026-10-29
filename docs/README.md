@@ -16,7 +16,6 @@
 **Reference and project**
 - [Feature reference](reference.md): every behaviour on one page
 - [Development](development.md): build, test, layout, environment variables
-- [Backlog](backlog.md): what is planned and what is missing
 - Design notes: [multi-device architecture](multi-device-architecture-v2.md), [sequencer redesign](sequencer-ux-redesign.md)
 
 The application has the same guidance built in: the **Help** entry of the sidebar, and a **?** on every page and settings tab.

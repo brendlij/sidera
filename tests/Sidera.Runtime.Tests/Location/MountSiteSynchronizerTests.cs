@@ -37,7 +37,7 @@ public sealed class MountSiteSynchronizerTests
     [Fact]
     public void ARoundingOfAFewMeters_IsNotAMismatch()
     {
-        var a = MountSiteSynchronizer.Assess(Home, new MountSite(48.13510, 11.58170, 242), MountSiteWriteSupport.Supported);
+        var a = MountSiteSynchronizer.Assess(Home, new MountSite(48.13515, 11.58176, 242), MountSiteWriteSupport.Supported);
 
         Assert.Equal(SiteSituation.InSync, a.Situation);
     }
@@ -45,11 +45,11 @@ public sealed class MountSiteSynchronizerTests
     [Fact]
     public void DifferentSites_AreAMismatch_WithBothPlacesAndTheComparison()
     {
-        var a = MountSiteSynchronizer.Assess(Home, new MountSite(48.1372, 11.5756, 520), MountSiteWriteSupport.Supported);
+        var a = MountSiteSynchronizer.Assess(Home, new MountSite(53.5511, 9.9937, 520), MountSiteWriteSupport.Supported);
 
         Assert.Equal(SiteSituation.Mismatch, a.Situation);
         Assert.Equal(Home, a.Sidera);
-        Assert.Equal(48.1372, a.Mount!.LatitudeDegrees);
+        Assert.Equal(53.5511, a.Mount!.LatitudeDegrees);
         Assert.Equal(SiteMismatchSeverity.Major, a.Comparison!.Severity);
         Assert.True(a.CanSendToMount);
     }
@@ -57,7 +57,7 @@ public sealed class MountSiteSynchronizerTests
     [Fact]
     public void AMountThatOwnsItsLocation_IsNotOfferedASite()
     {
-        var a = MountSiteSynchronizer.Assess(Home, new MountSite(48.1372, 11.5756, 520), MountSiteWriteSupport.NotSupported);
+        var a = MountSiteSynchronizer.Assess(Home, new MountSite(53.5511, 9.9937, 520), MountSiteWriteSupport.NotSupported);
 
         Assert.Equal(SiteSituation.Mismatch, a.Situation);
         Assert.False(a.CanSendToMount);
@@ -79,7 +79,7 @@ public sealed class MountSiteSynchronizerTests
     [Fact]
     public void WithoutASiteInSidera_TheMountsIsOffered_NotTaken()
     {
-        var a = MountSiteSynchronizer.Assess(null, new MountSite(48.1372, 11.5756, 520), MountSiteWriteSupport.Supported);
+        var a = MountSiteSynchronizer.Assess(null, new MountSite(53.5511, 9.9937, 520), MountSiteWriteSupport.Supported);
 
         Assert.Equal(SiteSituation.MountOffersSite, a.Situation);
         Assert.Null(a.Sidera);
@@ -98,11 +98,11 @@ public sealed class MountSiteSynchronizerTests
     [Fact]
     public void UsingTheMountsLocation_KeepsTheNameOfTheSite_AndTheValuesOfTheMount()
     {
-        var adopted = MountSiteSynchronizer.AdoptMountSite(new MountSite(48.1372, 11.5756, 520), Home)!;
+        var adopted = MountSiteSynchronizer.AdoptMountSite(new MountSite(53.5511, 9.9937, 520), Home)!;
 
         Assert.Equal("Home Observatory", adopted.Name);
-        Assert.Equal((48.1372, 11.5756, 520), (adopted.LatitudeDegrees, adopted.LongitudeDegrees, adopted.ElevationMeters));
-        Assert.Null(MountSiteSynchronizer.AdoptMountSite(new MountSite(48.1372, 11.5756, 520), null)!.Name);
+        Assert.Equal((53.5511, 9.9937, 520), (adopted.LatitudeDegrees, adopted.LongitudeDegrees, adopted.ElevationMeters));
+        Assert.Null(MountSiteSynchronizer.AdoptMountSite(new MountSite(53.5511, 9.9937, 520), null)!.Name);
     }
 
     [Fact]

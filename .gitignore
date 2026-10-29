@@ -4,3 +4,6 @@
 .validation/
 
 publish/
+
+# Local planning notes, not part of the repository
+docs/backlog.md

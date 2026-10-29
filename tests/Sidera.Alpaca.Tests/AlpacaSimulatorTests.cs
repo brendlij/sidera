@@ -16,7 +16,7 @@ public sealed class AlpacaSimulatorFactAttribute : FactAttribute
     public const string ServerVariable = "SIDERA_ALPACA_SERVER";
 
     /// <summary>The only hosts a test may talk to.</summary>
-    public static readonly string[] AllowedHosts = ["127.0.0.1", "localhost", "::1", "127.0.0.1"];
+    public static readonly string[] AllowedHosts = ["127.0.0.1", "localhost", "::1"];
 
     public AlpacaSimulatorFactAttribute()
     {

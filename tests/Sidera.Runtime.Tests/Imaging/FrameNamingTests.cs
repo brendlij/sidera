@@ -7,7 +7,7 @@ namespace Sidera.Runtime.Tests.Imaging;
 public class FrameNamingTests
 {
     private static FrameNameValues Values(string? target = "M31", string? filter = "Ha", FrameType type = FrameType.Light, double seconds = 300, DateTime? start = null) =>
-        new(target, "750pds", "ASI2600MC", filter, type, seconds, start ?? new DateTime(2026, 10, 12, 22, 5, 9), 100, 50, -9.6, 1, 1);
+        new(target, "Newton", "CameraA", filter, type, seconds, start ?? new DateTime(2026, 10, 12, 22, 5, 9), 100, 50, -9.6, 1, 1);
 
     [Fact]
     public void TheDefaultPatterns_MakeTheTargetNightAndTypeFolders_AndAFileNameThatNamesTheFrame()
@@ -23,7 +23,7 @@ public class FrameNamingTests
     {
         var name = FrameNaming.FileName("{target}|{setup}|{camera}|{filter}|{type}|{exposure}|{night}|{date}|{time}|{n}|{gain}|{offset}|{temp}|{bin}", Values(), 12);
 
-        Assert.Equal("M31|750pds|ASI2600MC|Ha|Light|300s|2026-10-12|2026-10-12|220509|0012|gain100|offset50|-10C|bin1x1", name.Replace('_', '|'));
+        Assert.Equal("M31|Newton|CameraA|Ha|Light|300s|2026-10-12|2026-10-12|220509|0012|gain100|offset50|-10C|bin1x1", name.Replace('_', '|'));
     }
 
     [Fact]

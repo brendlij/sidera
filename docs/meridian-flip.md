@@ -1,6 +1,6 @@
 # Meridian flip
 
-> A first real flip has been done on one OnStep mount. The safeguards described below were added afterwards and have only been tested against simulators. **Do not leave a flip unattended**, and know the meridian limits of your mount.
+> A first real flip has been done on one real mount. The safeguards described below were added afterwards and have only been tested against simulators. **Do not leave a flip unattended**, and know the meridian limits of your mount.
 
 ![Settings, Meridian Flip](images/meridian-flip-settings.png)
 

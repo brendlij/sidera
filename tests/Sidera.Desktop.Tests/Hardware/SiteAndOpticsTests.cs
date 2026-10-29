@@ -226,9 +226,9 @@ public sealed class SiteAndOpticsTests : IAsyncLifetime
     {
         var app = Create();
 
-        app.Site.Set(new ObservingSite(48.1372, 11.5756, 520, "Munich"));
+        app.Site.Set(new ObservingSite(53.5511, 9.9937, 520, "Hamburg"));
 
-        Assert.Equal("48.1372° N", app.Vm.Settings.Site!.LatitudeText);
+        Assert.Equal("53.5511° N", app.Vm.Settings.Site!.LatitudeText);
         Assert.True(app.Vm.Settings.Site.IsConfigured);
     }
 

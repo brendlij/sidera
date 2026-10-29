@@ -41,7 +41,7 @@ public class PrecessionTests
     [Fact]
     public void TheHourAngleOfAJ2000Target_IsTheOneOfDate_NotOfTheCatalog()
     {
-        const double longitude = 11.5000;
+        const double longitude = 11.5817;
         var j2000 = MeridianFlipTiming.HourAngleHours(21.49954, Date, longitude);
         var ofDate = MeridianFlipTiming.HourAngleHoursOfJ2000(21.49954, 12.1670, Date, longitude);
 

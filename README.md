@@ -38,8 +38,8 @@ roll-off roofs, PHD2 for guiding, ASTAP for plate solving, and with built-in sim
 ## Status
 
 Sidera is under active development. Read [Status and what has been tested](docs/hardware-status.md) before you connect anything that moves.
-The short version: the camera and the focuser have been used on real hardware, a first real meridian flip has been done on an OnStep mount, and everything else (guiding, dither, dome, filter wheel, autofocus on real stars)
-is tested against simulators and fakes only. The list of what is still missing is the [backlog](docs/backlog.md).
+The short version: the camera and the focuser have been used on real hardware, a first real meridian flip has been done on one ASCOM mount, and everything else (guiding, dither, dome, filter wheel, autofocus on real stars)
+is tested against simulators and fakes only.
 
 ## Get it running
 
@@ -66,7 +66,6 @@ Without devices, open **Equipment** and add the simulated demo equipment to try 
 | [Troubleshooting](docs/troubleshooting.md) | Problem, likely reason, what to check |
 | [Feature reference](docs/reference.md) | Everything in one long page |
 | [Development](docs/development.md) | Build, test, repository layout, environment variables |
-| [Backlog](docs/backlog.md) | What is planned and what is known to be missing |
 
 There is also a **Help** entry in the application itself (above Settings) with the same guidance, pictures of the real pages and a **?** on every page.
 

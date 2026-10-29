@@ -46,5 +46,5 @@ The application itself only reads `SIDERA_EQUIPMENT_FILE` and `SIDERA_SETTINGS_F
 
 - Text the user reads follows the wording of the application; a test checks it (no internal words such as the file format).
 - The format of a session file stays at version 9; the extension `.astraseq` and the format names are kept from the time the project was called Astra.
-- Commits describe what changed and why; there is a `docs/backlog.md` for what is planned.
+- Commits describe what changed and why.
 - The pictures of the Help Center can be taken again with `tools/help-screenshots` (see its README).
