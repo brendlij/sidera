@@ -24,7 +24,7 @@ public sealed partial class FilterWheelViewModel : DeviceViewModelBase
         : base(wheel, host, postToUi, activity)
     {
         _wheel = wheel;
-        CurrentSlot = wheel.CurrentSlot;
+        CurrentSlot = SlotOf(wheel);
         _motionSubscription = host.EventBus.Subscribe<FilterWheelMotionStateChanged>((e, _) =>
         {
             if (e.DeviceId == wheel.Id)
@@ -44,8 +44,23 @@ public sealed partial class FilterWheelViewModel : DeviceViewModelBase
             return Task.CompletedTask;
         });
 
-        SelectedFilter = wheel.CurrentSlot;
+        SelectedFilter = KnownSlotOf(wheel);
         Refresh();
+    }
+
+    /// <summary>The slot in the light path, or a placeholder while the wheel knows none (an ASCOM wheel that is not connected).</summary>
+    private static FilterSlot SlotOf(IFilterWheel wheel) => KnownSlotOf(wheel) ?? new FilterSlot(0, "—");
+
+    private static FilterSlot? KnownSlotOf(IFilterWheel wheel)
+    {
+        try
+        {
+            return wheel.CurrentSlot;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     /// <summary>The slots of the wheel, in order, to pick from by name.</summary>
@@ -111,12 +126,12 @@ public sealed partial class FilterWheelViewModel : DeviceViewModelBase
         if (StateStore.TryGet(Id, out var state) && state?.FilterWheelMotionState is { } motion)
         {
             MotionState = motion;
-            CurrentSlot = state.FilterSlot ?? _wheel.CurrentSlot;
+            CurrentSlot = state.FilterSlot ?? SlotOf(_wheel);
         }
         else
         {
             MotionState = _wheel.MotionState;
-            CurrentSlot = _wheel.CurrentSlot;
+            CurrentSlot = SlotOf(_wheel);
         }
     }
 
