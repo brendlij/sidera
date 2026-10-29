@@ -1,87 +1,82 @@
 # Backlog
 
-Stand: 12.10.2026. Priorität 1 sind die Punkte, die Julian vor dem ersten echten Imaging-Abend gefixt haben will. Danach kommen die Lücken, die beim Testen aufgefallen sind.
+State: 29 Oct 2026. Priority 1 is what should be fixed before the first real imaging night. Priority 2 are the gaps found while testing.
 
-## Priorität 1
+Legend: `[x]` done · `[~]` partly done · `[ ]` open.
 
-### Bilder und Anzeige
+## Priority 1
 
-- [~] **Bilder werden nicht gespeichert.** (Erster Schnitt gebaut: FITS pro Belichtung einer Session, Namens- und Ordnermuster, Header, Hintergrund-Schreiben. Offen: JPG, Backup, Verschieben, Fehlersammlung bei vollem Laufwerk.) Eine Session schreibt keine Dateien (nur Save FITS / Save PNG von Hand auf der Imaging-Seite; `FrameExporter`, `ImagingViewModel`). Gebraucht: jede belichtete Aufnahme einer Session automatisch als FITS in einen Ordner schreiben, mit Metadaten (Ziel, Belichtung, Filter, Kamera, Gain, Zeit, Standort). Ordner und Dateiname einstellbar (Muster wie `Ziel/Filter/Datum_Nr`), Verhalten bei vollem oder fehlendem Laufwerk.
-  Ausbau dazu (Julian):
-  - [FITS: fertig] Formate **FITS und JPG** (PNG bleibt für Manuelles); einstellbar, welche davon geschrieben werden.
-  - [fertig] **Dateinamen einstellbar:** welche Bestandteile im Namen stehen (Ziel, Filter, Belichtung, Datum und Zeit, Nummer, Kamera, Gain, Temperatur, Binning), mit Platzhaltern und Vorschau.
-  - [fertig, ohne BAYERPAT] **Richtige FITS-Header** schreiben (Standard-Schlüsselwörter: OBJECT, EXPTIME, DATE-OBS, FILTER, INSTRUME, GAIN, OFFSET, CCD-TEMP, XBINNING, RA/DEC, SITELAT/SITELONG, IMAGETYP, FOCALLEN, XPIXSZ, ROTATANG, Software und Version), so dass PixInsight, Siril und Stacker sie lesen.
-  - [fertig, ohne getrennte Kalibrierordner] **Pfad und smarte Ordnerstruktur** wählbar (zum Beispiel `Ziel/Datum/Filter` oder `Datum/Ziel/Frames-Typ`), Lights, Darks, Flats, Bias getrennt.
-  - **Auto-Backup** der Bilder (zweites Ziel, zum Beispiel ein Netzlaufwerk oder eine zweite Platte).
-  - Option **Verschieben nach der Session** (von einem schnellen lokalen Ordner ins Archiv), mit Prüfung, dass die Dateien vollständig angekommen sind, bevor das Original gelöscht wird.
-- [x] **Download-Marker**, solange das Bild von der Kamera geladen wird (die Phase nach der Belichtung): im Status und am Bild sichtbar.
-- [ ] **Imaging-Fenster mit dem aktuellen Bild aktualisieren**, nicht nur das Dashboard. Das Bild einer laufenden Session soll auch auf der Imaging-Seite erscheinen.
-- [ ] **Latest Image im Dashboard ist anders gestreckt als in Imaging.** Gleiche Stretch-Einstellung (oder eine gemeinsame) verwenden.
-- [x] **Manual Capture sperren**, solange eine Sequenz läuft (Button deaktivieren, mit Hinweis warum).
+### Images and display
+
+- [~] **Save the frames of a session.** Built: one FITS file per exposure of a session, a folder and file name pattern, the header, background writing (see [Saving frames](saving-frames.md)). Open:
+  - [ ] **JPG** as a second format, with a choice of which formats are written.
+  - [ ] **Bayer pattern** (`BAYERPAT`) in the header for colour cameras, and the other keywords stackers like (`ROTATANG` and so on).
+  - [ ] **Separate folders** for darks, flats and bias.
+  - [ ] **Automatic backup** to a second location (a network drive or a second disk).
+  - [ ] **Move after the session** (from a fast local folder to the archive), checking that the files arrived complete before the original is deleted.
+  - [ ] A **low disk space** warning before the drive is full.
+- [x] **Download marker** while the image is read from the camera (ASCOM cameras).
+- [x] **Latest image on the dashboard** is stretched like the viewer of the Imaging page.
+- [x] **Manual capture is off** while a session runs, with the reason.
+- [ ] **Imaging page shows the current frame of a running session**, not only the dashboard. The Imaging page shares the frame of the dashboard, but this has not been checked in the running application.
 
 ### Dashboard
 
-- [x] **Mount-Info im Dashboard:** Meridian in (Countdown bis zum Meridian des aktuellen Ziels), aktuelle Position (RA/Dec, Höhe/Azimut), Pier-Seite, Zeit (UTC, Sternzeit), Standort der Montierung (und ob er von Sidera abweicht), Zustand (verbunden, Slewing, geparkt, am Home), Tracking an/aus mit Tracking-Rate.
-- [ ] **Auch für die anderen Geräte** Info im Dashboard (Kamera: Temperatur, Kühlung, Zustand; Fokussierer: Position und Temperatur; Filterrad: aktueller Filter; Rotator: Winkel; Guider: RMS und Zustand; Dome: Azimut und Shutter; Session: Ziel, Fortschritt, Rest).
-- [x] **Dashboard anpassbar:** (Panels ein- und ausblenden in Settings → Appearance; Reihenfolge und Größe noch nicht) in den Settings einstellen, welche Karten und Infos erscheinen, in welcher Reihenfolge und wie groß (Dashboard bearbeiten).
+- [x] **Mount on the dashboard:** state and tracking rate, position, altitude and azimuth, pier side, sidereal time and UTC, the site, when the pointing crosses the meridian, the flip time of the session.
+- [x] **Panels can be switched on and off** in Settings → Appearance.
+- [ ] **Order and size** of the dashboard panels adjustable.
+- [ ] **Other devices on the dashboard:** camera (temperature, cooling), focuser (position, temperature), filter wheel (current filter), rotator (angle), dome (azimuth, shutter).
 
-### Feedback und Navigation
+### Feedback and navigation
 
-- [~] **Mehr Feedback bei laufenden Schritten und Belichtungen (gebaut: Dauer des aktuellen Schritts in der Statusleiste nach 20 s, "Waiting for the camera: n s over" bei überlaufender Belichtung, Download-Anzeige):** was gerade läuft, wie lange noch, was als Nächstes kommt. Überlaufende Schritte und Belichtungen sichtbar machen, nicht still weiterlaufen lassen.
-- [ ] **Geteilte Ansicht (Split) in der App:** eine zweite Seite neben der aktuellen öffnen, zum Beispiel die Session links und Equipment oder Mount rechts, ohne dass man hin- und herspringen muss. Seite für die zweite Hälfte wählbar, Trennlinie verschiebbar, Split wieder schließen; der gewählte Split bleibt beim nächsten Start.
-- [x] **Session-Fortschritt auch in Belichtungszeit, nicht nur in Frames:** je Block, Ziel und Session die belichteten und die geplanten Sekunden (Stunden:Minuten), zum Beispiel „23 / 100 Frames · 23:00 / 100:00 min“, dazu die Restzeit.
-- [ ] **Modal beim Meridian-Flip** (wie in NINA): wenn der Flip kommt, ein Dialog mit den Schritten und dem Fortschritt, mit Abbrechen. Heute nur die Textzeile in der Session Automation.
-- [ ] **Smartere Navigation bei Warnungen.** Beispiel: „The meridian flip needs a setup with a mount“ führt per Klick direkt zu Equipment → Imaging Setups, wo man die Montierung zuweist. Allgemein: jede Warnung und jedes Problem bekommt einen Knopf zur Stelle, an der man es behebt (Toasts und Problemzeilen).
-- [ ] **UI springt**, wenn Meldungen erscheinen oder verschwinden. Layout stabil halten (Platz für Meldungen reservieren, nichts verschieben).
-- [ ] **Equipment-Seite übersichtlicher.** Es ist nicht klar, wie man zu „alle Geräte“ kommt. Klarer und intuitiver gliedern (Einstieg, Wege zwischen Übersicht, Geräteart und Imaging Setups).
-- [ ] **Bessere Verbindung zwischen den Seiten** (Framing, Session, Plate Solve, Dashboard). Beispiel: Ein Ziel aus Framing kann ein **vorhandenes Ziel der Session aktualisieren**, statt immer ein neues hinzuzufügen; als Option „Neu hinzufügen“ oder „Bestehendes ersetzen“.
+- [~] **More feedback for running steps and exposures.** Built: how long the current step has been going on (status bar, after 20 s), *Waiting for the camera* when an exposure is overdue, the download state. Open: what comes next, an estimate of how long a step should take.
+- [x] **Session progress in exposure time**, not only frames (*21 min of 1 h 40 min · 1 h 19 min left*).
+- [ ] **Modal for the meridian flip** (like NINA): when the flip comes, a dialog with the steps and progress and a way to abort. Today it is a text line in the session automation card and a message when it fails.
+- [ ] **Smarter navigation from warnings.** Example: *The meridian flip needs a setup with a mount* should take you to Equipment → Imaging Setups, where the mount is assigned. In general every warning and problem gets a button to the place where it is fixed (messages and problem lines).
+- [ ] **The layout jumps** when messages appear or disappear. Keep it stable (reserve the space, move nothing).
+- [ ] **Equipment page** is hard to find your way in (for example how to reach *all devices*). Make the structure clearer: the entry, the way between the overview, the kinds of device and the imaging setups.
+- [ ] **Better connection between the pages** (Framing, Session, Plate Solve, Dashboard). Example: a target from Framing can **update an existing target of the session** instead of always adding a new one (an option: *add new* or *replace existing*).
+- [ ] **Split view:** open a second page beside the current one (for example the session on the left and the mount on the right), choose the page, move the divider, close it, remember it for the next start.
 
-### Autofokus
+### Autofocus
 
-- [~] **Autofokus ist nicht richtig smart:** (gebaut: Suche mit Umkehren, Start am aktuellen Fokus, gemerkte Position, weniger sturer Abbruch bei unscharfen Samples, Fit der breitesten passenden Serie oder Trendlinien, Fallback auf das beste Sample, Einstellungen; ungetestet an echten Sternen. Offen: Temperatur- und Filter-bezogene Positionen, Backlash-Ausgleich.)
-  - Läuft weiter in die falsche Richtung, wenn die Sterne größer werden. Soll **umkehren**.
-  - **Startet nicht beim aktuellen Fokuswert.** Soll von der aktuellen Position ausgehen.
-  - **Merkt sich die letzten Fokuspositionen** (pro Kamera, Filter, Temperatur) und startet dort.
-  - **Timeouts** nicht so schnell und nicht so stur (sinnvoll nachfassen, statt abzubrechen).
-  - **Kurvenanpassung** mit Hyperbel (HFR²), nicht nur Parabel oder Minimum, plus Fit-Qualität und Ausreißer.
-  - **Mehr Einstellungen** zum Algorithmus in Settings → Autofocus (Schrittweite, Anzahl der Punkte, Fit-Art, Timeouts, Richtung, Rückfahrweg für Backlash).
+- [~] **Smarter autofocus.** Built: the search that starts at the current focus and turns round, positions remembered per setup, a blurred sample is not fatal, the fit through the widest run the hyperbola explains (or trend lines), the fall back to the best sample, settings (see [Autofocus](autofocus.md)). **Not tested on real stars.** Open:
+  - [ ] Remembered positions by **temperature** and **filter**.
+  - [ ] **Backlash** compensation for the focuser.
+  - [ ] Review the **timeouts** of focuser moves and exposures during a run on real equipment.
 
-### Standort
+### Location
 
-- [ ] **Location Mismatch fertig machen.** Die Karte und die drei Knöpfe (Use Mount Location in Sidera, Send Sidera Location to Mount, Keep Both Unchanged) gibt es (`MountSiteViewModel`, `MountWorkspaceView`). Was daran noch fehlt, hat Julian nicht gesagt: klären (Anzeige beim Verbinden einer echten Montierung, Übernehmen, Rückmeldung, Verhalten bei OnStep).
+- [ ] **Finish the location mismatch card.** The card and its three buttons (*Use Mount Location in Sidera*, *Send Sidera Location to Mount*, *Keep Both Unchanged*) exist. What is still missing needs to be clarified: when it is shown on connecting a real mount, how a change is confirmed, the feedback afterwards, and how an OnStep behaves.
 
-## Priorität 2: Lücken aus den Tests
+## Priority 2
 
-### Meridian-Flip
+### Meridian flip
 
-- [x] **Pier-Seite nach dem Flip erzwingen.** Bleibt die gemeldete Pier-Seite gleich (`MeridianFlipPierUnchanged`), gilt der Flip heute trotzdem als erledigt (`MeridianFlipGroup.cs`, `FlipVerifyStep`). Soll als Fehler zählen (Wiederholung, dann Halt).
-- [ ] **Tracking am Meridian einstellbar pausieren/stoppen** (Julian: manche Montierungen stoßen sonst an und müssen früher aufhören zu tracken). Einstellungen **Hand in Hand mit den anderen Flip-Einstellungen** (Settings → Meridian Flip und Session Automation, gleiche Karte, gleiche Einheit: Minuten vom Meridian):
-  - Tracking **vor** dem Meridian pausieren (Minuten vor dem Meridian) und **nach** dem Meridian (Minuten nach dem Meridian), jeweils einzeln einstellbar und abschaltbar.
-  - Zusammenspiel mit dem Flip: Die Grenze nach dem Meridian muss mit „Flip after“ und „Latest allowed flip“ zusammenpassen (Warnung, wenn das Tracking vor dem fälligen Flip stoppen würde; Flip hat Vorrang). Ohne Flip: nach der Grenze Imaging beenden und Tracking stoppen, optional parken.
-  - Gilt auch, wenn der Flip überfällig ist oder fehlschlägt: Tracking stoppen, optional parken (heute trackt die Montierung dann einfach weiter; nur das Limit der Montierung schützt).
-  - **Bei fehlgeschlagenem Flip (Session hält an) Tracking standardmäßig stoppen**, außer die Montierung meldet nach dem Flip die richtige Pier-Seite (dann steht die Mechanik auf der sicheren Seite und Tracking ist unbedenklich). Beim Retry oder Fortsetzen das Tracking wieder einschalten.
-  - Nach dem Flip Tracking wieder einschalten; Zustand in der Statuszeile und im Dashboard anzeigen.
-- [~] **Zentrieren nach dem Flip robuster machen** (gebaut: Settle-Zeit, Solve-Wiederholung, Tracking einschalten, Retry behält die Korrektur; offen: Sync nach Solve, Warnung bei großem Pointing-Fehler, Fortschritt je Versuch in der Session) (erster echter Flip, 12.10.2026, OnStep; Log: Pointing nach dem Flip etwa 1,2° daneben, Korrektur-Slew landet nicht dort, wo er hinsollte, der Solve danach findet keine Lösung):
-  - **Settle-Zeit** nach jedem Korrektur-Slew, vor der nächsten Solve-Aufnahme (Montierung muss ruhig stehen und tracken).
-  - **Retry des Flips fährt erneut auf das unkorrigierte Ziel** und verwirft die bisherigen Korrekturen. Soll die Korrektur behalten (oder einen bereits geflippten Zustand erkennen und den Slew auslassen).
-  - Die Meldung „same side of pier after the flip“ ist bei einem Retry irreführend (die Montierung stand schon auf der richtigen Seite).
-  - **Sync nach erfolgreichem Solve** als Option (nur mit Bestätigung), damit das Montierungsmodell nachzieht; sonst wiederholt jeder Slew denselben Versatz.
-  - **Warnung bei großem Pointing-Fehler** (zum Beispiel > 0,5°): Hinweis, Standort, Uhrzeit und Ausrichtung der Montierung zu prüfen, statt still weiter zu versuchen.
-  - [x] **Tracking vor jeder Solve-Aufnahme prüfen** (Julian, 12.10.: die OnStep stand nach dem Korrektur-Slew auf „Not tracking“, die Sterne verschmierten, der Solve scheiterte). Ist das Tracking aus, melden und (nach Rückfrage oder per Einstellung) wieder einschalten, statt zu solven.
-  - Fortschritt der Zentrierversuche in der Session anzeigen (Fehler in ″ je Versuch).
-- [x] **Flip-Fehler melden:** Toast oder Ton, wenn ein Flip fehlschlägt und die Session wartet. Optional: Montierung parken.
-- [~] **Koordinaten auf das heutige Datum umrechnen (Präzession).** (Meridian-Zeit: fertig. Slew an eine Topocentric-Montierung: noch offen.) Sidera nimmt J2000-Koordinaten unverändert. Folgen: Meridian-Zeit etwa 80 s zu früh (bei M15), Slew an eine Topocentric-Montierung etwa 22′ daneben (Slew & Center gleicht es aus). Betrifft `MeridianFlipGroup.HourAngleMinutes` und den Slew.
-- [ ] **OnStep:** Auto-Flip und Preferred Pier Side der Firmware dürfen den Flip von Sidera nicht stören; Sidera sollte das anzeigen oder prüfen.
-- [ ] Flip-Schritte in der Tree-Ansicht prüfen (nicht angesehen).
+- [x] **The pier side must change** after the flip slew; otherwise it is a failure.
+- [x] **Report a failed flip** as an error message with a way to the session.
+- [x] **Stop tracking after a flip that failed** before the mount changed sides; a retry starts it again.
+- [ ] **Tracking pause around the meridian, adjustable** (some mounts hit their pier otherwise and must stop tracking earlier). Settings next to the other flip settings (Settings → Meridian Flip and the session automation, same card, same unit: minutes from the meridian):
+  - Pause tracking **before** and **after** the meridian, each adjustable and switchable.
+  - It must fit **Flip after** and **Latest allowed flip** (a warning when tracking would stop before the flip is due; the flip wins). Without a flip: end imaging after the limit, stop tracking, optionally park.
+  - Optionally **park** after a failed or overdue flip.
+  - Show the tracking state in the status bar and on the dashboard.
+- [~] **Centering after the flip.** Built: settle time after a slew, a lost solve is tried again, tracking is started when the mount does not track, a retry keeps the corrected position. Open:
+  - [ ] **Sync after a successful solve** as an option (with confirmation), so that the model of the mount follows; otherwise every slew repeats the same offset.
+  - [ ] **Warn about a large pointing error** (for example more than 0.5°): check the site, the time and the alignment of the mount instead of trying on quietly.
+  - [ ] Show the **error of each centering attempt** in the session.
+- [~] **Coordinates of date (precession).** Done for the meridian time. Open: a slew to a topocentric mount sends the J2000 position as it is (about 22′ off; Slew & Center corrects it).
+- [ ] **OnStep:** the auto-flip and the preferred pier side of the firmware must not interfere with the flip of Sidera; Sidera should show or check them.
+- [ ] Check how the flip steps look in the **tree view**.
 
 ### Hardware
 
-- [ ] Nie an echter Hardware gelaufen: Slew, Abort und Tracking einer echten Montierung (OnStep), Guiding und Dither über PHD2, Dome und Rolldach, ASCOM-Filterrad.
-- [ ] Dome folgt der Montierung nicht (kein Slaving).
-- [ ] Echter Meridian-Flip mit der OnStep-Montierung, erster Test.
+- [ ] Never run on real hardware: guiding and dither through PHD2, domes and roll-off roofs, the ASCOM filter wheel, the new flip safeguards, the autofocus search, abort and tracking commands of a real mount beyond the first tests.
+- [ ] The dome does not follow the mount (no slaving).
 
-### Sonstiges
+### Miscellaneous
 
-- [ ] Help: ein paar Marker liegen leicht auf Text; Red Night und Light nicht angesehen.
-- [ ] Hardware-Tests: ProgIds aus der `equipment.json` lesen, statt `SIDERA_ASCOM_*` zu setzen.
-- [ ] Ein OmniSim lauscht auf `0.0.0.0:32323`; Tests sollten ihn nur an `127.0.0.1` binden.
+- [ ] Help: a few markers sit slightly on text; the Red Night and Light themes have not been looked at.
+- [ ] Hardware tests: read the ProgIds from `equipment.json` instead of setting `SIDERA_ASCOM_*`.
+- [ ] A test OmniSim listening on `0.0.0.0:32323` should be bound to `127.0.0.1` only.
+- [ ] A **logo** (the current one in the README is a placeholder) and an installer or a release download.
