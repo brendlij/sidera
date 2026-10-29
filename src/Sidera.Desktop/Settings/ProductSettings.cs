@@ -109,6 +109,12 @@ public sealed record AutofocusDefaults
     /// <summary>The focus is searched for (it starts where the focuser stands, turns round when the stars get larger, and does not fail on a blurred sample) instead of a fixed pattern.</summary>
     public bool SearchForFocus { get; init; } = true;
 
+    /// <summary>A second pass with a quarter of the step size around what the first pass found: the first finds the focus roughly, the second exactly.</summary>
+    public bool FinePass { get; init; } = true;
+
+    /// <summary>How far from where it started the search may go, in focuser steps, to either side; 0 is ten steps of the step size.</summary>
+    public int SearchRangeSteps { get; init; }
+
     /// <summary>The curve is fitted as a hyperbola (the default) or as the lines of the two sides.</summary>
     public FocusFitMethod FitMethod { get; init; } = FocusFitMethod.Hyperbola;
 
@@ -126,6 +132,8 @@ public sealed record AutofocusDefaults
     {
         Mode = SearchForFocus ? AutofocusMode.Search : AutofocusMode.Pattern,
         FitMethod = FitMethod,
+        FinePass = FinePass,
+        MaxTravelSteps = SearchRangeSteps,
         MaxSamples = MaxSamples,
         MaxFailedSamples = MaxFailedSamples,
         UseRememberedPosition = UseRememberedPosition,
@@ -138,6 +146,7 @@ public sealed record AutofocusDefaults
         : SampleCount < AutofocusOptions.MinimumSampleCount || SampleCount > AutofocusOptions.MaximumSampleCount || SampleCount % 2 == 0
             ? $"The number of samples must be odd, from {AutofocusOptions.MinimumSampleCount} to {AutofocusOptions.MaximumSampleCount}."
         : MaxSamples != 0 && (MaxSamples < SampleCount || MaxSamples > 100) ? "The most samples of a search must be 0 (the search decides) or from the number of samples to 100."
+        : SearchRangeSteps is < 0 or > 1_000_000 ? "The search range must be 0 (automatic) or from 1 to 1000000 focuser steps."
         : MaxFailedSamples is < 0 or > 10 ? "The samples that may fail in a row must be from 0 to 10."
         : !double.IsFinite(PolicyIntervalMinutes) || PolicyIntervalMinutes is < 0 or > 1440 ? "The autofocus interval must be from 0 to 1440 minutes."
         : PolicyEnabled && !PolicyAtStart && !PolicyAfterFilterChange && PolicyIntervalMinutes <= 0 ? "A block that focuses by itself needs a trigger: at the start, an interval, or after a filter change."

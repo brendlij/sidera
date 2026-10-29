@@ -220,7 +220,7 @@ public class AutofocusSequencerTests
     public async Task TheEditorIsLocked_WhileRunning_Pausing_AndPaused_AndTheAutofocusFinishesBeforeItPauses()
     {
         await using var app = await CreateApp();
-        app.Draft.ReplaceSteps([Autofocus(seconds: 0.15), new DelayStepDraft(Guid.NewGuid(), 0.2)]);
+        app.Draft.ReplaceSteps([Autofocus(seconds: 0.05), new DelayStepDraft(Guid.NewGuid(), 0.2)]);
 
         var run = app.Sequencer.RunCommand.ExecuteAsync(null);
         await WaitUntil(() => StatusOf(app, "rig.main") is { IsActive: true }, "the autofocus to run");

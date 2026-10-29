@@ -379,6 +379,8 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
     [ObservableProperty] public partial bool HoldMountStable { get; set; }
     [ObservableProperty] public partial bool SearchForFocus { get; set; }
     [ObservableProperty] public partial bool FitTrendLines { get; set; }
+    [ObservableProperty] public partial bool FinePass { get; set; }
+    [ObservableProperty] public partial string SearchRangeText { get; set; } = string.Empty;
     [ObservableProperty] public partial string MaxSamplesText { get; set; } = string.Empty;
     [ObservableProperty] public partial string MaxFailedText { get; set; } = string.Empty;
     [ObservableProperty] public partial bool UseRememberedPosition { get; set; }
@@ -387,13 +389,13 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
 
     private AutofocusDefaults? Build() =>
         TryNumber(ExposureText, out var exposure) && TryWhole(StepSizeText, out var step) && TryWhole(SamplesText, out var samples) && TryNumber(IntervalText, out var interval)
-            && TryWhole(MaxSamplesText, out var maxSamples) && TryWhole(MaxFailedText, out var maxFailed)
+            && TryWhole(MaxSamplesText, out var maxSamples) && TryWhole(MaxFailedText, out var maxFailed) && TryWhole(SearchRangeText, out var searchRange)
             ? new AutofocusDefaults
             {
                 ExposureSeconds = exposure, StepSize = step, SampleCount = samples, PolicyEnabled = PolicyEnabled, PolicyAtStart = PolicyAtStart, PolicyIntervalMinutes = interval,
                 PolicyAfterFilterChange = PolicyAfterFilterChange, HoldMountStable = HoldMountStable,
                 SearchForFocus = SearchForFocus, FitMethod = FitTrendLines ? FocusFitMethod.TrendLines : FocusFitMethod.Hyperbola, MaxSamples = maxSamples, MaxFailedSamples = maxFailed,
-                UseRememberedPosition = UseRememberedPosition,
+                UseRememberedPosition = UseRememberedPosition, FinePass = FinePass, SearchRangeSteps = searchRange,
             }
             : null;
 
@@ -412,6 +414,8 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
         HoldMountStable = s.HoldMountStable;
         SearchForFocus = s.SearchForFocus;
         FitTrendLines = s.FitMethod == FocusFitMethod.TrendLines;
+        FinePass = s.FinePass;
+        SearchRangeText = s.SearchRangeSteps.ToString(CultureInfo.InvariantCulture);
         MaxSamplesText = s.MaxSamples.ToString(CultureInfo.InvariantCulture);
         MaxFailedText = s.MaxFailedSamples.ToString(CultureInfo.InvariantCulture);
         UseRememberedPosition = s.UseRememberedPosition;
@@ -420,7 +424,8 @@ public sealed partial class AutofocusSettingsViewModel : SettingsSectionViewMode
     protected override string? SaveCore() =>
         Unreadable(
             ("The exposure", TryNumber(ExposureText, out _)), ("The step size", TryWhole(StepSizeText, out _)), ("The number of samples", TryWhole(SamplesText, out _)),
-            ("The interval", TryNumber(IntervalText, out _)), ("The most samples", TryWhole(MaxSamplesText, out _)), ("The samples that may fail", TryWhole(MaxFailedText, out _)))
+            ("The interval", TryNumber(IntervalText, out _)), ("The most samples", TryWhole(MaxSamplesText, out _)), ("The samples that may fail", TryWhole(MaxFailedText, out _)),
+            ("The search range", TryWhole(SearchRangeText, out _)))
         ?? _settings.SetAutofocus(Build()!).Problem;
 }
 

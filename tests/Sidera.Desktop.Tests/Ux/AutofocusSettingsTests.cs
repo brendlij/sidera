@@ -55,7 +55,7 @@ public sealed class AutofocusSettingsTests : IDisposable
     {
         var settings = SideraSettings.Empty with
         {
-            Autofocus = new AutofocusDefaults { SearchForFocus = false, FitMethod = FocusFitMethod.TrendLines, MaxSamples = 25, MaxFailedSamples = 1, UseRememberedPosition = false },
+            Autofocus = new AutofocusDefaults { SearchForFocus = false, FitMethod = FocusFitMethod.TrendLines, MaxSamples = 25, MaxFailedSamples = 1, UseRememberedPosition = false, FinePass = false, SearchRangeSteps = 600 },
         };
 
         var loaded = SideraSettingsSerializer.Deserialize(SideraSettingsSerializer.Serialize(settings)).Autofocus;
@@ -65,6 +65,18 @@ public sealed class AutofocusSettingsTests : IDisposable
         Assert.True(old.SearchForFocus);
         Assert.Equal(500, old.StepSize);
         Assert.Equal(FocusFitMethod.Hyperbola, old.FitMethod);
+        Assert.True(old.FinePass);
+        Assert.Equal(0, old.SearchRangeSteps);
+    }
+
+    [Fact]
+    public void TheFinePassAndTheSearchRange_BecomeTheStrategyOfARun_AndTheRangeIsChecked()
+    {
+        var strategy = new AutofocusDefaults { FinePass = false, SearchRangeSteps = 600 }.Strategy(null);
+
+        Assert.False(strategy.FinePass);
+        Assert.Equal(600, strategy.MaxTravelSteps);
+        Assert.Contains("search range", new AutofocusDefaults { SearchRangeSteps = -1 }.Problem);
     }
 
     [Theory]

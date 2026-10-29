@@ -266,4 +266,125 @@ public class SearchAutofocusEngineTests
         Assert.Equal(AutofocusMode.Pattern, AutofocusStrategy.Application.Mode);
         Assert.Equal(FocusFitMethod.Hyperbola, new AutofocusStrategy().FitMethod);
     }
+
+    // A real sky far out of focus: inside ±150 steps a hyperbola (2.4 px at focus, about 0.04 px per step), outside of it the stars are blurred so much that the median HFR is a
+    // noisy 8 to 10 px whatever the position, the way it was on the real sky.
+    private static double PlateauHfr(int position, int best = Focus)
+    {
+        var distance = Math.Abs(position - best);
+        if (distance <= 150)
+        {
+            return Math.Sqrt(2.4 * 2.4 + 0.04 * 0.04 * distance * distance);
+        }
+
+        return 9.0 + (((position * 7919) % 200 + 200) % 200 - 100) / 100.0;
+    }
+
+    private static AutofocusOptions Fine(AutofocusStrategy strategy, int step = 40, int samples = 7) =>
+        new(Exposure, step, samples, true, TimeSpan.Zero, 2) { Strategy = strategy };
+
+    [Fact]
+    public async Task FarOutOfFocusWithAMemory_TheLastFocusIsTriedFirst_AndTheFocusIsFound()
+    {
+        var history = new FocusHistory();
+        var rig = new RigId("rig.main");
+        history.Record(rig, Focus + 20, 2.4, DateTimeOffset.UtcNow);
+        var focuser = await FocuserAsync(Focus + 340);
+        var measurer = new BlurMeasurer(focuser, p => PlateauHfr(p));
+
+        var result = await Run(focuser, measurer, Fine(new AutofocusStrategy { Mode = AutofocusMode.Search, History = history }), rig);
+
+        Assert.Equal(Focus + 340, measurer.Positions[0]);
+        Assert.Equal(Focus + 20, measurer.Positions[1]); // far worse than the last focus: that position next
+        Assert.InRange(result.BestPosition, Focus - 25, Focus + 25);
+        Assert.InRange(result.BestHfr, 2.0, 3.2);
+    }
+
+    [Fact]
+    public async Task FarOutOfFocusWithNoMemory_ItEitherFindsTheFocus_OrSaysItDidNot_NeverAFocusInTheNoise()
+    {
+        var focuser = await FocuserAsync(Focus + 340);
+        var measurer = new BlurMeasurer(focuser, p => PlateauHfr(p));
+
+        AutofocusResult? result = null;
+        AutofocusFailedException? failure = null;
+        try
+        {
+            result = await Run(focuser, measurer, Fine(new AutofocusStrategy { Mode = AutofocusMode.Search }));
+        }
+        catch (AutofocusFailedException ex)
+        {
+            failure = ex;
+        }
+
+        if (result is not null)
+        {
+            Assert.InRange(result.BestPosition, Focus - 40, Focus + 40);
+        }
+        else
+        {
+            Assert.NotNull(failure);
+        }
+    }
+
+    [Fact]
+    public async Task WhenThereIsNoFocusInReach_TheRunFails_InsteadOfReportingAFocusInTheNoise()
+    {
+        var focuser = await FocuserAsync(Focus + 3000);
+        var measurer = new BlurMeasurer(focuser, p => PlateauHfr(p));
+
+        var ex = await Assert.ThrowsAsync<AutofocusFailedException>(() =>
+            Run(focuser, measurer, Fine(new AutofocusStrategy { Mode = AutofocusMode.Search })));
+
+        Assert.NotNull(ex.Message);
+    }
+
+    [Fact]
+    public async Task TheSearchNeverGoesFurtherThanTheTravelLimit_AndNeverTakesMoreThanTheMostSamples()
+    {
+        var focuser = await FocuserAsync(Focus + 3000);
+        var measurer = new BlurMeasurer(focuser, p => PlateauHfr(p));
+        var strategy = new AutofocusStrategy { Mode = AutofocusMode.Search, MaxTravelSteps = 200, MaxSamples = 12 };
+
+        await Assert.ThrowsAsync<AutofocusFailedException>(() => Run(focuser, measurer, Fine(strategy)));
+
+        Assert.All(measurer.Positions, p => Assert.InRange(p, Focus + 3000 - 200, Focus + 3000 + 200));
+        Assert.True(measurer.Positions.Count <= 12);
+    }
+
+    [Fact]
+    public async Task ASecondFinerPass_RefinesWhatTheCoarseOneFound_WithAQuarterOfTheStep()
+    {
+        var focuser = await FocuserAsync(Focus + 130);
+        var measurer = new BlurMeasurer(focuser, p => Hyperbola(p, floor: 2.4, slope: 0.04));
+        var options = new AutofocusOptions(Exposure, 80, 7, true, TimeSpan.Zero, 2) { Strategy = new AutofocusStrategy { Mode = AutofocusMode.Search } };
+
+        var result = await Run(focuser, measurer, options);
+
+        Assert.InRange(result.BestPosition, Focus - 12, Focus + 12);
+        var positions = measurer.Positions.Distinct().OrderBy(p => p).ToList();
+        Assert.Contains(positions, p => positions.Any(q => q - p == 20)); // a quarter of 80
+    }
+
+    [Fact]
+    public async Task WithTheFinePassOff_OnlyTheCoarseStepIsUsed()
+    {
+        var focuser = await FocuserAsync(Focus + 130);
+        var measurer = new BlurMeasurer(focuser, p => Hyperbola(p, floor: 2.4, slope: 0.04));
+        var options = new AutofocusOptions(Exposure, 80, 7, true, TimeSpan.Zero, 2) { Strategy = new AutofocusStrategy { Mode = AutofocusMode.Search, FinePass = false } };
+
+        await Run(focuser, measurer, options);
+
+        var positions = measurer.Positions.Distinct().OrderBy(p => p).ToList();
+        Assert.DoesNotContain(positions, p => positions.Any(q => q - p == 20));
+    }
+
+    [Fact]
+    public void TheSearchHasAFinePassAndATravelLimit_ByDefault()
+    {
+        var strategy = new AutofocusStrategy();
+
+        Assert.True(strategy.FinePass);
+        Assert.Equal(0, strategy.MaxTravelSteps);
+    }
 }

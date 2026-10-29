@@ -31,6 +31,9 @@ public interface IFocusHistory
     /// <summary>The last position in focus of the rig, or <c>null</c> when there is none.</summary>
     int? LastPosition(RigId rig);
 
+    /// <summary>What was found in focus last (position and HFR there), or <c>null</c>.</summary>
+    FocusHistoryEntry? Last(RigId rig);
+
     void Record(RigId rig, int position, double hfr, DateTimeOffset when);
 }
 
@@ -51,6 +54,14 @@ public sealed class FocusHistory : IFocusHistory
 
     /// <summary>Raised after a position was recorded (the application saves them then).</summary>
     public event EventHandler? Changed;
+
+    public FocusHistoryEntry? Last(RigId rig)
+    {
+        lock (_gate)
+        {
+            return _entries.TryGetValue(rig.Value, out var list) && list.Count > 0 ? list[^1] : null;
+        }
+    }
 
     public int? LastPosition(RigId rig)
     {
@@ -128,6 +139,14 @@ public sealed record AutofocusStrategy
 
     /// <summary>A search that finds no star where the focuser stands goes to the last position that was in focus and tries there.</summary>
     public bool UseRememberedPosition { get; init; } = true;
+
+    /// <summary>
+    /// A second, finer pass around the position the first one found: a quarter of the step size, fewer samples. The first pass finds the focus roughly, the second one exactly.
+    /// </summary>
+    public bool FinePass { get; init; } = true;
+
+    /// <summary>How far from where the search started it may go, in focuser steps, to either side; 0 is ten steps of the step size.</summary>
+    public int MaxTravelSteps { get; init; }
 
     /// <summary>Where the positions that were in focus are kept; <c>null</c> remembers nothing.</summary>
     public IFocusHistory? History { get; init; }
