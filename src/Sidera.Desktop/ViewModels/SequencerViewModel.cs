@@ -632,6 +632,9 @@ public sealed partial class SequencerViewModel : ViewModelBase, IDisposable
             ShowSnapshot(built);
         }
 
+        // A failure near the meridian holds the run for the user instead of ending it; a run without flips fails as it always did.
+        _runner.FailureHandler = _fixedSequence is null && Draft is { FlipGroups.Count: > 0 } flips ? new MeridianFailureHandler(flips.FlipGroups) : null;
+
         ClearAutofocus();
         ShowsRun = true;
         var cts = new CancellationTokenSource();

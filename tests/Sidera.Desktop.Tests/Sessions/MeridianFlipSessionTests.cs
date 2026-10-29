@@ -123,11 +123,11 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
     private static ImagingSetupCatalog Catalog(SideraRuntimeHost host) => new(host.DeviceRegistry, host.RigRegistry);
 
     /// <summary>The session of the tests: M31 for one or two setups that share the mount and the guider, guiding started once and stopped at the end, the flip as given (<c>null</c> follows the application).</summary>
-    private static SessionDefinition Session(SkyClock clock, MeridianFlipSettings? flip, bool twoSetups = true, double? rotation = null)
+    private static SessionDefinition Session(SkyClock clock, MeridianFlipSettings? flip, bool twoSetups = true, double? rotation = null, int frames = 8)
     {
         var lanes = twoSetups
-            ? new[] { Lane(A, Block(null, 0.5, 8)), Lane(B, Block(null, 0.2, 20)) }
-            : [Lane(A, Block(null, 0.5, 8))];
+            ? new[] { Lane(A, Block(null, 0.5, frames)), Lane(B, Block(null, 0.2, frames * 2 + 4)) }
+            : [Lane(A, Block(null, 0.5, frames))];
         var target = new SessionTarget(
             Guid.NewGuid(), "M31", clock.TargetRightAscensionHours, 41.3, rotation, true, [new StartGuidingAction(Guid.NewGuid())], lanes, []);
         return SessionDefinition.Empty with
@@ -264,7 +264,7 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
 
     // ---- the editor
 
-    private async Task<(MainViewModel Vm, SessionEditorViewModel Editor, SkyClock Clock, Solver Solver, SimulatedMount Mount)> EditorAsync(Func<MeridianFlipSettings, MeridianFlipSettings>? change = null, bool flip = true)
+    private async Task<(MainViewModel Vm, SessionEditorViewModel Editor, SkyClock Clock, Solver Solver, SimulatedMount Mount)> EditorAsync(Func<MeridianFlipSettings, MeridianFlipSettings>? change = null, bool flip = true, int frames = 8)
     {
         var (host, clock, solver, mount) = await CreateAsync();
         var options = new DemoOptions();
@@ -272,7 +272,7 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
         _apps.Add(vm);
         vm.SequenceDraft.Clock = clock;
         vm.SequenceDraft.SiteProvider = () => Site;
-        vm.SessionEditor.Load(Session(clock, flip ? Settings(change) : null));
+        vm.SessionEditor.Load(Session(clock, flip ? Settings(change) : null, frames: frames));
         return (vm, vm.SessionEditor, clock, solver, mount);
     }
 
@@ -497,6 +497,79 @@ public sealed class MeridianFlipSessionTests : IAsyncLifetime
         Assert.Contains("Stand still", flip.Summary, StringComparison.Ordinal);
         await Task.CompletedTask;
         _ = vm;
+    }
+
+    [Fact]
+    public async Task AFailureNearTheMeridian_HoldsTheSession_StopsTrackingAndGuiding_AndRetryGoesOn()
+    {
+        var (vm, editor, clock, _, mount) = await EditorAsync(s => s with { AutofocusAfterFlip = false }, frames: 30);
+        await mount.SetTrackingAsync(true);
+        var host = _hosts.Last();
+        var camera = host.DeviceRegistry.GetAll().OfType<Sidera.Core.Devices.ICamera>().First(c => c.Id == new Sidera.Core.Devices.DeviceId("camera.a"));
+        var guider = host.DeviceRegistry.GetAll().OfType<Sidera.Core.Guiding.IGuider>().Single();
+
+        vm.Sequencer.RunCommand.Execute(null);
+        await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
+        await WaitAsync(() => ShowsFrames(editor), "frames on the blocks");
+        await WaitAsync(() => guider.GuidingState == Sidera.Core.Guiding.GuidingState.Guiding, "guiding");
+        clock.SetHourAngle(-3); // near the meridian, the flip still to come
+        await DisconnectWhenIdleAsync(camera); // the next exposure fails
+
+        var status = editor.FlipStatuses.Single();
+        await WaitAsync(() => status.Refresh_IsWaiting(), "the session to hold after the failure");
+        Assert.Equal(SequenceState.Running, vm.Sequencer.State); // held, not failed
+        Assert.True(mount.Telemetry is { Tracking: false });
+        Assert.NotEqual(Sidera.Core.Guiding.GuidingState.Guiding, guider.GuidingState);
+        Assert.Contains("Something went wrong near the meridian", status.Message, StringComparison.Ordinal);
+        Assert.True(status.AbortCommand.CanExecute(null));
+
+        await camera.ConnectAsync();
+        status.RetryCommand.Execute(null);
+        await WaitAsync(() => mount.Telemetry is { Tracking: true } && guider.GuidingState == Sidera.Core.Guiding.GuidingState.Guiding, "tracking and guiding to be back");
+        clock.SetHourAngle(3);
+        await WaitAsync(() => vm.Sequencer.State is SequenceState.Completed or SequenceState.Failed, "the sequence to end");
+
+        Assert.Equal(SequenceState.Completed, vm.Sequencer.State);
+        Assert.Equal(MeridianFlipState.Completed, status.State);
+    }
+
+    [Fact]
+    public async Task AFailureNearTheMeridian_WhichIsAborted_FailsTheSession_WithTheTrackingStopped()
+    {
+        var (vm, editor, clock, _, mount) = await EditorAsync(s => s with { AutofocusAfterFlip = false }, frames: 30);
+        await mount.SetTrackingAsync(true);
+        var camera = _hosts.Last().DeviceRegistry.GetAll().OfType<Sidera.Core.Devices.ICamera>().First(c => c.Id == new Sidera.Core.Devices.DeviceId("camera.a"));
+
+        vm.Sequencer.RunCommand.Execute(null);
+        await WaitAsync(() => editor.HasFlipStatus, "the status of the flip");
+        await WaitAsync(() => ShowsFrames(editor), "frames on the blocks");
+        clock.SetHourAngle(-3);
+        await DisconnectWhenIdleAsync(camera);
+        var status = editor.FlipStatuses.Single();
+        await WaitAsync(() => status.Refresh_IsWaiting(), "the session to hold after the failure");
+
+        status.AbortCommand.Execute(null);
+        await WaitAsync(() => vm.Sequencer.State is SequenceState.Failed, "the session to fail");
+
+        Assert.True(mount.Telemetry is { Tracking: false });
+    }
+
+    // A camera cannot be disconnected while it exposes: between two exposures it can.
+    private static async Task DisconnectWhenIdleAsync(Sidera.Core.Devices.IDevice device)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (true)
+        {
+            try
+            {
+                await device.DisconnectAsync();
+                return;
+            }
+            catch (InvalidOperationException) when (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(2);
+            }
+        }
     }
 
     private static async Task WaitAsync(Func<bool> condition, string what, int seconds = 60)

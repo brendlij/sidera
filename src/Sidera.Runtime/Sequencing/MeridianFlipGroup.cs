@@ -93,6 +93,7 @@ public sealed class MeridianFlipGroup
     private bool _forced;
     private bool _standstilling;
     private bool _standstillDone;
+    private Task<bool>? _errorHold;
     private PierSide _pierBefore = PierSide.Unknown;
     private bool _sideChanged;
     private CelestialCoordinates? _centeringStart;
@@ -179,6 +180,12 @@ public sealed class MeridianFlipGroup
             if (_forced)
             {
                 return MeridianGateDecision.FlipDue;
+            }
+
+            // Another setup of this mount failed near the meridian and waits for the user: nobody exposes.
+            if (_errorHold is not null)
+            {
+                return MeridianGateDecision.Wait;
             }
         }
 
@@ -269,20 +276,29 @@ public sealed class MeridianFlipGroup
         }
     }
 
-    private async Task StopForTheHoldAsync(CancellationToken cancellationToken)
+    // Stops what is guiding (remembering it, so that it is started again) and the tracking of the mount. Null when it is done, otherwise a sentence about what could not be stopped.
+    private async Task<string?> StopGuidingAndTrackingAsync(CancellationToken cancellationToken)
     {
-        var minutes = HourAngleMinutes();
+        string? problem = null;
         foreach (var guiderId in _plan.Setups.Select(r => r.GuiderId).OfType<DeviceId>().Distinct())
         {
-            if (_services.Registry.TryGet(guiderId, out var guiderDevice) && guiderDevice is IGuider { ConnectionState: DeviceConnectionState.Connected } guider
-                && guider.GuidingState is GuidingState.Guiding or GuidingState.Dithering or GuidingState.Starting)
+            try
             {
-                lock (_gate)
+                if (_services.Registry.TryGet(guiderId, out var guiderDevice) && guiderDevice is IGuider { ConnectionState: DeviceConnectionState.Connected } guider
+                    && guider.GuidingState is GuidingState.Guiding or GuidingState.Dithering or GuidingState.Starting)
                 {
-                    _wasGuiding.Add(guiderId);
-                }
+                    lock (_gate)
+                    {
+                        _wasGuiding.Add(guiderId);
+                    }
 
-                await guider.StopGuidingAsync(cancellationToken);
+                    await guider.StopGuidingAsync(cancellationToken);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Guiding of {Guider} could not be stopped", guiderId);
+                problem = "Guiding could not be stopped: stop it yourself.";
             }
         }
 
@@ -294,8 +310,20 @@ public sealed class MeridianFlipGroup
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                throw new MeridianFlipFailedException($"The tracking of the mount could not be stopped for the hold: {ex.Message}");
+                _logger.LogError(ex, "Tracking of {Mount} could not be stopped", MountId);
+                problem = (problem is null ? string.Empty : problem + " ") + "The tracking of the mount could not be stopped: stop it yourself.";
             }
+        }
+
+        return problem;
+    }
+
+    private async Task StopForTheHoldAsync(CancellationToken cancellationToken)
+    {
+        var minutes = HourAngleMinutes();
+        if (await StopGuidingAndTrackingAsync(cancellationToken) is { } problem)
+        {
+            throw new MeridianFlipFailedException($"Guiding and tracking could not be stopped for the hold: {problem}");
         }
 
         lock (_gate)
@@ -552,6 +580,173 @@ public sealed class MeridianFlipGroup
             _logger.LogError(ex, "Tracking of {Mount} could not be stopped when the run ended {Where} without the flip", MountId, where);
             return $"The session ended {where} without the flip and the tracking of the mount could not be stopped: stop it yourself.";
         }
+    }
+
+    // ---- an error near the meridian
+
+    /// <summary>
+    /// A step of the run failed (the guider lost its star, a dither failed, anything). Near the meridian, with the flip still to come, a failure must not leave the mount tracking and must not end the
+    /// session: guiding and tracking are stopped, every setup of the mount is held, the error is shown, and the group waits for the user. <c>true</c> when the user retries (tracking and guiding come
+    /// back, unless the mount is to stand still until the flip, and the step is run again), <c>false</c> when the user aborts (the failure goes on), <c>null</c> when this is not such a time (far from the
+    /// meridian, the flip happened or is running and has its own handling): the failure is not this group's.
+    /// </summary>
+    public async Task<bool?> HoldAfterErrorAsync(Exception exception, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        if (exception is OperationCanceledException or MeridianFlipFailedException)
+        {
+            return null;
+        }
+
+        Task<bool>? running;
+        lock (_gate)
+        {
+            running = _errorHold;
+            if (running is null && (_passed || _flipping || !_initialized || _decision is not null))
+            {
+                return null;
+            }
+        }
+
+        if (running is not null)
+        {
+            return await running.WaitAsync(cancellationToken);
+        }
+
+        double minutes;
+        try
+        {
+            minutes = HourAngleMinutes();
+        }
+        catch (MeridianFlipFailedException)
+        {
+            return null;
+        }
+
+        if (minutes < -(_plan.Settings.PauseBeforeMeridianMinutes + EndOfRunMarginMinutes))
+        {
+            return null;
+        }
+
+        var source = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_gate)
+        {
+            running = _errorHold;
+            if (running is null)
+            {
+                _errorHold = source.Task;
+            }
+        }
+
+        if (running is not null)
+        {
+            return await running.WaitAsync(cancellationToken);
+        }
+
+        try
+        {
+            var retry = await HoldForTheUserAsync(exception, minutes, cancellationToken);
+            source.SetResult(retry);
+            return retry;
+        }
+        catch (Exception ex)
+        {
+            source.SetException(ex);
+            _ = source.Task.Exception; // observed here; the others that wait get it too
+            throw;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _errorHold = null;
+            }
+        }
+    }
+
+    private async Task<bool> HoldForTheUserAsync(Exception exception, double minutes, CancellationToken cancellationToken)
+    {
+        Log(
+            "MeridianErrorHold", "An error {Minutes:0.#} min from the meridian without the flip: {Reason} (mount {Mount}, setups {Setups}); guiding and tracking are stopped and the setups held",
+            minutes, exception.Message, MountId, string.Join(", ", SetupNames));
+        var problem = await StopGuidingAndTrackingAsync(CancellationToken.None);
+        var message = $"Something went wrong near the meridian: {exception.Message.TrimEnd()} " +
+            (problem ?? "Guiding and tracking were stopped, and the setups on this mount are held.") + " Retry to go on (tracking and guiding start again), or abort the session.";
+
+        var decision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_gate)
+        {
+            _decision = decision;
+        }
+
+        await SetStateAsync(MeridianFlipState.Failed, message, SafeHourAngleHours(), CancellationToken.None);
+        using var registration = cancellationToken.Register(() => decision.TrySetCanceled(cancellationToken));
+        bool retry;
+        try
+        {
+            retry = await decision.Task;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _decision = null;
+            }
+        }
+
+        if (!retry)
+        {
+            return false;
+        }
+
+        await ResumeAfterErrorAsync(cancellationToken);
+        return true;
+    }
+
+    // The user retries. Tracking and guiding come back, unless the hold of the mount (it stands still until the flip) is on: then it stays still, as it would have.
+    private async Task ResumeAfterErrorAsync(CancellationToken cancellationToken)
+    {
+        var minutes = HourAngleMinutes();
+        if (_plan.Settings.StopTrackingWhileHolding && minutes >= -_plan.Settings.PauseBeforeMeridianMinutes)
+        {
+            lock (_gate)
+            {
+                _standstillDone = true;
+            }
+
+            await SetStateAsync(MeridianFlipState.HoldingForSafePoint, "The mount stands still before the meridian until the flip.", minutes / 60, cancellationToken);
+            return;
+        }
+
+        if (_services.Registry.TryGet(_plan.MountId, out var device) && device is IMountControl { ConnectionState: DeviceConnectionState.Connected } control)
+        {
+            await control.SetTrackingAsync(true, cancellationToken);
+        }
+
+        List<DeviceId> guiders;
+        lock (_gate)
+        {
+            guiders = [.. _wasGuiding];
+        }
+
+        foreach (var guiderId in guiders)
+        {
+            if (_services.Registry.TryGet(guiderId, out var guiderDevice) && guiderDevice is IGuider { ConnectionState: DeviceConnectionState.Connected } guider)
+            {
+                await guider.StartGuidingAsync(cancellationToken);
+                if (guider is IGuidingSettler settler)
+                {
+                    await settler.SettleAsync(_plan.Settle, cancellationToken);
+                }
+            }
+        }
+
+        lock (_gate)
+        {
+            _wasGuiding.Clear();
+        }
+
+        await SetStateAsync(MeridianFlipState.Approaching, "Going on after the error.", minutes / 60, cancellationToken);
     }
 
     /// <summary>The flip failed and waits: try it again (the mount is flipped, centered and so on as before).</summary>

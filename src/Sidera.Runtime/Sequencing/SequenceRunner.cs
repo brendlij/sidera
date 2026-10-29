@@ -346,6 +346,9 @@ public sealed class SequenceRunner
         }
     }
 
+    /// <summary>Told when a step failed, before the failure goes up; it can ask for the step to be run again. <c>null</c>: failures go up.</summary>
+    public IStepFailureHandler? FailureHandler { get; set; }
+
     // One execution of one step: mark it current, run it, then report its result.
     private async Task<SequenceStepResult> ExecuteStepAsync(
         ISequenceStep step,
@@ -390,6 +393,55 @@ public sealed class SequenceRunner
                 cancellationToken);
         }
 
+        var path = _logger.IsEnabled(LogLevel.Debug) ? PathOf(position) : string.Empty;
+        SequenceStepResult result;
+
+        // A step that failed is run again when the failure handler says so (it waited for a decision first); otherwise the failure goes up.
+        while (true)
+        {
+            try
+            {
+                result = await RunStepOnceAsync(step, position, branch, insideCoordinatedOperation, path, cancellationToken);
+                break;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && FailureHandler is not null && !StepFailureHandling.IsHandled(ex))
+            {
+                bool retry;
+                try
+                {
+                    retry = await FailureHandler.HandleAsync(step, ex, cancellationToken);
+                }
+                catch (Exception handlerFailure) when (handlerFailure is not OperationCanceledException)
+                {
+                    StepFailureHandling.MarkHandled(handlerFailure);
+                    throw;
+                }
+
+                if (!retry)
+                {
+                    StepFailureHandling.MarkHandled(ex);
+                    throw;
+                }
+
+                _logger.LogInformation("Step {StepPath} is run again after the failure: {Reason}", path, ex.Message);
+            }
+        }
+
+        // Reported after the resources are released, so observers never run while holding them.
+        RaiseStepCompleted(new SequenceStepCompletedEventArgs(position, result));
+        return result;
+    }
+
+    // One run of one step, from marking it current to the end of its resources: completed, failed or cancelled.
+    private async Task<SequenceStepResult> RunStepOnceAsync(
+        ISequenceStep step,
+        SequenceExecutionPosition position,
+        BranchScope? branch,
+        bool insideCoordinatedOperation,
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
         lock (_gate)
         {
             _currentPosition = position;
@@ -400,7 +452,6 @@ public sealed class SequenceRunner
 
         SequenceStepResult result;
         var stepStarted = Stopwatch.GetTimestamp();
-        var path = _logger.IsEnabled(LogLevel.Debug) ? PathOf(position) : string.Empty;
         _logger.LogDebug("Step {StepPath} started", path);
 
         try
@@ -422,6 +473,9 @@ public sealed class SequenceRunner
                 result = await step.ExecuteAsync(
                     new StepContext(this, position, branch, insideCoordinatedOperation), cancellationToken);
             }
+
+            LogStepEnd(step, path, "completed", stepStarted, null);
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -444,12 +498,6 @@ public sealed class SequenceRunner
 
             RaiseChanged();
         }
-
-        LogStepEnd(step, path, "completed", stepStarted, null);
-
-        // Reported after the resources are released, so observers never run while holding them.
-        RaiseStepCompleted(new SequenceStepCompletedEventArgs(position, result));
-        return result;
     }
 
     // The end of a step: Debug for every step; a parallel block (the Multi-Rig block) is Information as well. A step that

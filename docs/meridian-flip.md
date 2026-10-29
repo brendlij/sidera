@@ -31,7 +31,8 @@ Stop guiding → slew to the **same target** (the driver chooses the pier side) 
 - **A flip that failed before the mount changed sides stops its tracking**, so that it does not track on into its limits, and says so. A mount that did change sides stands on the safe side and keeps tracking. A flip that is overdue stops the tracking too.
 - **A retry** starts the tracking again and goes on from where the centering had got to, instead of starting again from the uncorrected target.
 - **Centering after the flip** lets the mount settle after a slew, tries a solve that found nothing twice more with a new exposure, and starts tracking when the mount says it is not tracking (a frame without tracking cannot be solved).
-- A failed flip is an **error message** with a button to the session, and the session shows **Retry the flip** and **Abort the session**.
+- A failed flip is an **error message** with a button to the session, and the session shows **Retry** and **Abort the session**.
+- **A failure of any step near the meridian does not end the session.** When a step fails (the guider loses its star, a dither fails, a camera error) while the flip is still to come and the target is within the hold (plus 10 minutes) of the meridian or past it, the session is held where it is: guiding and tracking are stopped, no setup of the mount exposes, and the error is shown with **Retry** and **Abort the session**. Retry starts tracking and guiding again (when the mount is to stand still until the flip it stays still) and runs the failed step again; Abort ends the session as a failure, with the tracking stopped. Far from the meridian a failure ends the session as it always did.
 - The target position is brought from J2000 to the date before the hour angle is worked out (about 80 seconds of time for a target of today), so the countdown agrees with a planetarium.
 
 ## The limits of the mount

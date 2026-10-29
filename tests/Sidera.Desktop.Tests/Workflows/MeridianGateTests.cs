@@ -210,6 +210,139 @@ public sealed class MeridianGateTests : IAsyncLifetime
         Assert.False(plain.StopTrackingWhileHolding);
     }
 
+    private static async Task WaitForAsync(Func<bool> condition, string what)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Timed out waiting for: " + what);
+            await Task.Delay(5);
+        }
+    }
+
+    [Fact]
+    public async Task AnErrorNearTheMeridian_StopsTheTracking_HoldsEverybody_AndWaitsForTheUser_WhoRetries()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(-3);
+
+        var held = group.HoldAfterErrorAsync(new InvalidOperationException("Guider 'guider.main' is not guiding."), CancellationToken.None);
+        await WaitForAsync(() => group.IsWaitingForDecision, "the group to wait for the user");
+
+        Assert.False(mount.Telemetry!.Tracking); // stopped at once
+        Assert.Equal(MeridianFlipState.Failed, group.State);
+        Assert.Contains("Something went wrong near the meridian: Guider 'guider.main' is not guiding.", group.Message, StringComparison.Ordinal);
+        Assert.Contains("Retry to go on", group.Message, StringComparison.Ordinal);
+        Assert.Equal(MeridianGateDecision.Wait, await group.EvaluateAsync(1, CancellationToken.None)); // the other setups wait
+
+        Assert.True(group.Retry());
+        Assert.True(await held);
+        Assert.True(mount.Telemetry!.Tracking); // back on, the step is run again
+        Assert.False(group.IsWaitingForDecision);
+        Assert.Equal(MeridianGateDecision.Clear, await group.EvaluateAsync(1, CancellationToken.None)); // the others expose again
+    }
+
+    [Fact]
+    public async Task AnErrorNearTheMeridian_WhichTheUserAborts_GoesOnAsAFailure_WithTheTrackingStopped()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(1);
+
+        var held = group.HoldAfterErrorAsync(new InvalidOperationException("boom"), CancellationToken.None);
+        await WaitForAsync(() => group.IsWaitingForDecision, "the group to wait for the user");
+        Assert.True(group.Abort());
+
+        Assert.False(await held);
+        Assert.False(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task AnErrorWhileTheUserIsCancelling_EndsTheWait()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(-2);
+        using var cts = new CancellationTokenSource();
+
+        var held = group.HoldAfterErrorAsync(new InvalidOperationException("boom"), cts.Token);
+        await WaitForAsync(() => group.IsWaitingForDecision, "the group to wait for the user");
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => held);
+        Assert.False(mount.Telemetry!.Tracking);
+        Assert.False(group.IsWaitingForDecision);
+    }
+
+    [Fact]
+    public async Task AnErrorFarFromTheMeridian_IsNotTheFlipsBusiness()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+
+        Assert.Null(await group.HoldAfterErrorAsync(new InvalidOperationException("boom"), CancellationToken.None));
+        Assert.True(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task ErrorsThatTheFlipHandlesItself_OrThatAreNotErrors_AreNotHeld()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(-3);
+
+        Assert.Null(await group.HoldAfterErrorAsync(new MeridianFlipFailedException("The flip failed."), CancellationToken.None));
+        Assert.Null(await group.HoldAfterErrorAsync(new OperationCanceledException(), CancellationToken.None));
+        Assert.True(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task WhenTheFlipIsNotNeededOrNotYetLookedAt_AnErrorIsNotHeld()
+    {
+        var clock = new Clock();
+        var (group, mount) = await TrackingGroupAsync(clock);
+        clock.SetHourAngle(-3);
+        Assert.Null(await group.HoldAfterErrorAsync(new InvalidOperationException("boom"), CancellationToken.None)); // no look at the sky yet
+
+        clock.SetHourAngle(40);
+        await group.EvaluateAsync(1, CancellationToken.None); // past the meridian at the first look: no flip needed
+        Assert.Null(await group.HoldAfterErrorAsync(new InvalidOperationException("boom"), CancellationToken.None));
+        Assert.True(mount.Telemetry!.Tracking);
+    }
+
+    [Fact]
+    public async Task WithTheStandstill_ARetryInsideTheHold_KeepsTheMountStill_UntilTheFlip()
+    {
+        var clock = new Clock();
+        var group = StandstillGroup(clock);
+        Assert.True(_host.DeviceRegistry.TryGet(new("mount.1"), out var device));
+        var mount = Assert.IsAssignableFrom<IMountControl>(device);
+        await device!.ConnectAsync();
+        await mount.SetTrackingAsync(true);
+        clock.SetHourAngle(-60);
+        await group.EvaluateAsync(1, CancellationToken.None);
+        clock.SetHourAngle(-3);
+
+        var held = group.HoldAfterErrorAsync(new InvalidOperationException("boom"), CancellationToken.None);
+        await WaitForAsync(() => group.IsWaitingForDecision, "the group to wait for the user");
+        group.Retry();
+        Assert.True(await held);
+
+        Assert.False(mount.Telemetry!.Tracking); // it stands still until the flip, as it would have
+        Assert.Equal(MeridianGateDecision.Wait, await group.EvaluateAsync(1, CancellationToken.None)); // not a second standstill: it is done
+    }
+
     [Fact]
     public async Task ATargetThatIsAlreadyWestOfTheMeridianAtTheFirstLook_NeedsNoFlip_AndStaysClear()
     {
