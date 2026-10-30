@@ -86,6 +86,21 @@ public class AutofocusSequencerTests
     }
 
     [Fact]
+    public void TheStatus_SaysWhetherTheFocuserMovesOrTheCameraExposes()
+    {
+        var status = new AutofocusStatusViewModel(Main, "Main Rig");
+
+        status.Apply(new AutofocusProgress(AutofocusPhase.MovingToSample, 1, 2, 7, 20100));
+        Assert.Equal(["Sample 2 / 7", "Moving to 20100"], status.Lines);
+        Assert.Equal("Sample 2 / 7 · moving the focuser", status.Summary);
+
+        status.Apply(new AutofocusProgress(AutofocusPhase.Exposing, 1, 2, 7, 20100));
+        Assert.Equal(["Sample 2 / 7", "Exposing at 20100"], status.Lines);
+        Assert.Equal("Sample 2 / 7 · exposing", status.Summary);
+        Assert.True(status.IsActive);
+    }
+
+    [Fact]
     public void TheStatus_ShowsOnlyWhatTheRunReported_InTheWordsOfTheSpec()
     {
         var status = new AutofocusStatusViewModel(Main, "Main Rig");

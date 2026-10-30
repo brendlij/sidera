@@ -26,6 +26,7 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
     private readonly DeviceId _focuserId;
     private readonly IFocusMetricProvider _metrics;
     private readonly IAcquisitionDefaultsSource? _acquisitionDefaults;
+    private readonly Func<CameraFrame, int, CancellationToken, Task>? _frameCaptured;
 
     public FocusMeasurementOperation(
         DeviceRegistry registry,
@@ -33,7 +34,8 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
         DeviceId cameraId,
         DeviceId focuserId,
         IFocusMetricProvider metrics,
-        IAcquisitionDefaultsSource? acquisitionDefaults = null)
+        IAcquisitionDefaultsSource? acquisitionDefaults = null,
+        Func<CameraFrame, int, CancellationToken, Task>? frameCaptured = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(metrics);
@@ -44,6 +46,7 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
         _focuserId = focuserId;
         _metrics = metrics;
         _acquisitionDefaults = acquisitionDefaults;
+        _frameCaptured = frameCaptured;
     }
 
     /// <exception cref="InvalidOperationException">
@@ -75,6 +78,19 @@ public sealed class FocusMeasurementOperation : IFocusMeasurer
         if (focuser.Position != position || focuser.MotionState != FocuserMotionState.Idle)
         {
             throw new InvalidOperationException("The focuser moved during the focus exposure.");
+        }
+
+        // The frame can be looked at before it is measured (and when it cannot be measured); a listener that fails does not fail the focus.
+        if (_frameCaptured is not null)
+        {
+            try
+            {
+                await _frameCaptured(frame, position, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Nobody is listening, or the listener failed: the measurement goes on.
+            }
         }
 
         FocusMeasurement measurement;

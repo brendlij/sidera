@@ -137,7 +137,7 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep, IClaimingSeque
                 RigId, CameraId, FocuserId, focuser.Position, Options.SampleCount, Options.StepSize,
                 Options.ExposureDuration.TotalSeconds);
 
-            var measurer = new FocusMeasurementOperation(_registry, RigId, CameraId, FocuserId, _metrics, _acquisitionDefaults);
+            var measurer = new FocusMeasurementOperation(_registry, RigId, CameraId, FocuserId, _metrics, _acquisitionDefaults, PublishFrame);
             var result = Options.Strategy.Mode == AutofocusMode.Search
                 ? await SearchAutofocusEngine.RunAsync(focuser, measurer, Options, RigId, Report, cancellationToken)
                 : await AutofocusEngine.RunAsync(focuser, measurer, Options, Report, cancellationToken);
@@ -183,6 +183,9 @@ public sealed class AutofocusAction : IResourceAwareSequenceStep, IClaimingSeque
             ? Task.CompletedTask
             : _events.PublishAsync(new AutofocusProgressChanged(RigId, progress), cancellationToken);
     }
+
+    private Task PublishFrame(CameraFrame frame, int position, CancellationToken cancellationToken) =>
+        _events is null ? Task.CompletedTask : _events.PublishAsync(new AutofocusFrameCaptured(RigId, CameraId, frame, position), cancellationToken);
 
     private Task Publish(AutofocusProgress progress, CancellationToken cancellationToken) =>
         _events is null

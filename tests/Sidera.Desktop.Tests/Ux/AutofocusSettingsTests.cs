@@ -70,6 +70,20 @@ public sealed class AutofocusSettingsTests : IDisposable
     }
 
     [Fact]
+    public void TheStepOfTheFinePass_IsSaved_BecomesTheStrategy_AndIsChecked()
+    {
+        var settings = SideraSettings.Empty with { Autofocus = new AutofocusDefaults { FineStepPercent = 40 } };
+
+        var loaded = SideraSettingsSerializer.Deserialize(SideraSettingsSerializer.Serialize(settings)).Autofocus;
+
+        Assert.Equal(40, loaded.FineStepPercent);
+        Assert.Equal(40, loaded.Strategy(null).FineStepPercent);
+        Assert.Equal(25, new AutofocusDefaults().FineStepPercent);
+        Assert.Contains("finer pass", new AutofocusDefaults { FineStepPercent = 3 }.Problem);
+        Assert.Contains("finer pass", new AutofocusDefaults { FineStepPercent = 95 }.Problem);
+    }
+
+    [Fact]
     public void TheFinePassAndTheSearchRange_BecomeTheStrategyOfARun_AndTheRangeIsChecked()
     {
         var strategy = new AutofocusDefaults { FinePass = false, SearchRangeSteps = 600 }.Strategy(null);

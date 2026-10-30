@@ -1,4 +1,5 @@
 using System.Globalization;
+using Sidera.Core.Devices;
 using Sidera.Core.Events;
 using Sidera.Core.Rigs;
 
@@ -127,7 +128,13 @@ public enum AutofocusPhase
     Completed,
 
     /// <summary>The run ended without a result: cancelled or failed.</summary>
-    Stopped
+    Stopped,
+
+    /// <summary>The focuser is moving to the next sample position (<see cref="AutofocusProgress.Position"/>); no sample was taken yet.</summary>
+    MovingToSample,
+
+    /// <summary>The camera is exposing at the sample position (<see cref="AutofocusProgress.Position"/>).</summary>
+    Exposing
 }
 
 /// <summary>
@@ -149,6 +156,9 @@ public sealed record AutofocusProgress(
     int? BestPosition = null,
     double? BestHfr = null
 );
+
+/// <summary>The frame of an autofocus exposure, the moment it arrived and before it is measured, so that it can be looked at. Published on the event bus.</summary>
+public sealed record AutofocusFrameCaptured(RigId RigId, DeviceId CameraId, CameraFrame Frame, int Position) : ISideraEvent;
 
 /// <summary>The progress of the autofocus of a rig. Published on the event bus; nothing in a device state.</summary>
 public sealed record AutofocusProgressChanged(RigId RigId, AutofocusProgress Progress) : ISideraEvent;

@@ -158,7 +158,8 @@
                 </Grid>
                 <TextBlock Classes="eyebrow" Text="HOW THE FOCUS IS FOUND" />
                 <CheckBox Content="Search for the focus: start where the focuser stands, turn round when the stars get larger" IsChecked="{Binding SearchForFocus}" AutomationProperties.AutomationId="AutofocusSearch" />
-                <CheckBox Content="A second, finer pass (a quarter of the step) around what the first pass found" IsChecked="{Binding FinePass}" AutomationProperties.AutomationId="AutofocusFinePass" />
+                <CheckBox Content="A second, finer pass around what the first pass found" IsChecked="{Binding FinePass}" AutomationProperties.AutomationId="AutofocusFinePass" />
+                <ctl:LabeledField Label="Step of the finer pass (% of the step size, 5 to 90)"><TextBox Text="{Binding FineStepText}" IsEnabled="{Binding FinePass}" AutomationProperties.Name="Autofocus fine step" /></ctl:LabeledField>
                 <CheckBox Content="Fit straight lines to the two sides instead of a hyperbola" IsChecked="{Binding FitTrendLines}" AutomationProperties.AutomationId="AutofocusTrendLines" />
                 <CheckBox Content="With no star where the focuser stands, go to the position where focus was found last" IsChecked="{Binding UseRememberedPosition}" AutomationProperties.AutomationId="AutofocusRemember" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">

@@ -145,6 +145,9 @@ public sealed record AutofocusStrategy
     /// </summary>
     public bool FinePass { get; init; } = true;
 
+    /// <summary>The step of the finer pass as a percentage of the step size of the first pass, from 5 to 90.</summary>
+    public int FineStepPercent { get; init; } = 25;
+
     /// <summary>How far from where the search started it may go, in focuser steps, to either side; 0 is ten steps of the step size.</summary>
     public int MaxTravelSteps { get; init; }
 

@@ -112,6 +112,9 @@ public sealed record AutofocusDefaults
     /// <summary>A second pass with a quarter of the step size around what the first pass found: the first finds the focus roughly, the second exactly.</summary>
     public bool FinePass { get; init; } = true;
 
+    /// <summary>The step of the second pass as a percentage of the step size of the first, from 5 to 90.</summary>
+    public int FineStepPercent { get; init; } = 25;
+
     /// <summary>How far from where it started the search may go, in focuser steps, to either side; 0 is ten steps of the step size.</summary>
     public int SearchRangeSteps { get; init; }
 
@@ -133,6 +136,7 @@ public sealed record AutofocusDefaults
         Mode = SearchForFocus ? AutofocusMode.Search : AutofocusMode.Pattern,
         FitMethod = FitMethod,
         FinePass = FinePass,
+        FineStepPercent = FineStepPercent,
         MaxTravelSteps = SearchRangeSteps,
         MaxSamples = MaxSamples,
         MaxFailedSamples = MaxFailedSamples,
@@ -146,6 +150,7 @@ public sealed record AutofocusDefaults
         : SampleCount < AutofocusOptions.MinimumSampleCount || SampleCount > AutofocusOptions.MaximumSampleCount || SampleCount % 2 == 0
             ? $"The number of samples must be odd, from {AutofocusOptions.MinimumSampleCount} to {AutofocusOptions.MaximumSampleCount}."
         : MaxSamples != 0 && (MaxSamples < SampleCount || MaxSamples > 100) ? "The most samples of a search must be 0 (the search decides) or from the number of samples to 100."
+        : FineStepPercent is < 5 or > 90 ? "The step of the finer pass must be from 5 to 90 percent of the step size."
         : SearchRangeSteps is < 0 or > 1_000_000 ? "The search range must be 0 (automatic) or from 1 to 1000000 focuser steps."
         : MaxFailedSamples is < 0 or > 10 ? "The samples that may fail in a row must be from 0 to 10."
         : !double.IsFinite(PolicyIntervalMinutes) || PolicyIntervalMinutes is < 0 or > 1440 ? "The autofocus interval must be from 0 to 1440 minutes."

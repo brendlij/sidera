@@ -131,6 +131,16 @@ public sealed partial class AutofocusStatusViewModel : ObservableObject
                 }
 
                 break;
+            case AutofocusPhase.MovingToSample:
+                IsActive = true;
+                Show([Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount}"), Invariant($"Moving to {progress.Position}"), .. Pass(progress)]);
+                Summarize(Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount} · moving the focuser"));
+                break;
+            case AutofocusPhase.Exposing:
+                IsActive = true;
+                Show([Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount}"), Invariant($"Exposing at {progress.Position}"), .. Pass(progress)]);
+                Summarize(Invariant($"Sample {progress.SampleIndex} / {progress.SampleCount} · exposing"));
+                break;
             case AutofocusPhase.Fitting:
                 Show(["Fitting focus curve", .. Pass(progress)]);
                 Summarize("Fitting focus curve");

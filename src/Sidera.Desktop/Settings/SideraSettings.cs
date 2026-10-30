@@ -96,6 +96,7 @@ public static class SideraSettingsSerializer
             w.WriteBoolean("searchForFocus", settings.Autofocus.SearchForFocus);
             w.WriteString("fitMethod", settings.Autofocus.FitMethod == FocusFitMethod.TrendLines ? "trendLines" : "hyperbola");
             w.WriteBoolean("finePass", settings.Autofocus.FinePass);
+            w.WriteNumber("fineStepPercent", settings.Autofocus.FineStepPercent);
             w.WriteNumber("searchRangeSteps", settings.Autofocus.SearchRangeSteps);
             w.WriteNumber("maxSamples", settings.Autofocus.MaxSamples);
             w.WriteNumber("maxFailedSamples", settings.Autofocus.MaxFailedSamples);
@@ -293,6 +294,7 @@ public static class SideraSettingsSerializer
                 SearchForFocus = Flag(autofocus, "searchForFocus", d.SearchForFocus, "autofocus"),
                 FitMethod = autofocus.TryGetProperty("fitMethod", out var fit) && fit.ValueKind == JsonValueKind.String && fit.GetString() == "trendLines" ? FocusFitMethod.TrendLines : FocusFitMethod.Hyperbola,
                 FinePass = Flag(autofocus, "finePass", d.FinePass, "autofocus"),
+                FineStepPercent = Int(autofocus, "fineStepPercent", d.FineStepPercent, "autofocus"),
                 SearchRangeSteps = Int(autofocus, "searchRangeSteps", d.SearchRangeSteps, "autofocus"),
                 MaxSamples = Int(autofocus, "maxSamples", d.MaxSamples, "autofocus"),
                 MaxFailedSamples = Int(autofocus, "maxFailedSamples", d.MaxFailedSamples, "autofocus"),

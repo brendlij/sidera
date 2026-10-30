@@ -94,6 +94,14 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
     [ObservableProperty]
     public partial string StatusText { get; private set; } = string.Empty;
 
+    /// <summary>How far the samples of the run are, from 0 to 1; the run may take more samples than planned, so it can stay below 1 until the end.</summary>
+    [ObservableProperty]
+    public partial double Progress { get; private set; }
+
+    /// <summary>The run is busy but there is nothing to measure progress by (fitting, moving to the best position, checking).</summary>
+    [ObservableProperty]
+    public partial bool ProgressIsIndeterminate { get; private set; }
+
     /// <summary>Where the focuser is now, or "—".</summary>
     [ObservableProperty]
     public partial string PositionText { get; private set; } = "—";
@@ -308,15 +316,28 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
         var p = e.Progress;
         switch (p.Phase)
         {
+            case AutofocusPhase.MovingToSample:
+                SetProgress(p.SampleIndex - 1, p.SampleCount);
+                PositionText = p.Position?.ToString(CultureInfo.InvariantCulture) ?? PositionText;
+                StatusText = string.Create(CultureInfo.InvariantCulture, $"Sample {p.SampleIndex} / {p.SampleCount} · moving the focuser to {p.Position}");
+                break;
+            case AutofocusPhase.Exposing:
+                SetProgress(p.SampleIndex - 1, p.SampleCount);
+                StatusText = string.Create(CultureInfo.InvariantCulture, $"Sample {p.SampleIndex} / {p.SampleCount} · exposing at {p.Position} ({ExposureText} s)");
+                break;
             case AutofocusPhase.Measuring when p.SampleIndex == 0:
                 if (p.Attempt == 1)
                 {
                     Samples.Clear();
+                    BestPosition = null;
                 }
+
+                SetProgress(0, p.SampleCount);
 
                 StatusText = string.Create(CultureInfo.InvariantCulture, $"Sampling {p.SampleCount} focus positions{(p.Attempt > 1 ? $" · pass {p.Attempt}" : string.Empty)}");
                 break;
             case AutofocusPhase.Measuring:
+                SetProgress(p.SampleIndex, p.SampleCount);
                 if (p.Position is { } position && p.Hfr is { } hfr)
                 {
                     Samples.Add(new FocusSampleRow(position, hfr));
@@ -326,6 +347,7 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
 
                 break;
             case AutofocusPhase.Fitting:
+                ProgressIsIndeterminate = true;
                 StatusText = "Fitting focus curve";
                 break;
             case AutofocusPhase.Moving:
@@ -337,6 +359,12 @@ public sealed partial class ManualAutofocusViewModel : ViewModelBase, IDisposabl
         }
 
         OnPropertyChanged(nameof(HasSamples));
+    }
+
+    private void SetProgress(int taken, int planned)
+    {
+        ProgressIsIndeterminate = false;
+        Progress = planned > 0 ? Math.Clamp((double)taken / planned, 0, 1) : 0;
     }
 
     public void Dispose() => _subscription.Dispose();

@@ -118,7 +118,8 @@
                             <TextBlock Classes="secondary" Text="{Binding StatusText}" TextWrapping="Wrap" IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                        AutomationProperties.AutomationId="AutofocusStatus" />
                             <TextBlock Classes="danger" Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
-                            <ctl:FocusCurveView Samples="{Binding Samples}" BestPosition="{Binding BestPosition}" Height="110" IsVisible="{Binding HasSamples}" />
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}" IsIndeterminate="{Binding ProgressIsIndeterminate}" IsVisible="{Binding IsRunning}" AutomationProperties.AutomationId="AutofocusProgress" />
+                            <ctl:FocusCurveView Samples="{Binding Samples}" BestPosition="{Binding BestPosition}" Height="190" IsVisible="{Binding HasSamples}" />
                             <ItemsControl ItemsSource="{Binding Samples}" IsVisible="{Binding HasSamples}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:FocusSampleRow">

@@ -380,6 +380,20 @@ public class SearchAutofocusEngineTests
     }
 
     [Fact]
+    public async Task TheStepOfTheFinePass_IsAFractionOfTheCoarseStepThatCanBeSet()
+    {
+        var focuser = await FocuserAsync(Focus + 130);
+        var measurer = new BlurMeasurer(focuser, p => Hyperbola(p, floor: 2.4, slope: 0.04));
+        var options = new AutofocusOptions(Exposure, 80, 7, true, TimeSpan.Zero, 2) { Strategy = new AutofocusStrategy { Mode = AutofocusMode.Search, FineStepPercent = 50 } };
+
+        await Run(focuser, measurer, options);
+
+        var positions = measurer.Positions.Distinct().OrderBy(p => p).ToList();
+        Assert.Contains(positions, p => positions.Any(q => q - p == 40));
+        Assert.DoesNotContain(positions, p => positions.Any(q => q - p == 20));
+    }
+
+    [Fact]
     public void TheSearchHasAFinePassAndATravelLimit_ByDefault()
     {
         var strategy = new AutofocusStrategy();

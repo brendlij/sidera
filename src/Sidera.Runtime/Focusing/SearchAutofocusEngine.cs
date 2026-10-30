@@ -76,8 +76,10 @@ public static class SearchAutofocusEngine
             position = Math.Clamp(position, focuser.MinPosition, focuser.MaxPosition);
             cancellationToken.ThrowIfCancellationRequested();
             tried.Add(position);
+            await Report(new AutofocusProgress(AutofocusPhase.MovingToSample, attempt, taken + 1, Math.Max(options.SampleCount, taken + 1), position));
             await MoveTo(focuser, position, options.SettleDelay, cancellationToken);
             taken++;
+            await Report(new AutofocusProgress(AutofocusPhase.Exposing, attempt, taken, Math.Max(options.SampleCount, taken), position));
             try
             {
                 var sample = await measurer.MeasureAsync(options.ExposureDuration, cancellationToken);
@@ -291,7 +293,7 @@ public static class SearchAutofocusEngine
         }
 
         // The fine pass: a quarter of the step around what the coarse pass found. It refines the result and never takes it away: when it finds no curve, the coarse result stands.
-        var fineStep = Math.Max(1, coarseStep / 4);
+        var fineStep = Math.Max(1, (int)Math.Round(coarseStep * Math.Clamp(strategy.FineStepPercent, 5, 90) / 100.0));
         if (strategy.FinePass && fineStep < coarseStep && taken < maxSamples)
         {
             attempt++;

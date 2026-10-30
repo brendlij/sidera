@@ -133,6 +133,12 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
             return Task.CompletedTask;
         });
+        // The frame an autofocus run just took is the one in the imaging page, so the stars can be looked at while the focus is searched.
+        _autofocusFrames = host.EventBus.Subscribe<Sidera.Core.Focusing.AutofocusFrameCaptured>((e, _) =>
+        {
+            postToUi(() => Imaging.Publish(e.Frame, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Autofocus · position {e.Position}"), e.CameraId));
+            return Task.CompletedTask;
+        });
         SequenceDraft.AutofocusHoldsMount = () => equipmentManagement?.Site?.Autofocus.HoldMountStable ?? false;
         SessionEditor = new SessionEditorViewModel(
             SequenceDraft, Setups, host.DeviceRegistry, defaults, Execution, host.EventBus, postToUi, () => equipmentManagement?.Site?.Site, equipmentManagement?.Site,
@@ -275,6 +281,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public new Sidera.Desktop.Notifications.NotificationService Notifications { get; }
 
     private readonly IDisposable _flipFailures;
+    private readonly IDisposable _autofocusFrames;
 
     /// <summary>Writes the frames of a session to disk (Settings → Imaging says where).</summary>
     public Sidera.Desktop.Imaging.SessionFrameSaver FrameSaver { get; }
@@ -461,6 +468,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     {
         // Frames that are still being written are finished first (for a while at most); nothing waits on the window.
         _flipFailures.Dispose();
+        _autofocusFrames.Dispose();
         FrameSaver.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(15));
         Notifications.Dispose();
         PlateSolve.Dispose();
