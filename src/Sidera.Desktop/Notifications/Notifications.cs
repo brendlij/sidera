@@ -187,6 +187,7 @@ public sealed class NotificationService : INotificationService, IDisposable
     }
 
     private readonly Action<Action> _postToUi;
+    private readonly object _uiGate = new();
     private readonly INotificationScheduler _scheduler;
     private readonly ObservableCollection<NotificationViewModel> _visible = [];
     private readonly Queue<NotificationViewModel> _waiting = new();
@@ -196,7 +197,14 @@ public sealed class NotificationService : INotificationService, IDisposable
 
     public NotificationService(Action<Action> postToUi, INotificationScheduler? scheduler = null)
     {
-        _postToUi = postToUi;
+        // On the interface thread the lock costs nothing; where the poster runs the action on the calling thread, a dismissing timer and a posting caller do not change the lists together.
+        _postToUi = action => postToUi(() =>
+        {
+            lock (_uiGate)
+            {
+                action();
+            }
+        });
         _scheduler = scheduler ?? new ThreadingNotificationScheduler(postToUi);
         Visible = new ReadOnlyObservableCollection<NotificationViewModel>(_visible);
     }

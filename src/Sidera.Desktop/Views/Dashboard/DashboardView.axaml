@@ -23,7 +23,7 @@
 
     <!--
         The dashboard: what Sidera is doing right now. The session at the top, the work or the equipment on the left,
-        the latest image on the right, what the session shares below.
+        the latest image under it, the mount and the guiding on the right, what the session shares below.
     -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource InsetPage}" Spacing="24" MaxWidth="1600">
@@ -84,6 +84,34 @@
                         </Grid>
                     </Border>
 
+                    <Border Classes="panel" IsVisible="{Binding ShowImagePanel}">
+                        <StackPanel Spacing="12" DataContext="{Binding Imaging}" x:DataType="vm:ImagingViewModel">
+                            <TextBlock Classes="eyebrow" Text="LATEST IMAGE" />
+                            <Border Classes="preview" MinHeight="320" MaxHeight="560">
+                                <Grid>
+                                    <Image Stretch="Uniform">
+                                        <Image.Source>
+                                            <MultiBinding Converter="{x:Static conv:FrameToBitmapConverter.Instance}">
+                                                <Binding Path="LatestFrame" />
+                                                <Binding Path="AutoStretch" />
+                                            </MultiBinding>
+                                        </Image.Source>
+                                    </Image>
+                                    <ctl:EmptyState Classes="on-preview" Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}" Margin="16"
+                                                    Title="No frame yet"
+                                                    Message="Capture an exposure to preview and analyze it." />
+                                </Grid>
+                            </Border>
+                            <StackPanel Spacing="2" IsVisible="{Binding HasFrame}">
+                                <TextBlock Classes="value" Text="{Binding AnalysisSummaryText}" TextWrapping="Wrap"
+                                           IsVisible="{Binding AnalysisSummaryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           AutomationProperties.AutomationId="DashboardFrameSummary" />
+                                <TextBlock Classes="meta" Text="{Binding SourceText}" TextWrapping="Wrap" />
+                                <TextBlock Classes="meta" Text="{Binding DimensionsText}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <!-- The equipment, as cards of the imaging setups, and as camera cards when no setup can image -->
                     <StackPanel Spacing="12" IsVisible="{Binding ShowUnitsPanel}">
                         <TextBlock Classes="eyebrow" Text="{Binding UnitsTitle, Converter={x:Static conv:UpperCaseConverter.Instance}}" />
@@ -97,7 +125,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Right: the latest image, and the guide graph when the guider measures -->
+                <!-- Right: the mount, and the guide graph when the guider measures -->
                 <StackPanel Grid.Column="1" Spacing="24" VerticalAlignment="Top" MinWidth="280">
                 <Border Classes="panel" IsVisible="{Binding ShowMountPanel}" AutomationProperties.AutomationId="DashboardMount">
                     <StackPanel Spacing="8" DataContext="{Binding Mount}" x:DataType="vm:DashboardMountViewModel">
@@ -106,12 +134,21 @@
                             <ctl:StatusIndicator Grid.Column="1" Kind="{Binding StateKind}" Text="{Binding StateText}" />
                         </Grid>
                         <TextBlock Classes="card-title" Text="{Binding Name}" />
-                        <ctl:InfoRow Label="Position" Value="{Binding PositionText}" IsVisible="{Binding HasPosition}" AutomationProperties.AutomationId="MountPosition" />
-                        <ctl:InfoRow Label="Sky" Value="{Binding HorizontalText}" IsVisible="{Binding HasHorizontal}" />
-                        <ctl:InfoRow Label="Side of pier" Value="{Binding PierText}" IsVisible="{Binding HasPier}" AutomationProperties.AutomationId="MountPier" />
-                        <ctl:InfoRow Label="Meridian" Value="{Binding MeridianText}" IsVisible="{Binding HasMeridian}" AutomationProperties.AutomationId="MountMeridian" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16" Margin="0,4">
+                            <StackPanel Spacing="2" IsVisible="{Binding HasMeridian}">
+                                <TextBlock Classes="meta" Text="MERIDIAN" />
+                                <TextBlock Classes="value-large" Text="{Binding MeridianText}" TextWrapping="Wrap" AutomationProperties.AutomationId="MountMeridian" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="2" IsVisible="{Binding HasPier}">
+                                <TextBlock Classes="meta" Text="SIDE OF PIER" />
+                                <TextBlock Classes="value-large" Text="{Binding PierText}" TextWrapping="Wrap" AutomationProperties.AutomationId="MountPier" />
+                            </StackPanel>
+                        </Grid>
                         <TextBlock Classes="secondary accent" Text="{Binding SessionMeridianText}" TextWrapping="Wrap" IsVisible="{Binding HasSessionMeridian}"
                                    AutomationProperties.AutomationId="MountSessionMeridian" />
+                        <Border Classes="divider" />
+                        <ctl:InfoRow Label="Position" Value="{Binding PositionText}" IsVisible="{Binding HasPosition}" AutomationProperties.AutomationId="MountPosition" />
+                        <ctl:InfoRow Label="Sky" Value="{Binding HorizontalText}" IsVisible="{Binding HasHorizontal}" />
                         <ctl:InfoRow Label="Time" Value="{Binding TimeText}" IsVisible="{Binding HasTime}" />
                         <ctl:InfoRow Label="Site" Value="{Binding SiteText}" IsVisible="{Binding HasSite}" />
                     </StackPanel>
@@ -125,39 +162,12 @@
                         <ctl:GuideGraph Height="160" History="{Binding GraphHistory}" Version="{Binding GraphVersion}"
                                         WindowSeconds="{Binding GraphWindowSeconds}" InArcseconds="{Binding GraphInArcseconds}"
                                         AutomationProperties.Name="Guide error graph" />
-                        <StackPanel Orientation="Horizontal" Spacing="24">
-                            <StackPanel><TextBlock Classes="meta" Text="RMS" /><TextBlock Classes="value" Text="{Binding RmsText}" /></StackPanel>
+                        <UniformGrid Columns="4">
+                            <StackPanel><TextBlock Classes="meta" Text="RMS" /><TextBlock Classes="value-large" Text="{Binding RmsText}" /></StackPanel>
                             <StackPanel><TextBlock Classes="meta" Text="RA" /><TextBlock Classes="value" Text="{Binding RmsRaText}" /></StackPanel>
                             <StackPanel><TextBlock Classes="meta" Text="Dec" /><TextBlock Classes="value" Text="{Binding RmsDecText}" /></StackPanel>
                             <StackPanel><TextBlock Classes="meta" Text="SNR" /><TextBlock Classes="value" Text="{Binding SnrText}" /></StackPanel>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-                <Border Classes="panel" IsVisible="{Binding ShowImagePanel}">
-                    <StackPanel Spacing="12" DataContext="{Binding Imaging}" x:DataType="vm:ImagingViewModel">
-                        <TextBlock Classes="eyebrow" Text="LATEST IMAGE" />
-                        <Border Classes="preview" MinHeight="200">
-                            <Grid>
-                                <Image Stretch="Uniform">
-                                    <Image.Source>
-                                        <MultiBinding Converter="{x:Static conv:FrameToBitmapConverter.Instance}">
-                                            <Binding Path="LatestFrame" />
-                                            <Binding Path="AutoStretch" />
-                                        </MultiBinding>
-                                    </Image.Source>
-                                </Image>
-                                <ctl:EmptyState Classes="on-preview" Icon="{StaticResource IconImaging}" IsVisible="{Binding !HasFrame}" Margin="16"
-                                                Title="No frame yet"
-                                                Message="Capture an exposure to preview and analyze it." />
-                            </Grid>
-                        </Border>
-                        <StackPanel Spacing="2" IsVisible="{Binding HasFrame}">
-                            <TextBlock Classes="value" Text="{Binding AnalysisSummaryText}" TextWrapping="Wrap"
-                                       IsVisible="{Binding AnalysisSummaryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       AutomationProperties.AutomationId="DashboardFrameSummary" />
-                            <TextBlock Classes="meta" Text="{Binding SourceText}" TextWrapping="Wrap" />
-                            <TextBlock Classes="meta" Text="{Binding DimensionsText}" />
-                        </StackPanel>
+                        </UniformGrid>
                     </StackPanel>
                 </Border>
                 </StackPanel>
